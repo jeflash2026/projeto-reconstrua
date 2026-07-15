@@ -16,7 +16,7 @@
 set -u
 
 SCRIPT_VERSION="v8-context (rebuild limpo 2026-07-15)"
-SCRIPT_SHA="proof-fc72e8b0"   # build id único desta publicação (bater com o SHA do commit)
+SCRIPT_SHA="proof-f7d25ab7"   # build id único desta publicação (bater com o SHA do commit)
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
@@ -33,6 +33,10 @@ mask() { # 4 primeiros + 4 últimos caracteres de um segredo
   if [ "${#s}" -le 8 ]; then printf '••••'; else printf '%s••••••••%s' "${s:0:4}" "${s: -4}"; fi
 }
 norm() { printf '%s' "$1" | sed 's/@.*//; s/:.*//' | tr -cd '0-9'; }
+# chave de identidade de nome: minúsculas + SÓ alfanuméricos (imune a caixa,
+# espaços, hífens, CR e qualquer byte não-alfanumérico oculto). Para um id hex
+# como BB66E755DEB1-48BF-B1AA-2D845B947A87 vira bb66e755deb148bfb1aa2d845b947a87.
+namekey() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9'; }
 
 getenvf() { grep -E "^$1=" "${APP_DIR}/.env" 2>/dev/null | head -1 | cut -d= -f2-; }
 setenvf() {
@@ -299,14 +303,14 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
     rm -f "${tbl}"; return 1
   fi
 
-  # chave de comparação do nome oficial: minúsculas + sem espaços (tolera caixa/espaço)
-  off_key="$(printf '%s' "${OFFICIAL_INSTANCE}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  # chave de identidade do nome oficial (só-alfanumérica, minúscula)
+  off_key="$(namekey "${OFFICIAL_INSTANCE}")"
   echo "  instâncias encontradas (nome | número | status | chats | msgs):"
   while IFS="${TAB}" read -r name jid st chats msgs; do
     num="$(norm "${jid}")"
     printf '   | %s | %s | %s | %s | %s |\n' "${name}" "${num:-?}" "${st:-?}" "${chats:-?}" "${msgs:-?}"
-    name_key="$(printf '%s' "${name}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
-    if [ "${name_key}" = "${off_key}" ]; then
+    name_key="$(namekey "${name}")"
+    if [ -n "${off_key}" ] && [ "${name_key}" = "${off_key}" ]; then
       off_found=1; off_name="${name}"; off_st="${st}"; off_num="${num}"
     fi
   done < "${tbl}"
@@ -342,6 +346,17 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
     return 0
   fi
   if [ "${mcount}" -gt 1 ]; then
+    # blindagem: se a oficial estiver entre os do mesmo número, ela vence (nunca ambíguo)
+    while IFS= read -r name; do
+      [ -n "${name}" ] || continue
+      if [ -n "${off_key}" ] && [ "$(namekey "${name}")" = "${off_key}" ]; then
+        EVOLUTION_INSTANCE="${name}"; WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
+        ok "instância OFICIAL '${EVOLUTION_INSTANCE}' presente entre as do número ${tgt} — selecionada; ambiguidade IGNORADA"
+        return 0
+      fi
+    done <<EOF
+${matches}
+EOF
     fail "AMBÍGUO: ${mcount} instâncias com o número ${tgt}:"
     printf '%s' "${matches}" | while IFS= read -r name; do [ -n "${name}" ] && fail "  • ${name}"; done
     fail "Não escolho a primeira. Deixe apenas UMA conectada com esse número e rode de novo."

@@ -16,7 +16,7 @@
 set -u
 
 SCRIPT_VERSION="v8-context (rebuild limpo 2026-07-15)"
-SCRIPT_SHA="proof-f558584c"   # build id único desta publicação (bater com o SHA do commit)
+SCRIPT_SHA="proof-c77a95c7"   # build id único desta publicação (bater com o SHA do commit)
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
@@ -426,8 +426,10 @@ main() {
   # ── IDENTIDADE OBRIGATÓRIA do script em execução ──
   printf 'SCRIPT_SHA=%s\n' "${SCRIPT_SHA}"
   printf 'SCRIPT_VERSION=%s\n' "${SCRIPT_VERSION}"
-  printf 'SCRIPT_PATH=%s\n' "$0"
-  sha256sum "$0" || true
+  echo "SCRIPT_PATH=$0"
+  sha256sum "$0"
+  echo "BASH_VERSION=$BASH_VERSION"
+  echo "AWK=$(awk -W version 2>/dev/null | head -1 || true)"
 
   say "0/8 Pré-requisitos"
   command -v docker >/dev/null 2>&1 || { warn "instalando docker"; curl -fsSL https://get.docker.com | sh >/dev/null 2>&1; }

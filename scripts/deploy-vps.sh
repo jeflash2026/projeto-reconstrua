@@ -16,7 +16,7 @@
 set -u
 
 SCRIPT_VERSION="v8-context (rebuild limpo 2026-07-15)"
-SCRIPT_SHA="proof-f7d25ab7"   # build id único desta publicação (bater com o SHA do commit)
+SCRIPT_SHA="proof-45dd83e6"   # build id único desta publicação (bater com o SHA do commit)
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
@@ -293,72 +293,62 @@ PY
 
 # seleção da instância: NOME oficial exato → senão NÚMERO oficial. Nunca "a primeira".
 select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER, ou retorna 1
-  local tbl name jid st chats msgs num name_key off_key
-  local off_found="" off_name="" off_st="" off_num="" tgt matches mcount
+  local tbl line name jid st off_key tgt mcount
+  local -a rows=()
+  EVOLUTION_INSTANCE=""; WHATSAPP_NUMBER=""
+
+  # ── etapa 0: parse robusto do JSON → TSV, carrega TODAS as instâncias em memória ──
   tbl="$(mktemp)"
   if ! json_instances "${INSTF}" > "${tbl}" || [ ! -s "${tbl}" ]; then
-    fail "não consegui parsear a resposta da Evolution como JSON (nem python3 nem jq disponíveis,"
-    fail "ou o corpo não é JSON). Primeiros bytes recebidos:"
+    fail "não consegui parsear a resposta da Evolution como JSON (nem python3 nem jq"
+    fail "disponíveis, ou o corpo não é JSON). Primeiros bytes recebidos:"
     head -c 200 "${INSTF}" | sed 's/^/    /'
     rm -f "${tbl}"; return 1
   fi
-
-  # chave de identidade do nome oficial (só-alfanumérica, minúscula)
-  off_key="$(namekey "${OFFICIAL_INSTANCE}")"
-  echo "  instâncias encontradas (nome | número | status | chats | msgs):"
-  while IFS="${TAB}" read -r name jid st chats msgs; do
-    num="$(norm "${jid}")"
-    printf '   | %s | %s | %s | %s | %s |\n' "${name}" "${num:-?}" "${st:-?}" "${chats:-?}" "${msgs:-?}"
-    name_key="$(namekey "${name}")"
-    if [ -n "${off_key}" ] && [ "${name_key}" = "${off_key}" ]; then
-      off_found=1; off_name="${name}"; off_st="${st}"; off_num="${num}"
-    fi
-  done < "${tbl}"
-
-  # 1) NOME oficial presente ⇒ PRIORIDADE ABSOLUTA. Selecionado imediatamente;
-  #    a verificação de ambiguidade por número NUNCA roda neste caminho.
-  if [ -n "${off_found}" ]; then
-    if printf '%s' "${off_st}" | grep -qiE '^(open|connected)$'; then
-      EVOLUTION_INSTANCE="${off_name}"   # nome REAL como está na Evolution (case exato p/ webhook)
-      WHATSAPP_NUMBER="${off_num}"
-      { [ -z "${WHATSAPP_NUMBER}" ] || [ "${WHATSAPP_NUMBER}" = "-" ]; } && WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
-      ok "instância OFICIAL por NOME: '${EVOLUTION_INSTANCE}' (status ${off_st}, número ${WHATSAPP_NUMBER})"
-      ok "usada EXCLUSIVAMENTE — ambiguidade por número IGNORADA; histórico preservado"
-      rm -f "${tbl}"; return 0
-    fi
-    fail "a instância oficial '${off_name}' existe mas NÃO está conectada (status: ${off_st:-?})."
-    fail "Nunca a substituo automaticamente. Reconecte-a no manager (preserva o histórico) e rode de novo."
-    rm -f "${tbl}"; return 1
-  fi
-
-  # 2) NÚMERO oficial normalizado — 0=laudo · 1=usa · N=ambíguo
-  tgt="$(norm "${OFFICIAL_NUMBER}")"; matches=""
-  while IFS="${TAB}" read -r name jid st chats msgs; do
-    [ "$(norm "${jid}")" = "${tgt}" ] && matches="${matches}${name}
-"
+  while IFS= read -r line || [ -n "${line}" ]; do
+    [ -n "${line}" ] && rows+=("${line}")
   done < "${tbl}"
   rm -f "${tbl}"
-  mcount="$(printf '%s' "${matches}" | grep -c . || true)"
+
+  echo "  instâncias encontradas (nome | número | status):"
+  for line in "${rows[@]}"; do
+    IFS="${TAB}" read -r name jid st _ <<< "${line}"
+    printf '   | %s | %s | %s |\n' "${name}" "$(norm "${jid}")" "${st:-?}"
+  done
+
+  # ── etapa 1: OFICIAL por NOME (chave só-alfanumérica). Achou ⇒ retorna JÁ. ──
+  off_key="$(namekey "${OFFICIAL_INSTANCE}")"
+  for line in "${rows[@]}"; do
+    IFS="${TAB}" read -r name jid st _ <<< "${line}"
+    if [ -z "${off_key}" ] || [ "$(namekey "${name}")" != "${off_key}" ]; then continue; fi
+    if printf '%s' "${st}" | grep -qiE '^(open|connected)$'; then
+      EVOLUTION_INSTANCE="${name}"                    # nome REAL da Evolution (case exato p/ webhook)
+      WHATSAPP_NUMBER="$(norm "${jid}")"; [ -n "${WHATSAPP_NUMBER}" ] || WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
+      ok "instância OFICIAL por NOME: '${EVOLUTION_INSTANCE}' (status ${st}, número ${WHATSAPP_NUMBER})"
+      ok "selecionada imediatamente — fallback por número IGNORADO; histórico preservado"
+      return 0
+    fi
+    fail "a instância oficial '${name}' existe mas NÃO está conectada (status: ${st:-?})."
+    fail "Nunca a substituo automaticamente. Reconecte-a no manager (preserva o histórico) e rode de novo."
+    return 1
+  done
+
+  # ── etapa 2: FALLBACK por NÚMERO (só chega aqui se a oficial NÃO existe) ──
+  tgt="$(norm "${OFFICIAL_NUMBER}")"
+  local -a hits=()
+  for line in "${rows[@]}"; do
+    IFS="${TAB}" read -r name jid st _ <<< "${line}"
+    [ "$(norm "${jid}")" = "${tgt}" ] && hits+=("${name}")
+  done
+  mcount="${#hits[@]}"
   if [ "${mcount}" = "1" ]; then
-    EVOLUTION_INSTANCE="$(printf '%s' "${matches}" | head -1)"
-    WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
+    EVOLUTION_INSTANCE="${hits[0]}"; WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
     ok "instância pelo NÚMERO oficial (${tgt}): '${EVOLUTION_INSTANCE}' — usada exclusivamente; histórico preservado"
     return 0
   fi
   if [ "${mcount}" -gt 1 ]; then
-    # blindagem: se a oficial estiver entre os do mesmo número, ela vence (nunca ambíguo)
-    while IFS= read -r name; do
-      [ -n "${name}" ] || continue
-      if [ -n "${off_key}" ] && [ "$(namekey "${name}")" = "${off_key}" ]; then
-        EVOLUTION_INSTANCE="${name}"; WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
-        ok "instância OFICIAL '${EVOLUTION_INSTANCE}' presente entre as do número ${tgt} — selecionada; ambiguidade IGNORADA"
-        return 0
-      fi
-    done <<EOF
-${matches}
-EOF
     fail "AMBÍGUO: ${mcount} instâncias com o número ${tgt}:"
-    printf '%s' "${matches}" | while IFS= read -r name; do [ -n "${name}" ] && fail "  • ${name}"; done
+    for name in "${hits[@]}"; do fail "  • ${name}"; done
     fail "Não escolho a primeira. Deixe apenas UMA conectada com esse número e rode de novo."
     return 1
   fi

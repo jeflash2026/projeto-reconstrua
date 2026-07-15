@@ -16,7 +16,7 @@
 set -u
 
 SCRIPT_VERSION="v8-context (rebuild limpo 2026-07-15)"
-SCRIPT_SHA="proof-f9e54ab5"   # build id único desta publicação (bater com o SHA do commit)
+SCRIPT_SHA="proof-fc72e8b0"   # build id único desta publicação (bater com o SHA do commit)
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
@@ -289,8 +289,8 @@ PY
 
 # seleção da instância: NOME oficial exato → senão NÚMERO oficial. Nunca "a primeira".
 select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER, ou retorna 1
-  local tbl name jid st chats msgs num
-  local off_found="" off_st="" off_num="" tgt matches mcount
+  local tbl name jid st chats msgs num name_key off_key
+  local off_found="" off_name="" off_st="" off_num="" tgt matches mcount
   tbl="$(mktemp)"
   if ! json_instances "${INSTF}" > "${tbl}" || [ ! -s "${tbl}" ]; then
     fail "não consegui parsear a resposta da Evolution como JSON (nem python3 nem jq disponíveis,"
@@ -299,24 +299,30 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
     rm -f "${tbl}"; return 1
   fi
 
+  # chave de comparação do nome oficial: minúsculas + sem espaços (tolera caixa/espaço)
+  off_key="$(printf '%s' "${OFFICIAL_INSTANCE}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
   echo "  instâncias encontradas (nome | número | status | chats | msgs):"
   while IFS="${TAB}" read -r name jid st chats msgs; do
     num="$(norm "${jid}")"
     printf '   | %s | %s | %s | %s | %s |\n' "${name}" "${num:-?}" "${st:-?}" "${chats:-?}" "${msgs:-?}"
-    if [ "${name}" = "${OFFICIAL_INSTANCE}" ]; then off_found=1; off_st="${st}"; off_num="${num}"; fi
+    name_key="$(printf '%s' "${name}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+    if [ "${name_key}" = "${off_key}" ]; then
+      off_found=1; off_name="${name}"; off_st="${st}"; off_num="${num}"
+    fi
   done < "${tbl}"
 
-  # 1) NOME oficial exato — prioridade absoluta
+  # 1) NOME oficial presente ⇒ PRIORIDADE ABSOLUTA. Selecionado imediatamente;
+  #    a verificação de ambiguidade por número NUNCA roda neste caminho.
   if [ -n "${off_found}" ]; then
     if printf '%s' "${off_st}" | grep -qiE '^(open|connected)$'; then
-      EVOLUTION_INSTANCE="${OFFICIAL_INSTANCE}"
+      EVOLUTION_INSTANCE="${off_name}"   # nome REAL como está na Evolution (case exato p/ webhook)
       WHATSAPP_NUMBER="${off_num}"
       { [ -z "${WHATSAPP_NUMBER}" ] || [ "${WHATSAPP_NUMBER}" = "-" ]; } && WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
       ok "instância OFICIAL por NOME: '${EVOLUTION_INSTANCE}' (status ${off_st}, número ${WHATSAPP_NUMBER})"
-      ok "usada EXCLUSIVAMENTE — sem busca por número; histórico preservado"
+      ok "usada EXCLUSIVAMENTE — ambiguidade por número IGNORADA; histórico preservado"
       rm -f "${tbl}"; return 0
     fi
-    fail "a instância oficial '${OFFICIAL_INSTANCE}' existe mas NÃO está conectada (status: ${off_st:-?})."
+    fail "a instância oficial '${off_name}' existe mas NÃO está conectada (status: ${off_st:-?})."
     fail "Nunca a substituo automaticamente. Reconecte-a no manager (preserva o histórico) e rode de novo."
     rm -f "${tbl}"; return 1
   fi

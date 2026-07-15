@@ -18,7 +18,7 @@
 set -uo pipefail
 
 # Banner de versão: o log SEMPRE prova qual versão executou.
-SCRIPT_VERSION="v6-matrix (2026-07-15)"
+SCRIPT_VERSION="v7-strict (2026-07-15)"
 printf '\n\033[1;35m AHRIOS deploy-vps %s \033[0m\n' "${SCRIPT_VERSION}"
 
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
@@ -228,8 +228,29 @@ addcand ".env-do-app" "$(getenv EVOLUTION_API_KEY)"
 printf 'cfg\t%s\n' "${EVOLUTION_BASE_URL}" >> "${URLS}"
 sort -u "${URLS}" -o "${URLS}"; sort -t"${TAB}" -k2 -u "${CAND}" -o "${CAND}"
 
-# — MATRIZ: cada URL(container) × cada chave × endpoints (/manager primeiro; /instance se 404)
-echo "      Matriz (container | origem da chave | endpoint | HTTP | instâncias):"
+# — SONDA ESTRITA: sucesso = HTTP 200 E JSON válido E lista de instâncias E count > 0.
+#   HTML/login/Unauthorized/Forbidden/objeto vazio/lista vazia = FALHA (continua procurando).
+probe() { # $1=key $2=url $3=endpoint → PROBE_ST/CT/JSON/CNT/REASON, corpo em ${PROBE_BODY}
+  PROBE_BODY="$(mktemp)"
+  local W; W="$(curl -sS -m 10 -o "${PROBE_BODY}" -w '%{http_code}|%{content_type}' -H "apikey: $1" "$2$3" 2>/dev/null || echo '000|')"
+  PROBE_ST="${W%%|*}"; PROBE_CT="${W#*|}"; PROBE_CT="${PROBE_CT%%;*}"; [ -z "${PROBE_CT}" ] && PROBE_CT="—"
+  local HEAD; HEAD="$(head -c 200 "${PROBE_BODY}" 2>/dev/null | tr -d ' \n\r\t')"
+  PROBE_JSON="NÃO"; local ARR="nao"
+  case "${HEAD}" in "["*) PROBE_JSON="SIM"; ARR="sim";; "{"*) PROBE_JSON="SIM";; esac
+  [ "${PROBE_JSON}" = "SIM" ] && command -v python3 >/dev/null 2>&1 && \
+    { python3 -c "import json;json.load(open('${PROBE_BODY}'))" 2>/dev/null || PROBE_JSON="NÃO"; }
+  PROBE_CNT="$(grep -oE '"(instanceName|name)":"[^"]+"' "${PROBE_BODY}" 2>/dev/null | sort -u | wc -l | tr -d ' ')"
+  PROBE_REASON=""
+  if   [ "${PROBE_ST}" != "200" ]; then PROBE_REASON="HTTP ${PROBE_ST}"
+  elif grep -qiE '<html|<!doctype' "${PROBE_BODY}"; then PROBE_REASON="HTML/página (não é API)"; PROBE_JSON="NÃO"
+  elif [ "${PROBE_JSON}" != "SIM" ]; then PROBE_REASON="corpo não é JSON válido"
+  elif grep -qiE '"(unauthorized|forbidden)"|login' "${PROBE_BODY}" && [ "${PROBE_CNT}" = "0" ]; then PROBE_REASON="Unauthorized/Forbidden/login"
+  elif [ "${ARR}" != "sim" ] && [ "${PROBE_CNT}" = "0" ]; then PROBE_REASON="JSON sem lista de instâncias"
+  elif [ "${PROBE_CNT}" = "0" ]; then PROBE_REASON="lista vazia (0 instâncias)"
+  fi
+}
+
+echo "      Matriz (container | origem | endpoint | HTTP | Content-Type | JSON | inst. | motivo):"
 rm -f /tmp/evo_win /tmp/evo_body
 while IFS="${TAB}" read -r CONT URL; do
   [ -s /tmp/evo_win ] && break
@@ -237,11 +258,24 @@ while IFS="${TAB}" read -r CONT URL; do
     [ -z "${KEY}" ] && continue
     [ -s /tmp/evo_win ] && break
     for EP in /manager/fetchInstances /instance/fetchInstances; do
-      B="$(mktemp)"; ST="$(curl -sS -m 10 -o "$B" -w '%{http_code}' -H "apikey: ${KEY}" "${URL}${EP}" 2>/dev/null || echo 000)"
-      CNT="$(grep -oE '"(instanceName|name)":"[^"]+"' "$B" 2>/dev/null | sort -u | wc -l | tr -d ' ')"
-      printf '   | %-14s | %-34s | %-26s | %s | %s |\n' "${CONT}" "${SRC} $(printf '%s' "${KEY}" | mask_mid)" "${EP}" "${ST}" "${CNT}" | tee -a "${MATRIX}"
-      if [ "${ST}" = "200" ]; then printf '%s\t%s\t%s\t%s\t%s\n' "${KEY}" "${SRC}" "${CONT}" "${URL}" "${EP}" > /tmp/evo_win; cp "$B" /tmp/evo_body; rm -f "$B"; break; fi
-      rm -f "$B"
+      probe "${KEY}" "${URL}" "${EP}"
+      printf '   | %-14s | %-30s | %-26s | %s | %-16s | %-3s | %2s | %s |\n' \
+        "${CONT}" "${SRC} $(printf '%s' "${KEY}" | mask_mid)" "${EP}" "${PROBE_ST}" "${PROBE_CT}" "${PROBE_JSON}" "${PROBE_CNT}" "${PROBE_REASON:-CANDIDATA}" | tee -a "${MATRIX}"
+      if [ -z "${PROBE_REASON}" ]; then
+        # 2ª VALIDAÇÃO — só vence se reproduzível (todos os critérios de novo)
+        B1="${PROBE_BODY}"; C1="${PROBE_CNT}"
+        probe "${KEY}" "${URL}" "${EP}"
+        if [ -z "${PROBE_REASON}" ]; then
+          printf '   ✔ 2ª validação OK — reproduzível (%s → %s inst.)\n' "${C1}" "${PROBE_CNT}" | tee -a "${MATRIX}"
+          printf '%s\t%s\t%s\t%s\t%s\n' "${KEY}" "${SRC}" "${CONT}" "${URL}" "${EP}" > /tmp/evo_win
+          cp "${PROBE_BODY}" /tmp/evo_body; rm -f "${B1}" "${PROBE_BODY}"; break
+        else
+          printf '   ✘ 2ª validação FALHOU (%s) — combinação DESCARTADA (não reproduzível)\n' "${PROBE_REASON}" | tee -a "${MATRIX}"
+          rm -f "${B1}" "${PROBE_BODY}"
+        fi
+      else
+        rm -f "${PROBE_BODY}"
+      fi
     done
   done < "${CAND}"
 done < "${URLS}"

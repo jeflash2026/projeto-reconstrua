@@ -244,10 +244,21 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
   local tbl raw chunk name jid num st chats msgs row target matches n
   tbl="$(mktemp)"; raw="$(mktemp)"
   sed 's/},[[:space:]]*{/}\n{/g' "${INSTF}" > "${raw}"
-  # parse SILENCIOSO para arquivo tabular (nada é impresso antes da decisão por nome)
+  # [DEBUG] alvo da comparação (impresso uma vez, com comprimento e bytes)
+  printf '[TARGET] <%s>\n' "${OFFICIAL_INSTANCE}"
+  printf '[LEN TARGET]=%d\n' "${#OFFICIAL_INSTANCE}"
+  printf '[HEX TARGET] '; printf '%s' "${OFFICIAL_INSTANCE}" | od -An -tx1 | tr -d '\n'; printf '\n'
+  # parse para arquivo tabular
   while IFS= read -r chunk; do
     name="$(printf '%s' "${chunk}" | grep -oE '"(name|instanceName)":"[^"]+"' | head -1 | cut -d'"' -f4)"
     [ -n "${name}" ] || continue
+    # [DEBUG] bytes reais de CADA nome vindo da Evolution vs. o alvo
+    printf '[RAW] <%s>\n' "${name}"
+    printf '[LEN RAW]=%d\n' "${#name}"
+    if printf '%s' "${name}" | grep -qiE 'e755deb1'; then
+      printf '[HEX RAW] '; printf '%s' "${name}" | od -An -tx1 | tr -d '\n'; printf '\n'
+      if [ "${name}" = "${OFFICIAL_INSTANCE}" ]; then printf '[EQ?] IGUAL\n'; else printf '[EQ?] DIFERENTE\n'; fi
+    fi
     jid="$(printf '%s' "${chunk}" | grep -oE '"(ownerJid|owner|wuid)":"[^"]*"' | head -1 | cut -d'"' -f4)"
     num="$(norm "${jid}")"
     st="$(printf '%s' "${chunk}" | grep -oE '"(connectionStatus|status|state)":"[^"]+"' | head -1 | cut -d'"' -f4)"

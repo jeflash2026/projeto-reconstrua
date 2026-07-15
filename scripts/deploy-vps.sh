@@ -18,7 +18,7 @@
 set -uo pipefail
 
 # Banner de versão: o log SEMPRE prova qual versão executou.
-SCRIPT_VERSION="v4-evolution-diag (2026-07-15)"
+SCRIPT_VERSION="v5-manager-key-hunt (2026-07-15)"
 printf '\n\033[1;35m AHRIOS deploy-vps %s \033[0m\n' "${SCRIPT_VERSION}"
 
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
@@ -179,24 +179,70 @@ echo "      Consultando: ${EVO_CONTAINER:-NENHUM RODANDO}"
 EVOLUTION_BASE_URL="$(getenv EVOLUTION_BASE_URL)"; EVOLUTION_BASE_URL="${EVOLUTION_BASE_URL:-http://${PUBLIC_IP}:8080}"
 echo "[2/6] URL da API: ${EVOLUTION_BASE_URL}"
 
-# [3/6] Key utilizada (mascarada) — do .env do app ou extraída do container
-EVOLUTION_API_KEY="$(getenv EVOLUTION_API_KEY)"
-KEY_SRC=".env do app"
-if [ -z "${EVOLUTION_API_KEY}" ]; then
-  EVOLUTION_API_KEY="$(docker inspect "${EVO_CONTAINER}" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^AUTHENTICATION_API_KEY=' | cut -d= -f2-)"
-  KEY_SRC="env do container ${EVO_CONTAINER}"
-fi
-[ -z "${EVOLUTION_API_KEY}" ] && { fail "AUTHENTICATION_API_KEY não encontrada em ${EVO_CONTAINER}"; exit 1; }
-echo "[3/6] AUTHENTICATION_API_KEY (${KEY_SRC}): $(printf '%s' "${EVOLUTION_API_KEY}" | mask_mid)"
+# [3/6] CAÇA À CHAVE GLOBAL DO MANAGER — coleta candidatas de 10 fontes (só leitura),
+#        testa CADA uma contra a API e adota a primeira que retornar HTTP 200.
+CAND="$(mktemp)"   # linhas "origem<TAB>chave"
+addcand() { [ -n "$2" ] && printf '%s\t%s\n' "$1" "$2" >> "${CAND}"; }
+# 1) docker inspect de TODOS os containers evolution — AUTHENTICATION_API_KEY e afins
+for C in $(docker ps -a --format '{{.Names}} {{.Image}}' | grep -i evolution | awk '{print $1}'); do
+  docker inspect "$C" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+    | grep -E '^(AUTHENTICATION_API_KEY|APIKEY|API_KEY|AUTHENTICATION_APIKEY)=' \
+    | while IFS='=' read -r k v; do addcand "env:${C}:${k}" "$v"; done
+done
+# 2) variáveis de ambiente do host + arquivos .env perto da evolution
+addcand "host-env:AUTHENTICATION_API_KEY" "${AUTHENTICATION_API_KEY:-}"
+# 3-5) config.yaml / config.json / arquivos em /evolution (dentro dos containers e no host)
+for C in $(docker ps --format '{{.Names}}' | grep -i evolution); do
+  for F in /evolution/config.yaml /evolution/config.json /evolution/.env /evolution/dist/config.yaml; do
+    V="$(docker exec "$C" sh -c "grep -hoE 'sk-[A-Za-z0-9_-]{8,}|[A-Za-z0-9]{20,}' '$F' 2>/dev/null | head -3" 2>/dev/null)"
+    for k in $V; do addcand "file:${C}:${F}" "$k"; done
+  done
+done
+# 6) volumes docker montados na evolution (config no host)
+for C in $(docker ps -a --format '{{.Names}}' | grep -i evolution); do
+  for SRC in $(docker inspect "$C" --format '{{range .Mounts}}{{println .Source}}{{end}}' 2>/dev/null); do
+    [ -e "$SRC" ] || continue
+    grep -rhsoE 'AUTHENTICATION_API_KEY[=: ]+["'"'"']?[A-Za-z0-9_-]{16,}' "$SRC" 2>/dev/null | grep -oE '[A-Za-z0-9_-]{16,}$' | head -3 \
+      | while read -r k; do addcand "vol:${C}:${SRC}" "$k"; done
+  done
+done
+# 7) docker compose files
+for F in $(find /root /opt /home /srv -maxdepth 4 \( -name 'docker-compose*.y*ml' -o -name 'compose*.y*ml' \) 2>/dev/null | head -20); do
+  grep -hoE 'AUTHENTICATION_API_KEY[=: ]+["'"'"']?[A-Za-z0-9_-]{16,}' "$F" 2>/dev/null | grep -oE '[A-Za-z0-9_-]{16,}$' \
+    | while read -r k; do addcand "compose:${F}" "$k"; done
+done
+# 8) Portainer stacks / 9) NPM data / 10) qualquer .env/.yaml sob /root /opt com a var
+for F in $(grep -rslE 'AUTHENTICATION_API_KEY' /root /opt /home /srv --include='*.env' --include='*.y*ml' --include='*.json' 2>/dev/null | head -30); do
+  grep -hoE 'AUTHENTICATION_API_KEY[=: ]+["'"'"']?[A-Za-z0-9_-]{16,}' "$F" 2>/dev/null | grep -oE '[A-Za-z0-9_-]{16,}$' \
+    | while read -r k; do addcand "fs:${F}" "$k"; done
+done
+# + a que já estava no .env do app (se houver)
+addcand ".env do app" "$(getenv EVOLUTION_API_KEY)"
 
-# [4/6] fetchInstances SEM mascarar: status HTTP + corpo
-HTTP_BODY="$(mktemp)"; HTTP_STATUS="$(curl -sS -m 12 -o "${HTTP_BODY}" -w '%{http_code}' -H "apikey: ${EVOLUTION_API_KEY}" "${EVOLUTION_BASE_URL}/instance/fetchInstances" 2>/dev/null || echo '000')"
-INSTANCES_JSON="$(cat "${HTTP_BODY}" 2>/dev/null)"; rm -f "${HTTP_BODY}"
-# aceita os DOIS formatos da Evolution: v2.3 ("name") e v2.x antigo ("instanceName")
+# Dedup por CHAVE (2º campo), preservando a 1ª origem; testa cada uma contra a API.
+echo "[3/6] Chaves candidatas coletadas (dedup):"
+EVOLUTION_API_KEY=""; WIN_SRC=""; HTTP_STATUS=""; INSTANCES_JSON=""
+sort -t"$(printf '\t')" -k2 -u "${CAND}" | while IFS="$(printf '\t')" read -r SRC KEY; do
+  [ -z "${KEY}" ] && continue
+  B="$(mktemp)"; ST="$(curl -sS -m 12 -o "$B" -w '%{http_code}' -H "apikey: ${KEY}" "${EVOLUTION_BASE_URL}/instance/fetchInstances" 2>/dev/null || echo 000)"
+  CNT="$(grep -oE '"(instanceName|name)":"[^"]+"' "$B" 2>/dev/null | wc -l | tr -d ' ')"
+  printf '   • %-38s %s  HTTP %s  · %s inst.\n' "${SRC}" "$(printf '%s' "${KEY}" | mask_mid)" "${ST}" "${CNT}"
+  if [ "${ST}" = "200" ]; then printf '%s\t%s\t%s\n' "${KEY}" "${SRC}" "${CNT}" > /tmp/evo_win; cp "$B" /tmp/evo_body; rm -f "$B"; break; fi
+  rm -f "$B"
+done
+rm -f "${CAND}"
+if [ -s /tmp/evo_win ]; then
+  EVOLUTION_API_KEY="$(cut -f1 /tmp/evo_win)"; WIN_SRC="$(cut -f2 /tmp/evo_win)"
+  HTTP_STATUS=200; INSTANCES_JSON="$(cat /tmp/evo_body 2>/dev/null)"; rm -f /tmp/evo_win /tmp/evo_body
+  ok "CHAVE GLOBAL encontrada — origem: ${WIN_SRC}  →  $(printf '%s' "${EVOLUTION_API_KEY}" | mask_mid)"
+else
+  HTTP_STATUS=401; INSTANCES_JSON=""
+fi
+
+# [4/6] resultado da API com a chave vencedora
 API_NAMES="$(printf '%s' "${INSTANCES_JSON}" | grep -oE '"(instanceName|name)":"[^"]+"' | cut -d'"' -f4 | sort -u | tr '\n' ' ')"
 API_COUNT="$(printf '%s' "${API_NAMES}" | wc -w | tr -d ' ')"
-echo "[4/6] fetchInstances → HTTP ${HTTP_STATUS} · ${API_COUNT} instância(s): ${API_NAMES:-—}"
-[ "${HTTP_STATUS}" != "200" ] && echo "      corpo: $(printf '%s' "${INSTANCES_JSON}" | head -c 300)"
+echo "[4/6] fetchInstances (chave vencedora) → HTTP ${HTTP_STATUS} · ${API_COUNT} instância(s): ${API_NAMES:-—}"
 
 # [5/6] Banco PostgreSQL da Evolution: select name from "Instance";
 DB_URI="$(docker inspect "${EVO_CONTAINER}" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^DATABASE_CONNECTION_URI=' | cut -d= -f2-)"
@@ -219,21 +265,32 @@ printf '%s' "${DB_NAMES}" | grep -qiE 'error|does not exist|fatal' && DB_COUNT=0
 # [6/6] Comparação e veredito (causa raiz, sem mascarar)
 echo "[6/6] Comparação: API=${API_COUNT} × Banco=${DB_COUNT}"
 EVOLUTION_INSTANCE="$(getenv EVOLUTION_INSTANCE)"
-if [ -z "${EVOLUTION_INSTANCE}" ]; then
-  if [ "${HTTP_STATUS}" != "200" ]; then
-    fail "CAUSA RAIZ: a API recusou (HTTP ${HTTP_STATUS}) — a key usada não é a global desta Evolution."
-    fail "Corrija EVOLUTION_API_KEY em /opt/reconstrua/.env (a key do manager) e rode de novo."
-    exit 1
-  elif [ "${API_COUNT}" -gt 0 ]; then
-    EVOLUTION_INSTANCE="$(printf '%s' "${API_NAMES}" | awk '{print $1}')"
-  elif [ "${DB_COUNT}" -gt 0 ]; then
-    warn "API vazia mas o BANCO tem instância(s) — usando o banco como fonte (possível divergência de key/DB entre containers)."
-    EVOLUTION_INSTANCE="$(printf '%s' "${DB_NAMES}" | awk '{print $1}')"
-  else
-    fail "PROVA: API (HTTP 200, 0 instâncias) E tabela \"Instance\" vazia — realmente não existe instância nesta Evolution."
-    fail "Crie uma em ${EVOLUTION_BASE_URL}/manager (conectar o WhatsApp) e rode de novo."
-    exit 1
+if [ "${HTTP_STATUS}" = "200" ]; then
+  # chave global VALIDADA → persiste automaticamente e segue o deploy
+  setenv EVOLUTION_API_KEY "${EVOLUTION_API_KEY}"
+  ok "EVOLUTION_API_KEY atualizada automaticamente no .env (origem: ${WIN_SRC})"
+  if [ -z "${EVOLUTION_INSTANCE}" ]; then
+    if [ "${API_COUNT}" -gt 0 ]; then EVOLUTION_INSTANCE="$(printf '%s' "${API_NAMES}" | awk '{print $1}')"
+    elif [ "${DB_COUNT}" -gt 0 ]; then EVOLUTION_INSTANCE="$(printf '%s' "${DB_NAMES}" | awk '{print $1}')"
+    else
+      fail "PROVA: API (HTTP 200, 0 instâncias) E tabela \"Instance\" vazia — realmente não existe instância."
+      fail "Crie uma em ${EVOLUTION_BASE_URL}/manager e rode de novo."; exit 1
+    fi
   fi
+else
+  # NENHUMA chave testada retornou 200 → laudo técnico completo (não cria, não inventa)
+  echo ""
+  fail "═══ LAUDO: CHAVE GLOBAL DO MANAGER NÃO ENCONTRADA ═══"
+  fail "O banco tem ${DB_COUNT} instância(s) — a Evolution funciona — mas NENHUMA das chaves"
+  fail "candidatas coletadas autenticou em ${EVOLUTION_BASE_URL}/instance/fetchInstances (todas ≠ 200)."
+  fail "Locais varridos (só leitura): env de todos os containers evolution; config.yaml/json e"
+  fail "/evolution/* dentro dos containers; volumes e bind mounts; docker-compose; Portainer/NPM;"
+  fail "arquivos .env/.yaml/.json em /root /opt /home /srv com AUTHENTICATION_API_KEY."
+  fail "Conclusão: a chave global em uso não está materializada em disco nesta VPS (provável valor"
+  fail "injetado só em runtime/secret não legível, OU a Evolution roda com AUTHENTICATION_API_KEY"
+  fail "gerada e não persistida). Recupere-a no painel do Manager (Settings → API Key Global) e:"
+  fail "  echo 'EVOLUTION_API_KEY=<sua-key-global>' >> /opt/reconstrua/.env   # e rode de novo"
+  exit 1
 fi
 WHATSAPP_NUMBER="$(getenv WHATSAPP_NUMBER)"
 [ -z "${WHATSAPP_NUMBER}" ] && WHATSAPP_NUMBER="$(printf '%s' "${INSTANCES_JSON}" | grep -oE '"ownerJid":"[0-9]+' | head -1 | grep -oE '[0-9]+')"

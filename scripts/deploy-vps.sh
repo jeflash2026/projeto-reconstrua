@@ -243,7 +243,7 @@ find_evolution_access() {
 # A DECISÃO usa comparação bash `=` (mesmo operador do dump que deu IGUAL);
 # NENHUM awk no caminho de decisão (mawk do Ubuntu diverge de bash em -F/-v).
 select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER, ou retorna 1
-  local tbl raw chunk name jid num st chats msgs
+  local tbl raw chunk name jid num st chats msgs LINE
   local off_found="" off_st="" off_num="" tgt matches mcount
   tbl="$(mktemp)"; raw="$(mktemp)"
   sed 's/},[[:space:]]*{/}\n{/g' "${INSTF}" > "${raw}"
@@ -259,11 +259,29 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
   done < "${raw}"
   rm -f "${raw}"
 
-  # listagem + detecção do NOME oficial no MESMO laço (comparação bash, não awk)
+  # [PROVA] a decisão lê EXATAMENTE ${tbl}: metadados + conteúdo numerado do arquivo
+  printf '[TBL] ls  : '
+  # shellcheck disable=SC2012
+  ls -l "${tbl}"
+  printf '[TBL] wc  : '; wc -l "${tbl}"
+  echo   '[TBL] cat -n:'; cat -n "${tbl}"
+  printf '[TGT] OFFICIAL_INSTANCE=<%s> len=%d\n' "${OFFICIAL_INSTANCE}" "${#OFFICIAL_INSTANCE}"
+  # listagem + detecção do NOME oficial no MESMO laço, lendo linha a linha de ${tbl}
   echo "  instâncias (nome | ownerJid | número | status | chats | msgs):"
-  while IFS="${TAB}" read -r name jid num st chats msgs; do
+  while IFS= read -r LINE; do
+    name="$(printf '%s' "${LINE}" | cut -f1)"
+    jid="$(printf '%s' "${LINE}" | cut -f2)"
+    num="$(printf '%s' "${LINE}" | cut -f3)"
+    st="$(printf '%s' "${LINE}" | cut -f4)"
+    chats="$(printf '%s' "${LINE}" | cut -f5)"
+    msgs="$(printf '%s' "${LINE}" | cut -f6)"
+    printf 'LINE=<%s>\n' "${LINE}"
+    printf 'NAME=<%s> len=%d\n' "${name}" "${#name}"
     printf '   | %s | %s | %s | %s | %s | %s |\n' "${name}" "${jid}" "${num}" "${st}" "${chats}" "${msgs}"
-    if [ "${name}" = "${OFFICIAL_INSTANCE}" ]; then off_found=1; off_st="${st}"; off_num="${num}"; fi
+    if [ "${name}" = "${OFFICIAL_INSTANCE}" ]; then
+      off_found=1; off_st="${st}"; off_num="${num}"
+      printf '[MATCH] off_found=1 (status=%s numero=%s)\n' "${st}" "${num}"
+    fi
   done < "${tbl}"
 
   # 1) NOME oficial exato — encontrado+conectado ⇒ RETURN (sem busca por número)

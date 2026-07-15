@@ -155,6 +155,12 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     return askShadow(body.question, { reports, detections, lawyerLoad, pendingDocs });
   });
 
+  // ── Raiz do domínio: serve a MESMA UI (evita 404 "Route GET:/ not found" quando
+  //    o proxy externo aponta o domínio para a porta main da API) ────────────────
+  app.get('/', (_request, reply) => {
+    void reply.type('text/html').send(PRODUCTION_UI_HTML);
+  });
+
   // ── UI mínima (Monitor + Config) servida pela API — portal congelado intocado ─
   app.get('/production/ui', (_request, reply) => {
     void reply.type('text/html').send(PRODUCTION_UI_HTML);

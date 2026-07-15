@@ -1,0 +1,488 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// assembleProduction — a COMPOSIÇÃO DE PRODUÇÃO REAL. Um único processo com o
+// SUPERSET da operação (2A→3D), selecionando adapters REAIS por configuração:
+//   • Postgres (DATABASE_URL) ou in-memory (dev/test) — só adapters trocam;
+//   • Evolution real (ENV) com HTTP resiliente, ou gateway in-memory;
+//   • LLM real (OpenAI/Anthropic/Gemini) nos 4 ports de linguagem, ou offline.
+// Nenhum runtime congelado muda. Devolve visões estruturais para os servidores
+// congelados (admin/advogado/lx) + monitor + Go-Live de produção.
+// ─────────────────────────────────────────────────────────────────────────────
+import type { Clock, UuidGenerator } from '@reconstrua/domain';
+import type {
+  AdminMetricsStore,
+  ConfigStore,
+  ConversationGateway,
+  ConversationRuntime,
+  EventStore,
+  MemoryStore,
+  OutboxStore,
+  ProductionConfig,
+  SnapshotStore,
+  Sleeper,
+} from '@reconstrua/application';
+import {
+  AdvogadoAhriBridge,
+  AdvogadoWorkRuntime,
+  BootRuntime,
+  ConversationContextRuntime,
+  ConversationMemoryRuntime,
+  ConversationRuntime as ConversationRuntimeClass,
+  CursorRuntime,
+  DEFAULT_HUMANIZATION_POLICY,
+  DEFAULT_NOTIFICATION_POLICY,
+  DecisionGateRuntime,
+  DelayRuntime,
+  DeliveryRuntime,
+  EventStoreIntegrityAuditor,
+  ExponentialBackoffRetryPolicy,
+  GoLiveChecklist,
+  HealthRuntime,
+  HumanHandoffRuntime,
+  HumanLikeTimingRuntime,
+  MessageQueueRuntime,
+  NotificationRuntime,
+  ObservabilityRuntime,
+  OutboxRuntime,
+  PortalIntegrationRuntime,
+  PresenceRuntime,
+  ProductivityRuntime,
+  PromptBuilderRuntime,
+  SchedulerRuntime,
+  SessionRuntime,
+  SilenceDetectionRuntime,
+  StaffDirectoryRuntime,
+  SubscriberRegistry,
+  TemporalSignalDispatcher,
+  TimelineProjector,
+  TypingRuntime,
+  WorkflowRuntime,
+  configFromEnv,
+  DEFAULT_PRODUCTION_CONFIG,
+} from '@reconstrua/application';
+import type { BootableComponent } from '@reconstrua/application';
+import { online } from '@reconstrua/application';
+import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
+import { InMemorySnapshotStore } from '../event-store/in-memory-snapshot-store.js';
+import { PgEventStore } from '../event-store/pg-event-store.js';
+import { PgOutboxStore } from '../event-store/pg-outbox-store.js';
+import { PostgresSqlClient } from '../event-store/postgres-sql-client.js';
+import { CryptoHasher } from '../event-store/crypto-hasher.js';
+import { InMemoryDeliveryStore } from '../event-dispatcher/in-memory-delivery-store.js';
+import { InMemoryIdempotencyStore } from '../event-dispatcher/in-memory-idempotency-store.js';
+import { PgDeliveryStore } from '../event-dispatcher/pg-delivery-store.js';
+import { PgIdempotencyStore } from '../event-dispatcher/pg-idempotency-store.js';
+import {
+  InMemoryConversationGateway,
+  InMemoryMessageQueueStore,
+  SystemSleeper,
+  FetchHttpClient,
+  EvolutionGateway,
+} from '../conversation/index.js';
+import { assembleExecutiveBrain } from '../executive-brain/build-executive-brain.js';
+import { InMemoryRuleCatalog } from '../executive-brain/in-memory-adapters.js';
+import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
+import { assembleLivingMemory } from '../living-memory/build-living-memory.js';
+import { assembleAdministration } from '../administration/build-administration.js';
+import { AdminProjectionSubscriber } from '../administration/admin-projection-subscriber.js';
+import { RecordingNotificationChannel } from '../go-live/in-memory-adapters.js';
+import { FullLoopBrainAdapter } from '../go-live/full-loop-brain-adapter.js';
+import { SerializedSubscriber } from '../go-live/serialized-subscriber.js';
+import { NightShiftRuntime } from '../lawyer-experience/night-shift-runtime.js';
+import { AfterDecisionRuntime } from '../lawyer-experience/after-decision-runtime.js';
+import { PlantaoService } from '../lawyer-experience/plantao-service.js';
+import type { AssembledAdvogadoOperation } from '../advogado-portal/build-advogado-operation.js';
+import { ADVOGADO_RULE_CATALOG } from '../advogado-portal/advogado-rule-catalog.js';
+import { ConversationClientMessenger } from '../advogado-portal/client-messenger.js';
+import type { AssembledAdminOperation } from '../admin-portal/build-admin-operation.js';
+import type { AssembledLawyerExperience } from '../lawyer-experience/build-lawyer-experience.js';
+import { InMemoryJsonStore, PgJsonStore, type JsonStore } from './json-store.js';
+import {
+  JsonAssignmentStore,
+  JsonConfigStore,
+  JsonConversationStore,
+  JsonCursorStore,
+  JsonDecisionStore,
+  JsonHandoffStore,
+  JsonIdentityMap,
+  JsonJuridicalWorkStore,
+  JsonMemoryStore,
+  JsonMetricsStore,
+  JsonProductivityStore,
+  JsonProgressStore,
+  JsonSchedulerStore,
+  JsonSessionStore,
+  JsonStaffStore,
+} from './document-stores.js';
+import { ResilientHttpClient } from './resilient-http.js';
+import { createLlmBundle, type LlmBundle } from './llm-adapters.js';
+import { ProductionIngress } from './production-ingress.js';
+import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
+import { JsonShadowStore, ShadowRecorder, type ShadowStore, type TurnIngress } from './shadow.js';
+
+export interface ProductionWiring {
+  readonly clock: Clock;
+  readonly uuid: UuidGenerator;
+  readonly env?: Readonly<Record<string, string | undefined>>;
+  /** Overrides de teste (gateway/sleeper/config). */
+  readonly gateway?: ConversationGateway;
+  readonly sleeper?: Sleeper;
+  readonly config?: ProductionConfig;
+}
+
+export interface AssembledProduction {
+  /** ENTRADA ÚNICA de produção (A2/4C): turnos serializados por conversa.
+   *  Em SHADOW_MODE (4D), é o ShadowRecorder envolvendo a mesma entrada. */
+  readonly ingress: TurnIngress;
+  /** Shadow Mode (4D): recorder + store de reports (sempre montados; ativo por flag). */
+  readonly shadow: ShadowRecorder;
+  readonly shadowStore: ShadowStore;
+  readonly shadowMode: boolean;
+  readonly mode: { readonly storage: 'postgres' | 'memory'; readonly gateway: 'evolution' | 'memory'; readonly llm: string };
+  readonly config: ProductionConfig;
+  readonly configStore: ConfigStore;
+  readonly conversation: ConversationRuntime;
+  readonly gateway: ConversationGateway;
+  readonly adminView: AssembledAdminOperation;
+  readonly advogadoView: AssembledAdvogadoOperation;
+  readonly lxView: AssembledLawyerExperience;
+  readonly health: HealthRuntime;
+  readonly observability: ObservabilityRuntime;
+  readonly boot: BootRuntime;
+  readonly bootComponents: readonly BootableComponent[];
+  readonly scheduler: SchedulerRuntime;
+  readonly temporal: TemporalSignalDispatcher;
+  readonly outbox: OutboxRuntime;
+  readonly memoryStore: MemoryStore;
+  readonly metricsStore: AdminMetricsStore;
+  readonly llm: LlmBundle;
+  readonly databaseUrl: string | null;
+}
+
+export function assembleProduction(wiring: ProductionWiring): AssembledProduction {
+  const { clock, uuid } = wiring;
+  const env = wiring.env ?? {};
+  const config = wiring.config ?? configFromEnv(env);
+  const hasher = new CryptoHasher();
+  const health = new HealthRuntime();
+  const observability = new ObservabilityRuntime();
+  const policy = DEFAULT_HUMANIZATION_POLICY;
+  const sleeper = wiring.sleeper ?? new SystemSleeper();
+
+  // ── Seleção de armazenamento (Postgres real quando DATABASE_URL) ─────────────
+  const databaseUrl = env['DATABASE_URL'] ?? null;
+  let json: JsonStore;
+  let eventStore: EventStore;
+  let outboxStore: OutboxStore;
+  let deliveries: InMemoryDeliveryStore | PgDeliveryStore;
+  let idempotency: InMemoryIdempotencyStore | PgIdempotencyStore;
+  let snapshotStore: SnapshotStore | undefined;
+  if (databaseUrl !== null) {
+    const sql = PostgresSqlClient.connect(databaseUrl);
+    json = new PgJsonStore(sql);
+    const pgEvents = new PgEventStore(sql, hasher, uuid);
+    eventStore = pgEvents;
+    outboxStore = new PgOutboxStore(sql);
+    deliveries = new PgDeliveryStore(sql);
+    idempotency = new PgIdempotencyStore(sql);
+    snapshotStore = undefined;
+  } else {
+    json = new InMemoryJsonStore();
+    const memEvents = new InMemoryEventStore(hasher, uuid, clock);
+    eventStore = memEvents;
+    outboxStore = memEvents;
+    deliveries = new InMemoryDeliveryStore();
+    idempotency = new InMemoryIdempotencyStore();
+    snapshotStore = new InMemorySnapshotStore();
+  }
+  void snapshotStore;
+
+  const configStore = new JsonConfigStore(json);
+  const memoryStore = new JsonMemoryStore(json);
+  const metricsStore = new JsonMetricsStore(json);
+  const conversationStore = new JsonConversationStore(json);
+  const sessionStore = new JsonSessionStore(json);
+  const schedulerStore = new JsonSchedulerStore(json);
+  const handoffStore = new JsonHandoffStore(json);
+  const progressStore = new JsonProgressStore(json);
+  const staffStore = new JsonStaffStore(json);
+  const assignmentStore = new JsonAssignmentStore(json);
+  const juridicalStore = new JsonJuridicalWorkStore(json);
+  const cursorStore = new JsonCursorStore(json);
+  const decisionStore = new JsonDecisionStore(json);
+  const productivityStore = new JsonProductivityStore(json);
+  const identityMap = new JsonIdentityMap(json);
+
+  // ── LLM real (4 ports) e HTTP resiliente ─────────────────────────────────────
+  const resilientHttp = new ResilientHttpClient(new FetchHttpClient(), sleeper, observability, clock, 'http');
+  const llm = createLlmBundle({ config, http: resilientHttp, observability, clock });
+
+  // ── Dispatcher (2A.2) ────────────────────────────────────────────────────────
+  const registry = new SubscriberRegistry();
+  const outbox = new OutboxRuntime({
+    outbox: outboxStore,
+    deliveries,
+    idempotency,
+    registry,
+    retryPolicy: new ExponentialBackoffRetryPolicy({ baseMs: 1000, factor: 2, maxMs: 60_000, maxAttempts: 5, jitter: 0 }),
+    clock,
+  });
+
+  // ── 2E: memória viva + administração (com narração/extração LLM injetadas) ───
+  const living = assembleLivingMemory({
+    clock,
+    uuid,
+    memoryStore,
+    conversationStore,
+    ...(llm.extractor ? { extractor: llm.extractor } : {}),
+  });
+  const administration = assembleAdministration({
+    memoryStore,
+    metricsStore,
+    ...(llm.narration ? { narration: llm.narration } : {}),
+    founder: { founderName: 'Jessé' },
+  });
+
+  // ── 2F ───────────────────────────────────────────────────────────────────────
+  const scheduler = new SchedulerRuntime(schedulerStore);
+  const workflow = new WorkflowRuntime(progressStore, scheduler, undefined, observability);
+  const notification = new NotificationRuntime(new RecordingNotificationChannel(), DEFAULT_NOTIFICATION_POLICY);
+  const handoff = new HumanHandoffRuntime(handoffStore);
+  registry.register(new SerializedSubscriber(new AdminProjectionSubscriber(metricsStore)), 1, clock.now());
+  registry.register(new SerializedSubscriber(workflow), 1, clock.now());
+
+  // ── 2C + 2D (catálogo de PRODUÇÃO = 2D + reengajamento 4C) ───────────────────
+  const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(PRODUCTION_RULE_CATALOG) });
+  const missionAssembly = assembleMissionRuntime({ eventStore, hasher, uuid, clock, identityMap });
+
+  const fullLoop = new FullLoopBrainAdapter({
+    brain: brainAssembly.brain,
+    rules: brainAssembly.rules,
+    snapshots: brainAssembly.snapshots,
+    mission: missionAssembly.runtime,
+    outbox,
+    notification,
+    handoff,
+    memoryIngestor: living.ingestor,
+    noteWriter: living.noteWriter,
+    observability,
+    clock,
+  });
+
+  // ── Gateway REAL (Evolution) ou in-memory ────────────────────────────────────
+  const evolutionConfigured =
+    config.evolution.baseUrl !== '' && config.evolution.instance !== '' && config.evolution.apiKey !== '';
+  const gateway =
+    wiring.gateway ??
+    (evolutionConfigured
+      ? new EvolutionGateway(resilientHttp, { baseUrl: config.evolution.baseUrl, instance: config.evolution.instance, apiKey: config.evolution.apiKey }, clock)
+      : new InMemoryConversationGateway(clock));
+
+  // ── 2B: Conversa (peças públicas; handles retidos para a ponte 3B) ───────────
+  const sessions = new SessionRuntime(sessionStore);
+  const convMemory = new ConversationMemoryRuntime(conversationStore, clock, uuid);
+  const context = new ConversationContextRuntime(sessions, convMemory);
+  const promptBuilder = new PromptBuilderRuntime(policy.antiRepetitionWindow);
+  const timing = new HumanLikeTimingRuntime(policy, Math.random);
+  const delay = new DelayRuntime(sleeper);
+  const presence = new PresenceRuntime(gateway, sessions);
+  const typing = new TypingRuntime(presence, delay);
+  const queue = new MessageQueueRuntime(new InMemoryMessageQueueStore(), clock, uuid);
+  const delivery = new DeliveryRuntime({ gateway, timing, typing, delay, presence, queue, sessions, memory: convMemory, clock, policy });
+  const conversation = new ConversationRuntimeClass({
+    perception: llm.perception,
+    expression: llm.expression,
+    brain: fullLoop,
+    gateway,
+    sessions,
+    memory: convMemory,
+    context,
+    promptBuilder,
+    queue,
+    delivery,
+    silence: new SilenceDetectionRuntime(policy),
+    clock,
+    uuid,
+    policy,
+  });
+
+  // ── 3A/3B/3D ─────────────────────────────────────────────────────────────────
+  const projector = new TimelineProjector(eventStore);
+  const staff = new StaffDirectoryRuntime(staffStore, handoff, clock, uuid);
+  const work = new AdvogadoWorkRuntime(assignmentStore, juridicalStore, clock, uuid);
+  const bridge = new AdvogadoAhriBridge({
+    brain: brainAssembly.brain,
+    rules: ADVOGADO_RULE_CATALOG,
+    messenger: new ConversationClientMessenger({
+      memory: convMemory,
+      context,
+      promptBuilder,
+      expression: llm.expression,
+      queue,
+      delivery,
+      policy,
+      clock,
+    }),
+    clock,
+    chatOf: (missionId) => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
+  });
+
+  const auditor = new EventStoreIntegrityAuditor(eventStore, hasher);
+
+  // ── Visões estruturais para os servidores CONGELADOS ─────────────────────────
+  // Nota: os servidores 3A/3B/3D nunca usam `eventStore` da visão (apenas read
+  // models); o campo é tipado concretamente por herança histórica — cast declarado.
+  const eventStoreView = eventStore as InMemoryEventStore;
+
+  const advogadoView: AssembledAdvogadoOperation = {
+    conversation,
+    gateway,
+    eventStore: eventStoreView,
+    projector,
+    work,
+    bridge,
+    staff,
+    handoff,
+    observability,
+    memoryStore,
+    metricsStore,
+    workflow,
+  };
+
+  const boot = new BootRuntime(health, observability, clock);
+  const adminView: AssembledAdminOperation = {
+    conversation,
+    mission: missionAssembly.runtime,
+    outbox,
+    workflow,
+    scheduler,
+    temporal: new TemporalSignalDispatcher(scheduler, conversation),
+    notification,
+    handoff,
+    portals: new PortalIntegrationRuntime(metricsStore, handoff, progressStore, health),
+    health,
+    observability,
+    boot,
+    checklist: new GoLiveChecklist(clock),
+    gateway,
+    eventStore: eventStoreView,
+    conversationStore,
+    memoryStore,
+    relationship: living.relationship,
+    metricsStore,
+    admin: administration.admin,
+    founderConsole: administration.founderConsole,
+    progressStore,
+    projector,
+    staff,
+    auditor,
+  };
+
+  const cursor = new CursorRuntime(cursorStore);
+  const gate = new DecisionGateRuntime(decisionStore, clock, uuid);
+  const productivity = new ProductivityRuntime(productivityStore);
+  const lxView: AssembledLawyerExperience = {
+    op: advogadoView,
+    cursor,
+    gate,
+    nightShift: new NightShiftRuntime(advogadoView, gate, productivity),
+    afterDecision: new AfterDecisionRuntime(advogadoView, gate, productivity, clock),
+    plantao: new PlantaoService(advogadoView, cursor, gate, productivity, clock),
+    productivity,
+  };
+
+  // ── Boot components (produção) ───────────────────────────────────────────────
+  const component = (name: string, dependsOn: readonly string[], probe: () => Promise<void>): BootableComponent => ({
+    name,
+    dependsOn,
+    start: probe,
+    check: () => Promise.resolve(online(name, clock.now())),
+  });
+  const bootComponents: readonly BootableComponent[] = [
+    component('storage', [], async () => {
+      await json.keys('config');
+    }),
+    component('event-store', ['storage'], async () => {
+      await eventStore.streamVersion('probe', '00000000-0000-4000-8000-0000000000ff');
+    }),
+    component('dispatcher', ['event-store'], () =>
+      registry.all().length >= 2 ? Promise.resolve() : Promise.reject(new Error('subscribers ausentes')),
+    ),
+    component('brain', [], async () => {
+      if ((await brainAssembly.rules.all()).length === 0) throw new Error('catálogo vazio');
+    }),
+    component('mission', ['event-store', 'brain'], () => Promise.resolve()),
+    component('memory', ['storage'], async () => {
+      await memoryStore.all();
+    }),
+    component('scheduler', ['storage'], async () => {
+      await scheduler.pendingCount();
+    }),
+    component('workflow', ['dispatcher', 'scheduler'], () => Promise.resolve()),
+    component('llm', [], () => Promise.resolve()),
+    component('gateway', [], async () => {
+      await gateway.setPresence('00000000-boot-probe', 'available');
+    }),
+    component('conversation', ['brain', 'memory', 'gateway'], () => Promise.resolve()),
+    component('portals', ['memory'], () => Promise.resolve()),
+  ];
+
+  // ── SHADOW MODE (4D): recorder envolvendo a entrada única; ativo por flag ────
+  const shadowMode = (env['SHADOW_MODE'] ?? 'true') !== 'false';
+  const shadowStore = new JsonShadowStore(json);
+  const plainIngress = new ProductionIngress(
+    conversation,
+    scheduler,
+    (missionId) => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
+  );
+  const shadow = new ShadowRecorder(
+    plainIngress,
+    shadowStore,
+    {
+      missionsOf: (chatId) => projector.missionsOf(chatId),
+      timelineCounts: (missionId) => {
+        const t = projector.missionTimeline(missionId);
+        const count = (type: string): number => t.filter((e) => e.streamType === type).length;
+        return { truth: count('operational-truth'), state: count('operational-state'), stage: count('operational-stage') };
+      },
+      workflowSteps: async (missionId) => (await progressStore.load(missionId))?.steps ?? [],
+      turnCount: async (chatId) => (await memoryStore.load(chatId))?.messageCount ?? null,
+      refreshProjector: () => projector.refresh(),
+    },
+    llm.meter,
+    clock,
+    uuid,
+    () => shadowMode,
+  );
+
+  return {
+    ingress: shadowMode ? shadow : plainIngress,
+    shadow,
+    shadowStore,
+    shadowMode,
+    mode: {
+      storage: databaseUrl !== null ? 'postgres' : 'memory',
+      gateway: wiring.gateway ? 'memory' : evolutionConfigured ? 'evolution' : 'memory',
+      llm: llm.provider,
+    },
+    config,
+    configStore,
+    conversation,
+    gateway,
+    adminView,
+    advogadoView,
+    lxView,
+    health,
+    observability,
+    boot,
+    bootComponents,
+    scheduler,
+    temporal: adminView.temporal,
+    outbox,
+    memoryStore,
+    metricsStore,
+    llm,
+    databaseUrl,
+  };
+}
+
+export const PRODUCTION_DEFAULTS = DEFAULT_PRODUCTION_CONFIG;

@@ -1,0 +1,4 @@
+# Suíte de Conformidade ao Canon.
+# Cada invariante do Livro Mestre (INV-*) terá aqui um teste correspondente,
+# espelhando os "Critérios de Auditoria" de cada capítulo (R9/G9).
+# Vazio no Sprint 0 — povoado a partir do Sprint 1.

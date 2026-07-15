@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Seu benefício do INSS, resolvido com acompanhamento de verdade</title>
+<meta name="description" content="Envie uma mensagem e receba atendimento imediato. Analisamos seu caso, cuidamos dos documentos e você acompanha tudo pelo WhatsApp.">
+<style>
+:root{--bg:#0b0e14;--card:#121722;--text:#e6e9f0;--dim:#8b93a7;--accent:#25d366;--blue:#4f8cff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6}
+.wrap{max-width:680px;margin:0 auto;padding:32px 20px}
+.badge{display:inline-block;background:rgba(79,140,255,.14);color:var(--blue);padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;margin-bottom:16px}
+h1{font-size:clamp(26px,5vw,38px);line-height:1.2;margin-bottom:14px}
+h1 em{color:var(--accent);font-style:normal}
+.sub{color:var(--dim);font-size:17px;margin-bottom:26px}
+.cta{display:block;background:var(--accent);color:#06281a;text-align:center;font-size:18px;font-weight:700;padding:16px 24px;border-radius:12px;text-decoration:none;margin:10px 0 6px}
+.cta:hover{filter:brightness(1.08)}
+.cta-note{text-align:center;color:var(--dim);font-size:12px;margin-bottom:28px}
+.steps{display:grid;gap:10px;margin:26px 0}
+.step{background:var(--card);border:1px solid #232b3b;border-radius:10px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start}
+.step b{color:var(--accent)}
+.proof{color:var(--dim);font-size:13px;border-left:3px solid var(--blue);padding-left:12px;margin:22px 0}
+footer{color:var(--dim);font-size:11px;text-align:center;margin-top:36px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="badge">Atendimento imediato pelo WhatsApp</span>
+  <h1>Descubra em minutos se você tem <em>dinheiro a recuperar</em> no seu benefício</h1>
+  <p class="sub">Sem fila, sem escritório, sem juridiquês. Você manda uma mensagem, a gente analisa seu caso e cuida de tudo — e você acompanha cada passo pelo WhatsApp.</p>
+
+  <a id="cta" class="cta" href="#">📲 Falar agora no WhatsApp — é grátis</a>
+  <p class="cta-note">Resposta em segundos, a qualquer hora. Sem compromisso.</p>
+
+  <div class="steps">
+    <div class="step"><b>1.</b><span><strong>Mande um "olá".</strong> Nosso atendimento responde na hora e entende o seu caso.</span></div>
+    <div class="step"><b>2.</b><span><strong>Envie seus documentos pelo próprio WhatsApp.</strong> Fotos servem. A análise começa imediatamente.</span></div>
+    <div class="step"><b>3.</b><span><strong>Advogados cuidam do seu processo.</strong> Você recebe cada novidade sem precisar perguntar.</span></div>
+  </div>
+
+  <p class="proof">Todo o andamento do seu caso fica registrado e auditável — você pode perguntar "como está meu processo?" a qualquer momento e recebe a situação real, na hora.</p>
+
+  <a class="cta" href="#" onclick="document.getElementById('cta').click();return false">Quero minha análise gratuita</a>
+
+  <footer>Atendimento automatizado com supervisão de advogados. Nenhuma promessa de resultado — cada caso é analisado individualmente.</footer>
+</div>
+<script>
+// CONFIG: número do WhatsApp (mesmo da Evolution) — definido no deploy.
+var WHATSAPP_NUMBER = 'SEU_NUMERO_AQUI'; // ex.: 5511999999999
+// Atribuição de campanha: utm_campaign do Meta Ads viaja NO TEXTO da primeira mensagem.
+var params = new URLSearchParams(location.search);
+var campaign = params.get('utm_campaign') || params.get('campaign') || 'organico';
+var text = encodeURIComponent('Olá! Vim pelo anúncio [' + campaign + '] e quero entender meu benefício.');
+var link = 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + text;
+document.querySelectorAll('.cta').forEach(function (a) { a.href = link; });
+// Meta Pixel: colar o snippet oficial aqui com o PIXEL_ID configurado no Admin Config.
+</script>
+</body>
+</html>

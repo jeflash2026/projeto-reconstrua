@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# AHRIOS — PRODUÇÃO (Sprint 4A): Postgres 16 + API completa (webhook + admin +
+# advogado + lawyer-experience + monitor/config/go-live). O compose de dev
+# (docker-compose.yml, só banco) permanece intocado. Os portais Next são servidos
+# à parte (next start) apontando NEXT_PUBLIC_API_URL; a landing é estática.
+# Uso: docker compose -f docker-compose.production.yml up -d
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: reconstrua
+      POSTGRES_USER: reconstrua
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}
+    volumes:
+      - ahrios-prod-pgdata:/var/lib/postgresql/data
+      - ./infrastructure/database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U reconstrua -d reconstrua']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: '3001'
+      DATABASE_URL: postgres://reconstrua:${POSTGRES_PASSWORD:?}@postgres:5432/reconstrua
+      PUBLIC_URL: ${PUBLIC_URL:?defina PUBLIC_URL (https)}
+      EVOLUTION_BASE_URL: ${EVOLUTION_BASE_URL:?}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:?}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:?}
+      WHATSAPP_NUMBER: ${WHATSAPP_NUMBER:?}
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ALLOW_DEGRADED: ${ALLOW_DEGRADED:-false}
+    ports:
+      - '3001:3001' # main: webhook + /production/*
+      - '3002:3002' # admin API
+      - '3003:3003' # advogado API
+      - '3004:3004' # lawyer experience API
+
+volumes:
+  ahrios-prod-pgdata:

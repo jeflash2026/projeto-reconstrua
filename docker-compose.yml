@@ -1,0 +1,27 @@
+# Ambiente local de desenvolvimento. Apenas o banco.
+# NÃO sobe aplicação nem dev server (deploy e servidores são do dono).
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: reconstrua-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-reconstrua}
+      # Superusuário de bootstrap apenas para o container local.
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERPASSWORD:-postgres}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - reconstrua-pgdata:/var/lib/postgresql/data
+      # Migrations idempotentes de bootstrap (schemas, roles, event store).
+      - ./infrastructure/database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_SUPERUSER:-postgres} -d ${POSTGRES_DB:-reconstrua}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  reconstrua-pgdata:
+    name: reconstrua-pgdata

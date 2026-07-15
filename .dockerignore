@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+docs
+constitution
+apps/portal-*
+apps/landing
+*.md
+.git

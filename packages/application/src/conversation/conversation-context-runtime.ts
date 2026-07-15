@@ -1,0 +1,54 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// CONVERSATION CONTEXT RUNTIME — monta a visão de contexto (read-only) que a
+// expressão usa para soar viva e que o Brain consulta para decidir.
+//
+// Só LÊ (sessão + memória). Não decide, não muta nada. É o "aqui e agora" da
+// conversa: sessão, janela recente, últimas falas da AHRI, último percept, silêncio.
+// ─────────────────────────────────────────────────────────────────────────────
+import type { Percept } from './percept.js';
+import type { ConversationContextView, Session } from './ports.js';
+import type { SessionRuntime } from './session-runtime.js';
+import type { ConversationMemoryRuntime } from './conversation-memory-runtime.js';
+
+export interface ContextOptions {
+  readonly memoryWindow: number;
+  readonly outboundWindow: number;
+}
+
+export const DEFAULT_CONTEXT_OPTIONS: ContextOptions = {
+  memoryWindow: 20,
+  outboundWindow: 8,
+};
+
+export class ConversationContextRuntime {
+  private readonly options: ContextOptions;
+
+  constructor(
+    private readonly sessions: SessionRuntime,
+    private readonly memory: ConversationMemoryRuntime,
+    options: Partial<ContextOptions> = {},
+  ) {
+    this.options = { ...DEFAULT_CONTEXT_OPTIONS, ...options };
+  }
+
+  async build(
+    chatId: string,
+    lastPercept: Percept | null,
+    now: Date,
+    silenceMs: number | null = null,
+  ): Promise<ConversationContextView> {
+    const session: Session = await this.sessions.getOrOpen(chatId, now);
+    const [recentEntries, recentOutboundTexts] = await Promise.all([
+      this.memory.recent(chatId, this.options.memoryWindow),
+      this.memory.recentOutboundTexts(chatId, this.options.outboundWindow),
+    ]);
+    return {
+      chatId,
+      session,
+      recentEntries,
+      recentOutboundTexts,
+      lastPercept,
+      silenceMs,
+    };
+  }
+}

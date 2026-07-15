@@ -1,0 +1,20 @@
+{
+  "name": "@reconstrua/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@reconstrua/application": "workspace:*",
+    "@reconstrua/contracts": "workspace:*",
+    "@reconstrua/domain": "workspace:*",
+    "@reconstrua/infrastructure": "workspace:*",
+    "fastify": "^5.0.0",
+    "zod": "^3.23.8"
+  }
+}

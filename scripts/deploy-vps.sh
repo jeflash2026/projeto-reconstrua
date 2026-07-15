@@ -432,45 +432,59 @@ console.log("__DONE__");'
   MATCH_NAMES="$(grep '^__MATCH__=' "${SELTBL}" | cut -d= -f2-)"
 
   # ── PRIORIDADE 1: instância OFICIAL por NOME (detém todo o histórico; jamais substituída) ──
+  # FUNÇÃO com return explícito: encontrada+conectada ⇒ RETURN imediato; a busca
+  # por número é INALCANÇÁVEL nesse caso (logs [TRACE] provam o fluxo).
   OFFICIAL_INSTANCE="B866E755DEB1-48BF-B1AA-2D845B947A87"
   OFF_ROW="$(grep -vE '^__' "${SELTBL}" | grep -F "| ${OFFICIAL_INSTANCE} |" | head -1)"
   rm -f "${SELTBL}"
-  if [ -n "${OFF_ROW}" ]; then
-    OFF_ST="$(printf '%s' "${OFF_ROW}" | awk -F'|' '{gsub(/ /,"",$5); print $5}')"
-    OFF_NUM="$(printf '%s' "${OFF_ROW}" | awk -F'|' '{gsub(/ /,"",$4); print $4}')"
-    if printf '%s' "${OFF_ST}" | grep -qiE '^(open|connected)$'; then
-      EVOLUTION_INSTANCE="${OFFICIAL_INSTANCE}"
-      WHATSAPP_NUMBER="${OFF_NUM:-${OFFICIAL_NUMBER}}"; [ "${WHATSAPP_NUMBER}" = "-" ] && WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
-      ok "Instância OFICIAL por NOME: '${OFFICIAL_INSTANCE}' (status ${OFF_ST}, número ${WHATSAPP_NUMBER})"
-      ok "Usada EXCLUSIVAMENTE — qualquer outra instância (mesmo com o mesmo número) IGNORADA."
-      ok "Nada criado/apagado/resetado/desconectado — histórico integral preservado."
-    else
+  OFF_ST="$(printf '%s' "${OFF_ROW}" | awk -F'|' '{gsub(/ /,"",$5); print $5}')"
+  OFF_NUM="$(printf '%s' "${OFF_ROW}" | awk -F'|' '{gsub(/ /,"",$4); print $4}')"
+
+  select_instance() {
+    echo "  [TRACE] ENTREI NA BUSCA POR NOME"
+    if [ -n "${OFF_ROW}" ]; then
+      echo "  [TRACE] Instância oficial encontrada: ${OFFICIAL_INSTANCE}"
+      echo "  [TRACE] Status da instância oficial: ${OFF_ST:-?}"
+      if printf '%s' "${OFF_ST}" | grep -qiE '^(open|connected)$'; then
+        echo "  [TRACE] DECISÃO: usar instância oficial"
+        EVOLUTION_INSTANCE="${OFFICIAL_INSTANCE}"
+        WHATSAPP_NUMBER="${OFF_NUM:-${OFFICIAL_NUMBER}}"; [ "${WHATSAPP_NUMBER}" = "-" ] && WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
+        ok "Instância OFICIAL por NOME: '${OFFICIAL_INSTANCE}' (status ${OFF_ST}, número ${WHATSAPP_NUMBER})"
+        ok "Usada EXCLUSIVAMENTE — qualquer outra instância (mesmo com o mesmo número) IGNORADA."
+        ok "Nada criado/apagado/resetado/desconectado — histórico integral preservado."
+        echo "  [TRACE] RETURN da função"
+        return 0
+      fi
       echo ""
       fail "═══ LAUDO: a instância oficial '${OFFICIAL_INSTANCE}' EXISTE mas NÃO está conectada (status: ${OFF_ST:-?}) ═══"
       fail "Ela nunca é substituída automaticamente. Reconecte-a em ${EVOLUTION_BASE_URL}/manager e rode de novo."
       fail "(o deploy jamais cria/apaga/reseta/desconecta — a reconexão preserva todo o histórico)"
       exit 1
     fi
-  elif [ "${MATCH_COUNT}" = "1" ]; then
+    echo "  [TRACE] ENTREI NA BUSCA POR NÚMERO"
     warn "instância oficial '${OFFICIAL_INSTANCE}' não existe — aplicando descoberta por número normalizado"
-    EVOLUTION_INSTANCE="${MATCH_NAMES}"; WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
-    ok "Instância OFICIAL (única correspondência ao número normalizado ${TARGET_NORM}): '${EVOLUTION_INSTANCE}'"
-    ok "Usada EXCLUSIVAMENTE; demais IGNORADAS. Nada criado/apagado/resetado/desconectado — histórico preservado."
-  elif [ "${MATCH_COUNT}" -gt 1 ]; then
-    echo ""
-    fail "═══ LAUDO: ${MATCH_COUNT} instâncias correspondem ao número oficial ${TARGET_NORM} (AMBÍGUO) ═══"
-    printf '%s\n' "${MATCH_NAMES}" | while IFS= read -r n; do fail "  • instância correspondente: ${n}"; done
-    fail "Não escolho a primeira. Deixe apenas UMA instância com esse número conectada e rode de novo."
-    fail "(o deploy nunca cria/apaga/reseta/desconecta — a decisão de qual manter é sua)"
-    exit 1
-  else
-    echo ""
-    fail "═══ LAUDO: número oficial ${TARGET_NORM} NÃO corresponde a nenhuma instância ═══"
-    fail "As instâncias e seus números NORMALIZADOS estão listados acima; nenhum == ${TARGET_NORM}."
-    fail "Conecte o WhatsApp ${OFFICIAL_NUMBER} a uma instância em ${EVOLUTION_BASE_URL}/manager e rode de novo."
-    fail "(o deploy nunca cria/apaga/reseta/desconecta instância — só usa a oficial já existente)"
-    exit 1
-  fi
+    if [ "${MATCH_COUNT}" = "1" ]; then
+      EVOLUTION_INSTANCE="${MATCH_NAMES}"; WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
+      ok "Instância OFICIAL (única correspondência ao número normalizado ${TARGET_NORM}): '${EVOLUTION_INSTANCE}'"
+      ok "Usada EXCLUSIVAMENTE; demais IGNORADAS. Nada criado/apagado/resetado/desconectado — histórico preservado."
+      return 0
+    elif [ "${MATCH_COUNT}" -gt 1 ]; then
+      echo ""
+      fail "═══ LAUDO: ${MATCH_COUNT} instâncias correspondem ao número oficial ${TARGET_NORM} (AMBÍGUO) ═══"
+      printf '%s\n' "${MATCH_NAMES}" | while IFS= read -r n; do fail "  • instância correspondente: ${n}"; done
+      fail "Não escolho a primeira. Deixe apenas UMA instância com esse número conectada e rode de novo."
+      fail "(o deploy nunca cria/apaga/reseta/desconecta — a decisão de qual manter é sua)"
+      exit 1
+    else
+      echo ""
+      fail "═══ LAUDO: número oficial ${TARGET_NORM} NÃO corresponde a nenhuma instância ═══"
+      fail "As instâncias e seus números NORMALIZADOS estão listados acima; nenhum == ${TARGET_NORM}."
+      fail "Conecte o WhatsApp ${OFFICIAL_NUMBER} a uma instância em ${EVOLUTION_BASE_URL}/manager e rode de novo."
+      fail "(o deploy nunca cria/apaga/reseta/desconecta instância — só usa a oficial já existente)"
+      exit 1
+    fi
+  }
+  select_instance
 else
   # NENHUMA combinação retornou 200 → laudo técnico completo (não cria, não inventa)
   echo ""

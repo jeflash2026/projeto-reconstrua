@@ -282,7 +282,10 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
     printf 'NAME=<%s>\n' "${name}"
     printf 'LEN_NAME=%d\n' "${#name}"
     printf '   | %s | %s | %s | %s | %s | %s |\n' "${name}" "${jid}" "${num}" "${st}" "${chats}" "${msgs}"
-    printf 'CMP=[%s]==[%s]\n' "${name}" "${OFFICIAL_INSTANCE}"
+    printf 'NAME_ESC=%q\n' "$name"
+    printf 'OFF_ESC=%q\n' "$OFFICIAL_INSTANCE"
+    printf '%s' "$name" | od -An -tx1
+    printf '%s' "$OFFICIAL_INSTANCE" | od -An -tx1
     if [ "${name}" = "${OFFICIAL_INSTANCE}" ]; then
       off_found=1; off_st="${st}"; off_num="${num}"
       printf '[MATCH]\n'

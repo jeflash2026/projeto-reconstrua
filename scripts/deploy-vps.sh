@@ -16,7 +16,7 @@
 set -u
 
 SCRIPT_VERSION="v8-context (rebuild limpo 2026-07-15)"
-SCRIPT_SHA="proof-deffec7d"   # build id único desta publicação (bater com o SHA do commit)
+SCRIPT_SHA="proof-0bb855c4"   # build id único desta publicação (bater com o SHA do commit)
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
@@ -273,6 +273,12 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
   echo "  instâncias (nome | ownerJid | número | status | chats | msgs):"
   while IFS= read -r LINE || [ -n "${LINE}" ]; do
     name="$(printf '%s' "${LINE}" | cut -f1)"
+    declare -p LINE
+    declare -p name
+    printf 'LINE_BYTES='
+    printf '%s' "$LINE" | od -An -tx1
+    printf 'NAME_BYTES='
+    printf '%s' "$name" | od -An -tx1
     jid="$(printf '%s' "${LINE}" | cut -f2)"
     num="$(printf '%s' "${LINE}" | cut -f3)"
     st="$(printf '%s' "${LINE}" | cut -f4)"

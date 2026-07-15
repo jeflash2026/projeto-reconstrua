@@ -16,7 +16,7 @@
 set -u
 
 SCRIPT_VERSION="v8-context (rebuild limpo 2026-07-15)"
-SCRIPT_SHA="proof-c77a95c7"   # build id único desta publicação (bater com o SHA do commit)
+SCRIPT_SHA="proof-deffec7d"   # build id único desta publicação (bater com o SHA do commit)
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
@@ -421,9 +421,32 @@ deploy_until_green() {
   return 0
 }
 
+SELF_DST="/tmp/deploy-debug.sh"
+# Persiste em disco o script EXATO que está executando e roda a partir dele, para
+# permitir `less /tmp/deploy-debug.sh` e conferir que o executado == o publicado.
+save_self_and_reexec() {
+  [ "${DEPLOY_SELF_SAVED:-}" = "1" ] && return 0
+  export DEPLOY_SELF_SAVED=1
+  # (a) rodando de um ARQUIVO real (ex.: bash arquivo.sh): copia esse arquivo exato
+  if [ -f "$0" ] && [ "$0" != "${SELF_DST}" ] \
+     && [ "$(basename -- "$0")" != "bash" ] && [ "$(basename -- "$0")" != "sh" ]; then
+    cp "$0" "${SELF_DST}" && chmod +x "${SELF_DST}" && exec bash "${SELF_DST}" "$@"
+  fi
+  # (b) rodando via pipe (curl|bash): não há arquivo-fonte no disco — rebaixa a
+  #     própria fonte publicada (master, com cache-bust) para o disco e re-executa
+  if [ "$0" != "${SELF_DST}" ] && command -v curl >/dev/null 2>&1; then
+    curl -fsSL "${REPO_URL%.git}/raw/master/scripts/deploy-vps.sh?cb=$(date +%s)" \
+      | tr -d '\r' > "${SELF_DST}" 2>/dev/null || true
+    if [ -s "${SELF_DST}" ]; then chmod +x "${SELF_DST}"; exec bash "${SELF_DST}" "$@"; fi
+  fi
+  return 0
+}
+
 main() {
+  save_self_and_reexec "$@"
   printf '\n\033[1;35m AHRIOS deploy-vps %s \033[0m\n' "${SCRIPT_VERSION}"
   # ── IDENTIDADE OBRIGATÓRIA do script em execução ──
+  printf 'SELF_DST=%s (abra com: less %s)\n' "${SELF_DST}" "${SELF_DST}"
   printf 'SCRIPT_SHA=%s\n' "${SCRIPT_SHA}"
   printf 'SCRIPT_VERSION=%s\n' "${SCRIPT_VERSION}"
   echo "SCRIPT_PATH=$0"

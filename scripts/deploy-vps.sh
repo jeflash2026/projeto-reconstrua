@@ -389,49 +389,64 @@ if [ "${HTTP_STATUS}" = "200" ]; then
   ok "EVOLUTION_API_KEY + EVOLUTION_BASE_URL atualizadas no .env (container=${WIN_CONT} · origem=${WIN_SRC} · endpoint=${WIN_EP})"
 
   # ── SELEÇÃO PELA INSTÂNCIA OFICIAL (número da empresa) — nunca "a primeira" ──
+  # Normalização: remove @s.whatsapp.net / @c.us, sufixo :device, +, espaços,
+  # hífens, parênteses → compara SÓ os dígitos. 0 match=laudo · 1=usa · N=laudo.
   OFFICIAL_NUMBER="554137989737"
-  echo "  Instâncias existentes (nome | ownerJid | número | status | chats | mensagens):"
-  EVO_JS='const fs=require("fs");let raw=fs.readFileSync(0,"utf8");let d;try{d=JSON.parse(raw)}catch(e){console.log("__MATCH__=");process.exit(0)}
+  norm() { printf '%s' "$1" | sed 's/@.*//; s/:.*//' | tr -cd '0-9'; }
+  TARGET_NORM="$(norm "${OFFICIAL_NUMBER}")"
+  echo "  Instâncias existentes (nome | ownerJid | número normalizado | status | chats | mensagens):"
+  EVO_JS='const fs=require("fs");let raw=fs.readFileSync(0,"utf8");let d;try{d=JSON.parse(raw)}catch(e){process.exit(0)}
 let arr=Array.isArray(d)?d:(d.instance?[d.instance]:(d.data||d.instances||[]));if(!Array.isArray(arr))arr=[arr];
-let target=process.argv[1];let match="";
+const norm=s=>((""+s).split("@")[0].split(":")[0].replace(/[^0-9]/g,""));
+let target=norm(process.argv[1]);
 for(const it of arr){const i=(it&&it.instance)?it.instance:it;
  const name=i.name||i.instanceName||i.id||"?";
  const jid=i.ownerJid||i.owner||i.wuid||"";
- const num=((""+jid).match(/[0-9]+/)||[""])[0];
+ const num=norm(jid);
  const st=i.connectionStatus||i.status||i.state||"?";
  const c=i._count||i.count||{};
  const chats=(c.Chat!=null)?c.Chat:((i.chats!=null)?i.chats:"?");
  const msgs=(c.Message!=null)?c.Message:((i.messages!=null)?i.messages:"?");
- console.log("   | "+name+" | "+jid+" | "+num+" | "+st+" | "+chats+" | "+msgs+" |");
- if(num===target)match=name;}
-console.log("__MATCH__="+match);'
-  SELTBL="$(mktemp)"; MATCHED=""
+ console.log("   | "+name+" | "+(jid||"-")+" | "+(num||"-")+" | "+st+" | "+chats+" | "+msgs+" |");
+ if(num&&num===target)console.log("__MATCH__="+name);}
+console.log("__DONE__");'
+  SELTBL="$(mktemp)"
   if [ -n "${EVO_CONTAINER}" ] && [ "$(docker inspect -f '{{.State.Running}}' "${EVO_CONTAINER}" 2>/dev/null)" = "true" ]; then
     printf '%s' "${INSTANCES_JSON}" | docker exec -i "${EVO_CONTAINER}" node -e "${EVO_JS}" "${OFFICIAL_NUMBER}" > "${SELTBL}" 2>/dev/null || true
   fi
-  if ! grep -q '^__MATCH__=' "${SELTBL}"; then
-    # fallback sem node: quebra o array em objetos e procura o número exato
+  if ! grep -q '^__DONE__' "${SELTBL}"; then
+    # fallback sem node: quebra o array em objetos e normaliza cada ownerJid
     : > "${SELTBL}"
     printf '%s' "${INSTANCES_JSON}" | sed 's/},[[:space:]]*{/}\n{/g' | while IFS= read -r obj; do
-      onum="$(printf '%s' "$obj" | grep -oE '"(ownerJid|owner|wuid)":"[0-9]+' | grep -oE '[0-9]+' | head -1)"
+      ojid="$(printf '%s' "$obj" | grep -oE '"(ownerJid|owner|wuid)":"[^"]*"' | head -1 | cut -d'"' -f4)"
+      onum="$(norm "${ojid}")"
       oname="$(printf '%s' "$obj" | grep -oE '"(name|instanceName)":"[^"]+"' | head -1 | cut -d'"' -f4)"
       ost="$(printf '%s' "$obj" | grep -oE '"(connectionStatus|status|state)":"[^"]+"' | head -1 | cut -d'"' -f4)"
-      printf '   | %s | %s | %s | %s | ? | ? |\n' "${oname:-?}" "${onum:-?}" "${onum:-?}" "${ost:-?}" >> "${SELTBL}"
-      [ "${onum}" = "${OFFICIAL_NUMBER}" ] && printf '__MATCH__=%s\n' "${oname}" >> "${SELTBL}"
+      printf '   | %s | %s | %s | %s | ? | ? |\n' "${oname:-?}" "${ojid:--}" "${onum:--}" "${ost:-?}" >> "${SELTBL}"
+      [ -n "${onum}" ] && [ "${onum}" = "${TARGET_NORM}" ] && printf '__MATCH__=%s\n' "${oname}" >> "${SELTBL}"
     done
+    printf '__DONE__\n' >> "${SELTBL}"
   fi
-  grep -v '^__MATCH__=' "${SELTBL}" || true
-  MATCHED="$(grep '^__MATCH__=' "${SELTBL}" | head -1 | cut -d= -f2-)"
+  grep -vE '^__(MATCH|DONE)__' "${SELTBL}" || true
+  MATCH_COUNT="$(grep -c '^__MATCH__=' "${SELTBL}" || true)"; MATCH_COUNT="${MATCH_COUNT:-0}"
+  MATCH_NAMES="$(grep '^__MATCH__=' "${SELTBL}" | cut -d= -f2-)"
   rm -f "${SELTBL}"
 
-  if [ -n "${MATCHED}" ]; then
-    EVOLUTION_INSTANCE="${MATCHED}"; WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
-    ok "Instância OFICIAL: '${EVOLUTION_INSTANCE}' (número ${OFFICIAL_NUMBER}) — usada EXCLUSIVAMENTE; demais IGNORADAS."
-    ok "Nada criado/apagado/resetado/desconectado — histórico da instância preservado integralmente."
+  if [ "${MATCH_COUNT}" = "1" ]; then
+    EVOLUTION_INSTANCE="${MATCH_NAMES}"; WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
+    ok "Instância OFICIAL (única correspondência ao número normalizado ${TARGET_NORM}): '${EVOLUTION_INSTANCE}'"
+    ok "Usada EXCLUSIVAMENTE; demais IGNORADAS. Nada criado/apagado/resetado/desconectado — histórico preservado."
+  elif [ "${MATCH_COUNT}" -gt 1 ]; then
+    echo ""
+    fail "═══ LAUDO: ${MATCH_COUNT} instâncias correspondem ao número oficial ${TARGET_NORM} (AMBÍGUO) ═══"
+    printf '%s\n' "${MATCH_NAMES}" | while IFS= read -r n; do fail "  • instância correspondente: ${n}"; done
+    fail "Não escolho a primeira. Deixe apenas UMA instância com esse número conectada e rode de novo."
+    fail "(o deploy nunca cria/apaga/reseta/desconecta — a decisão de qual manter é sua)"
+    exit 1
   else
     echo ""
-    fail "═══ LAUDO: número oficial ${OFFICIAL_NUMBER} NÃO está conectado a nenhuma instância ═══"
-    fail "Todas as instâncias existentes foram listadas acima; nenhuma tem ownerJid == ${OFFICIAL_NUMBER}."
+    fail "═══ LAUDO: número oficial ${TARGET_NORM} NÃO corresponde a nenhuma instância ═══"
+    fail "As instâncias e seus números NORMALIZADOS estão listados acima; nenhum == ${TARGET_NORM}."
     fail "Conecte o WhatsApp ${OFFICIAL_NUMBER} a uma instância em ${EVOLUTION_BASE_URL}/manager e rode de novo."
     fail "(o deploy nunca cria/apaga/reseta/desconecta instância — só usa a oficial já existente)"
     exit 1

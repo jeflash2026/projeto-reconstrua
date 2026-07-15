@@ -18,7 +18,7 @@
 set -uo pipefail
 
 # Banner de versão: o log SEMPRE prova qual versão executou.
-SCRIPT_VERSION="v7-strict (2026-07-15)"
+SCRIPT_VERSION="v8-context (2026-07-15)"
 printf '\n\033[1;35m AHRIOS deploy-vps %s \033[0m\n' "${SCRIPT_VERSION}"
 
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
@@ -181,7 +181,7 @@ echo "[2/6] URL da API: ${EVOLUTION_BASE_URL}"
 
 # [3/6] MATRIZ container × chave × endpoint — só leitura; vence o 1º trio com HTTP 200.
 TAB="$(printf '\t')"
-CAND="$(mktemp)"; URLS="$(mktemp)"; MATRIX="$(mktemp)"
+CAND="$(mktemp)"; URLS="$(mktemp)"; MATRIX="$(mktemp)"; CTXU="$(mktemp)"
 addcand() { [ -n "$2" ] && printf '%s\t%s\n' "$1" "$2" >> "${CAND}"; } # origem<TAB>chave
 
 # TODOS os containers cujo NOME ou IMAGEM contenha "evolution"
@@ -199,6 +199,16 @@ for C in ${EVO_LIST}; do
     [ -n "$IP" ] && [ -n "$EXP" ] && printf '%s\thttp://%s:%s\n' "$C" "$IP" "$EXP" >> "${URLS}"
     SU="$(docker inspect "$C" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E '^SERVER_URL=' | cut -d= -f2- | sed 's|/$||')"
     [ -n "$SU" ] && printf '%s\t%s\n' "$C" "$SU" >> "${URLS}"
+    # — candidatas de BASE_URL para o CONTEXTO DO CONTAINER da API (fase 3)
+    for HP in $(docker port "$C" 2>/dev/null | grep -oE ':[0-9]+$' | tr -d ':' | sort -u); do
+      printf '%s\tlocalhost\thttp://localhost:%s\n'       "$C" "$HP" >> "${CTXU}"
+      printf '%s\t127.0.0.1\thttp://127.0.0.1:%s\n'       "$C" "$HP" >> "${CTXU}"
+      printf '%s\turl-publicada\thttp://%s:%s\n'          "$C" "${PUBLIC_IP}" "$HP" >> "${CTXU}"
+      printf '%s\tgateway-docker\thttp://172.17.0.1:%s\n' "$C" "$HP" >> "${CTXU}"
+    done
+    [ -n "$IP" ] && [ -n "$EXP" ] && printf '%s\tip-do-container\thttp://%s:%s\n' "$C" "$IP" "$EXP" >> "${CTXU}"
+    [ -n "$EXP" ] && printf '%s\tnome-do-servico\thttp://%s:%s\n' "$C" "$C" "$EXP" >> "${CTXU}"
+    [ -n "$SU" ] && printf '%s\tSERVER_URL\t%s\n' "$C" "$SU" >> "${CTXU}"
   fi
   # — chaves candidatas deste container: TODAS as envs com cara de key
   docker inspect "$C" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
@@ -250,6 +260,41 @@ probe() { # $1=key $2=url $3=endpoint → PROBE_ST/CT/JSON/CNT/REASON, corpo em 
   fi
 }
 
+# — RUNNER do contexto da aplicação: preferir o container da API; senão o postgres
+#   do compose do app (mesma rede). Se nenhum existir ainda, sobe só o postgres
+#   (o deploy o subiria de qualquer forma; nada é desligado nem removido).
+API_RUNNER="$(docker ps --format '{{.Names}}' | grep -i reconstrua | grep -iE 'api' | head -1)"
+WGET_RUNNER=""
+if [ -z "${API_RUNNER}" ]; then
+  WGET_RUNNER="$(docker ps --format '{{.Names}}' | grep -i reconstrua | grep -iE 'postgres|db' | head -1)"
+  if [ -z "${WGET_RUNNER}" ]; then
+    [ -z "$(getenv POSTGRES_PASSWORD)" ] && setenv POSTGRES_PASSWORD "$(openssl rand -hex 24)"
+    docker compose --env-file .env -f docker-compose.production.yml up -d postgres >/dev/null 2>&1
+    sleep 3
+    WGET_RUNNER="$(docker ps --format '{{.Names}}' | grep -i reconstrua | grep -iE 'postgres|db' | head -1)"
+  fi
+fi
+echo "      Runner do contexto-container: ${API_RUNNER:-${WGET_RUNNER:-NENHUM (validação de contexto indisponível)}}"
+
+cprobe() { # $1=url-completa $2=key → CP_ST/CP_CNT/CP_REASON (mesmos critérios estritos, executado DENTRO do contexto)
+  CP_ST="?"; CP_CNT=0; CP_REASON=""
+  local BODY=""
+  if [ -n "${API_RUNNER}" ]; then
+    local OUT; OUT="$(docker exec "${API_RUNNER}" node -e 'fetch(process.argv[1],{headers:{apikey:process.argv[2]}}).then(async r=>{const t=await r.text();process.stdout.write(r.status+"|"+t.slice(0,20000))}).catch(e=>process.stdout.write("000|ERR:"+e.message))' "$1" "$2" 2>/dev/null)"
+    CP_ST="${OUT%%|*}"; BODY="${OUT#*|}"
+  elif [ -n "${WGET_RUNNER}" ]; then
+    BODY="$(docker exec "${WGET_RUNNER}" wget -qO- -T 8 --header "apikey: $2" "$1" 2>/dev/null)"
+    [ -n "${BODY}" ] && CP_ST="200?"   # busybox wget não expõe o status; corpo válido = aceito
+  else
+    CP_REASON="sem runner de contexto"; return
+  fi
+  CP_CNT="$(printf '%s' "${BODY}" | grep -oE '"(instanceName|name)":"[^"]+"' | sort -u | wc -l | tr -d ' ')"
+  local HEAD; HEAD="$(printf '%s' "${BODY}" | head -c 60 | tr -d ' \n\r\t')"
+  if   [ "${CP_ST}" != "200" ] && [ "${CP_ST}" != "200?" ]; then CP_REASON="HTTP ${CP_ST} $(printf '%s' "${BODY}" | head -c 60)"
+  elif printf '%s' "${BODY}" | grep -qiE '<html|<!doctype'; then CP_REASON="HTML (não é API)"
+  else case "${HEAD}" in "["*|"{"*) [ "${CP_CNT}" -gt 0 ] || CP_REASON="0 instâncias";; *) CP_REASON="corpo não é JSON";; esac; fi
+}
+
 echo "      Matriz (container | origem | endpoint | HTTP | Content-Type | JSON | inst. | motivo):"
 rm -f /tmp/evo_win /tmp/evo_body
 while IFS="${TAB}" read -r CONT URL; do
@@ -262,16 +307,34 @@ while IFS="${TAB}" read -r CONT URL; do
       printf '   | %-14s | %-30s | %-26s | %s | %-16s | %-3s | %2s | %s |\n' \
         "${CONT}" "${SRC} $(printf '%s' "${KEY}" | mask_mid)" "${EP}" "${PROBE_ST}" "${PROBE_CT}" "${PROBE_JSON}" "${PROBE_CNT}" "${PROBE_REASON:-CANDIDATA}" | tee -a "${MATRIX}"
       if [ -z "${PROBE_REASON}" ]; then
-        # 2ª VALIDAÇÃO — só vence se reproduzível (todos os critérios de novo)
+        # FASE 2 — revalidação no HOST (reproduzibilidade)
         B1="${PROBE_BODY}"; C1="${PROBE_CNT}"
         probe "${KEY}" "${URL}" "${EP}"
-        if [ -z "${PROBE_REASON}" ]; then
-          printf '   ✔ 2ª validação OK — reproduzível (%s → %s inst.)\n' "${C1}" "${PROBE_CNT}" | tee -a "${MATRIX}"
-          printf '%s\t%s\t%s\t%s\t%s\n' "${KEY}" "${SRC}" "${CONT}" "${URL}" "${EP}" > /tmp/evo_win
-          cp "${PROBE_BODY}" /tmp/evo_body; rm -f "${B1}" "${PROBE_BODY}"; break
-        else
-          printf '   ✘ 2ª validação FALHOU (%s) — combinação DESCARTADA (não reproduzível)\n' "${PROBE_REASON}" | tee -a "${MATRIX}"
+        if [ -n "${PROBE_REASON}" ]; then
+          printf '   ✘ 2ª validação (host) FALHOU (%s) — DESCARTADA (não reproduzível)\n' "${PROBE_REASON}" | tee -a "${MATRIX}"
           rm -f "${B1}" "${PROBE_BODY}"
+        else
+          printf '   ✔ Host OK (2×: %s → %s inst.) — FASE 3: validando DE DENTRO do contexto do container…\n' "${C1}" "${PROBE_CNT}" | tee -a "${MATRIX}"
+          # FASE 3 — mesma exigência, executada via docker exec; testa cada BASE_URL candidata
+          CTX_TRY="$(mktemp)"
+          grep "^${CONT}${TAB}" "${CTXU}" > "${CTX_TRY}" 2>/dev/null || true
+          printf '%s\tvencedora-no-host\t%s\n' "${CONT}" "${URL}" >> "${CTX_TRY}"
+          CHOSEN=""; CHOSEN_LBL=""
+          while IFS="${TAB}" read -r _IGN LBL CURL; do
+            [ -n "${CHOSEN}" ] && break
+            cprobe "${CURL}${EP}" "${KEY}"
+            printf '   | ctx-container | %-16s | %-40s | %-4s | %2s | %s |\n' "${LBL}" "${CURL}${EP}" "${CP_ST}" "${CP_CNT}" "${CP_REASON:-OK}" | tee -a "${MATRIX}"
+            [ -z "${CP_REASON}" ] && { CHOSEN="${CURL}"; CHOSEN_LBL="${LBL}"; }
+          done < "${CTX_TRY}"
+          rm -f "${CTX_TRY}"
+          if [ -n "${CHOSEN}" ]; then
+            printf '   ✔ Container OK — Host OK ✔ · Container OK ✔ · BASE_URL escolhida: %s (%s)\n' "${CHOSEN}" "${CHOSEN_LBL}" | tee -a "${MATRIX}"
+            printf '%s\t%s\t%s\t%s\t%s\n' "${KEY}" "${SRC}" "${CONT}" "${CHOSEN}" "${EP}" > /tmp/evo_win
+            cp "${PROBE_BODY}" /tmp/evo_body; rm -f "${B1}" "${PROBE_BODY}"; break
+          else
+            printf '   ✘ Container FALHOU em TODAS as BASE_URLs — combinação DESCARTADA; continuando a busca…\n' | tee -a "${MATRIX}"
+            rm -f "${B1}" "${PROBE_BODY}"
+          fi
         fi
       else
         rm -f "${PROBE_BODY}"
@@ -284,14 +347,15 @@ if [ -s /tmp/evo_win ]; then
   EVOLUTION_API_KEY="$(cut -f1 /tmp/evo_win)"; WIN_SRC="$(cut -f2 /tmp/evo_win)"
   WIN_CONT="$(cut -f3 /tmp/evo_win)"; WIN_URL="$(cut -f4 /tmp/evo_win)"; WIN_EP="$(cut -f5 /tmp/evo_win)"
   HTTP_STATUS=200; INSTANCES_JSON="$(cat /tmp/evo_body 2>/dev/null)"; rm -f /tmp/evo_win /tmp/evo_body
-  # normaliza URL para uso PELO container da API (localhost do host não resolve lá dentro)
-  case "${WIN_URL}" in http://127.0.0.1:*) EVOLUTION_BASE_URL="http://${PUBLIC_IP}:${WIN_URL##*:}";; *) EVOLUTION_BASE_URL="${WIN_URL}";; esac
+  # a URL vencedora JÁ foi validada de dentro do contexto do container — persiste como está
+  EVOLUTION_BASE_URL="${WIN_URL}"
   [ "${WIN_CONT}" != "cfg" ] && EVO_CONTAINER="${WIN_CONT}"
-  ok "PAR VÁLIDO: container=${WIN_CONT} · origem=${WIN_SRC} · endpoint=${WIN_EP} · chave=$(printf '%s' "${EVOLUTION_API_KEY}" | mask_mid)"
+  ok "VENCEDORA: container=${WIN_CONT} · origem=${WIN_SRC} · endpoint=${WIN_EP} · Host OK ✔ · Container OK ✔"
+  ok "BASE_URL escolhida (validada no contexto da aplicação): ${EVOLUTION_BASE_URL} · chave=$(printf '%s' "${EVOLUTION_API_KEY}" | mask_mid)"
 else
   HTTP_STATUS=401; INSTANCES_JSON=""; WIN_SRC=""; WIN_EP=""
 fi
-rm -f "${CAND}" "${URLS}"
+rm -f "${CAND}" "${URLS}" "${CTXU}"
 
 # [4/6] resultado da API com a combinação vencedora
 API_NAMES="$(printf '%s' "${INSTANCES_JSON}" | grep -oE '"(instanceName|name)":"[^"]+"' | cut -d'"' -f4 | sort -u | tr '\n' ' ')"

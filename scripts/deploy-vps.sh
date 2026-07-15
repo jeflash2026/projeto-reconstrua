@@ -18,7 +18,7 @@ set -u
 SCRIPT_VERSION="v8-context (rebuild limpo 2026-07-15)"
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
-OFFICIAL_INSTANCE="B866E755DEB1-48BF-B1AA-2D845B947A87"
+OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
 OFFICIAL_NUMBER="554137989737"
 TAB="$(printf '\t')"
 
@@ -244,7 +244,7 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
   local tbl raw chunk name jid num st chats msgs row target matches n
   tbl="$(mktemp)"; raw="$(mktemp)"
   sed 's/},[[:space:]]*{/}\n{/g' "${INSTF}" > "${raw}"
-  echo "  instâncias (nome | ownerJid | número | status | chats | msgs):"
+  # parse SILENCIOSO para arquivo tabular (nada é impresso antes da decisão por nome)
   while IFS= read -r chunk; do
     name="$(printf '%s' "${chunk}" | grep -oE '"(name|instanceName)":"[^"]+"' | head -1 | cut -d'"' -f4)"
     [ -n "${name}" ] || continue
@@ -254,11 +254,11 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
     chats="$(printf '%s' "${chunk}" | grep -oE '"Chat":[0-9]+' | head -1 | grep -oE '[0-9]+' || true)"
     msgs="$(printf '%s' "${chunk}" | grep -oE '"Message":[0-9]+' | head -1 | grep -oE '[0-9]+' || true)"
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${name}" "${jid:--}" "${num:--}" "${st:-?}" "${chats:-?}" "${msgs:-?}" >> "${tbl}"
-    printf '   | %s | %s | %s | %s | %s | %s |\n' "${name}" "${jid:--}" "${num:--}" "${st:-?}" "${chats:-?}" "${msgs:-?}"
   done < "${raw}"
   rm -f "${raw}"
 
-  # 1) NOME oficial
+  # ── PRIORIDADE ABSOLUTA: NOME oficial exato. Encontrada+conectada ⇒ RETURN.
+  #    Nenhum código abaixo (listagem, número, ambiguidade) roda neste caminho. ──
   row="$(awk -F"${TAB}" -v n="${OFFICIAL_INSTANCE}" '$1==n{print; exit}' "${tbl}")"
   if [ -n "${row}" ]; then
     st="$(printf '%s' "${row}" | cut -f4)"
@@ -268,13 +268,17 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
       WHATSAPP_NUMBER="${num}"
       { [ -z "${WHATSAPP_NUMBER}" ] || [ "${WHATSAPP_NUMBER}" = "-" ]; } && WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
       ok "instância OFICIAL por NOME: '${EVOLUTION_INSTANCE}' (status ${st}, número ${WHATSAPP_NUMBER})"
-      ok "usada EXCLUSIVAMENTE — histórico integral preservado; nada criado/resetado/desconectado"
+      ok "usada EXCLUSIVAMENTE — sem busca por número, sem listar outras; histórico preservado"
       rm -f "${tbl}"; return 0
     fi
     fail "a instância oficial '${OFFICIAL_INSTANCE}' existe mas NÃO está conectada (status: ${st:-?})."
     fail "Nunca a substituo automaticamente. Reconecte-a no manager (preserva o histórico) e rode de novo."
     rm -f "${tbl}"; return 1
   fi
+
+  # ── só chega aqui se o NOME oficial NÃO existe entre as instâncias ──
+  echo "  nome oficial não encontrado; instâncias existentes (nome | ownerJid | número | status | chats | msgs):"
+  awk -F"${TAB}" '{printf "   | %s | %s | %s | %s | %s | %s |\n",$1,$2,$3,$4,$5,$6}' "${tbl}"
 
   # 2) NÚMERO oficial normalizado (0 = laudo · 1 = usa · N = ambíguo)
   target="$(norm "${OFFICIAL_NUMBER}")"

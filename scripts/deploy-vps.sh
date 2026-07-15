@@ -39,24 +39,111 @@ touch .env; chmod 600 .env
 getenv() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2-; }
 setenv() { if grep -qE "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else echo "$1=$2" >> .env; fi }
 
-say "2/8 Autodescoberta: chave de LLM já existente na VPS"
-find_key() { # $1=VAR  — procura no .env do app, em TODOS os containers e em arquivos comuns
-  local v; v="$(getenv "$1")"; [ -n "$v" ] && { echo "$v"; return; }
-  v="$(docker ps -q 2>/dev/null | xargs -r -n1 docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E "^$1=" | head -1 | cut -d= -f2-)"
-  [ -n "$v" ] && { echo "$v"; return; }
-  v="$(grep -shE "^(export )?$1=" /root/.env /root/.env.* /opt/*/.env /root/.bashrc /etc/environment 2>/dev/null | head -1 | sed -E "s/^(export )?$1=//" | tr -d '"'"'" )"
-  echo "$v"
+say "2/8 BUSCA FORENSE: chave de LLM já existente na VPS (prova de presença/ausência)"
+# Padrões: variável ANTHROPIC_API_KEY=... OU o formato da chave (sk-ant-...).
+KEY_VAR='ANTHROPIC_API_KEY'
+KEY_PAT='sk-ant-[A-Za-z0-9_-]{20,}'
+FOUND_KEY=""; FOUND_WHERE=""
+mask() { sed -E 's/(sk-ant-[A-Za-z0-9_-]{8})[A-Za-z0-9_-]+/\1••••••••••••/g'; }
+hit() { # $1=local  $2=valor
+  [ -n "${FOUND_KEY}" ] && return
+  FOUND_KEY="$2"; FOUND_WHERE="$1"
+  ok "ENCONTRADA em: $1  →  $(printf '%s' "$2" | mask)"
 }
-ANTHROPIC_API_KEY="$(find_key ANTHROPIC_API_KEY)"
-OPENAI_API_KEY="$(find_key OPENAI_API_KEY)"
-GEMINI_API_KEY="$(find_key GEMINI_API_KEY)"
-if   [ -n "${ANTHROPIC_API_KEY}" ]; then LLM_PROVIDER=anthropic; ok "ANTHROPIC_API_KEY reutilizada (encontrada na VPS)";
-elif [ -n "${OPENAI_API_KEY}" ];   then LLM_PROVIDER=openai;   ok "OPENAI_API_KEY reutilizada";
-elif [ -n "${GEMINI_API_KEY}" ];   then LLM_PROVIDER=gemini;   ok "GEMINI_API_KEY reutilizada";
+scan_val() { printf '%s' "$1" | grep -oE "${KEY_PAT}" | head -1; }
+check() { printf '  [%-42s] ' "$1"; }
+
+# 1. docker inspect de TODOS os containers (rodando E parados)
+check "docker inspect (todos os containers)"
+V="$(docker ps -aq 2>/dev/null | xargs -r -n1 docker inspect --format '{{.Name}} {{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E "${KEY_VAR}=|${KEY_PAT}" | head -1)"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "env de container ($(echo "$V" | awk '{print $1}'))" "$K"; } || echo "não há"
+
+# 2. docker compose configs (arquivos compose + .env ao lado)
+check "docker compose files (/root,/opt,/home,/srv)"
+FILES="$(find /root /opt /home /srv -maxdepth 4 \( -name 'docker-compose*.y*ml' -o -name 'compose*.y*ml' \) 2>/dev/null | head -20)"
+V="$(grep -sHE "${KEY_VAR}|${KEY_PAT}" ${FILES:-/nonexistent} 2>/dev/null | head -1)"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "compose: $(echo "$V" | cut -d: -f1)" "$K"; } || echo "não há"
+
+# 3/4. docker secrets (inclui swarm, se ativo)
+check "docker secrets / swarm"
+if docker secret ls >/dev/null 2>&1; then
+  S="$(docker secret ls --format '{{.Name}}' | grep -iE 'anthropic|llm|sk.?ant' | head -1)"
+  [ -n "$S" ] && { echo "SUSPEITA"; warn "secret '${S}' existe (conteúdo não legível fora de um serviço); monte-o no serviço da API"; } || echo "não há"
+else echo "não há (swarm inativo)"; fi
+
+# 5. volumes Docker (grep limitado a arquivos texto, com timeout)
+check "volumes docker (mountpoints)"
+K=""
+for MP in $(docker volume ls -q 2>/dev/null | head -20); do
+  P="$(docker volume inspect "$MP" --format '{{.Mountpoint}}' 2>/dev/null)"
+  [ -d "$P" ] || continue
+  V="$(timeout 20 grep -rIsoE "${KEY_PAT}" "$P" 2>/dev/null | head -1)"
+  [ -n "$V" ] && { K="$(scan_val "$V")"; hit "volume ${MP} ($(echo "$V" | cut -d: -f1))" "$K"; break; }
+done
+[ -n "$K" ] && echo "ACHOU" || echo "não há"
+
+# 6. bind mounts de todos os containers
+check "bind mounts dos containers"
+K=""
+for SRC in $(docker ps -aq 2>/dev/null | xargs -r -n1 docker inspect --format '{{range .Mounts}}{{if eq .Type "bind"}}{{println .Source}}{{end}}{{end}}' 2>/dev/null | sort -u | head -20); do
+  [ -e "$SRC" ] || continue
+  V="$(timeout 15 grep -rIsoE "${KEY_PAT}" "$SRC" 2>/dev/null | head -1)"
+  [ -n "$V" ] && { K="$(scan_val "$V")"; hit "bind mount ${SRC}" "$K"; break; }
+done
+[ -n "$K" ] && echo "ACHOU" || echo "não há"
+
+# 7. filesystem: /root /home /opt /etc /srv (arquivos texto, com timeout)
+check "grep -r /root /home /opt /etc /srv"
+V="$(timeout 90 grep -rIsHoE "${KEY_VAR}=[^ ]+|${KEY_PAT}" /root /home /opt /etc /srv --exclude-dir={node_modules,.git,.cache,letsencrypt} 2>/dev/null | grep -v '/opt/reconstrua/scripts/' | head -1)"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "arquivo: $(echo "$V" | cut -d: -f1)" "$K"; } || echo "não há"
+
+# 8. shell configs + HISTÓRICO
+check "bashrc/profile/zshrc + histórico do shell"
+V="$(grep -shoE "${KEY_VAR}=[^ ]+|${KEY_PAT}" /root/.bashrc /root/.profile /root/.zshrc /root/.bash_history /root/.zsh_history /home/*/.bash_history 2>/dev/null | head -1)"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "shell config/histórico" "$K"; } || echo "não há"
+
+# 9. /etc/environment + systemd
+check "systemd services (Environment=)"
+V="$(grep -rshoE "${KEY_VAR}=[^ ]+|${KEY_PAT}" /etc/environment /etc/systemd/system /lib/systemd/system 2>/dev/null | head -1)"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "systemd//etc/environment" "$K"; } || echo "não há"
+
+# 10. PM2
+check "PM2 (dump/ecosystem)"
+V="$(grep -shoE "${KEY_VAR}|${KEY_PAT}" /root/.pm2/dump.pm2 /root/ecosystem.config.* /opt/*/ecosystem.config.* 2>/dev/null | head -1)"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "PM2" "$K"; } || echo "não há"
+
+# 11. Portainer / Nginx Proxy Manager (dados em volumes já cobertos; stacks do Portainer)
+check "Portainer stacks (data/compose)"
+PV="$(docker volume ls -q 2>/dev/null | grep -i portainer | head -1)"
+K=""
+if [ -n "$PV" ]; then
+  P="$(docker volume inspect "$PV" --format '{{.Mountpoint}}')"
+  V="$(timeout 20 grep -rIsoE "${KEY_PAT}" "$P/compose" "$P" 2>/dev/null | head -1)"
+  [ -n "$V" ] && { K="$(scan_val "$V")"; hit "Portainer ($PV)" "$K"; }
+fi
+[ -n "$K" ] && echo "ACHOU" || echo "não há"
+
+if [ -n "${FOUND_KEY}" ]; then
+  ANTHROPIC_API_KEY="${FOUND_KEY}"; LLM_PROVIDER=anthropic
+  OPENAI_API_KEY="$(getenv OPENAI_API_KEY)"; GEMINI_API_KEY="$(getenv GEMINI_API_KEY)"
+  ok "REUTILIZANDO a chave encontrada em: ${FOUND_WHERE} (nenhuma chave nova será criada)"
 else
-  fail "nenhuma chave de LLM existe na VPS (procurei: containers, /root/.env*, /opt/*/.env, /etc/environment, ~/.bashrc)"
-  fail "variável esperada: ANTHROPIC_API_KEY=sk-ant-...  (salve-a em /opt/reconstrua/.env e rode de novo)"
-  exit 1
+  # fallback: outras chaves de LLM já salvas no .env do app
+  ANTHROPIC_API_KEY="$(getenv ANTHROPIC_API_KEY)"; OPENAI_API_KEY="$(getenv OPENAI_API_KEY)"; GEMINI_API_KEY="$(getenv GEMINI_API_KEY)"
+  if   [ -n "${ANTHROPIC_API_KEY}" ]; then LLM_PROVIDER=anthropic; ok "ANTHROPIC_API_KEY do .env do app";
+  elif [ -n "${OPENAI_API_KEY}" ];   then LLM_PROVIDER=openai;   ok "OPENAI_API_KEY do .env do app";
+  elif [ -n "${GEMINI_API_KEY}" ];   then LLM_PROVIDER=gemini;   ok "GEMINI_API_KEY do .env do app";
+  else
+    echo
+    fail "PROVA DE AUSÊNCIA: a ANTHROPIC_API_KEY foi procurada nos 11 locais acima (containers"
+    fail "rodando+parados, compose files, secrets/swarm, volumes, bind mounts, /root /home /opt"
+    fail "/etc /srv, shell configs+histórico, systemd, PM2, Portainer) e NÃO EXISTE nesta VPS."
+    fail "Ela nunca foi configurada aqui."
+    echo
+    fail "Para prosseguir: crie a chave em https://console.anthropic.com e salve UMA linha:"
+    fail "  echo 'ANTHROPIC_API_KEY=sk-ant-SUACHAVE' >> /opt/reconstrua/.env   # e rode este script de novo"
+    exit 1
+  fi
 fi
 
 say "3/8 Autodescoberta: Evolution"

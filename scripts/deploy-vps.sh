@@ -16,7 +16,7 @@
 set -u
 
 SCRIPT_VERSION="v8-context (rebuild limpo 2026-07-15)"
-SCRIPT_SHA="proof-e9902e86"   # build id único desta publicação (bater com o SHA do commit)
+SCRIPT_SHA="proof-f9e54ab5"   # build id único desta publicação (bater com o SHA do commit)
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
@@ -240,71 +240,73 @@ find_evolution_access() {
   return 0
 }
 
-# seleção da instância: NOME oficial → senão NÚMERO oficial. Nunca "a primeira".
-# A DECISÃO usa comparação bash `=` (mesmo operador do dump que deu IGUAL);
-# NENHUM awk no caminho de decisão (mawk do Ubuntu diverge de bash em -F/-v).
-select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER, ou retorna 1
-  local tbl raw chunk name jid num st chats msgs LINE
-  local off_found="" off_st="" off_num="" tgt matches mcount
-  tbl="$(mktemp)"; raw="$(mktemp)"
-  echo "===== BEGIN INSTF ====="
-  cat "${INSTF}"
-  echo "===== END INSTF ====="
-  sed 's/},[[:space:]]*{/}\n{/g' "${INSTF}" > "${raw}"
-  echo "===== BEGIN RAW ====="
-  cat "${raw}"
-  echo "===== END RAW ====="
-  # `|| [ -n "$chunk" ]` garante processar a ÚLTIMA linha mesmo SEM \n final
-  # (sed/API podem não terminar com newline → o read perderia a última instância)
-  while IFS= read -r chunk || [ -n "${chunk}" ]; do
-    name="$(printf '%s' "${chunk}" | grep -oE '"(name|instanceName)":"[^"]+"' | head -1 | cut -d'"' -f4)"
-    [ -n "${name}" ] || continue
-    jid="$(printf '%s' "${chunk}" | grep -oE '"(ownerJid|owner|wuid)":"[^"]*"' | head -1 | cut -d'"' -f4)"
-    num="$(norm "${jid}")"
-    st="$(printf '%s' "${chunk}" | grep -oE '"(connectionStatus|status|state)":"[^"]+"' | head -1 | cut -d'"' -f4)"
-    chats="$(printf '%s' "${chunk}" | grep -oE '"Chat":[0-9]+' | head -1 | grep -oE '[0-9]+' || true)"
-    msgs="$(printf '%s' "${chunk}" | grep -oE '"Message":[0-9]+' | head -1 | grep -oE '[0-9]+' || true)"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${name}" "${jid:--}" "${num:--}" "${st:-?}" "${chats:-?}" "${msgs:-?}" >> "${tbl}"
-  done < "${raw}"
-  rm -f "${raw}"
+# Extrai instâncias do JSON da Evolution de forma ROBUSTA (parser real, não regex):
+# imprime uma linha TSV por instância — name<TAB>ownerJid<TAB>status<TAB>chats<TAB>msgs
+# Funciona com JSON compacto, pretty-print, espaços e qualquer ordem de campos.
+json_instances() { # $1=arquivo json
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$1" <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    sys.exit(3)
+if isinstance(d, dict):
+    arr = d.get("data") or d.get("instances") or ([d["instance"]] if d.get("instance") else [d])
+else:
+    arr = d
+if not isinstance(arr, list):
+    arr = [arr]
+for it in arr:
+    i = it.get("instance") if isinstance(it, dict) and isinstance(it.get("instance"), dict) else it
+    if not isinstance(i, dict):
+        continue
+    name = i.get("name") or i.get("instanceName") or i.get("id") or ""
+    jid  = i.get("ownerJid") or i.get("owner") or i.get("wuid") or ""
+    st   = i.get("connectionStatus") or i.get("status") or i.get("state") or ""
+    c    = i.get("_count") or i.get("count") or {}
+    chats = c.get("Chat", "") if isinstance(c, dict) else ""
+    msgs  = c.get("Message", "") if isinstance(c, dict) else ""
+    print("\t".join(str(x).replace("\t", " ").replace("\n", " ")
+                     for x in (name, jid, st, chats, msgs)))
+PY
+    return $?
+  fi
+  command -v jq >/dev/null 2>&1 || apt-get install -y -qq jq >/dev/null 2>&1
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '(if type=="array" then . elif .instance then [.instance] elif .data then .data elif .instances then .instances else [.] end)[]
+           | (.instance // .)
+           | [ (.name // .instanceName // .id // ""),
+               (.ownerJid // .owner // .wuid // ""),
+               (.connectionStatus // .status // .state // ""),
+               ((._count.Chat // .count.Chat // "")|tostring),
+               ((._count.Message // .count.Message // "")|tostring) ]
+           | @tsv' "$1" 2>/dev/null
+    return $?
+  fi
+  return 4
+}
 
-  # [PROVA] a decisão lê EXATAMENTE ${tbl}: metadados + conteúdo numerado do arquivo
-  printf '[TBL] ls  : '
-  # shellcheck disable=SC2012
-  ls -l "${tbl}"
-  printf '[TBL] wc  : '; wc -l "${tbl}"
-  echo   '[TBL] cat -n:'; cat -n "${tbl}"
-  printf '[TGT] OFFICIAL_INSTANCE=<%s> len=%d\n' "${OFFICIAL_INSTANCE}" "${#OFFICIAL_INSTANCE}"
-  # listagem + detecção do NOME oficial no MESMO laço, lendo linha a linha de ${tbl}
-  echo "  instâncias (nome | ownerJid | número | status | chats | msgs):"
-  while IFS= read -r LINE || [ -n "${LINE}" ]; do
-    name="$(printf '%s' "${LINE}" | cut -f1)"
-    declare -p LINE
-    declare -p name
-    printf 'LINE_BYTES='
-    printf '%s' "$LINE" | od -An -tx1
-    printf 'NAME_BYTES='
-    printf '%s' "$name" | od -An -tx1
-    jid="$(printf '%s' "${LINE}" | cut -f2)"
-    num="$(printf '%s' "${LINE}" | cut -f3)"
-    st="$(printf '%s' "${LINE}" | cut -f4)"
-    chats="$(printf '%s' "${LINE}" | cut -f5)"
-    msgs="$(printf '%s' "${LINE}" | cut -f6)"
-    printf 'LINE=<%s>\n' "${LINE}"
-    printf 'NAME=<%s>\n' "${name}"
-    printf 'LEN_NAME=%d\n' "${#name}"
-    printf '   | %s | %s | %s | %s | %s | %s |\n' "${name}" "${jid}" "${num}" "${st}" "${chats}" "${msgs}"
-    printf 'NAME_ESC=%q\n' "$name"
-    printf 'OFF_ESC=%q\n' "$OFFICIAL_INSTANCE"
-    printf '%s' "$name" | od -An -tx1
-    printf '%s' "$OFFICIAL_INSTANCE" | od -An -tx1
-    if [ "${name}" = "${OFFICIAL_INSTANCE}" ]; then
-      off_found=1; off_st="${st}"; off_num="${num}"
-      printf '[MATCH]\n'
-    fi
+# seleção da instância: NOME oficial exato → senão NÚMERO oficial. Nunca "a primeira".
+select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER, ou retorna 1
+  local tbl name jid st chats msgs num
+  local off_found="" off_st="" off_num="" tgt matches mcount
+  tbl="$(mktemp)"
+  if ! json_instances "${INSTF}" > "${tbl}" || [ ! -s "${tbl}" ]; then
+    fail "não consegui parsear a resposta da Evolution como JSON (nem python3 nem jq disponíveis,"
+    fail "ou o corpo não é JSON). Primeiros bytes recebidos:"
+    head -c 200 "${INSTF}" | sed 's/^/    /'
+    rm -f "${tbl}"; return 1
+  fi
+
+  echo "  instâncias encontradas (nome | número | status | chats | msgs):"
+  while IFS="${TAB}" read -r name jid st chats msgs; do
+    num="$(norm "${jid}")"
+    printf '   | %s | %s | %s | %s | %s |\n' "${name}" "${num:-?}" "${st:-?}" "${chats:-?}" "${msgs:-?}"
+    if [ "${name}" = "${OFFICIAL_INSTANCE}" ]; then off_found=1; off_st="${st}"; off_num="${num}"; fi
   done < "${tbl}"
 
-  # 1) NOME oficial exato — encontrado+conectado ⇒ RETURN (sem busca por número)
+  # 1) NOME oficial exato — prioridade absoluta
   if [ -n "${off_found}" ]; then
     if printf '%s' "${off_st}" | grep -qiE '^(open|connected)$'; then
       EVOLUTION_INSTANCE="${OFFICIAL_INSTANCE}"
@@ -319,10 +321,10 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
     rm -f "${tbl}"; return 1
   fi
 
-  # 2) NÚMERO oficial normalizado (comparação bash) — 0=laudo · 1=usa · N=ambíguo
+  # 2) NÚMERO oficial normalizado — 0=laudo · 1=usa · N=ambíguo
   tgt="$(norm "${OFFICIAL_NUMBER}")"; matches=""
-  while IFS="${TAB}" read -r name jid num st chats msgs; do
-    [ "${num}" = "${tgt}" ] && matches="${matches}${name}
+  while IFS="${TAB}" read -r name jid st chats msgs; do
+    [ "$(norm "${jid}")" = "${tgt}" ] && matches="${matches}${name}
 "
   done < "${tbl}"
   rm -f "${tbl}"
@@ -433,40 +435,11 @@ deploy_until_green() {
   return 0
 }
 
-SELF_DST="/tmp/deploy-debug.sh"
-# Persiste em disco o script EXATO que está executando e roda a partir dele, para
-# permitir `less /tmp/deploy-debug.sh` e conferir que o executado == o publicado.
-save_self_and_reexec() {
-  [ "${DEPLOY_SELF_SAVED:-}" = "1" ] && return 0
-  export DEPLOY_SELF_SAVED=1
-  # (a) rodando de um ARQUIVO real (ex.: bash arquivo.sh): copia esse arquivo exato
-  if [ -f "$0" ] && [ "$0" != "${SELF_DST}" ] \
-     && [ "$(basename -- "$0")" != "bash" ] && [ "$(basename -- "$0")" != "sh" ]; then
-    cp "$0" "${SELF_DST}" && chmod +x "${SELF_DST}" && exec bash "${SELF_DST}" "$@"
-  fi
-  # (b) rodando via pipe (curl|bash): não há arquivo-fonte no disco — rebaixa a
-  #     própria fonte publicada (master, com cache-bust) para o disco e re-executa
-  if [ "$0" != "${SELF_DST}" ] && command -v curl >/dev/null 2>&1; then
-    curl -fsSL "${REPO_URL%.git}/raw/master/scripts/deploy-vps.sh?cb=$(date +%s)" \
-      | tr -d '\r' > "${SELF_DST}" 2>/dev/null || true
-    if [ -s "${SELF_DST}" ]; then chmod +x "${SELF_DST}"; exec bash "${SELF_DST}" "$@"; fi
-  fi
-  return 0
-}
-
 main() {
-  save_self_and_reexec "$@"
-  printf '\n\033[1;35m AHRIOS deploy-vps %s \033[0m\n' "${SCRIPT_VERSION}"
-  # ── IDENTIDADE OBRIGATÓRIA do script em execução ──
-  printf 'SELF_DST=%s (abra com: less %s)\n' "${SELF_DST}" "${SELF_DST}"
-  printf 'SCRIPT_SHA=%s\n' "${SCRIPT_SHA}"
-  printf 'SCRIPT_VERSION=%s\n' "${SCRIPT_VERSION}"
-  echo "SCRIPT_PATH=$0"
-  sha256sum "$0"
-  echo "BASH_VERSION=$BASH_VERSION"
-  echo "AWK=$(awk -W version 2>/dev/null | head -1 || true)"
+  printf '\n\033[1;35m AHRIOS deploy-vps %s · %s \033[0m\n' "${SCRIPT_VERSION}" "${SCRIPT_SHA}"
 
   say "0/8 Pré-requisitos"
+  command -v python3 >/dev/null 2>&1 || command -v jq >/dev/null 2>&1 || apt-get install -y -qq jq >/dev/null 2>&1
   command -v docker >/dev/null 2>&1 || { warn "instalando docker"; curl -fsSL https://get.docker.com | sh >/dev/null 2>&1; }
   command -v git >/dev/null 2>&1 || apt-get install -y -qq git >/dev/null 2>&1
   command -v openssl >/dev/null 2>&1 || apt-get install -y -qq openssl >/dev/null 2>&1

@@ -240,25 +240,16 @@ find_evolution_access() {
 }
 
 # seleção da instância: NOME oficial → senão NÚMERO oficial. Nunca "a primeira".
+# A DECISÃO usa comparação bash `=` (mesmo operador do dump que deu IGUAL);
+# NENHUM awk no caminho de decisão (mawk do Ubuntu diverge de bash em -F/-v).
 select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER, ou retorna 1
-  local tbl raw chunk name jid num st chats msgs row target matches n
+  local tbl raw chunk name jid num st chats msgs
+  local off_found="" off_st="" off_num="" tgt matches mcount
   tbl="$(mktemp)"; raw="$(mktemp)"
   sed 's/},[[:space:]]*{/}\n{/g' "${INSTF}" > "${raw}"
-  # [DEBUG] alvo da comparação (impresso uma vez, com comprimento e bytes)
-  printf '[TARGET] <%s>\n' "${OFFICIAL_INSTANCE}"
-  printf '[LEN TARGET]=%d\n' "${#OFFICIAL_INSTANCE}"
-  printf '[HEX TARGET] '; printf '%s' "${OFFICIAL_INSTANCE}" | od -An -tx1 | tr -d '\n'; printf '\n'
-  # parse para arquivo tabular
   while IFS= read -r chunk; do
     name="$(printf '%s' "${chunk}" | grep -oE '"(name|instanceName)":"[^"]+"' | head -1 | cut -d'"' -f4)"
     [ -n "${name}" ] || continue
-    # [DEBUG] bytes reais de CADA nome vindo da Evolution vs. o alvo
-    printf '[RAW] <%s>\n' "${name}"
-    printf '[LEN RAW]=%d\n' "${#name}"
-    if printf '%s' "${name}" | grep -qiE 'e755deb1'; then
-      printf '[HEX RAW] '; printf '%s' "${name}" | od -An -tx1 | tr -d '\n'; printf '\n'
-      if [ "${name}" = "${OFFICIAL_INSTANCE}" ]; then printf '[EQ?] IGUAL\n'; else printf '[EQ?] DIFERENTE\n'; fi
-    fi
     jid="$(printf '%s' "${chunk}" | grep -oE '"(ownerJid|owner|wuid)":"[^"]*"' | head -1 | cut -d'"' -f4)"
     num="$(norm "${jid}")"
     st="$(printf '%s' "${chunk}" | grep -oE '"(connectionStatus|status|state)":"[^"]+"' | head -1 | cut -d'"' -f4)"
@@ -268,47 +259,49 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
   done < "${raw}"
   rm -f "${raw}"
 
-  # ── PRIORIDADE ABSOLUTA: NOME oficial exato. Encontrada+conectada ⇒ RETURN.
-  #    Nenhum código abaixo (listagem, número, ambiguidade) roda neste caminho. ──
-  row="$(awk -F"${TAB}" -v n="${OFFICIAL_INSTANCE}" '$1==n{print; exit}' "${tbl}")"
-  if [ -n "${row}" ]; then
-    st="$(printf '%s' "${row}" | cut -f4)"
-    num="$(printf '%s' "${row}" | cut -f3)"
-    if printf '%s' "${st}" | grep -qiE '^(open|connected)$'; then
+  # listagem + detecção do NOME oficial no MESMO laço (comparação bash, não awk)
+  echo "  instâncias (nome | ownerJid | número | status | chats | msgs):"
+  while IFS="${TAB}" read -r name jid num st chats msgs; do
+    printf '   | %s | %s | %s | %s | %s | %s |\n' "${name}" "${jid}" "${num}" "${st}" "${chats}" "${msgs}"
+    if [ "${name}" = "${OFFICIAL_INSTANCE}" ]; then off_found=1; off_st="${st}"; off_num="${num}"; fi
+  done < "${tbl}"
+
+  # 1) NOME oficial exato — encontrado+conectado ⇒ RETURN (sem busca por número)
+  if [ -n "${off_found}" ]; then
+    if printf '%s' "${off_st}" | grep -qiE '^(open|connected)$'; then
       EVOLUTION_INSTANCE="${OFFICIAL_INSTANCE}"
-      WHATSAPP_NUMBER="${num}"
+      WHATSAPP_NUMBER="${off_num}"
       { [ -z "${WHATSAPP_NUMBER}" ] || [ "${WHATSAPP_NUMBER}" = "-" ]; } && WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
-      ok "instância OFICIAL por NOME: '${EVOLUTION_INSTANCE}' (status ${st}, número ${WHATSAPP_NUMBER})"
-      ok "usada EXCLUSIVAMENTE — sem busca por número, sem listar outras; histórico preservado"
+      ok "instância OFICIAL por NOME: '${EVOLUTION_INSTANCE}' (status ${off_st}, número ${WHATSAPP_NUMBER})"
+      ok "usada EXCLUSIVAMENTE — sem busca por número; histórico preservado"
       rm -f "${tbl}"; return 0
     fi
-    fail "a instância oficial '${OFFICIAL_INSTANCE}' existe mas NÃO está conectada (status: ${st:-?})."
+    fail "a instância oficial '${OFFICIAL_INSTANCE}' existe mas NÃO está conectada (status: ${off_st:-?})."
     fail "Nunca a substituo automaticamente. Reconecte-a no manager (preserva o histórico) e rode de novo."
     rm -f "${tbl}"; return 1
   fi
 
-  # ── só chega aqui se o NOME oficial NÃO existe entre as instâncias ──
-  echo "  nome oficial não encontrado; instâncias existentes (nome | ownerJid | número | status | chats | msgs):"
-  awk -F"${TAB}" '{printf "   | %s | %s | %s | %s | %s | %s |\n",$1,$2,$3,$4,$5,$6}' "${tbl}"
-
-  # 2) NÚMERO oficial normalizado (0 = laudo · 1 = usa · N = ambíguo)
-  target="$(norm "${OFFICIAL_NUMBER}")"
-  matches="$(awk -F"${TAB}" -v t="${target}" '$3==t{print $1}' "${tbl}")"
-  n="$(printf '%s\n' "${matches}" | grep -c . || true)"
+  # 2) NÚMERO oficial normalizado (comparação bash) — 0=laudo · 1=usa · N=ambíguo
+  tgt="$(norm "${OFFICIAL_NUMBER}")"; matches=""
+  while IFS="${TAB}" read -r name jid num st chats msgs; do
+    [ "${num}" = "${tgt}" ] && matches="${matches}${name}
+"
+  done < "${tbl}"
   rm -f "${tbl}"
-  if [ "${n}" = "1" ]; then
-    EVOLUTION_INSTANCE="${matches}"
+  mcount="$(printf '%s' "${matches}" | grep -c . || true)"
+  if [ "${mcount}" = "1" ]; then
+    EVOLUTION_INSTANCE="$(printf '%s' "${matches}" | head -1)"
     WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
-    ok "instância pelo NÚMERO oficial (${target}): '${EVOLUTION_INSTANCE}' — usada exclusivamente; histórico preservado"
+    ok "instância pelo NÚMERO oficial (${tgt}): '${EVOLUTION_INSTANCE}' — usada exclusivamente; histórico preservado"
     return 0
   fi
-  if [ "${n}" -gt 1 ]; then
-    fail "AMBÍGUO: ${n} instâncias com o número ${target}:"
-    printf '%s\n' "${matches}" | while IFS= read -r name; do fail "  • ${name}"; done
+  if [ "${mcount}" -gt 1 ]; then
+    fail "AMBÍGUO: ${mcount} instâncias com o número ${tgt}:"
+    printf '%s' "${matches}" | while IFS= read -r name; do [ -n "${name}" ] && fail "  • ${name}"; done
     fail "Não escolho a primeira. Deixe apenas UMA conectada com esse número e rode de novo."
     return 1
   fi
-  fail "nem o NOME oficial '${OFFICIAL_INSTANCE}' nem o NÚMERO ${target} constam nas instâncias acima."
+  fail "nem o NOME oficial '${OFFICIAL_INSTANCE}' nem o NÚMERO ${tgt} constam nas instâncias acima."
   fail "Conecte o WhatsApp ${OFFICIAL_NUMBER} no manager (o deploy nunca cria/reseta/desconecta) e rode de novo."
   return 1
 }

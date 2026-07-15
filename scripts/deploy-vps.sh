@@ -17,6 +17,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -uo pipefail
 
+# Banner de versão: o log SEMPRE prova qual versão executou.
+SCRIPT_VERSION="v3-forense (2026-07-15)"
+printf '\n\033[1;35m AHRIOS deploy-vps %s \033[0m\n' "${SCRIPT_VERSION}"
+
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 PUBLIC_IP="$(curl -fsS -m 8 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')"
@@ -39,7 +43,10 @@ touch .env; chmod 600 .env
 getenv() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2-; }
 setenv() { if grep -qE "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else echo "$1=$2" >> .env; fi }
 
-say "2/8 BUSCA FORENSE: chave de LLM já existente na VPS (prova de presença/ausência)"
+say "2/8 Chave de LLM existente na VPS"
+echo ""
+echo "=== BUSCA FORENSE ==="
+echo "(versão do script: ${SCRIPT_VERSION} — se você NÃO vê este cabeçalho, está rodando versão antiga)"
 # Padrões: variável ANTHROPIC_API_KEY=... OU o formato da chave (sk-ant-...).
 KEY_VAR='ANTHROPIC_API_KEY'
 KEY_PAT='sk-ant-[A-Za-z0-9_-]{20,}'
@@ -48,80 +55,90 @@ mask() { sed -E 's/(sk-ant-[A-Za-z0-9_-]{8})[A-Za-z0-9_-]+/\1••••••�
 hit() { # $1=local  $2=valor
   [ -n "${FOUND_KEY}" ] && return
   FOUND_KEY="$2"; FOUND_WHERE="$1"
-  ok "ENCONTRADA em: $1  →  $(printf '%s' "$2" | mask)"
 }
 scan_val() { printf '%s' "$1" | grep -oE "${KEY_PAT}" | head -1; }
-check() { printf '  [%-42s] ' "$1"; }
+step() { printf '[%s/11] %-24s ' "$1" "$2"; }
+res() { if [ -n "$1" ]; then echo "ACHOU → $2"; else echo "não há"; fi }
 
-# 1. docker inspect de TODOS os containers (rodando E parados)
-check "docker inspect (todos os containers)"
+step 1 "Containers"
 V="$(docker ps -aq 2>/dev/null | xargs -r -n1 docker inspect --format '{{.Name}} {{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E "${KEY_VAR}=|${KEY_PAT}" | head -1)"
-K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "env de container ($(echo "$V" | awk '{print $1}'))" "$K"; } || echo "não há"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && hit "env de container ($(echo "$V" | awk '{print $1}'))" "$K"
+res "$K" "container $(echo "${V:-}" | awk '{print $1}')"
 
-# 2. docker compose configs (arquivos compose + .env ao lado)
-check "docker compose files (/root,/opt,/home,/srv)"
-FILES="$(find /root /opt /home /srv -maxdepth 4 \( -name 'docker-compose*.y*ml' -o -name 'compose*.y*ml' \) 2>/dev/null | head -20)"
-V="$(grep -sHE "${KEY_VAR}|${KEY_PAT}" ${FILES:-/nonexistent} 2>/dev/null | head -1)"
-K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "compose: $(echo "$V" | cut -d: -f1)" "$K"; } || echo "não há"
-
-# 3/4. docker secrets (inclui swarm, se ativo)
-check "docker secrets / swarm"
+step 2 "Docker Secrets"
 if docker secret ls >/dev/null 2>&1; then
-  S="$(docker secret ls --format '{{.Name}}' | grep -iE 'anthropic|llm|sk.?ant' | head -1)"
-  [ -n "$S" ] && { echo "SUSPEITA"; warn "secret '${S}' existe (conteúdo não legível fora de um serviço); monte-o no serviço da API"; } || echo "não há"
+  S="$(docker secret ls --format '{{.Name}}' 2>/dev/null | grep -iE 'anthropic|llm|sk.?ant' | head -1)"
+  if [ -n "$S" ]; then echo "SUSPEITA → secret '${S}' (conteúdo só legível dentro de um serviço)"; else echo "não há"; fi
 else echo "não há (swarm inativo)"; fi
 
-# 5. volumes Docker (grep limitado a arquivos texto, com timeout)
-check "volumes docker (mountpoints)"
+step 3 "Docker Volumes"
 K=""
-for MP in $(docker volume ls -q 2>/dev/null | head -20); do
+for MP in $(docker volume ls -q 2>/dev/null | head -25); do
   P="$(docker volume inspect "$MP" --format '{{.Mountpoint}}' 2>/dev/null)"
   [ -d "$P" ] || continue
   V="$(timeout 20 grep -rIsoE "${KEY_PAT}" "$P" 2>/dev/null | head -1)"
-  [ -n "$V" ] && { K="$(scan_val "$V")"; hit "volume ${MP} ($(echo "$V" | cut -d: -f1))" "$K"; break; }
+  [ -n "$V" ] && { K="$(scan_val "$V")"; hit "volume ${MP}" "$K"; WHERE3="volume ${MP}"; break; }
 done
-[ -n "$K" ] && echo "ACHOU" || echo "não há"
+res "$K" "${WHERE3:-}"
 
-# 6. bind mounts de todos os containers
-check "bind mounts dos containers"
+step 4 "Bind Mounts"
 K=""
-for SRC in $(docker ps -aq 2>/dev/null | xargs -r -n1 docker inspect --format '{{range .Mounts}}{{if eq .Type "bind"}}{{println .Source}}{{end}}{{end}}' 2>/dev/null | sort -u | head -20); do
+for SRC in $(docker ps -aq 2>/dev/null | xargs -r -n1 docker inspect --format '{{range .Mounts}}{{if eq .Type "bind"}}{{println .Source}}{{end}}{{end}}' 2>/dev/null | sort -u | head -25); do
   [ -e "$SRC" ] || continue
   V="$(timeout 15 grep -rIsoE "${KEY_PAT}" "$SRC" 2>/dev/null | head -1)"
-  [ -n "$V" ] && { K="$(scan_val "$V")"; hit "bind mount ${SRC}" "$K"; break; }
+  [ -n "$V" ] && { K="$(scan_val "$V")"; hit "bind mount ${SRC}" "$K"; WHERE4="bind ${SRC}"; break; }
 done
-[ -n "$K" ] && echo "ACHOU" || echo "não há"
+res "$K" "${WHERE4:-}"
 
-# 7. filesystem: /root /home /opt /etc /srv (arquivos texto, com timeout)
-check "grep -r /root /home /opt /etc /srv"
+step 5 "Compose Files"
+FILES="$(find /root /opt /home /srv -maxdepth 4 \( -name 'docker-compose*.y*ml' -o -name 'compose*.y*ml' \) 2>/dev/null | head -20)"
+V="$(grep -sHE "${KEY_VAR}|${KEY_PAT}" ${FILES:-/nonexistent} 2>/dev/null | head -1)"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && hit "compose: $(echo "$V" | cut -d: -f1)" "$K"
+res "$K" "$(echo "${V:-}" | cut -d: -f1)"
+
+step 6 "Filesystem"
 V="$(timeout 90 grep -rIsHoE "${KEY_VAR}=[^ ]+|${KEY_PAT}" /root /home /opt /etc /srv --exclude-dir={node_modules,.git,.cache,letsencrypt} 2>/dev/null | grep -v '/opt/reconstrua/scripts/' | head -1)"
-K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "arquivo: $(echo "$V" | cut -d: -f1)" "$K"; } || echo "não há"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && hit "arquivo: $(echo "$V" | cut -d: -f1)" "$K"
+res "$K" "$(echo "${V:-}" | cut -d: -f1)"
 
-# 8. shell configs + HISTÓRICO
-check "bashrc/profile/zshrc + histórico do shell"
+step 7 "Shell + Histórico"
 V="$(grep -shoE "${KEY_VAR}=[^ ]+|${KEY_PAT}" /root/.bashrc /root/.profile /root/.zshrc /root/.bash_history /root/.zsh_history /home/*/.bash_history 2>/dev/null | head -1)"
-K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "shell config/histórico" "$K"; } || echo "não há"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && hit "shell config/histórico" "$K"
+res "$K" "shell/histórico"
 
-# 9. /etc/environment + systemd
-check "systemd services (Environment=)"
+step 8 "systemd + /etc/environment"
 V="$(grep -rshoE "${KEY_VAR}=[^ ]+|${KEY_PAT}" /etc/environment /etc/systemd/system /lib/systemd/system 2>/dev/null | head -1)"
-K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "systemd//etc/environment" "$K"; } || echo "não há"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && hit "systemd//etc/environment" "$K"
+res "$K" "systemd//etc/environment"
 
-# 10. PM2
-check "PM2 (dump/ecosystem)"
-V="$(grep -shoE "${KEY_VAR}|${KEY_PAT}" /root/.pm2/dump.pm2 /root/ecosystem.config.* /opt/*/ecosystem.config.* 2>/dev/null | head -1)"
-K="$(scan_val "${V:-}")"; [ -n "$K" ] && { echo "ACHOU"; hit "PM2" "$K"; } || echo "não há"
-
-# 11. Portainer / Nginx Proxy Manager (dados em volumes já cobertos; stacks do Portainer)
-check "Portainer stacks (data/compose)"
+step 9 "Portainer"
 PV="$(docker volume ls -q 2>/dev/null | grep -i portainer | head -1)"
 K=""
 if [ -n "$PV" ]; then
-  P="$(docker volume inspect "$PV" --format '{{.Mountpoint}}')"
-  V="$(timeout 20 grep -rIsoE "${KEY_PAT}" "$P/compose" "$P" 2>/dev/null | head -1)"
+  P="$(docker volume inspect "$PV" --format '{{.Mountpoint}}' 2>/dev/null)"
+  V="$(timeout 20 grep -rIsoE "${KEY_PAT}" "$P" 2>/dev/null | head -1)"
   [ -n "$V" ] && { K="$(scan_val "$V")"; hit "Portainer ($PV)" "$K"; }
 fi
-[ -n "$K" ] && echo "ACHOU" || echo "não há"
+res "$K" "Portainer ${PV:-}"
+
+step 10 "Nginx Proxy Manager"
+NPMD="$(docker ps -a --format '{{.Names}}' 2>/dev/null | grep -iE 'nginx-proxy|npm' | head -1)"
+K=""
+if [ -n "$NPMD" ]; then
+  for SRC in $(docker inspect "$NPMD" --format '{{range .Mounts}}{{println .Source}}{{end}}' 2>/dev/null | head -5); do
+    V="$(timeout 15 grep -rIsoE "${KEY_PAT}" "$SRC" 2>/dev/null | head -1)"
+    [ -n "$V" ] && { K="$(scan_val "$V")"; hit "NPM ($SRC)" "$K"; break; }
+  done
+fi
+res "$K" "NPM ${NPMD:-ausente}"
+
+step 11 "PM2"
+V="$(grep -shoE "${KEY_VAR}|${KEY_PAT}" /root/.pm2/dump.pm2 /root/ecosystem.config.* /opt/*/ecosystem.config.* 2>/dev/null | head -1)"
+K="$(scan_val "${V:-}")"; [ -n "$K" ] && hit "PM2" "$K"
+res "$K" "PM2"
+
+echo "=== FIM DA BUSCA FORENSE ==="
+[ -n "${FOUND_KEY}" ] && ok "ENCONTRADA em: ${FOUND_WHERE}  →  $(printf '%s' "${FOUND_KEY}" | mask)"
 
 if [ -n "${FOUND_KEY}" ]; then
   ANTHROPIC_API_KEY="${FOUND_KEY}"; LLM_PROVIDER=anthropic

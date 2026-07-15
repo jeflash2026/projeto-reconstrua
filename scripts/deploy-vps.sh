@@ -18,7 +18,7 @@
 set -uo pipefail
 
 # Banner de versão: o log SEMPRE prova qual versão executou.
-SCRIPT_VERSION="v3-forense (2026-07-15)"
+SCRIPT_VERSION="v4-evolution-diag (2026-07-15)"
 printf '\n\033[1;35m AHRIOS deploy-vps %s \033[0m\n' "${SCRIPT_VERSION}"
 
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
@@ -163,25 +163,82 @@ else
   fi
 fi
 
-say "3/8 Autodescoberta: Evolution"
+say "3/8 DIAGNÓSTICO EVOLUTION (API × banco — sem mascarar erro)"
+echo ""
+echo "=== DIAGNÓSTICO EVOLUTION ==="
+mask_mid() { sed -E 's/^(.{4}).*(.{4})$/\1••••••••\2/'; }
+
+# [1/6] Qual container Evolution está sendo consultado
 EVO_CONTAINER="$(docker ps --format '{{.Names}} {{.Image}}' | grep -i evolution | awk '{print $1}' | head -1)"
+EVO_ALL="$(docker ps -a --format '{{.Names}} ({{.Status}})' | grep -i evolution | tr '\n' ' ')"
+echo "[1/6] Containers Evolution existentes: ${EVO_ALL:-nenhum}"
+echo "      Consultando: ${EVO_CONTAINER:-NENHUM RODANDO}"
+[ -z "${EVO_CONTAINER}" ] && { fail "nenhum container Evolution em execução"; exit 1; }
+
+# [2/6] URL utilizada
 EVOLUTION_BASE_URL="$(getenv EVOLUTION_BASE_URL)"; EVOLUTION_BASE_URL="${EVOLUTION_BASE_URL:-http://${PUBLIC_IP}:8080}"
+echo "[2/6] URL da API: ${EVOLUTION_BASE_URL}"
+
+# [3/6] Key utilizada (mascarada) — do .env do app ou extraída do container
 EVOLUTION_API_KEY="$(getenv EVOLUTION_API_KEY)"
-[ -z "${EVOLUTION_API_KEY}" ] && [ -n "${EVO_CONTAINER}" ] && EVOLUTION_API_KEY="$(docker inspect "${EVO_CONTAINER}" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^AUTHENTICATION_API_KEY=' | cut -d= -f2-)"
+KEY_SRC=".env do app"
 if [ -z "${EVOLUTION_API_KEY}" ]; then
-  fail "Evolution: AUTHENTICATION_API_KEY não encontrada (container: ${EVO_CONTAINER:-nenhum})"
-  fail "variável esperada: EVOLUTION_API_KEY=<key da sua Evolution> em /opt/reconstrua/.env"
-  exit 1
+  EVOLUTION_API_KEY="$(docker inspect "${EVO_CONTAINER}" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^AUTHENTICATION_API_KEY=' | cut -d= -f2-)"
+  KEY_SRC="env do container ${EVO_CONTAINER}"
 fi
-INSTANCES_JSON="$(curl -fsS -m 10 -H "apikey: ${EVOLUTION_API_KEY}" "${EVOLUTION_BASE_URL}/instance/fetchInstances" 2>/dev/null || echo '')"
+[ -z "${EVOLUTION_API_KEY}" ] && { fail "AUTHENTICATION_API_KEY não encontrada em ${EVO_CONTAINER}"; exit 1; }
+echo "[3/6] AUTHENTICATION_API_KEY (${KEY_SRC}): $(printf '%s' "${EVOLUTION_API_KEY}" | mask_mid)"
+
+# [4/6] fetchInstances SEM mascarar: status HTTP + corpo
+HTTP_BODY="$(mktemp)"; HTTP_STATUS="$(curl -sS -m 12 -o "${HTTP_BODY}" -w '%{http_code}' -H "apikey: ${EVOLUTION_API_KEY}" "${EVOLUTION_BASE_URL}/instance/fetchInstances" 2>/dev/null || echo '000')"
+INSTANCES_JSON="$(cat "${HTTP_BODY}" 2>/dev/null)"; rm -f "${HTTP_BODY}"
+# aceita os DOIS formatos da Evolution: v2.3 ("name") e v2.x antigo ("instanceName")
+API_NAMES="$(printf '%s' "${INSTANCES_JSON}" | grep -oE '"(instanceName|name)":"[^"]+"' | cut -d'"' -f4 | sort -u | tr '\n' ' ')"
+API_COUNT="$(printf '%s' "${API_NAMES}" | wc -w | tr -d ' ')"
+echo "[4/6] fetchInstances → HTTP ${HTTP_STATUS} · ${API_COUNT} instância(s): ${API_NAMES:-—}"
+[ "${HTTP_STATUS}" != "200" ] && echo "      corpo: $(printf '%s' "${INSTANCES_JSON}" | head -c 300)"
+
+# [5/6] Banco PostgreSQL da Evolution: select name from "Instance";
+DB_URI="$(docker inspect "${EVO_CONTAINER}" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^DATABASE_CONNECTION_URI=' | cut -d= -f2-)"
+DB_HOST="$(printf '%s' "${DB_URI}" | sed -E 's|.*@([^:/]+).*|\1|')"
+DB_NAME="$(printf '%s' "${DB_URI}" | sed -E 's|.*/([^/?]+)(\?.*)?$|\1|')"
+echo "[5/6] DATABASE_CONNECTION_URI: $(printf '%s' "${DB_URI}" | sed -E 's|(://[^:]+:)[^@]+@|\1••••@|') "
+PG_CONTAINER="$(docker ps --format '{{.Names}} {{.Image}}' | grep -iE "postgres|postgis" | awk '{print $1}' | grep -iE "${DB_HOST}" | head -1)"
+[ -z "${PG_CONTAINER}" ] && PG_CONTAINER="$(docker ps --format '{{.Names}} {{.Image}}' | grep -iE 'postgres' | awk '{print $1}' | head -1)"
+DB_NAMES=""
+if [ -n "${PG_CONTAINER}" ]; then
+  PG_USER="$(docker inspect "${PG_CONTAINER}" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^POSTGRES_USER=' | cut -d= -f2-)"; PG_USER="${PG_USER:-postgres}"
+  DB_NAMES="$(docker exec "${PG_CONTAINER}" psql -U "${PG_USER}" -d "${DB_NAME}" -tAc 'select name from "Instance";' 2>&1 | tr '\n' ' ')"
+  echo "      banco (container ${PG_CONTAINER}, db ${DB_NAME}): ${DB_NAMES:-vazio}"
+else
+  echo "      (nenhum container postgres encontrado para consulta direta)"
+fi
+DB_COUNT="$(printf '%s' "${DB_NAMES}" | grep -vciE 'error|erro|does not exist|fatal' >/dev/null 2>&1 && printf '%s' "${DB_NAMES}" | wc -w | tr -d ' ' || printf '%s' "${DB_NAMES}" | wc -w | tr -d ' ')"
+printf '%s' "${DB_NAMES}" | grep -qiE 'error|does not exist|fatal' && DB_COUNT=0
+
+# [6/6] Comparação e veredito (causa raiz, sem mascarar)
+echo "[6/6] Comparação: API=${API_COUNT} × Banco=${DB_COUNT}"
 EVOLUTION_INSTANCE="$(getenv EVOLUTION_INSTANCE)"
-[ -z "${EVOLUTION_INSTANCE}" ] && EVOLUTION_INSTANCE="$(echo "${INSTANCES_JSON}" | grep -oE '"name":"[^"]+"' | head -1 | cut -d'"' -f4)"
-WHATSAPP_NUMBER="$(getenv WHATSAPP_NUMBER)"
-[ -z "${WHATSAPP_NUMBER}" ] && WHATSAPP_NUMBER="$(echo "${INSTANCES_JSON}" | grep -oE '"ownerJid":"[0-9]+' | head -1 | grep -oE '[0-9]+')"
 if [ -z "${EVOLUTION_INSTANCE}" ]; then
-  fail "Evolution sem NENHUMA instância criada. Crie uma em ${EVOLUTION_BASE_URL}/manager (conectando seu WhatsApp) e rode de novo."
-  exit 1
+  if [ "${HTTP_STATUS}" != "200" ]; then
+    fail "CAUSA RAIZ: a API recusou (HTTP ${HTTP_STATUS}) — a key usada não é a global desta Evolution."
+    fail "Corrija EVOLUTION_API_KEY em /opt/reconstrua/.env (a key do manager) e rode de novo."
+    exit 1
+  elif [ "${API_COUNT}" -gt 0 ]; then
+    EVOLUTION_INSTANCE="$(printf '%s' "${API_NAMES}" | awk '{print $1}')"
+  elif [ "${DB_COUNT}" -gt 0 ]; then
+    warn "API vazia mas o BANCO tem instância(s) — usando o banco como fonte (possível divergência de key/DB entre containers)."
+    EVOLUTION_INSTANCE="$(printf '%s' "${DB_NAMES}" | awk '{print $1}')"
+  else
+    fail "PROVA: API (HTTP 200, 0 instâncias) E tabela \"Instance\" vazia — realmente não existe instância nesta Evolution."
+    fail "Crie uma em ${EVOLUTION_BASE_URL}/manager (conectar o WhatsApp) e rode de novo."
+    exit 1
+  fi
 fi
+WHATSAPP_NUMBER="$(getenv WHATSAPP_NUMBER)"
+[ -z "${WHATSAPP_NUMBER}" ] && WHATSAPP_NUMBER="$(printf '%s' "${INSTANCES_JSON}" | grep -oE '"ownerJid":"[0-9]+' | head -1 | grep -oE '[0-9]+')"
+[ -z "${WHATSAPP_NUMBER}" ] && [ -n "${PG_CONTAINER:-}" ] && WHATSAPP_NUMBER="$(docker exec "${PG_CONTAINER}" psql -U "${PG_USER:-postgres}" -d "${DB_NAME}" -tAc "select \"ownerJid\" from \"Instance\" limit 1;" 2>/dev/null | grep -oE '^[0-9]+')"
+echo "=== FIM DO DIAGNÓSTICO EVOLUTION ==="
 ok "Evolution: ${EVOLUTION_BASE_URL} · instância '${EVOLUTION_INSTANCE}' · número ${WHATSAPP_NUMBER:-?}"
 
 say "4/8 Autodescoberta: domínio (PUBLIC_URL) e portas"

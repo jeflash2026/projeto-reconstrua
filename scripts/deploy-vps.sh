@@ -382,19 +382,59 @@ printf '%s' "${DB_NAMES}" | grep -qiE 'error|does not exist|fatal' && DB_COUNT=0
 
 # [6/6] Comparação e veredito (causa raiz, sem mascarar)
 echo "[6/6] Comparação: API=${API_COUNT} × Banco=${DB_COUNT}"
-EVOLUTION_INSTANCE="$(getenv EVOLUTION_INSTANCE)"
 if [ "${HTTP_STATUS}" = "200" ]; then
   # combinação VALIDADA → persiste chave + URL automaticamente e segue o deploy
   setenv EVOLUTION_API_KEY "${EVOLUTION_API_KEY}"
   setenv EVOLUTION_BASE_URL "${EVOLUTION_BASE_URL}"
   ok "EVOLUTION_API_KEY + EVOLUTION_BASE_URL atualizadas no .env (container=${WIN_CONT} · origem=${WIN_SRC} · endpoint=${WIN_EP})"
-  if [ -z "${EVOLUTION_INSTANCE}" ]; then
-    if [ "${API_COUNT}" -gt 0 ]; then EVOLUTION_INSTANCE="$(printf '%s' "${API_NAMES}" | awk '{print $1}')"
-    elif [ "${DB_COUNT}" -gt 0 ]; then EVOLUTION_INSTANCE="$(printf '%s' "${DB_NAMES}" | awk '{print $1}')"
-    else
-      fail "PROVA: API (HTTP 200, 0 instâncias) E tabela \"Instance\" vazia — realmente não existe instância."
-      fail "Crie uma em ${EVOLUTION_BASE_URL}/manager e rode de novo."; exit 1
-    fi
+
+  # ── SELEÇÃO PELA INSTÂNCIA OFICIAL (número da empresa) — nunca "a primeira" ──
+  OFFICIAL_NUMBER="554137989737"
+  echo "  Instâncias existentes (nome | ownerJid | número | status | chats | mensagens):"
+  EVO_JS='const fs=require("fs");let raw=fs.readFileSync(0,"utf8");let d;try{d=JSON.parse(raw)}catch(e){console.log("__MATCH__=");process.exit(0)}
+let arr=Array.isArray(d)?d:(d.instance?[d.instance]:(d.data||d.instances||[]));if(!Array.isArray(arr))arr=[arr];
+let target=process.argv[1];let match="";
+for(const it of arr){const i=(it&&it.instance)?it.instance:it;
+ const name=i.name||i.instanceName||i.id||"?";
+ const jid=i.ownerJid||i.owner||i.wuid||"";
+ const num=((""+jid).match(/[0-9]+/)||[""])[0];
+ const st=i.connectionStatus||i.status||i.state||"?";
+ const c=i._count||i.count||{};
+ const chats=(c.Chat!=null)?c.Chat:((i.chats!=null)?i.chats:"?");
+ const msgs=(c.Message!=null)?c.Message:((i.messages!=null)?i.messages:"?");
+ console.log("   | "+name+" | "+jid+" | "+num+" | "+st+" | "+chats+" | "+msgs+" |");
+ if(num===target)match=name;}
+console.log("__MATCH__="+match);'
+  SELTBL="$(mktemp)"; MATCHED=""
+  if [ -n "${EVO_CONTAINER}" ] && [ "$(docker inspect -f '{{.State.Running}}' "${EVO_CONTAINER}" 2>/dev/null)" = "true" ]; then
+    printf '%s' "${INSTANCES_JSON}" | docker exec -i "${EVO_CONTAINER}" node -e "${EVO_JS}" "${OFFICIAL_NUMBER}" > "${SELTBL}" 2>/dev/null || true
+  fi
+  if ! grep -q '^__MATCH__=' "${SELTBL}"; then
+    # fallback sem node: quebra o array em objetos e procura o número exato
+    : > "${SELTBL}"
+    printf '%s' "${INSTANCES_JSON}" | sed 's/},[[:space:]]*{/}\n{/g' | while IFS= read -r obj; do
+      onum="$(printf '%s' "$obj" | grep -oE '"(ownerJid|owner|wuid)":"[0-9]+' | grep -oE '[0-9]+' | head -1)"
+      oname="$(printf '%s' "$obj" | grep -oE '"(name|instanceName)":"[^"]+"' | head -1 | cut -d'"' -f4)"
+      ost="$(printf '%s' "$obj" | grep -oE '"(connectionStatus|status|state)":"[^"]+"' | head -1 | cut -d'"' -f4)"
+      printf '   | %s | %s | %s | %s | ? | ? |\n' "${oname:-?}" "${onum:-?}" "${onum:-?}" "${ost:-?}" >> "${SELTBL}"
+      [ "${onum}" = "${OFFICIAL_NUMBER}" ] && printf '__MATCH__=%s\n' "${oname}" >> "${SELTBL}"
+    done
+  fi
+  grep -v '^__MATCH__=' "${SELTBL}" || true
+  MATCHED="$(grep '^__MATCH__=' "${SELTBL}" | head -1 | cut -d= -f2-)"
+  rm -f "${SELTBL}"
+
+  if [ -n "${MATCHED}" ]; then
+    EVOLUTION_INSTANCE="${MATCHED}"; WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
+    ok "Instância OFICIAL: '${EVOLUTION_INSTANCE}' (número ${OFFICIAL_NUMBER}) — usada EXCLUSIVAMENTE; demais IGNORADAS."
+    ok "Nada criado/apagado/resetado/desconectado — histórico da instância preservado integralmente."
+  else
+    echo ""
+    fail "═══ LAUDO: número oficial ${OFFICIAL_NUMBER} NÃO está conectado a nenhuma instância ═══"
+    fail "Todas as instâncias existentes foram listadas acima; nenhuma tem ownerJid == ${OFFICIAL_NUMBER}."
+    fail "Conecte o WhatsApp ${OFFICIAL_NUMBER} a uma instância em ${EVOLUTION_BASE_URL}/manager e rode de novo."
+    fail "(o deploy nunca cria/apaga/reseta/desconecta instância — só usa a oficial já existente)"
+    exit 1
   fi
 else
   # NENHUMA combinação retornou 200 → laudo técnico completo (não cria, não inventa)
@@ -432,13 +472,36 @@ if [ -n "${DOMAIN}" ]; then PUBLIC_URL="https://${DOMAIN}"; ok "domínio descobe
   fail "valor esperado: PUBLIC_URL=https://SEU-DOMINIO em /opt/reconstrua/.env (crie um DNS A → ${PUBLIC_IP}) e rode de novo."
   exit 1
 fi
-PORT="$(getenv PORT)"; PORT="${PORT:-3001}"
-while ss -tln 2>/dev/null | grep -qE ":${PORT}[^0-9]" ; do PORT=$((PORT+100)); done
-ok "portas: ${PORT}..$((PORT+3))"
+# — detecção de porta ocupada por MÚLTIPLAS fontes (ss/lsof/docker); NÃO desliga nada.
+port_busy() { # $1=porta → 0 (ocupada) / 1 (livre)
+  ss -ltn 2>/dev/null | grep -qE "[:.]${1}[[:space:]]" && return 0
+  command -v lsof >/dev/null 2>&1 && lsof -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1 && return 0
+  docker ps --format '{{.Ports}}' 2>/dev/null | grep -qE "(:|->)${1}->" && return 0
+  return 1
+}
+who_has() { # $1=porta → quem ocupa (informativo)
+  local d s; d="$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -E "(:|->)${1}->" | awk '{print $1}' | head -1)"
+  s="$(ss -ltnp 2>/dev/null | grep -E "[:.]${1}[[:space:]]" | grep -oE 'users:\(\("[^"]+"' | head -1 | sed 's/users:((//;s/"//g')"
+  echo "${d:+container ${d}}${d:+; }${s:+processo ${s}}"
+}
+PORT="$(getenv PORT)"; PORT="${PORT:-3001}"; BASE="${PORT}"; tries=0
+while :; do
+  free=1; for off in 0 1 2 3; do port_busy $((BASE+off)) && { free=0; BUSYP=$((BASE+off)); break; }; done
+  [ "${free}" = "1" ] && break
+  warn "porta ${BUSYP} ocupada por: $(who_has "${BUSYP}") — NÃO desligo nada; procuro próxima faixa livre"
+  BASE=$((BASE+10)); tries=$((tries+1))
+  [ ${tries} -gt 60 ] && { fail "não encontrei 4 portas consecutivas livres a partir de ${PORT} (bloqueio real de portas)"; exit 1; }
+done
+PORT="${BASE}"; ADMIN_PORT=$((BASE+1)); ADVOGADO_PORT=$((BASE+2)); LX_PORT=$((BASE+3))
+ok "portas livres escolhidas: main=${PORT} · admin=${ADMIN_PORT} · advogado=${ADVOGADO_PORT} · lx=${LX_PORT}"
+# nginx/openresty: apenas DETECTA (não reescreve config de terceiros) e reporta o que ajustar.
+NGX_HIT="$(grep -rslE "proxy_pass[^;]*:(3001|${PORT})" /etc/nginx /usr/local/openresty /etc/openresty 2>/dev/null | head -3)"
+[ -n "${NGX_HIT}" ] && warn "proxy detectado apontando para :3001 — ajuste para :${PORT} nestes arquivos quando expor: ${NGX_HIT}"
 
 say "5/8 .env final (segredos só nesta VPS)"
 POSTGRES_PASSWORD="$(getenv POSTGRES_PASSWORD)"; [ -z "${POSTGRES_PASSWORD}" ] && POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 setenv POSTGRES_PASSWORD "${POSTGRES_PASSWORD}"; setenv PORT "${PORT}"; setenv PUBLIC_URL "${PUBLIC_URL}"
+setenv ADMIN_PORT "${ADMIN_PORT}"; setenv ADVOGADO_PORT "${ADVOGADO_PORT}"; setenv LX_PORT "${LX_PORT}"
 setenv EVOLUTION_BASE_URL "${EVOLUTION_BASE_URL}"; setenv EVOLUTION_INSTANCE "${EVOLUTION_INSTANCE}"
 setenv EVOLUTION_API_KEY "${EVOLUTION_API_KEY}"; setenv WHATSAPP_NUMBER "${WHATSAPP_NUMBER:-}"
 setenv LLM_PROVIDER "${LLM_PROVIDER}"

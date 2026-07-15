@@ -29,7 +29,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      PORT: '3001'
+      PORT: '${PORT:-3001}'
       DATABASE_URL: postgres://reconstrua:${POSTGRES_PASSWORD:?}@postgres:5432/reconstrua
       PUBLIC_URL: ${PUBLIC_URL:?defina PUBLIC_URL (https)}
       EVOLUTION_BASE_URL: ${EVOLUTION_BASE_URL:?}
@@ -43,10 +43,12 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ALLOW_DEGRADED: ${ALLOW_DEGRADED:-false}
     ports:
-      - '3001:3001' # main: webhook + /production/*
-      - '3002:3002' # admin API
-      - '3003:3003' # advogado API
-      - '3004:3004' # lawyer experience API
+      # Portas escolhidas pelo deploy-vps.sh (faixa livre); default 3001..3004.
+      # A app abre PORT..PORT+3 internamente, então host:container coincidem.
+      - '${PORT:-3001}:${PORT:-3001}'                 # main: webhook + /production/*
+      - '${ADMIN_PORT:-3002}:${ADMIN_PORT:-3002}'     # admin API
+      - '${ADVOGADO_PORT:-3003}:${ADVOGADO_PORT:-3003}' # advogado API
+      - '${LX_PORT:-3004}:${LX_PORT:-3004}'           # lawyer experience API
 
 volumes:
   ahrios-prod-pgdata:

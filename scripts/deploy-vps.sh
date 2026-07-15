@@ -16,7 +16,7 @@
 set -u
 
 SCRIPT_VERSION="v8-context (rebuild limpo 2026-07-15)"
-SCRIPT_SHA="proof-0bb855c4"   # build id único desta publicação (bater com o SHA do commit)
+SCRIPT_SHA="proof-e9902e86"   # build id único desta publicação (bater com o SHA do commit)
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
@@ -247,7 +247,13 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
   local tbl raw chunk name jid num st chats msgs LINE
   local off_found="" off_st="" off_num="" tgt matches mcount
   tbl="$(mktemp)"; raw="$(mktemp)"
+  echo "===== BEGIN INSTF ====="
+  cat "${INSTF}"
+  echo "===== END INSTF ====="
   sed 's/},[[:space:]]*{/}\n{/g' "${INSTF}" > "${raw}"
+  echo "===== BEGIN RAW ====="
+  cat "${raw}"
+  echo "===== END RAW ====="
   # `|| [ -n "$chunk" ]` garante processar a ÚLTIMA linha mesmo SEM \n final
   # (sed/API podem não terminar com newline → o read perderia a última instância)
   while IFS= read -r chunk || [ -n "${chunk}" ]; do

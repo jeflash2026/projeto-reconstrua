@@ -43,12 +43,15 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ALLOW_DEGRADED: ${ALLOW_DEGRADED:-false}
     ports:
-      # Portas escolhidas pelo deploy-vps.sh (faixa livre); default 3001..3004.
-      # A app abre PORT..PORT+3 internamente, então host:container coincidem.
+      # Só o MAIN é publicado no host — é o que o webhook da Evolution e o proxy
+      # externo (NPM) alcançam. Admin/Advogado/LX (PORT+1..+3) continuam escutando
+      # DENTRO do container e são alcançados pelos portais/NPM via rede Docker;
+      # não precisam (nem devem) ocupar portas do host — evita conflito de porta.
       - '${PORT:-3001}:${PORT:-3001}'                 # main: webhook + /production/*
-      - '${ADMIN_PORT:-3002}:${ADMIN_PORT:-3002}'     # admin API
-      - '${ADVOGADO_PORT:-3003}:${ADVOGADO_PORT:-3003}' # advogado API
-      - '${LX_PORT:-3004}:${LX_PORT:-3004}'           # lawyer experience API
+    expose:
+      - '${ADMIN_PORT:-3002}'      # admin API (interno, rede Docker)
+      - '${ADVOGADO_PORT:-3003}'   # advogado API (interno, rede Docker)
+      - '${LX_PORT:-3004}'         # lawyer experience API (interno, rede Docker)
 
 volumes:
   ahrios-prod-pgdata:

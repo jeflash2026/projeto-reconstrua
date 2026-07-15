@@ -430,9 +430,29 @@ console.log("__DONE__");'
   grep -vE '^__(MATCH|DONE)__' "${SELTBL}" || true
   MATCH_COUNT="$(grep -c '^__MATCH__=' "${SELTBL}" || true)"; MATCH_COUNT="${MATCH_COUNT:-0}"
   MATCH_NAMES="$(grep '^__MATCH__=' "${SELTBL}" | cut -d= -f2-)"
-  rm -f "${SELTBL}"
 
-  if [ "${MATCH_COUNT}" = "1" ]; then
+  # ── PRIORIDADE 1: instância OFICIAL por NOME (detém todo o histórico; jamais substituída) ──
+  OFFICIAL_INSTANCE="B866E755DEB1-48BF-B1AA-2D845B947A87"
+  OFF_ROW="$(grep -vE '^__' "${SELTBL}" | grep -F "| ${OFFICIAL_INSTANCE} |" | head -1)"
+  rm -f "${SELTBL}"
+  if [ -n "${OFF_ROW}" ]; then
+    OFF_ST="$(printf '%s' "${OFF_ROW}" | awk -F'|' '{gsub(/ /,"",$5); print $5}')"
+    OFF_NUM="$(printf '%s' "${OFF_ROW}" | awk -F'|' '{gsub(/ /,"",$4); print $4}')"
+    if printf '%s' "${OFF_ST}" | grep -qiE '^(open|connected)$'; then
+      EVOLUTION_INSTANCE="${OFFICIAL_INSTANCE}"
+      WHATSAPP_NUMBER="${OFF_NUM:-${OFFICIAL_NUMBER}}"; [ "${WHATSAPP_NUMBER}" = "-" ] && WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
+      ok "Instância OFICIAL por NOME: '${OFFICIAL_INSTANCE}' (status ${OFF_ST}, número ${WHATSAPP_NUMBER})"
+      ok "Usada EXCLUSIVAMENTE — qualquer outra instância (mesmo com o mesmo número) IGNORADA."
+      ok "Nada criado/apagado/resetado/desconectado — histórico integral preservado."
+    else
+      echo ""
+      fail "═══ LAUDO: a instância oficial '${OFFICIAL_INSTANCE}' EXISTE mas NÃO está conectada (status: ${OFF_ST:-?}) ═══"
+      fail "Ela nunca é substituída automaticamente. Reconecte-a em ${EVOLUTION_BASE_URL}/manager e rode de novo."
+      fail "(o deploy jamais cria/apaga/reseta/desconecta — a reconexão preserva todo o histórico)"
+      exit 1
+    fi
+  elif [ "${MATCH_COUNT}" = "1" ]; then
+    warn "instância oficial '${OFFICIAL_INSTANCE}' não existe — aplicando descoberta por número normalizado"
     EVOLUTION_INSTANCE="${MATCH_NAMES}"; WHATSAPP_NUMBER="${OFFICIAL_NUMBER}"
     ok "Instância OFICIAL (única correspondência ao número normalizado ${TARGET_NORM}): '${EVOLUTION_INSTANCE}'"
     ok "Usada EXCLUSIVAMENTE; demais IGNORADAS. Nada criado/apagado/resetado/desconectado — histórico preservado."

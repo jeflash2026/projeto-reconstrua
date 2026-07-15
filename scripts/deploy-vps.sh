@@ -16,6 +16,7 @@
 set -u
 
 SCRIPT_VERSION="v8-context (rebuild limpo 2026-07-15)"
+SCRIPT_SHA="proof-f558584c"   # build id único desta publicação (bater com o SHA do commit)
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
@@ -247,7 +248,9 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
   local off_found="" off_st="" off_num="" tgt matches mcount
   tbl="$(mktemp)"; raw="$(mktemp)"
   sed 's/},[[:space:]]*{/}\n{/g' "${INSTF}" > "${raw}"
-  while IFS= read -r chunk; do
+  # `|| [ -n "$chunk" ]` garante processar a ÚLTIMA linha mesmo SEM \n final
+  # (sed/API podem não terminar com newline → o read perderia a última instância)
+  while IFS= read -r chunk || [ -n "${chunk}" ]; do
     name="$(printf '%s' "${chunk}" | grep -oE '"(name|instanceName)":"[^"]+"' | head -1 | cut -d'"' -f4)"
     [ -n "${name}" ] || continue
     jid="$(printf '%s' "${chunk}" | grep -oE '"(ownerJid|owner|wuid)":"[^"]*"' | head -1 | cut -d'"' -f4)"
@@ -268,7 +271,7 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
   printf '[TGT] OFFICIAL_INSTANCE=<%s> len=%d\n' "${OFFICIAL_INSTANCE}" "${#OFFICIAL_INSTANCE}"
   # listagem + detecção do NOME oficial no MESMO laço, lendo linha a linha de ${tbl}
   echo "  instâncias (nome | ownerJid | número | status | chats | msgs):"
-  while IFS= read -r LINE; do
+  while IFS= read -r LINE || [ -n "${LINE}" ]; do
     name="$(printf '%s' "${LINE}" | cut -f1)"
     jid="$(printf '%s' "${LINE}" | cut -f2)"
     num="$(printf '%s' "${LINE}" | cut -f3)"
@@ -276,11 +279,13 @@ select_instance() { # lê ${INSTF}; define EVOLUTION_INSTANCE e WHATSAPP_NUMBER,
     chats="$(printf '%s' "${LINE}" | cut -f5)"
     msgs="$(printf '%s' "${LINE}" | cut -f6)"
     printf 'LINE=<%s>\n' "${LINE}"
-    printf 'NAME=<%s> len=%d\n' "${name}" "${#name}"
+    printf 'NAME=<%s>\n' "${name}"
+    printf 'LEN_NAME=%d\n' "${#name}"
     printf '   | %s | %s | %s | %s | %s | %s |\n' "${name}" "${jid}" "${num}" "${st}" "${chats}" "${msgs}"
+    printf 'CMP=[%s]==[%s]\n' "${name}" "${OFFICIAL_INSTANCE}"
     if [ "${name}" = "${OFFICIAL_INSTANCE}" ]; then
       off_found=1; off_st="${st}"; off_num="${num}"
-      printf '[MATCH] off_found=1 (status=%s numero=%s)\n' "${st}" "${num}"
+      printf '[MATCH]\n'
     fi
   done < "${tbl}"
 
@@ -415,6 +420,11 @@ deploy_until_green() {
 
 main() {
   printf '\n\033[1;35m AHRIOS deploy-vps %s \033[0m\n' "${SCRIPT_VERSION}"
+  # ── IDENTIDADE OBRIGATÓRIA do script em execução ──
+  printf 'SCRIPT_SHA=%s\n' "${SCRIPT_SHA}"
+  printf 'SCRIPT_VERSION=%s\n' "${SCRIPT_VERSION}"
+  printf 'SCRIPT_PATH=%s\n' "$0"
+  sha256sum "$0" || true
 
   say "0/8 Pré-requisitos"
   command -v docker >/dev/null 2>&1 || { warn "instalando docker"; curl -fsSL https://get.docker.com | sh >/dev/null 2>&1; }

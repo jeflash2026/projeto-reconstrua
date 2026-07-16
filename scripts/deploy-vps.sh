@@ -21,6 +21,7 @@ REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
 OFFICIAL_NUMBER="554137989737"
+OFFICIAL_DOMAIN="projetoreconstrua.com.br"   # domínio AUTORITATIVO do projeto (imune a placeholders/legado da VPS)
 TAB="$(printf '\t')"
 
 say()  { printf '\n\033[1;36m== %s ==\033[0m\n' "$*"; }
@@ -37,6 +38,25 @@ norm() { printf '%s' "$1" | sed 's/@.*//; s/:.*//' | tr -cd '0-9'; }
 # espaços, hífens, CR e qualquer byte não-alfanumérico oculto). Para um id hex
 # como BB66E755DEB1-48BF-B1AA-2D845B947A87 vira bb66e755deb148bfb1aa2d845b947a87.
 namekey() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9'; }
+
+# valida um domínio candidato: rejeita vazio, placeholders de exemplo/tutorial,
+# localhost/.local, curinga e IP puro. Impede que a auto-descoberta grave lixo
+# (ex.: um "server_name example.com" de vhost default) como PUBLIC_URL.
+is_valid_domain() {
+  local d
+  d="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  [ -n "${d}" ] || return 1
+  case "${d}" in
+    example.com|example.net|example.org|example.edu) return 1 ;;
+    example.*|*.example.com|*.example.net|*.example.org) return 1 ;;
+    localhost|*.localhost|*.local|*.internal|*.test|*.invalid|*.example) return 1 ;;
+    _|'*'|changeme|seu-dominio*|seudominio*|your-domain*|yourdomain*|dominio.*|domain.tld) return 1 ;;
+  esac
+  # FQDN plausível (rótulos + TLD alfabético de 2+)
+  printf '%s' "${d}" | grep -qE '^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$' || return 1
+  # não pode ser IP puro
+  ! printf '%s' "${d}" | grep -qE '^[0-9]+(\.[0-9]+){3}$'
+}
 
 getenvf() { grep -E "^$1=" "${APP_DIR}/.env" 2>/dev/null | head -1 | cut -d= -f2-; }
 setenvf() {
@@ -382,30 +402,50 @@ pick_ports() {
   return 0
 }
 find_domain() {
-  DOMAIN="$(getenvf PUBLIC_URL | sed -E 's|https?://||')"
+  # DEFINITIVO: o domínio OFICIAL do projeto é autoritativo. A auto-descoberta na
+  # VPS (letsencrypt, server_name do nginx, hostname) NÃO é confiável — um vhost
+  # default com "server_name example.com" ou um cert legado ENVENENA o PUBLIC_URL.
+  # Toda origem passa por is_valid_domain; placeholders (example.com etc.) são
+  # rejeitados em QUALQUER fonte, inclusive num .env legado já poluído.
+  DOMAIN=""
+  is_valid_domain "${OFFICIAL_DOMAIN}" && DOMAIN="${OFFICIAL_DOMAIN}"
+
+  # Fallback (só se não houver oficial): descobre, SEMPRE validando cada candidato.
   if [ -z "${DOMAIN}" ]; then
-    local d
-    for d in /etc/letsencrypt/live/*/; do
-      d="$(basename "${d}")"
-      [ "${d}" = "*" ] || [ "${d}" = "README" ] || { DOMAIN="${d}"; break; }
-    done
-  fi
-  [ -n "${DOMAIN}" ] || DOMAIN="$(grep -rhoE 'server_name[[:space:]]+[^;_]+' /etc/nginx /usr/local/openresty /etc/openresty 2>/dev/null \
-                                  | awk '{print $2}' | grep -vE '^(_|localhost|\$)' | head -1)"
-  if [ -z "${DOMAIN}" ]; then
-    local fqdn
-    fqdn="$(hostname -f 2>/dev/null || true)"
-    if printf '%s' "${fqdn}" | grep -qE '\.[a-z]{2,}$' && ! printf '%s' "${fqdn}" | grep -qE 'localhost|\.local'; then
-      DOMAIN="${fqdn}"
+    local c d fqdn
+    c="$(getenvf PUBLIC_URL | sed -E 's|https?://||; s|/.*||')"
+    is_valid_domain "${c}" && DOMAIN="${c}"
+    if [ -z "${DOMAIN}" ]; then
+      for d in /etc/letsencrypt/live/*/; do
+        d="$(basename "${d}")"
+        is_valid_domain "${d}" && { DOMAIN="${d}"; break; }
+      done
+    fi
+    if [ -z "${DOMAIN}" ]; then
+      c="$(grep -rhoE 'server_name[[:space:]]+[^;_]+' /etc/nginx /usr/local/openresty /etc/openresty 2>/dev/null \
+             | awk '{print $2}' | while read -r s; do is_valid_domain "${s}" && { printf '%s\n' "${s}"; break; }; done)"
+      [ -n "${c}" ] && DOMAIN="${c}"
+    fi
+    if [ -z "${DOMAIN}" ]; then
+      fqdn="$(hostname -f 2>/dev/null || true)"
+      is_valid_domain "${fqdn}" && DOMAIN="${fqdn}"
     fi
   fi
+
   if [ -z "${DOMAIN}" ]; then
-    fail "nenhum domínio nesta VPS (letsencrypt, nginx server_name, hostname FQDN)."
-    fail "Crie um DNS A → ${PUBLIC_IP} e salve: PUBLIC_URL=https://SEU-DOMINIO em ${APP_DIR}/.env"
+    fail "nenhum domínio VÁLIDO (oficial/letsencrypt/server_name/hostname; placeholders rejeitados)."
+    fail "Ajuste OFFICIAL_DOMAIN no script ou salve PUBLIC_URL=https://SEU-DOMINIO em ${APP_DIR}/.env"
     return 1
   fi
   PUBLIC_URL="https://${DOMAIN}"
-  ok "domínio: ${DOMAIN}"
+
+  # Sinaliza e corrige um .env legado com PUBLIC_URL placeholder (ex.: example.com):
+  # a etapa 5/8 (setenvf PUBLIC_URL) sobrescreve o valor poluído por este correto.
+  local cur; cur="$(getenvf PUBLIC_URL | sed -E 's|https?://||; s|/.*||')"
+  if [ -n "${cur}" ] && ! is_valid_domain "${cur}"; then
+    warn "PUBLIC_URL legado inválido no .env (${cur}) — será sobrescrito por ${DOMAIN} na etapa 5/8"
+  fi
+  ok "domínio: ${DOMAIN} (oficial=${OFFICIAL_DOMAIN})"
   return 0
 }
 

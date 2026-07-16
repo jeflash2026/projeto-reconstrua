@@ -129,6 +129,7 @@ import {
   PgMediaStore,
   type MediaStorePort,
 } from '../media/index.js';
+import { AnthropicVisionClient, DocumentReaderService, JsonDocumentTextCache } from '../reading/index.js';
 
 export interface ProductionWiring {
   readonly clock: Clock;
@@ -169,6 +170,8 @@ export interface AssembledProduction {
   readonly databaseUrl: string | null;
   /** CAT-02A: captura assíncrona dos bytes reais de documentos (best-effort). */
   readonly mediaCapture: MediaCaptureRuntime;
+  /** CAT-03A: transforma um documento em texto bruto (disponível; sem gatilho automático). */
+  readonly documentReader: DocumentReaderService;
 }
 
 export function assembleProduction(wiring: ProductionWiring): AssembledProduction {
@@ -239,6 +242,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const documentLinks = new JsonDocumentLinkStore(json);
   // CAT-02C: serve o conteúdo real do documento por documentId (uso interno, servidor admin).
   const documentContent = new DocumentContentService(documentLinks, mediaStore);
+  // CAT-03A: transforma um documento em texto bruto (documentId → Vision → cache por sha256).
+  // Apenas EXISTE e fica disponível em assembleProduction; ninguém o chama automaticamente.
+  const documentReader = new DocumentReaderService({
+    links: documentLinks,
+    store: mediaStore,
+    reader: new AnthropicVisionClient(resilientHttp, config.llm.anthropicApiKey, config.llm.anthropicModel),
+    cache: new JsonDocumentTextCache(json),
+    model: config.llm.anthropicModel,
+    clock,
+    log: (message) => observability.error('reading', 'document', clock.now(), message),
+  });
   const mediaCapture = new MediaCaptureRuntime({
     gateway: new EvolutionMediaClient(resilientHttp, config.evolution),
     store: mediaStore,
@@ -516,6 +530,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     llm,
     databaseUrl,
     mediaCapture,
+    documentReader,
   };
 }
 

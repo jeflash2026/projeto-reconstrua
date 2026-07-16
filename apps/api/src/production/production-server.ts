@@ -18,6 +18,7 @@ import {
 } from '@reconstrua/infrastructure';
 import { configFromEnv, maskConfig, mergeConfigUpdate, type ProductionConfig } from '@reconstrua/application';
 import { PRODUCTION_UI_HTML } from './production-ui.js';
+import { LANDING_HTML } from './landing-html.js';
 
 export interface ProductionServerDeps {
   readonly prod: AssembledProduction;
@@ -166,10 +167,10 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     return askShadow(body.question, { reports, detections, lawyerLoad, pendingDocs });
   });
 
-  // ── Raiz do domínio: serve a MESMA UI (evita 404 "Route GET:/ not found" quando
-  //    o proxy externo aponta o domínio para a porta main da API) ────────────────
+  // ── Raiz do domínio: LANDING PÚBLICA do Projeto Reconstrua (apps/landing) ─────
+  //    O Monitor de Produção interno permanece em /production/ui.
   app.get('/', (_request, reply) => {
-    void reply.type('text/html').send(PRODUCTION_UI_HTML);
+    void reply.type('text/html').send(LANDING_HTML);
   });
 
   // ── UI mínima (Monitor + Config) servida pela API — portal congelado intocado ─

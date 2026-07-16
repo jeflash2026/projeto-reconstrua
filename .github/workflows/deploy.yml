@@ -10,12 +10,12 @@ name: Deploy — Projeto Reconstrua
 on:
   push:
     branches: [master]
-    # Não redeploya em mudanças que não afetam o runtime:
+    # Não redeploya em mudanças que não afetam o runtime (docs/constituição/workflows).
+    # OBS.: README.md do root NÃO é ignorado — serve de gatilho de validação de deploy.
     paths-ignore:
       - "docs/**"
       - "constitution/**"
       - ".github/**"
-      - "**/*.md"
   workflow_dispatch: {}
 
 permissions:

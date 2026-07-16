@@ -4,9 +4,9 @@ name: CI
 # Entrega: lint + typecheck + testes (incl. conformidade ao Canon) + build.
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: ci-${{ github.ref }}

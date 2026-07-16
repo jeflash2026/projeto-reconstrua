@@ -118,7 +118,16 @@ import { createLlmBundle, type LlmBundle } from './llm-adapters.js';
 import { ProductionIngress } from './production-ingress.js';
 import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
 import { JsonShadowStore, ShadowRecorder, type ShadowStore, type TurnIngress } from './shadow.js';
-import { EvolutionMediaClient, InMemoryMediaStore, MediaCaptureRuntime, PgMediaStore, type MediaStorePort } from '../media/index.js';
+import {
+  DocumentLinkSubscriber,
+  EvolutionMediaClient,
+  InMemoryMediaStore,
+  JsonDocumentLinkStore,
+  JsonMediaReferenceStore,
+  MediaCaptureRuntime,
+  PgMediaStore,
+  type MediaStorePort,
+} from '../media/index.js';
 
 export interface ProductionWiring {
   readonly clock: Clock;
@@ -223,9 +232,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const llm = createLlmBundle({ config, http: resilientHttp, observability, clock });
 
   // ── CAT-02A: captura dos bytes reais de documentos (assíncrona, best-effort) ──
+  // CAT-02B: referência messageId→sha256 e vínculo definitivo documentId→link
+  // (reusam production.documents via JsonStore).
+  const mediaReferences = new JsonMediaReferenceStore(json);
+  const documentLinks = new JsonDocumentLinkStore(json);
   const mediaCapture = new MediaCaptureRuntime({
     gateway: new EvolutionMediaClient(resilientHttp, config.evolution),
     store: mediaStore,
+    references: mediaReferences,
     log: (message) => observability.error('media', 'capture', clock.now(), message),
   });
 
@@ -262,6 +276,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const handoff = new HumanHandoffRuntime(handoffStore);
   registry.register(new SerializedSubscriber(new AdminProjectionSubscriber(metricsStore)), 1, clock.now());
   registry.register(new SerializedSubscriber(workflow), 1, clock.now());
+  // CAT-02B: liga o vínculo definitivo ao reconhecer o documento (observa o evento).
+  registry.register(new SerializedSubscriber(new DocumentLinkSubscriber(mediaReferences, documentLinks)), 1, clock.now());
 
   // ── 2C + 2D (catálogo de PRODUÇÃO = 2D + reengajamento 4C) ───────────────────
   const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(PRODUCTION_RULE_CATALOG) });

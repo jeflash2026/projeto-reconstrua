@@ -5,8 +5,10 @@
 //   log. Não faz OCR, IA, reconhecimento, classificação nem toca no fluxo de conversa.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHash } from 'node:crypto';
+import { messageIdOf } from './raw.js';
 import type { MediaGatewayPort } from './media-gateway-port.js';
 import type { MediaStorePort } from './media-store-port.js';
+import type { MediaReferenceStore } from './media-reference-store.js';
 
 const DEFAULT_ALLOWLIST: readonly string[] = ['application/pdf', 'image/jpeg', 'image/png'];
 const DEFAULT_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -21,6 +23,8 @@ const MAGIC: Readonly<Record<string, readonly number[]>> = {
 export interface MediaCaptureDeps {
   readonly gateway: MediaGatewayPort;
   readonly store: MediaStorePort;
+  /** CAT-02B: vínculo messageId → sha256 (opcional; ausente = só guarda o blob). */
+  readonly references?: MediaReferenceStore;
   readonly allowlist?: readonly string[];
   readonly maxBytes?: number;
   readonly log?: (message: string) => void;
@@ -61,6 +65,14 @@ export class MediaCaptureRuntime {
         return;
       }
       const sha256 = createHash('sha256').update(bytes).digest('hex');
+      // CAT-02B: grava a referência da MENSAGEM ao blob (messageId → sha256), sempre
+      // que a mídia é válida — inclusive em dedup (a mensagem aponta ao blob existente).
+      if (this.deps.references) {
+        const messageId = messageIdOf(rawMessage);
+        if (messageId !== null) {
+          await this.deps.references.save({ messageId, sha256, mime: fetched.mime, size: bytes.length });
+        }
+      }
       if (await this.deps.store.has(sha256)) {
         this.log(`dedup: ${sha256} ja armazenado`);
         return;

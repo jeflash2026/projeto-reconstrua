@@ -6,14 +6,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { HttpClient } from '../conversation/evolution/http-client.js';
 import type { EvolutionConfig } from '../conversation/evolution/evolution-gateway.js';
+import { asRecord, asString } from './raw.js';
 import type { FetchedMedia, MediaGatewayPort } from './media-gateway-port.js';
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
-}
-function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
-}
 
 export class EvolutionMediaClient implements MediaGatewayPort {
   constructor(

@@ -19,6 +19,8 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 COPY --from=build /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml ./
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/api ./apps/api
+# Migrations (MIG-01): arquivos .sql aplicados pelo runner dedicado (apps/api/dist/migrate/main.js).
+COPY infrastructure/database ./infrastructure/database
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 # Portas: main / admin / advogado / lawyer-experience

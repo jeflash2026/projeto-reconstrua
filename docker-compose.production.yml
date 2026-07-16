@@ -14,13 +14,27 @@ services:
       POSTGRES_USER: reconstrua
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}
     volumes:
+      # A montagem docker-entrypoint-initdb.d foi REMOVIDA (MIG-01): a evolução do
+      # schema é feita EXCLUSIVAMENTE pelo serviço `migrate` (forward-only, idempotente,
+      # funciona em banco novo E já existente). initdb.d só rodava no 1º boot.
       - ahrios-prod-pgdata:/var/lib/postgresql/data
-      - ./infrastructure/database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U reconstrua -d reconstrua']
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # MIG-01: runner de migrations DEDICADO (one-shot). Roda até concluir ANTES da api.
+  # A aplicação nunca executa DDL; todo DDL vive nos .sql aplicados por este serviço.
+  migrate:
+    build: .
+    command: ['node', 'apps/api/dist/migrate/main.js']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://reconstrua:${POSTGRES_PASSWORD:?}@postgres:5432/reconstrua
 
   api:
     build: .
@@ -28,6 +42,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       PORT: '${PORT:-3001}'
       DATABASE_URL: postgres://reconstrua:${POSTGRES_PASSWORD:?}@postgres:5432/reconstrua

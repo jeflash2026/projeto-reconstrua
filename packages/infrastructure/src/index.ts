@@ -25,3 +25,4 @@ export * from './admin-portal/index.js';
 export * from './advogado-portal/index.js';
 export * from './lawyer-experience/index.js';
 export * from './production/index.js';
+export * from './migrations/index.js';

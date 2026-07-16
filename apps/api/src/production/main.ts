@@ -55,6 +55,10 @@ async function main(): Promise<void> {
     process.stderr.write(`[TRACE] http.Server "clientError": ${err.stack ?? String(err)}\n`);
   });
   main.server.on('request', (req) => process.stdout.write(`[TRACE] http.Server "request": ${String(req.method)} ${String(req.url)}\n`));
+  // [TRACE] servidor TCP puro
+  main.server.on('close', () => process.stdout.write('[TRACE] server "close"\n'));
+  main.server.on('drop', (data) => process.stdout.write(`[TRACE] server "drop": ${JSON.stringify(data)}\n`));
+  main.server.on('error', (err: Error) => process.stderr.write(`[TRACE] server "error": ${err.stack ?? String(err)}\n`));
 
   // [TRACE] captura throw em app.ready() (registro de plugins/hooks/rotas)
   try {
@@ -68,6 +72,21 @@ async function main(): Promise<void> {
   process.stdout.write(`[TRACE] chamando main.listen(${String(port)})...\n`);
   await main.listen({ port, host: '0.0.0.0' });
   process.stdout.write(`[TRACE] main.listen(${String(port)}) RESOLVEU\n`);
+
+  // [TRACE] estado do servidor TCP puro + AUTO-TESTE (o processo conversa consigo mesmo?)
+  process.stdout.write(`[TRACE] server.address()=${JSON.stringify(main.server.address())} · server.listening=${String(main.server.listening)}\n`);
+  try {
+    const selfUrl = `http://127.0.0.1:${String(port)}/production/health`;
+    process.stdout.write(`[TRACE] auto-teste: GET ${selfUrl}\n`);
+    const res = await fetch(selfUrl);
+    const body = await res.text();
+    process.stdout.write(`[TRACE] auto-teste status=${String(res.status)}\n`);
+    process.stdout.write(`[TRACE] auto-teste headers=${JSON.stringify(Object.fromEntries(res.headers.entries()))}\n`);
+    process.stdout.write(`[TRACE] auto-teste body=${body}\n`);
+  } catch (e) {
+    process.stderr.write(`[TRACE] auto-teste FALHOU (o processo NÃO fala consigo mesmo): ${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`);
+  }
+
   await admin.listen({ port: port + 1, host: '0.0.0.0' });
   await advogado.listen({ port: port + 2, host: '0.0.0.0' });
   await lx.listen({ port: port + 3, host: '0.0.0.0' });

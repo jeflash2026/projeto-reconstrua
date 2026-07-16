@@ -194,7 +194,16 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     void reply.type('text/html').send(PRODUCTION_UI_HTML);
   });
 
-  app.get('/production/health', () => ({ overall: prod.health.overall(), components: prod.health.all() }));
+  // Health / liveness — rota OFICIAL consumida pelo health check do deploy.
+  // Retorna SEMPRE 200 enquanto o processo está de pé (a readiness dos subsistemas
+  // vai no corpo). Blindado: um subsistema em erro NÃO derruba o probe (evita 5xx/rollback indevido).
+  app.get('/production/health', () => {
+    try {
+      return { status: 'ok', overall: prod.health.overall(), components: prod.health.all() };
+    } catch (error) {
+      return { status: 'ok', overall: 'UNKNOWN', components: [], detail: error instanceof Error ? error.message : 'health indisponível' };
+    }
+  });
 
   process.stdout.write('[TRACE] buildProductionServer: retorno OK\n');
   return app;

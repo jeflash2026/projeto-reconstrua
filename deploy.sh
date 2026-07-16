@@ -33,9 +33,91 @@ rollback() {
   dc up -d --force-recreate --no-build api >/dev/null 2>&1 || true
   warn "rollback aplicado — o container voltou ao estado anterior ao deploy"
 }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# evidence — CAPTURA FORENSE (somente leitura) executada ANTES de qualquer
+# rollback. Grava no log do GitHub Actions o estado completo do sistema no
+# instante da falha (HTTP público/interno, Docker, processo, portas, proxy, DNS e
+# logs), para que a causa raiz seja identificável SEM precisar reproduzir o erro.
+# NÃO altera estado: só inspeciona. Nunca aborta (tudo protegido com || true) e é
+# seguro em qualquer etapa — todas as expansões têm fallback, mesmo se DOMAIN/
+# PORT/API_C/NPM_C ainda não existirem (falha antes de serem definidos).
+# ─────────────────────────────────────────────────────────────────────────────
+evidence() {
+  local dom port api npm
+  dom="${DOMAIN:-${FALLBACK_DOMAIN}}"
+  port="${PORT:-3001}"
+  api="${API_C:-}"; [ -z "${api}" ] && api="$(dc ps -q api 2>/dev/null | head -1)"
+  npm="${NPM_C:-}"; [ -z "${npm}" ] && npm="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -iE 'nginx-proxy|proxy-manager|npm' | head -1)"
+
+  printf '\n\033[1;35m════════ FORENSIC CAPTURE START · %s · etapa [%s] ════════\033[0m\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${STEP}"
+
+  echo "── [0] GitHub Actions ──────────────────────────────────────────"
+  echo "   GITHUB_RUN_ID=${GITHUB_RUN_ID:-n/a} · GITHUB_RUN_NUMBER=${GITHUB_RUN_NUMBER:-n/a} · GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-n/a}"
+  echo "   GITHUB_SHA=${GITHUB_SHA:-n/a} · GITHUB_REF=${GITHUB_REF:-n/a}"
+
+  echo "── [1] contexto ────────────────────────────────────────────────"
+  echo "   data=$(date -u '+%Y-%m-%dT%H:%M:%SZ') · commit=${SHA:-?} · DOMAIN=${dom} · PORT=${port}"
+  echo "   última medida: / = ${R:-?} · /production/health = ${H:-?} · www = ${W:-?}"
+
+  echo "── [2] HTTP público (status + cabeçalhos) ──────────────────────"
+  for p in "/" "/production/health"; do
+    echo "   » GET https://${dom}${p}"
+    curl -sS -m 15 -D - -o /dev/null "https://${dom}${p}" 2>&1 | sed 's/^/     /' || true
+  done
+  echo "   » GET -L https://www.${dom}/"
+  curl -sSL -m 20 -D - -o /dev/null "https://www.${dom}/" 2>&1 | sed 's/^/     /' || true
+  curl -sS -m 15 -o /dev/null -w '   conexão: remote_ip=%{remote_ip} · http=%{http_code} · tls_verify=%{ssl_verify_result} · t=%{time_total}s\n' "https://${dom}/" 2>&1 || true
+
+  echo "── [2b] handshake TLS + TODOS os headers (curl -sv /production/health) ─"
+  curl -sv -m 15 "https://${dom}/production/health" -o /dev/null 2>&1 | sed 's/^/     /' || true
+
+  echo "── [3] HTTP interno (localhost:${port}, sem passar pelo proxy) ──"
+  curl -sS -m 10 -D - -o /dev/null "http://localhost:${port}/production/health" 2>&1 | sed 's/^/     /' || true
+
+  echo "── [4] Docker — containers e imagem da api ─────────────────────"
+  docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' 2>&1 | sed 's/^/     /' || true
+  if [ -n "${api}" ]; then
+    echo "   api=${api}"
+    docker inspect -f 'imagem={{.Config.Image}} · imageID={{.Image}} · estado={{.State.Status}} · exit={{.State.ExitCode}} · restarts={{.RestartCount}} · OOMKilled={{.State.OOMKilled}}' "${api}" 2>&1 | sed 's/^/     /' || true
+  else
+    echo "     (nenhum container api encontrado)"
+  fi
+
+  echo "── [5] processo dentro do container (PID 1) ────────────────────"
+  if [ -n "${api}" ]; then
+    printf '     cmdline PID1: '; docker exec "${api}" cat /proc/1/cmdline 2>/dev/null | tr '\0' ' '; echo ""
+    docker top "${api}" 2>&1 | sed 's/^/     /' || true
+  fi
+
+  echo "── [6] portas em escuta no host + mapeamento do container ──────"
+  { ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null; } | grep -E ":(${port}|80|443)([^0-9]|$)" | sed 's/^/     /' || true
+  [ -n "${api}" ] && { echo "     docker port api:"; docker port "${api}" 2>&1 | sed 's/^/       /' || true; }
+
+  echo "── [7] proxy (Nginx Proxy Manager) — redes e upstream ──────────"
+  if [ -n "${npm}" ]; then
+    echo "     NPM=${npm}"
+    echo "     redes NPM: $(docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' "${npm}" 2>/dev/null)"
+    [ -n "${api}" ] && echo "     redes api: $(docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' "${api}" 2>/dev/null)"
+    echo "     upstream configurado (proxy_pass/host/porta):"
+    docker exec "${npm}" sh -c 'grep -RhoE "proxy_pass[^;]+|set \$server[^;]+|set \$port[^;]+" /data/nginx/proxy_host/ 2>/dev/null' 2>/dev/null | sort -u | sed 's/^/       /' || true
+  else
+    echo "     (container NPM não encontrado por nome)"
+  fi
+
+  echo "── [8] DNS de ${dom} ───────────────────────────────────────────"
+  { getent hosts "${dom}" 2>/dev/null || nslookup "${dom}" 2>/dev/null; } | sed 's/^/     /' || true
+
+  echo "── [9] últimas 80 linhas de log da api ─────────────────────────"
+  dc logs api --tail 80 2>&1 | sed 's/^/     /' || true
+
+  printf '\033[1;35m════════ FORENSIC CAPTURE END · %s ════════\033[0m\n\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+}
+
 die() {
   echo ""; printf '  \033[1;31m[X] ABORTADO na etapa [%s]\033[0m\n' "${STEP}"
   echo "   motivo: $1"
+  evidence
   rollback
   exit 1
 }

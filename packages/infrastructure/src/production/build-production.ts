@@ -118,6 +118,7 @@ import { createLlmBundle, type LlmBundle } from './llm-adapters.js';
 import { ProductionIngress } from './production-ingress.js';
 import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
 import { JsonShadowStore, ShadowRecorder, type ShadowStore, type TurnIngress } from './shadow.js';
+import { EvolutionMediaClient, InMemoryMediaStore, MediaCaptureRuntime, PgMediaStore, type MediaStorePort } from '../media/index.js';
 
 export interface ProductionWiring {
   readonly clock: Clock;
@@ -156,6 +157,8 @@ export interface AssembledProduction {
   readonly metricsStore: AdminMetricsStore;
   readonly llm: LlmBundle;
   readonly databaseUrl: string | null;
+  /** CAT-02A: captura assíncrona dos bytes reais de documentos (best-effort). */
+  readonly mediaCapture: MediaCaptureRuntime;
 }
 
 export function assembleProduction(wiring: ProductionWiring): AssembledProduction {
@@ -176,9 +179,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   let deliveries: InMemoryDeliveryStore | PgDeliveryStore;
   let idempotency: InMemoryIdempotencyStore | PgIdempotencyStore;
   let snapshotStore: SnapshotStore | undefined;
+  let mediaStore: MediaStorePort;
   if (databaseUrl !== null) {
     const sql = PostgresSqlClient.connect(databaseUrl);
     json = new PgJsonStore(sql);
+    mediaStore = new PgMediaStore(sql);
     const pgEvents = new PgEventStore(sql, hasher, uuid);
     eventStore = pgEvents;
     outboxStore = new PgOutboxStore(sql);
@@ -187,6 +192,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     snapshotStore = undefined;
   } else {
     json = new InMemoryJsonStore();
+    mediaStore = new InMemoryMediaStore();
     const memEvents = new InMemoryEventStore(hasher, uuid, clock);
     eventStore = memEvents;
     outboxStore = memEvents;
@@ -215,6 +221,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // ── LLM real (4 ports) e HTTP resiliente ─────────────────────────────────────
   const resilientHttp = new ResilientHttpClient(new FetchHttpClient(), sleeper, observability, clock, 'http');
   const llm = createLlmBundle({ config, http: resilientHttp, observability, clock });
+
+  // ── CAT-02A: captura dos bytes reais de documentos (assíncrona, best-effort) ──
+  const mediaCapture = new MediaCaptureRuntime({
+    gateway: new EvolutionMediaClient(resilientHttp, config.evolution),
+    store: mediaStore,
+    log: (message) => observability.error('media', 'capture', clock.now(), message),
+  });
 
   // ── Dispatcher (2A.2) ────────────────────────────────────────────────────────
   const registry = new SubscriberRegistry();
@@ -482,6 +495,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     metricsStore,
     llm,
     databaseUrl,
+    mediaCapture,
   };
 }
 

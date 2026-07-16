@@ -48,6 +48,13 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
       void prod.ingress.receive(envelope).catch((error: unknown) => {
         prod.observability.error('webhook', 'evolution', new Date(), error instanceof Error ? error.message : 'falha');
       });
+      // CAT-02A: captura dos bytes reais de documento — ASSÍNCRONA e best-effort,
+      // após o ACK. Nenhuma conversa espera; nenhuma exceção quebra o webhook.
+      if (envelope.kind === 'image' || envelope.kind === 'pdf' || envelope.kind === 'document') {
+        void prod.mediaCapture.capture(request.body).catch((error: unknown) => {
+          prod.observability.error('webhook', 'media', new Date(), error instanceof Error ? error.message : 'falha');
+        });
+      }
     }
     return { ok: true };
   });

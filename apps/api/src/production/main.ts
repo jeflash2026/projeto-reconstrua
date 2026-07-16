@@ -30,12 +30,44 @@ async function main(): Promise<void> {
   }
 
   const port = Number(env['PORT'] ?? '3001');
-  const main = buildProductionServer({ prod, env, startedAt });
+
+  // [TRACE] instrumentação temporária: captura qualquer throw ao montar o servidor.
+  let main: ReturnType<typeof buildProductionServer>;
+  try {
+    main = buildProductionServer({ prod, env, startedAt });
+    process.stdout.write('[TRACE] buildProductionServer() OK\n');
+  } catch (e) {
+    process.stderr.write(`[TRACE] buildProductionServer() THROW: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`);
+    throw e;
+  }
   const admin = buildAdminServer(prod.adminView);
   const advogado = buildAdvogadoServer(prod.advogadoView);
   const lx = buildLawyerExperienceServer(prod.lxView);
 
+  // [TRACE] eventos do http.Server do MAIN (a porta ${port} que recebe "Connection reset")
+  main.server.on('listening', () => process.stdout.write('[TRACE] main http.Server: evento "listening"\n'));
+  main.server.on('connection', (socket) => {
+    process.stdout.write(`[TRACE] connection <- ${String(socket.remoteAddress)}:${String(socket.remotePort)}\n`);
+    socket.on('error', (err) => process.stderr.write(`[TRACE] socket "error": ${err.stack ?? String(err)}\n`));
+    socket.on('close', (hadError) => process.stdout.write(`[TRACE] socket "close" hadError=${String(hadError)}\n`));
+  });
+  main.server.on('clientError', (err: Error) => {
+    process.stderr.write(`[TRACE] http.Server "clientError": ${err.stack ?? String(err)}\n`);
+  });
+  main.server.on('request', (req) => process.stdout.write(`[TRACE] http.Server "request": ${String(req.method)} ${String(req.url)}\n`));
+
+  // [TRACE] captura throw em app.ready() (registro de plugins/hooks/rotas)
+  try {
+    await main.ready();
+    process.stdout.write('[TRACE] main.ready() OK\n');
+  } catch (e) {
+    process.stderr.write(`[TRACE] main.ready() THROW: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`);
+    throw e;
+  }
+
+  process.stdout.write(`[TRACE] chamando main.listen(${String(port)})...\n`);
   await main.listen({ port, host: '0.0.0.0' });
+  process.stdout.write(`[TRACE] main.listen(${String(port)}) RESOLVEU\n`);
   await admin.listen({ port: port + 1, host: '0.0.0.0' });
   await advogado.listen({ port: port + 2, host: '0.0.0.0' });
   await lx.listen({ port: port + 3, host: '0.0.0.0' });
@@ -52,6 +84,14 @@ async function main(): Promise<void> {
     }
   }, 60_000);
 }
+
+// [TRACE] handlers globais — qualquer exceção não tratada sai com stack completo.
+process.on('uncaughtException', (err) => {
+  process.stderr.write(`[TRACE] uncaughtException: ${err.stack ?? String(err)}\n`);
+});
+process.on('unhandledRejection', (reason) => {
+  process.stderr.write(`[TRACE] unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : JSON.stringify(reason)}\n`);
+});
 
 // Executado apenas quando o DONO roda este arquivo (node dist/production/main.js).
 void main();

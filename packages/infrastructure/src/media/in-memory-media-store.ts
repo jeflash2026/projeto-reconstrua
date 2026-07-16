@@ -15,6 +15,10 @@ export class InMemoryMediaStore implements MediaStorePort {
     return Promise.resolve();
   }
 
+  read(sha256: string): Promise<StoredBlob | null> {
+    return Promise.resolve(this.blobs.get(sha256) ?? null);
+  }
+
   /** Somente para testes/inspeção. */
   get(sha256: string): StoredBlob | undefined {
     return this.blobs.get(sha256);

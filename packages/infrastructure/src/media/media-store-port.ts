@@ -15,4 +15,6 @@ export interface MediaStorePort {
   has(sha256: string): Promise<boolean>;
   /** Persiste o blob (idempotente por sha256). */
   put(blob: StoredBlob): Promise<void>;
+  /** CAT-02C: lê o blob pelo sha256 (para servir aos humanos, uso interno). null se ausente. */
+  read(sha256: string): Promise<StoredBlob | null>;
 }

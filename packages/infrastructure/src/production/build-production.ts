@@ -119,6 +119,7 @@ import { ProductionIngress } from './production-ingress.js';
 import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
 import { JsonShadowStore, ShadowRecorder, type ShadowStore, type TurnIngress } from './shadow.js';
 import {
+  DocumentContentService,
   DocumentLinkSubscriber,
   EvolutionMediaClient,
   InMemoryMediaStore,
@@ -236,6 +237,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // (reusam production.documents via JsonStore).
   const mediaReferences = new JsonMediaReferenceStore(json);
   const documentLinks = new JsonDocumentLinkStore(json);
+  // CAT-02C: serve o conteúdo real do documento por documentId (uso interno, servidor admin).
+  const documentContent = new DocumentContentService(documentLinks, mediaStore);
   const mediaCapture = new MediaCaptureRuntime({
     gateway: new EvolutionMediaClient(resilientHttp, config.evolution),
     store: mediaStore,
@@ -404,6 +407,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     projector,
     staff,
     auditor,
+    documentContent,
   };
 
   const cursor = new CursorRuntime(cursorStore);

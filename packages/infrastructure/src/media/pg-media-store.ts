@@ -21,4 +21,11 @@ export class PgMediaStore implements MediaStorePort {
       [blob.sha256, blob.mime, blob.size, Buffer.from(blob.bytes)],
     );
   }
+
+  async read(sha256: string): Promise<StoredBlob | null> {
+    const rows = await this.sql.query('SELECT mime, size, bytes FROM production.media_blobs WHERE sha256 = $1', [sha256]);
+    const row = rows[0];
+    if (!row) return null;
+    return { sha256, mime: String(row['mime']), size: Number(row['size']), bytes: new Uint8Array(row['bytes'] as Uint8Array) };
+  }
 }

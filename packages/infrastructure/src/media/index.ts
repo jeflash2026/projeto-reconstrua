@@ -9,3 +9,4 @@ export * from './media-capture-runtime.js';
 export * from './media-reference-store.js';
 export * from './document-link-store.js';
 export * from './document-link-subscriber.js';
+export * from './document-content-service.js';

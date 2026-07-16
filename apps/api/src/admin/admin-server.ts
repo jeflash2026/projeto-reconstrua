@@ -128,6 +128,15 @@ export function buildAdminServer(op: AssembledAdminOperation): FastifyInstance {
     return { recognized: op.projector.allDocuments(), pending };
   });
 
+  // CAT-02C: conteúdo REAL do documento por documentId — uso INTERNO (servidor admin,
+  // porta não publicada). Rota nova; não altera nenhuma rota existente.
+  app.get('/admin/documents/:documentId/content', async (request, reply) => {
+    const { documentId } = request.params as { documentId: string };
+    const content = op.documentContent ? await op.documentContent.byDocumentId(documentId) : null;
+    if (content === null) return reply.code(404).send({ error: 'documento sem conteudo disponivel' });
+    return reply.header('content-type', content.mime).send(Buffer.from(content.bytes));
+  });
+
   app.get('/admin/pericias', async () => {
     await op.projector.refresh();
     return { pericias: op.projector.allPericias(), queue: (await op.handoff.openFor('perito')).length };

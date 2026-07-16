@@ -7,6 +7,7 @@
 // o diretório da equipe e as exposições de leitura que o portal exige. Aditivo puro.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock, UuidGenerator } from '@reconstrua/domain';
+import type { DocumentContentService } from '../media/index.js';
 import type {
   AdminMetricsStore,
   AdministrationIntelligenceRuntime,
@@ -105,6 +106,8 @@ export interface AssembledAdminOperation {
   readonly projector: TimelineProjector;
   readonly staff: StaffDirectoryRuntime;
   readonly auditor: EventStoreIntegrityAuditor;
+  /** CAT-02C: serve o conteúdo real do documento por documentId (uso interno). Opcional. */
+  readonly documentContent?: DocumentContentService;
 }
 
 export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledAdminOperation {

@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CD — Projeto Reconstrua. A cada push na branch principal, publica automaticamente
+# na VPS. Chama o workflow reutilizável (deploy-reusable.yml), que faz o SSH seguro
+# e executa o deploy.sh (build sem cache + health checks + rollback automático).
+# Também permite deploy manual pela aba Actions (workflow_dispatch).
+# Segredos: apenas GitHub Secrets (nada no repositório).
+# ─────────────────────────────────────────────────────────────────────────────
+name: Deploy — Projeto Reconstrua
+
+on:
+  push:
+    branches: [master]
+    # Não redeploya em mudanças que não afetam o runtime:
+    paths-ignore:
+      - "docs/**"
+      - "constitution/**"
+      - ".github/**"
+      - "**/*.md"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-reusable.yml
+    with:
+      app_dir: /opt/reconstrua
+      branch: master
+      deploy_script: deploy.sh
+    secrets:
+      SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
+      SSH_USER: ${{ secrets.VPS_SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+      SSH_PORT: ${{ secrets.VPS_SSH_PORT }}

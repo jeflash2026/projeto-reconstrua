@@ -1,0 +1,110 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Workflow REUTILIZÁVEL de deploy para projetos AHRIOS.
+# Orquestra: SSH seguro na VPS → git sync → deploy.sh (que já valida e faz rollback).
+# NÃO reimplementa validações/rollback: essa responsabilidade é do deploy.sh (que
+# possui health checks, rebuild sem cache e rollback automático). Aqui apenas
+# conectamos com segurança e propagamos o exit code (falha do deploy.sh = workflow failed).
+#
+# Uso local (mesmo repo):
+#   jobs: { deploy: { uses: ./.github/workflows/deploy-reusable.yml, with: {...}, secrets: {...} } }
+# Uso cross-repo (outros projetos AHRIOS):
+#   uses: jeflash2026/projeto-reconstrua/.github/workflows/deploy-reusable.yml@master
+# ─────────────────────────────────────────────────────────────────────────────
+name: deploy-reusable
+
+on:
+  workflow_call:
+    inputs:
+      app_dir:
+        description: "Diretório do projeto na VPS (onde está o git clone + deploy.sh)."
+        required: false
+        type: string
+        default: "/opt/reconstrua"
+      branch:
+        description: "Branch principal a sincronizar (origin/<branch>)."
+        required: false
+        type: string
+        default: "master"
+      deploy_script:
+        description: "Nome do script de deploy dentro de app_dir."
+        required: false
+        type: string
+        default: "deploy.sh"
+    secrets:
+      SSH_HOST:
+        description: "Host/IP da VPS."
+        required: true
+      SSH_USER:
+        description: "Usuário SSH (ex.: deploy ou root)."
+        required: true
+      SSH_PRIVATE_KEY:
+        description: "Chave PRIVADA SSH (sem senha) autorizada na VPS."
+        required: true
+      SSH_KNOWN_HOSTS:
+        description: "Conteúdo de known_hosts (recomendado: fixa a host key = StrictHostKeyChecking)."
+        required: false
+      SSH_PORT:
+        description: "Porta SSH (default 22)."
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy remoto via SSH
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Nunca deixar dois deploys concorrerem no mesmo diretório da VPS.
+    concurrency:
+      group: "deploy-${{ inputs.app_dir }}"
+      cancel-in-progress: false
+    steps:
+      - name: Preparar chave e known_hosts (efêmeros no runner)
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+            echo "SSH_STRICT=yes" >> "$GITHUB_ENV"
+          else
+            # Sem known_hosts fixo: TOFU no primeiro contato (menos seguro — prefira o secret).
+            ssh-keyscan -p "${SSH_PORT:-22}" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+            echo "SSH_STRICT=accept-new" >> "$GITHUB_ENV"
+          fi
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy (git sync + deploy.sh — health checks e rollback são do deploy.sh)
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          APP_DIR: ${{ inputs.app_dir }}
+          BRANCH: ${{ inputs.branch }}
+          DEPLOY_SCRIPT: ${{ inputs.deploy_script }}
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+          echo "::group::Deploy remoto em ${SSH_USER}@${SSH_HOST}:${PORT} (${APP_DIR} @ origin/${BRANCH})"
+          # Comando remoto: sincroniza o repo com origin/<branch> (garante o deploy.sh mais recente)
+          # e executa o deploy.sh, que faz build --no-cache, up --force-recreate, health checks e rollback.
+          REMOTE="set -euo pipefail; cd '${APP_DIR}' && git fetch --all --quiet && git reset --hard 'origin/${BRANCH}' && bash '${DEPLOY_SCRIPT}'"
+          ssh -tt \
+            -i ~/.ssh/id_deploy \
+            -p "${PORT}" \
+            -o StrictHostKeyChecking="${SSH_STRICT}" \
+            -o ServerAliveInterval=30 \
+            -o ConnectTimeout=15 \
+            "${SSH_USER}@${SSH_HOST}" "${REMOTE}"
+          echo "::endgroup::"
+
+      - name: Limpar credencial efêmera
+        if: always()
+        run: rm -f ~/.ssh/id_deploy || true

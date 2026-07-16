@@ -27,19 +27,8 @@ export interface ProductionServerDeps {
 }
 
 export function buildProductionServer(deps: ProductionServerDeps): FastifyInstance {
-  process.stdout.write('[TRACE] buildProductionServer: entrada\n');
   const { prod, env } = deps;
   const app = Fastify({ logger: false });
-
-  // [TRACE] instrumentação temporária: request recebido e erro por requisição (com stack).
-  app.addHook('onRequest', (request, _reply, done) => {
-    process.stdout.write(`[TRACE] onRequest: ${request.method} ${request.url}\n`);
-    done();
-  });
-  app.addHook('onError', (request, _reply, error, done) => {
-    process.stderr.write(`[TRACE] onError: ${request.method} ${request.url} :: ${error.stack ?? String(error)}\n`);
-    done();
-  });
 
   app.addHook('onSend', (_request, reply, _payload, done) => {
     reply.header('access-control-allow-origin', '*');
@@ -205,7 +194,6 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     }
   });
 
-  process.stdout.write('[TRACE] buildProductionServer: retorno OK\n');
   return app;
 }
 

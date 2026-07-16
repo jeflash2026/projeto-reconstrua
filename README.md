@@ -30,5 +30,3 @@ A única fonte oficial de verdade é o **LIVRO MESTRE** (o Canon), em [`constitu
 Os cinco volumes estão escritos, auditados e congelados; 19 entidades fundamentais definidas; 39 Decisões do Fundador; todas as auditorias de encerramento limpas; todos os achados do Conselho Constitucional resolvidos. Auditoria Constitucional Final e Panorama: [docs/LIVRO_MESTRE_FINAL_AUDIT.md](docs/LIVRO_MESTRE_FINAL_AUDIT.md).
 
 A próxima fase (implementação) permanece condicionada à autorização do fundador e obedecerá integralmente ao Canon — nenhuma linha de código contra o Livro Mestre; toda evolução do Canon segue o Volume 04 (Governança).
-
-<!-- deploy-check: validação de deploy automático (GitHub Actions → SSH → deploy.sh) 2026-07-16 -->

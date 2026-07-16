@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { OperationalRuleSpec } from '@reconstrua/application';
 import { MISSION_RULE_CATALOG } from '../mission-runtime/mission-rule-catalog.js';
+import { DEFAULT_RULE_CATALOG } from '../executive-brain/default-rule-catalog.js';
 
 export const FOLLOW_UP_RULES: readonly OperationalRuleSpec[] = [
   {
@@ -54,8 +55,23 @@ export const FOLLOW_UP_RULES: readonly OperationalRuleSpec[] = [
   },
 ];
 
-/** Catálogo de PRODUÇÃO: 2D congelado + reengajamento 4C. */
+// CAT-01 — regras APROVADAS reconectadas ao catálogo oficial por REUSO do
+// DEFAULT_RULE_CATALOG (specs intocadas, sem reescrever). Somente comportamentos
+// dignos de produção e HOJE ausentes, com pré-condição estreita (sem conflito de
+// prioridade nem duplicação de refs já ativas em 2D/4C):
+//   • RO-DEADLINE-WARN-001        prazo ≤3 dias → avisa o cliente (proativo)
+//   • RO-META-ESCALATE-CANON-001  Canon silente → escala supervisor (E10/DF-13; fail-safe)
+// Regras que dependem de mídia (RECOGNIZE/INGEST já em 2D), de destino não publicado
+// (NOTIFY-HUMAN), de encerramento (STOP-CONCLUDED) ou de ajuste de UX (EXPLAIN, DOC-REQUEST)
+// permanecem para sprints próprios.
+const APPROVED_ADDITIONS: readonly string[] = ['RO-DEADLINE-WARN-001', 'RO-META-ESCALATE-CANON-001'];
+const APPROVED_FROM_DEFAULT: readonly OperationalRuleSpec[] = DEFAULT_RULE_CATALOG.filter((r) =>
+  APPROVED_ADDITIONS.includes(r.ref),
+);
+
+/** Catálogo de PRODUÇÃO: 2D congelado + reengajamento 4C + regras aprovadas (CAT-01). */
 export const PRODUCTION_RULE_CATALOG: readonly OperationalRuleSpec[] = [
   ...MISSION_RULE_CATALOG,
   ...FOLLOW_UP_RULES,
+  ...APPROVED_FROM_DEFAULT,
 ];

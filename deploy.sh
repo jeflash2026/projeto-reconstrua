@@ -126,6 +126,11 @@ main() {
     [ "${R}" = "200" ] && [ "${H}" = "200" ] && [ "${W}" = "200" ] && break
     sleep 5
   done
+  # Remedição FINAL: mede o estado ATUAL após o último sleep, evitando rollback por
+  # medida obsoleta (ex.: www vira 200 durante a última espera do laço).
+  R="$(http  "https://${DOMAIN}/")"
+  H="$(http  "https://${DOMAIN}/production/health")"
+  W="$(httpL "https://www.${DOMAIN}/")"
   echo "   / = ${R} · /production/health = ${H} · www(-L) = ${W}"
   [ "${R}" = "200" ] || die "GET / retornou ${R} (esperado 200 — a interface deve abrir na raiz)"
   [ "${H}" = "200" ] || die "/production/health retornou ${H} (esperado 200)"

@@ -92,11 +92,45 @@ jobs:
         run: |
           set -euo pipefail
           PORT="${SSH_PORT:-22}"
+
+          # ─────────────────────────────────────────────────────────────────────
+          # DIAGNÓSTICO TEMPORÁRIO da conexão SSH (o erro atual é
+          # "ssh: connect to host *** port ***: Connection timed out", ANTES do
+          # deploy). NÃO expõe a chave privada (permanece só em ~/.ssh/id_deploy).
+          # OBS.: o GitHub MASCARA valores de secrets nos logs (HOST/USER/PORT
+          # aparecem como ***). Por isso imprimimos também os COMPRIMENTOS, que não
+          # são mascarados e revelam: vazio (len=0 → secret ausente) ou lixo/espaço
+          # colado (ex.: um "\n" no fim do secret vira PORT_len=3 para "22").
+          # ─────────────────────────────────────────────────────────────────────
+          echo "── diagnóstico SSH (valores de secret vêm mascarados como ***) ──"
+          echo "HOST=${SSH_HOST}"
+          echo "PORT=${PORT}"
+          echo "USER=${SSH_USER}"
+          echo "comprimentos → HOST_len=${#SSH_HOST} PORT_len=${#PORT} USER_len=${#SSH_USER}"
+          if [ -z "${SSH_HOST}" ]; then echo "::error::SSH_HOST VAZIO — o secret VPS_SSH_HOST está ausente/incorreto"; fi
+          if [ -z "${SSH_USER}" ]; then echo "::error::SSH_USER VAZIO — o secret VPS_SSH_USER está ausente/incorreto"; fi
+          if [ -z "${PORT}" ];     then echo "::error::PORT VAZIO — SSH_PORT malformado"; fi
+
+          # Teste de conexão com -vvv: mostra EXATAMENTE em que etapa a conexão
+          # falha (resolução DNS → TCP connect na porta → handshake → auth). Como o
+          # erro é timeout (antes da auth), o traço revela se o TCP connect à porta
+          # está sendo bloqueado/filtrado. BatchMode evita qualquer prompt travar.
+          echo "── teste de conexão: ssh -vvv (apenas abre a conexão e roda 'echo') ──"
+          ssh -vvv \
+            -i ~/.ssh/id_deploy \
+            -p "${PORT}" \
+            -o StrictHostKeyChecking="${SSH_STRICT}" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -o ServerAliveInterval=30 \
+            "${SSH_USER}@${SSH_HOST}" "echo SSH_CONNECT_OK" \
+            || echo "::warning::teste ssh -vvv não conectou — veja acima a ÚLTIMA linha do traço para a etapa exata da falha"
+
           echo "::group::Deploy remoto em ${SSH_USER}@${SSH_HOST}:${PORT} (${APP_DIR} @ origin/${BRANCH})"
           # Comando remoto: sincroniza o repo com origin/<branch> (garante o deploy.sh mais recente)
           # e executa o deploy.sh, que faz build --no-cache, up --force-recreate, health checks e rollback.
           REMOTE="set -euo pipefail; cd '${APP_DIR}' && git fetch --all --quiet && git reset --hard 'origin/${BRANCH}' && bash '${DEPLOY_SCRIPT}'"
-          ssh -tt \
+          ssh -tt -vvv \
             -i ~/.ssh/id_deploy \
             -p "${PORT}" \
             -o StrictHostKeyChecking="${SSH_STRICT}" \

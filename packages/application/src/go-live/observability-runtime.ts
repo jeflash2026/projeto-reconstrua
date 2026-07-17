@@ -1,7 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // OBSERVABILITY RUNTIME — registra tempo de resposta, eventos, erros, fila,
 // latência e estatísticas. Tudo AUDITÁVEL (log estruturado append-only em memória
-// de processo; adapter durável entra pelo mesmo formato). Nunca decide.
+// de processo). Nunca decide.
+//
+// B5.3 — DURABILIDADE: além da trilha em memória (preservada), cada observação passa
+// por um SINK. O sink padrão emite APENAS erros e degradações (health) para stderr,
+// em UMA linha estruturada — assim falhas relevantes sobrevivem a reinícios via
+// `docker logs`, sem duplicar/flooding (event/latency/queue/stat NÃO vão ao stderr).
+// Não é um novo sistema de logs: é a saída padrão do processo pelo MESMO runtime.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ObservationKind = 'event' | 'error' | 'latency' | 'queue' | 'health' | 'stat';
@@ -15,6 +21,18 @@ export interface Observation {
   readonly at: Date;
 }
 
+/** Consumidor durável de observações (B5.3). O padrão escreve erros/degradações no stderr. */
+export type ObservationSink = (observation: Observation) => void;
+
+/** Sink padrão: SÓ erros e degradações (health) → stderr, uma linha por ocorrência. */
+export function stderrErrorSink(observation: Observation): void {
+  if (observation.kind !== 'error' && observation.kind !== 'health') return;
+  const suffix = observation.detail !== null ? ` :: ${observation.detail}` : '';
+  process.stderr.write(
+    `[reconstrua] ${observation.at.toISOString()} ${observation.kind.toUpperCase()} ${observation.component}/${observation.name}${suffix}\n`,
+  );
+}
+
 export interface ObservabilityStats {
   readonly totalEvents: number;
   readonly totalErrors: number;
@@ -25,8 +43,12 @@ export interface ObservabilityStats {
 export class ObservabilityRuntime {
   private readonly log: Observation[] = [];
 
+  /** `sink` durável (default: stderr para erros/degradações). Injetável para testes. */
+  constructor(private readonly sink: ObservationSink = stderrErrorSink) {}
+
   record(observation: Observation): void {
-    this.log.push(observation);
+    this.log.push(observation); // trilha em memória PRESERVADA
+    this.sink(observation); // durável: erros/degradações → stderr (docker logs)
   }
 
   event(component: string, name: string, at: Date, detail: string | null = null): void {
@@ -35,6 +57,11 @@ export class ObservabilityRuntime {
 
   error(component: string, name: string, at: Date, detail: string): void {
     this.record({ kind: 'error', component, name, value: null, detail, at });
+  }
+
+  /** B5.3 — DEGRADAÇÃO relevante (ex.: início em modo degradado). Registrada E durável. */
+  degraded(component: string, name: string, at: Date, detail: string): void {
+    this.record({ kind: 'health', component, name, value: null, detail, at });
   }
 
   latency(component: string, name: string, ms: number, at: Date): void {

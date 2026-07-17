@@ -40,7 +40,11 @@ pre{background:#121722;border:1px solid #232b3b;border-radius:8px;padding:10px;f
 </div></div>
 <script>
 const $=s=>document.querySelector(s);
-async function j(u,o){const r=await fetch(u,o);return r.json()}
+// B5.1: as rotas /production/* exigem o segredo do operador (Bearer). O console guarda
+// o token no localStorage e o injeta em toda chamada; em 401, limpa e repergunta.
+let TK=localStorage.getItem('ahrios_token')||'';
+function ensureToken(){if(!TK){TK=prompt('Segredo do operador (ADMIN_ACCESS_SECRET):')||'';if(TK)localStorage.setItem('ahrios_token',TK)}}
+async function j(u,o){ensureToken();const opt=Object.assign({},o);opt.headers=Object.assign({},o&&o.headers,{authorization:'Bearer '+TK});let r=await fetch(u,opt);if(r.status===401){localStorage.removeItem('ahrios_token');TK='';ensureToken();opt.headers.authorization='Bearer '+TK;r=await fetch(u,opt)}return r.json()}
 function stat(l,v,c){return '<div class="card"><div class="v '+(c||'')+'">'+v+'</div><div class="l">'+l+'</div></div>'}
 async function monitor(){try{const m=await j('/production/monitor');
 $('#monitor').innerHTML=stat('Clientes online',m.clientsOnline)+stat('Conversas',m.conversations)

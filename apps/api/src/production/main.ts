@@ -28,12 +28,17 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
+  // B5.3 — DEGRADAÇÃO relevante: subir apesar de itens vermelhos fica registrado (durável).
+  if (!report.ready && allowDegraded) {
+    const red = report.results.filter((r) => !r.passed).map((r) => r.item).join(', ');
+    prod.observability.degraded('go-live', 'degraded-start', clock.now(), `iniciado em modo degradado (ALLOW_DEGRADED); itens vermelhos: ${red}`);
+  }
 
   const port = Number(env['PORT'] ?? '3001');
 
   const main = buildProductionServer({ prod, env, startedAt });
-  const admin = buildAdminServer(prod.adminView);
-  const advogado = buildAdvogadoServer(prod.advogadoView);
+  const admin = buildAdminServer(prod.adminView, { accessSecret: env['ADMIN_ACCESS_SECRET'] ?? '' });
+  const advogado = buildAdvogadoServer(prod.advogadoView, { accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '' });
   const lx = buildLawyerExperienceServer(prod.lxView);
 
   await main.listen({ port, host: '0.0.0.0' });
@@ -43,13 +48,19 @@ async function main(): Promise<void> {
   process.stdout.write(`AHRIOS em produção: main:${String(port)} admin:${String(port + 1)} advogado:${String(port + 2)} lx:${String(port + 3)}\n`);
 
   // Loop temporal pela ENTRADA ÚNICA serializada (A2/4C) + preparação noturna às 03h.
+  // B5.3 — exceções antes ABSORVIDAS silenciosamente agora são registradas (memória +
+  // stderr durável), sem alterar o comportamento do loop (continua tolerante a falhas).
   setInterval(() => {
-    void prod.ingress.tick(clock.now()).catch(() => undefined);
+    void prod.ingress.tick(clock.now()).catch((error: unknown) => {
+      prod.observability.error('temporal', 'tick', clock.now(), error instanceof Error ? error.message : 'falha no tick temporal');
+    });
   }, 60_000);
   setInterval(() => {
     const now = clock.now();
     if (now.getHours() === 3 && now.getMinutes() === 0) {
-      void prod.lxView.nightShift.run(now).catch(() => undefined);
+      void prod.lxView.nightShift.run(now).catch((error: unknown) => {
+        prod.observability.error('night-shift', 'run', now, error instanceof Error ? error.message : 'falha na preparação noturna');
+      });
     }
   }, 60_000);
 }

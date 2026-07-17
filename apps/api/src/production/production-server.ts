@@ -17,8 +17,33 @@ import {
   summarize,
 } from '@reconstrua/infrastructure';
 import { configFromEnv, maskConfig, mergeConfigUpdate, type ProductionConfig } from '@reconstrua/application';
+import type { FastifyRequest } from 'fastify';
+import { bearerToken, requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 import { PRODUCTION_UI_HTML } from './production-ui.js';
 import { LANDING_HTML } from './landing-html.js';
+
+// B5.1 — rotas /production/* SENSÍVEIS (config, monitor, go-live, first-client, shadow)
+// exigem o segredo do operador (BL-2.1). Ficam PÚBLICAS apenas a landing `/`, o health
+// (`/production/health`, consumido pelo deploy/uptime) e a CASCA da UI (`/production/ui`,
+// sem dados — as chamadas dela levam o Bearer). Fail-closed: segredo vazio ⇒ 401.
+function isProtectedProductionPath(path: string): boolean {
+  if (!path.startsWith('/production/')) return false;
+  return path !== '/production/health' && path !== '/production/ui';
+}
+
+// B5.1 — autenticidade do webhook Evolution: o segredo pode chegar por Authorization
+// Bearer, header `apikey` (o que a Evolution já envia) ou query `?token=`. Comparação
+// em tempo constante; FAIL-CLOSED: sem segredo configurado ⇒ recusa (nunca aberto).
+function webhookAuthorized(request: FastifyRequest, secret: string): boolean {
+  if (secret === '') return false;
+  const apiKeyHeader = request.headers['apikey'];
+  const queryToken = (request.query as { token?: string } | undefined)?.token;
+  const presented =
+    bearerToken(request) ??
+    (typeof apiKeyHeader === 'string' ? apiKeyHeader : null) ??
+    (typeof queryToken === 'string' ? queryToken : null);
+  return presented !== null && secretsMatch(presented, secret);
+}
 
 export interface ProductionServerDeps {
   readonly prod: AssembledProduction;
@@ -33,16 +58,30 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
   app.addHook('onSend', (_request, reply, _payload, done) => {
     reply.header('access-control-allow-origin', '*');
     reply.header('access-control-allow-methods', 'GET,POST,PUT,OPTIONS');
-    reply.header('access-control-allow-headers', 'content-type');
+    reply.header('access-control-allow-headers', 'content-type,authorization');
     done();
   });
+
+  // B5.1 — guard REUTILIZADO (BL-2.1): protege as rotas /production/* sensíveis com o
+  // segredo do operador (o MESMO ADMIN_ACCESS_SECRET do Portal Admin). Único guard;
+  // nenhuma autenticação paralela. Health/landing/UI-casca/webhook seguem por regra própria.
+  const operatorSecret = env['ADMIN_ACCESS_SECRET'] ?? '';
+  requireBearer(app, { secret: operatorSecret, protect: isProtectedProductionPath });
+  // Segredo do webhook: WEBHOOK_SECRET dedicado ou, na ausência, o EVOLUTION_API_KEY já existente.
+  const webhookSecret = env['WEBHOOK_SECRET'] ?? env['EVOLUTION_API_KEY'] ?? '';
+
   app.options('/*', (_request, reply) => {
     void reply.code(204).send();
   });
 
   // ── WEBHOOK Evolution (produção): ACK imediato; turno destacado entra pela
   //    ENTRADA ÚNICA serializada por conversa (correção A2/4C) ──────────────────
-  app.post('/webhook/evolution', (request) => {
+  app.post('/webhook/evolution', (request, reply) => {
+    // B5.1 — FAIL-SAFE: recusa qualquer chamada sem o segredo válido (nunca processa
+    // uma mensagem forjada). A Evolution é configurada para enviar o segredo (apikey/Bearer).
+    if (!webhookAuthorized(request, webhookSecret)) {
+      return reply.code(401).send({ error: 'webhook não autenticado' });
+    }
     const envelope = mapEvolutionUpsert(request.body);
     if (envelope) {
       void prod.ingress.receive(envelope).catch((error: unknown) => {
@@ -171,6 +210,8 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     const wa = (env['WHATSAPP_NUMBER'] ?? '').replace(/\D/g, '');
     const pixelId = env['META_PIXEL_ID'] ?? '';
     const gaId = env['GA_MEASUREMENT_ID'] ?? '';
+    const oab = env['OAB_IDENTIFICACAO'] ?? '';
+    const cnpj = env['CNPJ'] ?? '';
     const pixel = pixelId
       ? `<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixelId}');fbq('track','PageView');</script><noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${pixelId}&ev=PageView&noscript=1"/></noscript>`
       : '';
@@ -180,6 +221,8 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     const html = LANDING_HTML
       .replace(/__URL__/g, publicUrl)
       .replace(/__WA__/g, wa)
+      .replace(/__OAB__/g, oab)
+      .replace(/__CNPJ__/g, cnpj)
       .replace('<!-- __PIXEL__ -->', pixel)
       .replace('<!-- __GA__ -->', ga);
     void reply.type('text/html').send(html);

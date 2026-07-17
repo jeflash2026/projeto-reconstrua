@@ -173,17 +173,20 @@ describe('Shadow Mode — perguntas do fundador (exclusivamente dos reports)', (
 describe('Shadow Center — API', () => {
   it('/production/shadow/center agrega tudo em tempo real', async () => {
     const { prod } = harness();
-    const app = buildProductionServer({ prod, env: {}, startedAt: new Date() });
+    // B5.1: rotas shadow são sensíveis — servidor com segredo de operador + Bearer.
+    const SECRET = 'TEST-OPERATOR-SECRET';
+    const app = buildProductionServer({ prod, env: { ADMIN_ACCESS_SECRET: SECRET }, startedAt: new Date() });
+    const authHeaders = { authorization: `Bearer ${SECRET}` };
     await prod.ingress.receive(env('olá', 'S1'));
 
-    const res = await app.inject({ method: 'GET', url: '/production/shadow/center' });
+    const res = await app.inject({ method: 'GET', url: '/production/shadow/center', headers: authHeaders });
     const body: { shadowMode: boolean; summary: { totalTurns: number; conversations: number }; detections: unknown[]; recent: unknown[] } = res.json();
     expect(body.shadowMode).toBe(true);
     expect(body.summary.totalTurns).toBe(1);
     expect(body.summary.conversations).toBe(1);
     expect(body.recent).toHaveLength(1);
 
-    const ask = await app.inject({ method: 'POST', url: '/production/shadow/ask', payload: { question: 'em quais regras você mais trabalhou?' } });
+    const ask = await app.inject({ method: 'POST', url: '/production/shadow/ask', payload: { question: 'em quais regras você mais trabalhou?' }, headers: authHeaders });
     const answer: { answer: string; provenance: string } = ask.json();
     expect(answer.provenance).toBe('shadow-reports');
     expect(answer.answer).toContain('RO-');

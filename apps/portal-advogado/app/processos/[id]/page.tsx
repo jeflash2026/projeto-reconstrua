@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import AutoRefresh from '../../../components/auto-refresh';
 import ActivityForm from '../../../components/activity-form';
 import EntriesTable from '../../../components/entries-table';
-import { API_BASE, getJson, type ProcessDetail } from '../../../lib/api';
+import { getJson, type ProcessDetail } from '../../../lib/api';
 import { formatDate, shortId } from '../../../lib/format';
 
 const ProcessoPage = async ({ params }: { params: { id: string } }): Promise<ReactElement> => {
@@ -34,7 +34,7 @@ const ProcessoPage = async ({ params }: { params: { id: string } }): Promise<Rea
         </div>
       ) : null}
 
-      <ActivityForm missionId={data.missionId} apiBase={API_BASE} />
+      <ActivityForm missionId={data.missionId} />
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h3>Meus registros jurídicos neste processo</h3>

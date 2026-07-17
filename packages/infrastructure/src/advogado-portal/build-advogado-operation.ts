@@ -67,6 +67,7 @@ import { InMemoryStaffStore } from '../admin-portal/in-memory-staff-store.js';
 import { InMemoryAssignmentStore, InMemoryJuridicalWorkStore } from './in-memory-adapters.js';
 import { ADVOGADO_RULE_CATALOG } from './advogado-rule-catalog.js';
 import { ConversationClientMessenger } from './client-messenger.js';
+import type { DocumentContentService } from '../media/document-content-service.js';
 
 export interface AdvogadoOperationWiring {
   readonly clock: Clock;
@@ -88,6 +89,8 @@ export interface AssembledAdvogadoOperation {
   readonly memoryStore: MemoryStore;
   readonly metricsStore: AdminMetricsStore;
   readonly workflow: WorkflowRuntime;
+  // BL-3.3: conteúdo real de documento (CAT-02C) — MESMA instância do adminView (opcional).
+  readonly documentContent?: DocumentContentService;
 }
 
 export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): AssembledAdvogadoOperation {

@@ -11,6 +11,7 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import type { AssembledAdvogadoOperation } from '@reconstrua/infrastructure';
 import { NotAssignedError, type JuridicalEntryKind } from '@reconstrua/application';
+import { requireBearer } from '../auth/bearer-guard.js';
 
 const ENTRY_KINDS: readonly JuridicalEntryKind[] = [
   'numero_processo',
@@ -28,18 +29,24 @@ function isEntryKind(value: string): value is JuridicalEntryKind {
   return (ENTRY_KINDS as readonly string[]).includes(value);
 }
 
-export function buildAdvogadoServer(op: AssembledAdvogadoOperation): FastifyInstance {
+export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { readonly accessSecret?: string } = {}): FastifyInstance {
   const app = Fastify({ logger: false });
 
   app.addHook('onSend', (_request, reply, _payload, done) => {
     reply.header('access-control-allow-origin', '*');
     reply.header('access-control-allow-methods', 'GET,POST,PATCH,OPTIONS');
-    reply.header('access-control-allow-headers', 'content-type,x-advogado-id');
+    reply.header('access-control-allow-headers', 'content-type,x-advogado-id,authorization');
     done();
   });
   app.options('/*', (_request, reply) => {
     void reply.code(204).send();
   });
+
+  // BL-3.1 — Autenticação Real (DF-12): toda rota /advogado* exige o segredo do
+  // Advogado (Bearer). REUSA o guard do BL-2.1 (sem auth paralela, sem duplicação).
+  // O isolamento por atribuição (x-advogado-id + isAssigned) permanece INTOCADO,
+  // agora atrás da autenticação real. Multiescritório: o segredo pode ser por escritório.
+  requireBearer(app, { secret: opts.accessSecret ?? '', protect: (path) => path.startsWith('/advogado') });
 
   /** Resolve o advogado autenticado (ativo) ou null. */
   async function advogadoOf(request: FastifyRequest): Promise<string | null> {
@@ -188,6 +195,26 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation): FastifyInst
     await op.projector.refresh();
     const myMissionIds = new Set((await op.work.myMissions(advogadoId)).map((m) => m.missionId));
     return op.projector.allDocuments().filter((d) => d.missionId !== null && myMissionIds.has(d.missionId));
+  });
+
+  // ── BL-3.3 — CONTEÚDO REAL do documento, ISOLADO POR ATRIBUIÇÃO ───────────────
+  // Reutiliza o DocumentContentService (CAT-02C, mesma instância do admin). Valida
+  // OBRIGATORIAMENTE que o processo é do advogado (isAssigned) e que o documento
+  // pertence a esse processo. Sem parser novo, sem rota paralela, sem alterar
+  // autenticação, persistência, regras jurídicas nem o isolamento.
+  app.get('/advogado/processos/:missionId/documentos/:documentId/content', async (request, reply) => {
+    const advogadoId = await advogadoOf(request);
+    if (!advogadoId) return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
+    const { missionId, documentId } = request.params as { missionId: string; documentId: string };
+    if (!(await op.work.isAssigned(advogadoId, missionId))) {
+      return reply.code(403).send({ error: 'processo não atribuído a este advogado' });
+    }
+    await op.projector.refresh();
+    const belongs = op.projector.allDocuments().some((d) => d.documentId === documentId && d.missionId === missionId);
+    if (!belongs) return reply.code(404).send({ error: 'documento não pertence a este processo' });
+    const content = op.documentContent ? await op.documentContent.byDocumentId(documentId) : null;
+    if (content === null) return reply.code(404).send({ error: 'documento sem conteúdo disponível' });
+    return reply.header('content-type', content.mime).send(Buffer.from(content.bytes));
   });
 
   app.get('/advogado/perfil', async (request, reply) => {

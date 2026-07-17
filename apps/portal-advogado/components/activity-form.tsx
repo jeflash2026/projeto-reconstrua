@@ -4,6 +4,7 @@
 // cliente será comunicado (a resposta mostra a decisão, com a Regra Operacional).
 import { useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
+import { registerActivity } from '../lib/actions';
 
 const KINDS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'numero_processo', label: 'Número do processo' },
@@ -17,13 +18,7 @@ const KINDS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'documento', label: 'Anexar documento jurídico (referência)' },
 ];
 
-interface AhriDecision {
-  informed: boolean;
-  decidedToSpeak: boolean;
-  ruleRefs: string[];
-}
-
-const ActivityForm = ({ missionId, apiBase }: { missionId: string; apiBase: string }): ReactElement => {
+const ActivityForm = ({ missionId }: { missionId: string }): ReactElement => {
   const router = useRouter();
   const [kind, setKind] = useState('movimentacao');
   const [text, setText] = useState('');
@@ -35,29 +30,18 @@ const ActivityForm = ({ missionId, apiBase }: { missionId: string; apiBase: stri
     if (text.trim() === '' || busy) return;
     setBusy(true);
     setStatus(null);
-    try {
-      const cookie = document.cookie.split('; ').find((c) => c.startsWith('advogado-id='));
-      const advogadoId = cookie ? decodeURIComponent(cookie.split('=')[1] ?? '') : '';
-      const res = await fetch(`${apiBase}/advogado/processos/${missionId}/atividades`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-advogado-id': advogadoId },
-        body: JSON.stringify({ kind, text, ...(dueAt !== '' ? { dueAt: new Date(dueAt).toISOString() } : {}) }),
-      });
-      if (!res.ok) {
-        setStatus('Falha ao registrar (verifique sua atribuição).');
-      } else {
-        const body = (await res.json()) as { ahri: AhriDecision };
-        setStatus(
-          body.ahri.decidedToSpeak
-            ? `Registrado. A AHRI decidiu comunicar o cliente (${body.ahri.ruleRefs.join(', ')}).`
-            : 'Registrado. A AHRI foi informada e decidiu não comunicar o cliente agora.',
-        );
-        setText('');
-        setDueAt('');
-        router.refresh();
-      }
-    } catch {
-      setStatus('API indisponível.');
+    const result = await registerActivity(missionId, kind, text, dueAt !== '' ? new Date(dueAt).toISOString() : null);
+    if (!result) {
+      setStatus('Falha ao registrar (verifique sua atribuição).');
+    } else {
+      setStatus(
+        result.ahri.decidedToSpeak
+          ? `Registrado. A AHRI decidiu comunicar o cliente (${result.ahri.ruleRefs.join(', ')}).`
+          : 'Registrado. A AHRI foi informada e decidiu não comunicar o cliente agora.',
+      );
+      setText('');
+      setDueAt('');
+      router.refresh();
     }
     setBusy(false);
   };

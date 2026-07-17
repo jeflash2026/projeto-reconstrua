@@ -6,7 +6,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { cookies } from 'next/headers';
 
-export const API_BASE = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3002';
+export const API_BASE = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3003';
+
+// BL-3.1 (DF-12): o portal apresenta o segredo do Advogado (server-side, nunca ao
+// browser). A identidade (x-advogado-id) segue atrás dessa autenticação real.
+const ADVOGADO_TOKEN = process.env['ADVOGADO_API_TOKEN'] ?? '';
 
 export function advogadoId(): string | null {
   const value = cookies().get('advogado-id')?.value ?? '';
@@ -15,10 +19,32 @@ export function advogadoId(): string | null {
 
 export async function getJson<T>(path: string): Promise<T | null> {
   const id = advogadoId();
+  const headers: Record<string, string> = {};
+  if (ADVOGADO_TOKEN) headers['authorization'] = `Bearer ${ADVOGADO_TOKEN}`;
+  if (id) headers['x-advogado-id'] = id;
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       cache: 'no-store',
-      headers: id ? { 'x-advogado-id': id } : {},
+      headers,
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function sendJson<T>(method: 'POST' | 'PATCH', path: string, body: unknown): Promise<T | null> {
+  const id = advogadoId();
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (ADVOGADO_TOKEN) headers['authorization'] = `Bearer ${ADVOGADO_TOKEN}`;
+  if (id) headers['x-advogado-id'] = id;
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: JSON.stringify(body),
+      cache: 'no-store',
     });
     if (!res.ok) return null;
     return (await res.json()) as T;

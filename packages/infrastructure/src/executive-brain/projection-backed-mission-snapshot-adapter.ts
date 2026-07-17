@@ -1,0 +1,43 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECTION-BACKED MISSION SNAPSHOT ADAPTER (RFC-0035-G) — implementa o contrato
+// CONGELADO `MissionSnapshotPort` (somente `load`) servindo o snapshot a partir do
+// Decision State Read Model. Substitui APENAS a implementação por trás do port; o
+// DTO, buildFacts, GoalSelector, RuleEvaluator e o Brain permanecem intocados.
+//
+// O Brain carrega por `chatId`; os eventos de domínio são chaveados por `missionId`.
+// Este adapter resolve `chatId → missionId` pelo MESMO `MissionIdentityMap` que o
+// Mission Runtime mantém — sem índice secundário, sem novo contrato de resolução.
+// Missão nova/desconhecida (sem identidade ou sem registro) ⇒ `null` ⇒ o chamador
+// aplica seu `?? emptySnapshot` (default legítimo do primeiro turno).
+//
+// Sobre o registro projetado, apenas os campos com produtor real são aplicados
+// (`truthEstablished`; B4.1: `stateCode='ENCERRADA'` quando encerrado); os demais
+// permanecem no default de `emptySnapshot`.
+// ─────────────────────────────────────────────────────────────────────────────
+import { emptySnapshot } from '@reconstrua/application';
+import type { MissionIdentityMap, MissionSnapshot, MissionSnapshotPort } from '@reconstrua/application';
+import type { DecisionStateStore } from './decision-state-read-model.js';
+
+export class ProjectionBackedMissionSnapshotAdapter implements MissionSnapshotPort {
+  constructor(
+    private readonly store: DecisionStateStore,
+    private readonly identities: MissionIdentityMap,
+  ) {}
+
+  async load(chatId: string): Promise<MissionSnapshot | null> {
+    const identity = await this.identities.load(chatId);
+    const missionId = identity?.missionId ?? null;
+    if (missionId === null) return null; // missão ainda não nasceu → emptySnapshot no chamador
+
+    const record = await this.store.load(missionId);
+    if (record === null) return null; // projeção ainda não alcançou esta missão → emptySnapshot
+
+    // Overlay dos campos COM produtor sobre o default; campos sem produtor ficam no default.
+    // B4.1 — Estado terminal ENCERRADA ativa RO-STOP-CONCLUDED e bloqueia o acompanhamento.
+    return {
+      ...emptySnapshot(missionId),
+      truthEstablished: record.truthEstablished,
+      ...(record.terminalState === 'ENCERRADA' ? { stateCode: 'ENCERRADA' } : {}),
+    };
+  }
+}

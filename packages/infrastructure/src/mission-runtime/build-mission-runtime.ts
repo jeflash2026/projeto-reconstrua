@@ -21,6 +21,7 @@ import {
   AuditIntegralUseCase,
   BuildKnowledgeUseCase,
   BuildTruthUseCase,
+  CloseMissionUseCase,
   CreateMissionUseCase,
   DeriveStateUseCase,
   EventStoreIntegrityAuditor,
@@ -38,6 +39,7 @@ import {
   MissionValidator,
   ProduceProjectionUseCase,
   RecognizeClienteUseCase,
+  ReopenMissionUseCase,
   RecognizeDocumentUseCase,
   RecognizeEventUseCase,
   RecognizePersonUseCase,
@@ -86,6 +88,10 @@ export function assembleMissionRuntime(wiring: MissionRuntimeWiring): AssembledM
   const r7 = new ExecuteOperationUseCase(deps);
   const r8 = new ProduceProjectionUseCase(deps);
   const r9 = new AuditIntegralUseCase(auditor);
+  // B4.1 — Encerramento oficial: deriva o Estado terminal ENCERRADA (molde R6b).
+  const closeMission = new CloseMissionUseCase(deps);
+  // B4.3 — Reabertura oficial: deriva Estado em curso (não terminal) por evento append-only.
+  const reopenMission = new ReopenMissionUseCase(deps);
 
   const executor = new MissionExecutor(new MissionValidator(), new MissionRecoveryRuntime());
   const assembler = new MissionContextAssembler();
@@ -103,6 +109,8 @@ export function assembleMissionRuntime(wiring: MissionRuntimeWiring): AssembledM
     .register(pipe('BuildKnowledge', [r5]))
     .register(pipe('BuildTruth', [r6a]))
     .register(pipe('DeriveState', [r6b]))
+    .register(pipe('CloseMission', [closeMission]))
+    .register(pipe('ReopenMission', [reopenMission]))
     .register(pipe('RepresentStage', [r6c]))
     .register(pipe('ExecuteOperation', [r7]))
     .register(pipe('ProduceProjection', [r8]))

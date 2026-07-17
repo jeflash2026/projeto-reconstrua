@@ -51,6 +51,23 @@ describe('projectEvent', () => {
     expect(m.clientCount).toBe(1);
   });
 
+  it('B4.4 — projeta encerramentos e reaberturas a partir do payload do operational-state', () => {
+    let m = emptyMetrics(NOW);
+    const state = (seq: number, payload: Record<string, unknown>): StoredEvent => ({
+      ...event('operational-state', seq),
+      streamId: `operational-state-${String(seq)}`,
+      eventType: 'operational-state.derived',
+      payload: { missionId: 'M1', ...payload },
+    });
+    m = projectEvent(m, state(1, {})); // derivação normal
+    m = projectEvent(m, state(2, { terminalState: 'ENCERRADA' })); // encerramento
+    m = projectEvent(m, state(3, { reopened: true })); // reabertura
+    m = projectEvent(m, state(4, { terminalState: 'ENCERRADA' })); // 2º encerramento
+    expect(m.stateDerivations).toBe(4);
+    expect(m.closedCount).toBe(2);
+    expect(m.reopenedCount).toBe(1);
+  });
+
   it('dados não capturados permanecem ausentes (nunca inventados)', () => {
     let m = emptyMetrics(NOW);
     m = projectEvent(m, event('mission', 1));

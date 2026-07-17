@@ -4,6 +4,7 @@
 // publicando via Dispatcher, sob decisão exclusiva do Executive Brain (2C).
 // ─────────────────────────────────────────────────────────────────────────────
 export * from './types.js';
+export * from './perceived-fact.js';
 export * from './ports.js';
 export * from './provenance.js';
 export * from './use-case.js';
@@ -27,6 +28,8 @@ export * from './use-cases/r4-recognize-event.js';
 export * from './use-cases/r5-build-knowledge.js';
 export * from './use-cases/r6-build-truth.js';
 export * from './use-cases/r6-derive-state.js';
+export * from './use-cases/close-mission.js';
+export * from './use-cases/reopen-mission.js';
 export * from './use-cases/r6-represent-stage.js';
 export * from './use-cases/r7-execute-operation.js';
 export * from './use-cases/r8-produce-projection.js';

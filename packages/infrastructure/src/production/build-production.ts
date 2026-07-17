@@ -34,6 +34,7 @@ import {
   DelayRuntime,
   DeliveryRuntime,
   EventStoreIntegrityAuditor,
+  FollowUpRecurrenceRuntime,
   ExponentialBackoffRetryPolicy,
   GoLiveChecklist,
   HealthRuntime,
@@ -79,6 +80,10 @@ import {
   EvolutionGateway,
 } from '../conversation/index.js';
 import { assembleExecutiveBrain } from '../executive-brain/build-executive-brain.js';
+// RFC-0035-G: fronteira de decisão como Read Model Projection (Alternativa B).
+import { JsonDecisionStateStore } from '../executive-brain/decision-state-read-model.js';
+import { DecisionStateProjectionSubscriber } from '../executive-brain/decision-state-projection-subscriber.js';
+import { ProjectionBackedMissionSnapshotAdapter } from '../executive-brain/projection-backed-mission-snapshot-adapter.js';
 import { InMemoryRuleCatalog } from '../executive-brain/in-memory-adapters.js';
 import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
 import { assembleLivingMemory } from '../living-memory/build-living-memory.js';
@@ -230,6 +235,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const decisionStore = new JsonDecisionStore(json);
   const productivityStore = new JsonProductivityStore(json);
   const identityMap = new JsonIdentityMap(json);
+  // RFC-0035-G: Read Model de DECISÃO (por missão) que respalda a fronteira do Brain.
+  const decisionState = new JsonDecisionStateStore(json);
 
   // ── LLM real (4 ports) e HTTP resiliente ─────────────────────────────────────
   const resilientHttp = new ResilientHttpClient(new FetchHttpClient(), sleeper, observability, clock, 'http');
@@ -295,6 +302,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   registry.register(new SerializedSubscriber(workflow), 1, clock.now());
   // CAT-02B: liga o vínculo definitivo ao reconhecer o documento (observa o evento).
   registry.register(new SerializedSubscriber(new DocumentLinkSubscriber(mediaReferences, documentLinks)), 1, clock.now());
+  // RFC-0035-G: projeta o Estado de Decisão (hoje: truthEstablished) para o Brain.
+  registry.register(new SerializedSubscriber(new DecisionStateProjectionSubscriber(decisionState)), 1, clock.now());
 
   // ── 2C + 2D (catálogo de PRODUÇÃO = 2D + reengajamento 4C) ───────────────────
   const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(PRODUCTION_RULE_CATALOG) });
@@ -303,7 +312,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const fullLoop = new FullLoopBrainAdapter({
     brain: brainAssembly.brain,
     rules: brainAssembly.rules,
-    snapshots: brainAssembly.snapshots,
+    // RFC-0035-G: a fronteira agora é respaldada pela projeção (não mais o store vazio).
+    snapshots: new ProjectionBackedMissionSnapshotAdapter(decisionState, identityMap),
     mission: missionAssembly.runtime,
     outbox,
     notification,
@@ -392,6 +402,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     memoryStore,
     metricsStore,
     workflow,
+    documentContent,
   };
 
   const boot = new BootRuntime(health, observability, clock);
@@ -422,6 +433,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     staff,
     auditor,
     documentContent,
+    // B4.4: read models já existentes para as métricas operacionais (mesma instância).
+    decisionState,
+    work,
   };
 
   const cursor = new CursorRuntime(cursorStore);
@@ -480,6 +494,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     conversation,
     scheduler,
     (missionId) => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
+    // B4.2: recorrência CONTROLADA sobre o MESMO scheduler (sem novo scheduler/persistência).
+    new FollowUpRecurrenceRuntime(scheduler),
   );
   const shadow = new ShadowRecorder(
     plainIngress,

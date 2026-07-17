@@ -13,7 +13,7 @@
 // retry ou redelivery (redelivery idêntica já era coberta pela idempotência de
 // messageId, que continua valendo DENTRO da fila).
 // ─────────────────────────────────────────────────────────────────────────────
-import type { ConversationRuntime, InboundEnvelope, SchedulerRuntime, TurnResult, ScheduledTask } from '@reconstrua/application';
+import type { ConversationRuntime, FollowUpRecurrenceRuntime, InboundEnvelope, SchedulerRuntime, TurnResult, ScheduledTask } from '@reconstrua/application';
 
 function toTemporalEnvelope(task: ScheduledTask, now: Date): InboundEnvelope {
   return {
@@ -46,6 +46,9 @@ export class ProductionIngress {
      *  do workflow carregam missionId como chatId quando o evento não tem chatId —
      *  sem resolver, o follow-up iria para um "número" inválido em produção). */
     private readonly chatOfMission: (missionId: string) => string | null = () => null,
+    /** B4.2: recorrência CONTROLADA — reagenda o próximo acompanhamento quando este
+     *  disparo produziu acompanhamento ao cliente (RO-4C-*). Opcional (ausente = one-shot). */
+    private readonly recurrence?: FollowUpRecurrenceRuntime,
   ) {}
 
   /** Enfileira uma operação na cadeia da conversa (estritamente sequencial por chat). */
@@ -76,11 +79,13 @@ export class ProductionIngress {
         chatId = resolved;
       }
       const routed = { ...task, chatId };
-      results.push(
-        await this.enqueue(chatId, () =>
-          this.conversation.onTemporalTrigger(toTemporalEnvelope(routed, now), now),
-        ),
+      const result = await this.enqueue(chatId, () =>
+        this.conversation.onTemporalTrigger(toTemporalEnvelope(routed, now), now),
       );
+      results.push(result);
+      // B4.2: se ESTE acompanhamento falou ao cliente (RO-4C-*), agenda o próximo
+      // (bounded, cadência mínima). Encerrado/escalação/espera não recorrem.
+      if (this.recurrence) await this.recurrence.onFollowUpFired(routed, result, now);
     }
     return results;
   }

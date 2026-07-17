@@ -52,8 +52,18 @@ export function projectEvent(metrics: AdminMetrics, event: StoredEvent): AdminMe
     }
     case 'operational-truth':
       return { ...base, truthSyntheses: metrics.truthSyntheses + 1 };
-    case 'operational-state':
-      return { ...base, stateDerivations: metrics.stateDerivations + 1 };
+    case 'operational-state': {
+      // B4.4 — o mesmo evento que a decisão folda (B4.1/B4.3) alimenta os contadores
+      // operacionais cumulativos, sem nova projeção nem novo store.
+      const closed = event.payload['terminalState'] === 'ENCERRADA' ? 1 : 0;
+      const reopened = event.payload['reopened'] === true ? 1 : 0;
+      return {
+        ...base,
+        stateDerivations: metrics.stateDerivations + 1,
+        closedCount: metrics.closedCount + closed,
+        reopenedCount: metrics.reopenedCount + reopened,
+      };
+    }
     case 'operational-stage':
       return { ...base, stageRepresentations: metrics.stageRepresentations + 1 };
     case 'operation':

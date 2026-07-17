@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock, UuidGenerator } from '@reconstrua/domain';
 import type { DocumentContentService } from '../media/index.js';
+import type { DecisionStateStore } from '../executive-brain/decision-state-read-model.js';
 import type {
   AdminMetricsStore,
   AdministrationIntelligenceRuntime,
@@ -56,6 +57,10 @@ import {
 } from '../conversation/index.js';
 import { assembleExecutiveBrain } from '../executive-brain/build-executive-brain.js';
 import { InMemoryRuleCatalog } from '../executive-brain/in-memory-adapters.js';
+import { InMemoryDecisionStateStore } from '../executive-brain/decision-state-read-model.js';
+import { DecisionStateProjectionSubscriber } from '../executive-brain/decision-state-projection-subscriber.js';
+import { AdvogadoWorkRuntime } from '@reconstrua/application';
+import { InMemoryAssignmentStore, InMemoryJuridicalWorkStore } from '../advogado-portal/in-memory-adapters.js';
 import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
 import { MISSION_RULE_CATALOG } from '../mission-runtime/mission-rule-catalog.js';
 import { assembleLivingMemory } from '../living-memory/build-living-memory.js';
@@ -108,6 +113,10 @@ export interface AssembledAdminOperation {
   readonly auditor: EventStoreIntegrityAuditor;
   /** CAT-02C: serve o conteúdo real do documento por documentId (uso interno). Opcional. */
   readonly documentContent?: DocumentContentService;
+  /** B4.4: Read Model de Decisão (estado terminal por missão) para métricas. Opcional. */
+  readonly decisionState?: DecisionStateStore;
+  /** B4.4: trabalho jurídico/atribuições (casos por advogado) para métricas. Opcional. */
+  readonly work?: AdvogadoWorkRuntime;
 }
 
 export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledAdminOperation {
@@ -140,8 +149,12 @@ export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledA
   const notification = new NotificationRuntime(new RecordingNotificationChannel(), DEFAULT_NOTIFICATION_POLICY);
   const handoff = new HumanHandoffRuntime(new InMemoryHandoffStore());
 
+  // B4.4: Read Model de Decisão (estado terminal por missão) — mesmo projetor da
+  // produção, para as métricas operacionais lerem ativos/encerrados/tempos.
+  const decisionState = new InMemoryDecisionStateStore();
   registry.register(new SerializedSubscriber(new AdminProjectionSubscriber(administration.metricsStore)), 1, clock.now());
   registry.register(new SerializedSubscriber(workflow), 1, clock.now());
+  registry.register(new SerializedSubscriber(new DecisionStateProjectionSubscriber(decisionState)), 1, clock.now());
 
   const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(MISSION_RULE_CATALOG) });
   const missionAssembly = assembleMissionRuntime({ eventStore, hasher, uuid, clock });
@@ -176,6 +189,8 @@ export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledA
 
   const projector = new TimelineProjector(eventStore);
   const staff = new StaffDirectoryRuntime(new InMemoryStaffStore(), handoff, clock, uuid);
+  // B4.4: atribuições/trabalho jurídico (casos por advogado) — mesmos stores da produção.
+  const work = new AdvogadoWorkRuntime(new InMemoryAssignmentStore(), new InMemoryJuridicalWorkStore(), clock, uuid);
 
   return {
     conversation,
@@ -203,5 +218,7 @@ export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledA
     projector,
     staff,
     auditor: new EventStoreIntegrityAuditor(eventStore, hasher),
+    decisionState,
+    work,
   };
 }

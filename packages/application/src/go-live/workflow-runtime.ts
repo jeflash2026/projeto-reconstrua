@@ -61,6 +61,16 @@ const REACTIONS: Readonly<Record<string, EventReaction>> = {
   'mission.created': { step: 'acompanhamento', schedule: { kind: 'remind_client', delayMs: 'followUpMs' } },
 };
 
+// B4.3 — REABERTURA: um Estado derivado com `reopened:true` re-arma o acompanhamento
+// pelo MESMO mecanismo do nascimento da missão (remind_client), devolvendo o processo
+// à recorrência já existente (B4.2). Só reage à reabertura EXPLÍCITA (não a derivações
+// normais/encerramento), inspecionando o payload.
+const STATE_DERIVED = 'operational-state.derived';
+const REOPEN_REACTION: EventReaction = {
+  step: 'acompanhamento',
+  schedule: { kind: 'remind_client', delayMs: 'followUpMs' },
+};
+
 function missionIdOf(event: StoredEvent): string | null {
   if (event.streamType === 'mission') return event.streamId;
   const fromPayload = event.payload['missionId'];
@@ -69,7 +79,17 @@ function missionIdOf(event: StoredEvent): string | null {
 
 export class WorkflowRuntime implements EventSubscriber {
   readonly name = 'workflow';
-  readonly interestedIn = Object.keys(REACTIONS);
+  // Inclui operational-state.derived para reagir À REABERTURA (B4.3); demais derivações
+  // são no-op (reactionFor devolve null).
+  readonly interestedIn = [...Object.keys(REACTIONS), STATE_DERIVED];
+
+  /** Reação ao evento: da tabela fixa, OU a reabertura explícita (B4.3, por payload). */
+  private reactionFor(event: StoredEvent): EventReaction | null {
+    if (event.eventType === STATE_DERIVED) {
+      return event.payload['reopened'] === true ? REOPEN_REACTION : null;
+    }
+    return REACTIONS[event.eventType] ?? null;
+  }
 
   constructor(
     private readonly progressStore: WorkflowProgressStore,
@@ -79,7 +99,7 @@ export class WorkflowRuntime implements EventSubscriber {
   ) {}
 
   async handle(event: StoredEvent): Promise<void> {
-    const reaction = REACTIONS[event.eventType];
+    const reaction = this.reactionFor(event);
     if (!reaction) return;
     const missionId = missionIdOf(event);
     if (missionId === null) return;

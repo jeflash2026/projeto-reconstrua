@@ -17,6 +17,10 @@ export interface AdminMetrics extends ReadModel {
   readonly documentsByDay: Readonly<Record<string, number>>;
   readonly truthSyntheses: number;
   readonly stateDerivations: number;
+  /** B4.4 — encerramentos oficiais projetados (cumulativo; `operational-state` terminal). */
+  readonly closedCount: number;
+  /** B4.4 — reaberturas projetadas (cumulativo; `operational-state` com `reopened`). */
+  readonly reopenedCount: number;
   readonly stageRepresentations: number;
   readonly operationCount: number;
   readonly projectionCount: number;
@@ -50,6 +54,8 @@ export function emptyMetrics(now: Date): AdminMetrics {
     documentsByDay: {},
     truthSyntheses: 0,
     stateDerivations: 0,
+    closedCount: 0,
+    reopenedCount: 0,
     stageRepresentations: 0,
     operationCount: 0,
     projectionCount: 0,

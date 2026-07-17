@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Clock, Uuid, UuidGenerator } from '@reconstrua/domain';
 import { toUuid } from '@reconstrua/domain';
-import type { InboundEnvelope, StoredEvent } from '@reconstrua/application';
+import type { InboundEnvelope, MissionFacts, MissionUseCaseIntent, StoredEvent } from '@reconstrua/application';
 import { ExecutiveBrainRuntime, emptyMetrics, projectEvent, emptySnapshot } from '@reconstrua/application';
 import { assembleProduction } from './build-production.js';
 import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
@@ -186,6 +186,114 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     clock.advance(4 * 24 * 60 * 60_000);
     await prod.ingress.tick(clock.now());
     expect(await prod.ingress.tick(clock.now())).toHaveLength(0);
+  });
+
+  it('B4.2 — acompanhamento RECORRE num processo longo (2º follow-up após a cadência)', async () => {
+    const { prod, clock } = harness();
+    await prod.ingress.receive(env(CHAT, 'olá', 'T1'));
+
+    // 1º acompanhamento vence e é decidido por Regra Operacional.
+    clock.advance(4 * 24 * 60 * 60_000);
+    const first = await prod.ingress.tick(clock.now());
+    expect(first.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain('RO-4C-FOLLOWUP-TIMEOUT');
+
+    // Sem recorrência, um tick imediato seguinte não redispara (comprovado acima).
+    // Com recorrência: passada a cadência, o cliente é acompanhado NOVAMENTE.
+    clock.advance(3 * 24 * 60 * 60_000 + 60_000);
+    const second = await prod.ingress.tick(clock.now());
+    expect(second.length).toBeGreaterThanOrEqual(1);
+    expect(second.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain('RO-4C-FOLLOWUP-TIMEOUT');
+  });
+
+  it('B4.2 — a recorrência tem TETO anti-spam (não acompanha infinitamente)', async () => {
+    const { prod, clock } = harness();
+    await prod.ingress.receive(env(CHAT, 'olá', 'T1'));
+    // Avança bem além do teto (maxConsecutive=8 × 3 dias) disparando a cada cadência.
+    let followUps = 0;
+    for (let i = 0; i < 20; i += 1) {
+      clock.advance(4 * 24 * 60 * 60_000);
+      const results = await prod.ingress.tick(clock.now());
+      followUps += results.flatMap((r) => r.intents.map((idx) => idx.operationalRuleRef)).filter((ref) => ref === 'RO-4C-FOLLOWUP-TIMEOUT').length;
+    }
+    // Limitado: nunca acompanha indefinidamente (streak ≤ maxConsecutive), longe de 20.
+    expect(followUps).toBeLessThanOrEqual(8);
+    expect(followUps).toBeGreaterThanOrEqual(1);
+  });
+
+  it('B4.1 — processo ENCERRADO oficialmente jamais recebe acompanhamento (end-to-end)', async () => {
+    const { prod, clock, gateway } = harness();
+    // Onboarding real → missão nasce, Verdade estabelecida, follow-up agendado.
+    await prod.ingress.receive(env(CHAT, 'olá', 'T1'));
+    await prod.adminView.projector.refresh();
+    const missionId = prod.adminView.projector.missionsOf(CHAT)[0];
+    expect(missionId).toBeDefined();
+
+    // Encerramento OFICIAL pelo operador (o mesmo caminho da rota /admin/.../encerrar):
+    // Mission Runtime existente + drain do outbox → Estado terminal ENCERRADA projetado.
+    const facts: MissionFacts = {
+      chatId: CHAT, senderId: 'operador', messageId: 'CLOSE-1', perceptKind: 'closure',
+      text: 'perícia concluída', mediaRef: null, fileName: null, mimeType: null, occurredAt: clock.now(),
+    };
+    const closeIntent: MissionUseCaseIntent = {
+      useCase: 'CloseMission', references: ['encerramento'], decisor: 'operador', tipo: 'encerramento',
+      fundamento: 'Estado Operacional terminal — ENCERRADA (DF-11); RO-R9-001', operationalRuleRef: 'RO-STOP-CONCLUDED-001',
+    };
+    const closed = await prod.adminView.mission.execute(facts, [closeIntent]);
+    expect(closed.outcomes.find((o) => o.useCase === 'CloseMission')?.ok).toBe(true);
+    await prod.outbox.drainToIdle();
+
+    // A partir do encerramento, nenhum acompanhamento recorrente é enviado ao cliente.
+    const textsBefore = gateway.texts().length;
+    clock.advance(4 * 24 * 60 * 60_000); // vence o follow-up que estava agendado
+    const results = await prod.ingress.tick(clock.now());
+    const refs = results.flatMap((r) => r.intents.map((i) => i.operationalRuleRef));
+    expect(refs).not.toContain('RO-4C-FOLLOWUP-TIMEOUT');
+    expect(refs).not.toContain('RO-4C-FOLLOWUP-SILENCE');
+    expect(gateway.texts().length).toBe(textsBefore); // o cliente NÃO foi mais chamado
+
+    // B4.2 × B4.1: a recorrência NÃO revive um processo encerrado — a cadeia fica morta.
+    clock.advance(3 * 24 * 60 * 60_000 + 60_000);
+    const afterCadence = await prod.ingress.tick(clock.now());
+    expect(afterCadence.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).not.toContain('RO-4C-FOLLOWUP-TIMEOUT');
+    expect(gateway.texts().length).toBe(textsBefore);
+  });
+
+  it('B4.3 — ciclo completo: encerrar → silêncio → REABRIR → acompanhamento volta automaticamente', async () => {
+    const { prod, clock } = harness();
+    await prod.ingress.receive(env(CHAT, 'olá', 'T1'));
+    await prod.adminView.projector.refresh();
+    const missionId = prod.adminView.projector.missionsOf(CHAT)[0];
+
+    const runCmd = async (useCase: string, ruleRef: string): Promise<void> => {
+      await prod.adminView.mission.execute(
+        {
+          chatId: CHAT, senderId: 'operador', messageId: `${useCase}-1`, perceptKind: 'command',
+          text: null, mediaRef: null, fileName: null, mimeType: null, occurredAt: clock.now(),
+        },
+        [{ useCase, references: [], decisor: 'operador', tipo: 'ciclo', fundamento: 'ato operacional; RO-R9-001', operationalRuleRef: ruleRef }],
+      );
+      await prod.outbox.drainToIdle();
+    };
+
+    // 1) Encerra → silêncio comprovado.
+    await runCmd('CloseMission', 'RO-STOP-CONCLUDED-001');
+    clock.advance(4 * 24 * 60 * 60_000);
+    const whileClosed = await prod.ingress.tick(clock.now());
+    expect(whileClosed.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).not.toContain('RO-4C-FOLLOWUP-TIMEOUT');
+
+    // 2) REABRE (evento append-only) → o Workflow re-arma; a recorrência volta a valer.
+    await runCmd('ReopenMission', 'RO-R9-001');
+    expect(missionId).toBeDefined();
+
+    // 3) Passada a cadência do acompanhamento re-armado, o cliente é acompanhado de novo.
+    clock.advance(4 * 24 * 60 * 60_000);
+    const afterReopen = await prod.ingress.tick(clock.now());
+    expect(afterReopen.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain('RO-4C-FOLLOWUP-TIMEOUT');
+
+    // 4) E RECORRE após a reabertura (não é um disparo único).
+    clock.advance(3 * 24 * 60 * 60_000 + 60_000);
+    const recurs = await prod.ingress.tick(clock.now());
+    expect(recurs.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain('RO-4C-FOLLOWUP-TIMEOUT');
   });
 
   it('BLOQUEIO por regra: missão ENCERRADA → o Brain cala (wait), nunca mensagem mecânica', async () => {

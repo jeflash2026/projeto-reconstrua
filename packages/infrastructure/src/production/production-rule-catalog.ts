@@ -61,10 +61,13 @@ export const FOLLOW_UP_RULES: readonly OperationalRuleSpec[] = [
 // prioridade nem duplicação de refs já ativas em 2D/4C):
 //   • RO-DEADLINE-WARN-001        prazo ≤3 dias → avisa o cliente (proativo)
 //   • RO-META-ESCALATE-CANON-001  Canon silente → escala supervisor (E10/DF-13; fail-safe)
+//   • RO-STOP-CONCLUDED-001       missão ENCERRADA → PARA (B4.1; terminalidade oficial)
+// B4.1 — ativa o encerramento: quando o Estado é terminal (ENCERRADA), o Brain PARA
+// (prioridade 90) e todo acompanhamento recorrente futuro fica bloqueado. Reutiliza a
+// regra CONGELADA do DEFAULT_RULE_CATALOG, sem reescrevê-la.
 // Regras que dependem de mídia (RECOGNIZE/INGEST já em 2D), de destino não publicado
-// (NOTIFY-HUMAN), de encerramento (STOP-CONCLUDED) ou de ajuste de UX (EXPLAIN, DOC-REQUEST)
-// permanecem para sprints próprios.
-const APPROVED_ADDITIONS: readonly string[] = ['RO-DEADLINE-WARN-001', 'RO-META-ESCALATE-CANON-001'];
+// (NOTIFY-HUMAN) ou de ajuste de UX (EXPLAIN, DOC-REQUEST) permanecem para sprints próprios.
+const APPROVED_ADDITIONS: readonly string[] = ['RO-DEADLINE-WARN-001', 'RO-META-ESCALATE-CANON-001', 'RO-STOP-CONCLUDED-001'];
 const APPROVED_FROM_DEFAULT: readonly OperationalRuleSpec[] = DEFAULT_RULE_CATALOG.filter((r) =>
   APPROVED_ADDITIONS.includes(r.ref),
 );

@@ -33,6 +33,9 @@ export class InMemorySchedulerStore implements SchedulerStore {
   pendingCount(): Promise<number> {
     return Promise.resolve([...this.tasks.values()].filter((t) => t.status === 'pending').length);
   }
+  all(): Promise<readonly ScheduledTask[]> {
+    return Promise.resolve([...this.tasks.values()]);
+  }
 }
 
 export class InMemoryHandoffStore implements HandoffStore {

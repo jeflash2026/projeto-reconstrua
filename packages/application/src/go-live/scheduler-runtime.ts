@@ -31,6 +31,15 @@ export interface SchedulerStore {
   byId(id: string): Promise<ScheduledTask | null>;
   due(now: Date): Promise<readonly ScheduledTask[]>;
   pendingCount(): Promise<number>;
+  /** Todas as tarefas (para leitura/contagem operacional; B4.4). */
+  all(): Promise<readonly ScheduledTask[]>;
+}
+
+/** Contagem operacional das tarefas do Scheduler por status (B4.4; somente leitura). */
+export interface SchedulerCounts {
+  readonly pending: number;
+  readonly fired: number;
+  readonly cancelled: number;
 }
 
 export class SchedulerRuntime {
@@ -64,5 +73,20 @@ export class SchedulerRuntime {
 
   async pendingCount(): Promise<number> {
     return this.store.pendingCount();
+  }
+
+  /** B4.4 — contagem por status (pendentes/enviados/cancelados). Somente leitura;
+   *  não altera o agendamento nem a recorrência. */
+  async counts(): Promise<SchedulerCounts> {
+    const all = await this.store.all();
+    let pending = 0;
+    let fired = 0;
+    let cancelled = 0;
+    for (const task of all) {
+      if (task.status === 'pending') pending += 1;
+      else if (task.status === 'fired') fired += 1;
+      else cancelled += 1;
+    }
+    return { pending, fired, cancelled };
   }
 }

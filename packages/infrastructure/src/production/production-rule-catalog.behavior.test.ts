@@ -70,6 +70,7 @@ describe('CAT-01 · composição do catálogo (trava de regressão)', () => {
     for (const ref of [
       'RO-DEADLINE-WARN-001',
       'RO-META-ESCALATE-CANON-001',
+      'RO-STOP-CONCLUDED-001', // B4.1 — encerramento oficial ativado
       'RO-4C-FOLLOWUP-SILENCE',
       'RO-4C-FOLLOWUP-TIMEOUT',
       'RO-2D-ONBOARD',
@@ -81,7 +82,7 @@ describe('CAT-01 · composição do catálogo (trava de regressão)', () => {
     }
   });
   it('NÃO contém as regras adiadas para sprints próprios', () => {
-    for (const ref of ['RO-DOC-REQUEST-001', 'RO-STOP-CONCLUDED-001', 'RO-DEADLINE-NOTIFY-HUMAN-001']) {
+    for (const ref of ['RO-DOC-REQUEST-001', 'RO-DEADLINE-NOTIFY-HUMAN-001']) {
       expect(refs).not.toContain(ref);
     }
   });
@@ -138,6 +139,32 @@ describe('CAT-01 · RO-META-ESCALATE-CANON-001 (Canon silente → supervisor)', 
     const esc = outcome.intents[0];
     expect(esc?.kind).toBe('escalation');
     if (esc?.kind === 'escalation') expect(esc.role).toBe('supervisor');
+  });
+});
+
+describe('B4.1 · RO-STOP-CONCLUDED-001 (missão ENCERRADA → PARA, sem acompanhamento)', () => {
+  const encerrada = { stateCode: 'ENCERRADA' };
+
+  it('1) fatos: stateCode=ENCERRADA', () => {
+    const facts = buildFacts(perceptOf({ kind: 'timeout' }), snapshotOf(encerrada), { turnCount: 5, lastOutboundAgoMs: null });
+    expect(facts['stateCode']).toBe('ENCERRADA');
+  });
+  it('2) avaliação: RO-STOP-CONCLUDED-001 aplicável; follow-ups BLOQUEADOS', () => {
+    const facts = buildFacts(perceptOf({ kind: 'timeout' }), snapshotOf(encerrada), { turnCount: 5, lastOutboundAgoMs: null });
+    const evals = new RuleEvaluator().evaluateAll(PRODUCTION_RULE_CATALOG, facts);
+    expect(evals.find((e) => e.ref === 'RO-STOP-CONCLUDED-001')?.applicable).toBe(true);
+    expect(evals.find((e) => e.ref === 'RO-4C-FOLLOWUP-TIMEOUT')?.applicable).toBe(false);
+    expect(evals.find((e) => e.ref === 'RO-4C-FOLLOWUP-SILENCE')?.applicable).toBe(false);
+  });
+  it('3) regra vencedora em silêncio E timeout = RO-STOP-CONCLUDED-001', () => {
+    expect(winner({ kind: 'timeout' }, encerrada)).toBe('RO-STOP-CONCLUDED-001');
+    expect(winner({ kind: 'silence', silenceMs: 120000 }, encerrada)).toBe('RO-STOP-CONCLUDED-001');
+  });
+  it('4) intenção: STOP — a AHRI não fala, jamais acompanha um processo encerrado', async () => {
+    const outcome = await brain().decide(ctx({ kind: 'timeout' }, encerrada, 5));
+    expect(outcome.record.chosenRefs).toContain('RO-STOP-CONCLUDED-001');
+    expect(outcome.intents.some((i) => i.kind === 'conversation')).toBe(false);
+    expect(outcome.intents.some((i) => i.kind === 'stop')).toBe(true);
   });
 });
 

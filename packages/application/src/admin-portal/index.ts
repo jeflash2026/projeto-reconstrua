@@ -4,3 +4,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
 export * from './timeline-projector.js';
 export * from './staff-directory.js';
+export * from './operational-metrics.js';

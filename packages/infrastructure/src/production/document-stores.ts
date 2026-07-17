@@ -167,6 +167,9 @@ export class JsonSchedulerStore implements SchedulerStore {
   async pendingCount(): Promise<number> {
     return (await this.store.list('scheduler')).map((t) => revive<ScheduledTask>(t)).filter((t) => t.status === 'pending').length;
   }
+  async all(): Promise<readonly ScheduledTask[]> {
+    return (await this.store.list('scheduler')).map((t) => revive<ScheduledTask>(t));
+  }
 }
 
 export class JsonHandoffStore implements HandoffStore {

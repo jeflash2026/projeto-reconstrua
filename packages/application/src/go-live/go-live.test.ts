@@ -32,6 +32,9 @@ class FakeSchedulerStore implements SchedulerStore {
   pendingCount(): Promise<number> {
     return Promise.resolve([...this.tasks.values()].filter((t) => t.status === 'pending').length);
   }
+  all(): Promise<readonly ScheduledTask[]> {
+    return Promise.resolve([...this.tasks.values()]);
+  }
 }
 
 function bootable(name: string, dependsOn: readonly string[], fail = false): BootableComponent {
@@ -116,6 +119,20 @@ describe('SchedulerRuntime', () => {
     await scheduler.schedule({ id: 't2', chatId: 'c1', missionId: null, kind: 'follow_deadline', dueAt: NOW, note: null, createdAt: NOW });
     await scheduler.cancel('t2');
     expect(await scheduler.fireDue(new Date(NOW.getTime() + 1))).toHaveLength(0);
+  });
+
+  it('B4.4 — counts() reporta pendentes/enviados/cancelados (follow-ups)', async () => {
+    const scheduler = new SchedulerRuntime(new FakeSchedulerStore());
+    const t = (id: string) => ({ id, chatId: 'c1', missionId: null, kind: 'remind_client' as const, dueAt: NOW, note: null, createdAt: NOW });
+    await scheduler.schedule(t('a'));
+    await scheduler.schedule(t('b'));
+    await scheduler.schedule(t('c'));
+    await scheduler.cancel('c');
+    await scheduler.fireDue(new Date(NOW.getTime() + 1)); // dispara a, b (pending & due)
+    const counts = await scheduler.counts();
+    expect(counts.fired).toBe(2);
+    expect(counts.cancelled).toBe(1);
+    expect(counts.pending).toBe(0);
   });
 });
 

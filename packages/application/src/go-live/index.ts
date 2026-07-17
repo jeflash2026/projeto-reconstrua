@@ -7,6 +7,7 @@ export * from './health-runtime.js';
 export * from './observability-runtime.js';
 export * from './scheduler-runtime.js';
 export * from './workflow-runtime.js';
+export * from './follow-up-recurrence-runtime.js';
 export * from './notification-runtime.js';
 export * from './human-handoff-runtime.js';
 export * from './portal-integration-runtime.js';

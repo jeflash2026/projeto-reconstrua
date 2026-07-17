@@ -223,28 +223,32 @@ describe('Produção — B5.1 Segurança', () => {
 });
 
 describe('Produção — Landing pública (GET /) injeta config do ambiente', () => {
-  it('substitui WhatsApp, OAB e CNPJ do env; não vaza placeholders crus', async () => {
+  it('CTA usa EXCLUSIVAMENTE o número OFICIAL (ignora WHATSAPP_NUMBER); OAB/CNPJ do env', async () => {
     const { app } = harness({
       PUBLIC_URL: 'https://reconstrua.com.br',
-      WHATSAPP_NUMBER: '55 11 98888-7777',
+      OFFICIAL_WHATSAPP_NUMBER: '55 41 3798-9737',
+      WHATSAPP_NUMBER: '55 11 98888-7777', // NÃO deve aparecer na landing (desacoplado)
       OAB_IDENTIFICACAO: 'SP 123.456',
       CNPJ: '12.345.678/0001-90',
     });
     const res = await app.inject({ method: 'GET', url: '/' });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
-    expect(res.body).toContain('5511988887777'); // WhatsApp: só dígitos
-    expect(res.body).toContain('OAB/UF: SP 123.456'); // OAB preenchida
-    expect(res.body).toContain('CNPJ: 12.345.678/0001-90'); // CNPJ preenchido
+    // O link wa.me é montado em JS no browser: o HTML traz `var WA = "<numero>"`.
+    expect(res.body).toContain('var WA = "554137989737"'); // CTA = número OFICIAL
+    expect(res.body).not.toContain('5511988887777'); // WHATSAPP_NUMBER é ignorado pela landing
+    expect(res.body).toContain('OAB/UF: SP 123.456');
+    expect(res.body).toContain('CNPJ: 12.345.678/0001-90');
     for (const ph of ['__URL__', '__WA__', '__OAB__', '__CNPJ__', '[preencher]']) {
       expect(res.body, ph).not.toContain(ph);
     }
   });
 
-  it('env ausente ⇒ landing ainda serve (fail-safe) sem expor placeholders crus', async () => {
+  it('sem OFFICIAL_WHATSAPP_NUMBER ⇒ CTA cai no default oficial 554137989737 (nunca placeholder cru)', async () => {
     const { app } = harness({});
     const res = await app.inject({ method: 'GET', url: '/' });
     expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('var WA = "554137989737"'); // default oficial
     for (const ph of ['__URL__', '__WA__', '__OAB__', '__CNPJ__']) {
       expect(res.body, ph).not.toContain(ph);
     }

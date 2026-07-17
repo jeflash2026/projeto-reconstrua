@@ -214,7 +214,10 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
   //    O Monitor de Produção interno permanece em /production/ui.
   app.get('/', (_request, reply) => {
     const publicUrl = (env['PUBLIC_URL'] ?? '').replace(/\/+$/, '');
-    const wa = (env['WHATSAPP_NUMBER'] ?? '').replace(/\D/g, '');
+    // A landing PÚBLICA aponta SEMPRE para o número OFICIAL da empresa
+    // (OFFICIAL_WHATSAPP_NUMBER, default 554137989737), independente do WHATSAPP_NUMBER
+    // da instância conectada — evita a deriva que levava o CTA ao número errado.
+    const wa = (env['OFFICIAL_WHATSAPP_NUMBER'] ?? '554137989737').replace(/\D/g, '');
     const pixelId = env['META_PIXEL_ID'] ?? '';
     const gaId = env['GA_MEASUREMENT_ID'] ?? '';
     const oab = env['OAB_IDENTIFICACAO'] ?? '';

@@ -1,0 +1,97 @@
+'use server';
+// Server Actions (BL-2.2): as leituras e escritas dos COMPONENTES CLIENTE do Portal
+// rodam no SERVIDOR do Next — onde o token do Admin (ADMIN_API_TOKEN) e a rede da API
+// interna (porta 3002) existem. O browser nunca fala direto com a API nem vê o segredo.
+// Reutiliza o cliente `lib/api` (BL-2.1) sem alterar a autenticação.
+import {
+  getJson,
+  sendJson,
+  type FounderAnswer,
+  type FounderBriefing,
+  type StaffData,
+  type StaffMember,
+} from './api';
+
+export async function fetchFounderBriefing(): Promise<FounderBriefing | null> {
+  return getJson<FounderBriefing>('/admin/founder/briefing');
+}
+
+export async function askFounder(question: string): Promise<FounderAnswer | null> {
+  return sendJson<FounderAnswer>('POST', '/admin/founder/ask', { question });
+}
+
+export async function fetchStaff(role: string): Promise<StaffData | null> {
+  return getJson<StaffData>(`/admin/staff/${role}`);
+}
+
+export async function createStaff(role: string, name: string, email: string | null): Promise<StaffMember | null> {
+  return sendJson<StaffMember>('POST', '/admin/staff', { role, name, email });
+}
+
+export async function setStaffActive(id: string, active: boolean): Promise<StaffMember | null> {
+  return sendJson<StaffMember>('PATCH', `/admin/staff/${id}`, { active });
+}
+
+// B4.1: encerramento OFICIAL do processo — ato humano do operador. Chama a API do
+// Admin (server-side, autenticada). A partir do encerramento, a AHRI PARA e nenhum
+// acompanhamento recorrente é enviado. Reutiliza o mesmo cliente/segredo do portal.
+export interface CloseResult {
+  missionId: string;
+  closed: boolean;
+  skipped: boolean;
+  stateId: string | null;
+}
+
+export async function encerrarMission(missionId: string, reason: string | null): Promise<CloseResult | null> {
+  return sendJson<CloseResult>('POST', `/admin/missions/${missionId}/encerrar`, { reason: reason ?? '' });
+}
+
+// B4.3: reabertura OFICIAL de um processo encerrado (fato jurídico legítimo). Evento
+// append-only; após reaberto, a AHRI volta a acompanhar automaticamente (recorrência B4.2).
+export interface ReopenResult {
+  missionId: string;
+  reopened: boolean;
+  skipped: boolean;
+  stateId: string | null;
+}
+
+export async function reabrirMission(missionId: string, reason: string | null): Promise<ReopenResult | null> {
+  return sendJson<ReopenResult>('POST', `/admin/missions/${missionId}/reabrir`, { reason: reason ?? '' });
+}
+
+// BL-3.4: a atribuição de caso NASCE no Portal Admin e chama a API EXISTENTE do
+// servidor Advogado (/advogado-admin/assignments), autenticada pelo segredo do
+// Advogado (BL-3.1). Server-side; o browser nunca vê o segredo. Sem fluxo paralelo,
+// sem nova persistência/workflow — a mesma `op.work.assign` já existente.
+const ADVOGADO_API_URL = process.env['ADVOGADO_API_URL'] ?? '';
+const ADVOGADO_API_TOKEN = process.env['ADVOGADO_API_TOKEN'] ?? '';
+
+export interface AssignmentResult {
+  missionId: string;
+  advogadoId: string;
+  assignedBy: string;
+  assignedAt: string;
+}
+
+export async function assignCase(
+  missionId: string,
+  advogadoId: string,
+  assignedBy: string,
+): Promise<AssignmentResult | null> {
+  if (ADVOGADO_API_URL === '') return null;
+  try {
+    const res = await fetch(`${ADVOGADO_API_URL}/advogado-admin/assignments`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(ADVOGADO_API_TOKEN ? { authorization: `Bearer ${ADVOGADO_API_TOKEN}` } : {}),
+      },
+      body: JSON.stringify({ missionId, advogadoId, assignedBy }),
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as AssignmentResult;
+  } catch {
+    return null;
+  }
+}

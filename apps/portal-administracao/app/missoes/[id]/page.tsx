@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import type { ReactElement } from 'react';
 import AutoRefresh from '../../../components/auto-refresh';
-import { getJson, type MissionDetail } from '../../../lib/api';
+import AssignForm from '../../../components/assign-form';
+import EncerrarForm from '../../../components/encerrar-form';
+import { getJson, type MissionDetail, type StaffData } from '../../../lib/api';
 import { formatDate, shortId } from '../../../lib/format';
 
 const MissionPage = async ({ params }: { params: { id: string } }): Promise<ReactElement> => {
@@ -16,6 +18,8 @@ const MissionPage = async ({ params }: { params: { id: string } }): Promise<Reac
       </>
     );
   }
+  const staff = await getJson<StaffData>('/admin/staff/advogado');
+  const advogados = (staff?.members ?? []).filter((m) => m.active).map((m) => ({ id: m.id, name: m.name }));
   const count = (type: string): number => data.timeline.filter((e) => e.streamType === type).length;
   return (
     <>
@@ -40,6 +44,10 @@ const MissionPage = async ({ params }: { params: { id: string } }): Promise<Reac
         <div className="card stat"><div className="value">{count('projection')}</div><div className="label">Projeções</div></div>
         <div className="card stat"><div className="value">{count('document')}</div><div className="label">Documentos</div></div>
       </div>
+
+      <AssignForm missionId={data.missionId} advogados={advogados} />
+
+      <EncerrarForm missionId={data.missionId} />
 
       {data.progress ? (
         <div className="card" style={{ marginBottom: 16 }}>

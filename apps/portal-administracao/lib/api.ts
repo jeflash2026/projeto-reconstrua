@@ -7,9 +7,15 @@
 
 export const API_BASE = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
 
+// BL-2.1 (DF-12): o portal apresenta o segredo do Admin (server-side, nunca ao browser).
+const ADMIN_TOKEN = process.env['ADMIN_API_TOKEN'] ?? '';
+function authHeaders(): Record<string, string> {
+  return ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {};
+}
+
 export async function getJson<T>(path: string): Promise<T | null> {
   try {
-    const res = await fetch(`${API_BASE}${path}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}${path}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -21,7 +27,7 @@ export async function sendJson<T>(method: 'POST' | 'PATCH', path: string, body: 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       method,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
       cache: 'no-store',
     });

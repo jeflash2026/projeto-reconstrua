@@ -4,7 +4,7 @@
 // Toda resposta traz a PROVENIÊNCIA (fonte auditável); a AHRI recomenda e fundamenta,
 // nunca decide administrativamente.
 import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { getJson, sendJson, type FounderAnswer, type FounderBriefing } from '../lib/api';
+import { askFounder, fetchFounderBriefing } from '../lib/actions';
 
 interface ChatMessage {
   from: 'ahri' | 'founder';
@@ -22,7 +22,7 @@ const FounderChat = (): ReactElement => {
   // Abertura automática: a própria AHRI inicia com o briefing.
   useEffect(() => {
     void (async () => {
-      const briefing = await getJson<FounderBriefing>('/admin/founder/briefing');
+      const briefing = await fetchFounderBriefing();
       if (!briefing) {
         setOffline(true);
         return;
@@ -41,7 +41,7 @@ const FounderChat = (): ReactElement => {
     setInput('');
     setBusy(true);
     setMessages((prev) => [...prev, { from: 'founder', text: question, provenance: null }]);
-    const answer = await sendJson<FounderAnswer>('POST', '/admin/founder/ask', { question });
+    const answer = await askFounder(question);
     setMessages((prev) => [
       ...prev,
       answer

@@ -5,9 +5,11 @@
 // Escritas: apenas o diretório operacional da equipe (staff) e as perguntas ao
 // Founder Console (leitura narrada). NÃO inicia servidor (o `.listen` é do dono).
 // ─────────────────────────────────────────────────────────────────────────────
+import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
-import type { StaffRole } from '@reconstrua/application';
+import { computeOperationalMetrics, type StaffRole } from '@reconstrua/application';
+import { requireBearer } from '../auth/bearer-guard.js';
 
 const STAFF_ROLES: readonly StaffRole[] = ['advogado', 'perito', 'operador', 'supervisor', 'administrador'];
 
@@ -15,19 +17,23 @@ function isStaffRole(value: string): value is StaffRole {
   return (STAFF_ROLES as readonly string[]).includes(value);
 }
 
-export function buildAdminServer(op: AssembledAdminOperation): FastifyInstance {
+export function buildAdminServer(op: AssembledAdminOperation, opts: { readonly accessSecret?: string } = {}): FastifyInstance {
   const app = Fastify({ logger: false });
 
   // CORS simples (portal em origem própria); sem dependência externa.
   app.addHook('onSend', (_request, reply, _payload, done) => {
     reply.header('access-control-allow-origin', '*');
     reply.header('access-control-allow-methods', 'GET,POST,PATCH,OPTIONS');
-    reply.header('access-control-allow-headers', 'content-type');
+    reply.header('access-control-allow-headers', 'content-type,authorization');
     done();
   });
   app.options('/*', (_request, reply) => {
     void reply.code(204).send();
   });
+
+  // BL-2.1 — Autenticação Real (DF-12): toda rota /admin/* exige o segredo do Admin
+  // (Bearer). Fail-closed: segredo ausente ⇒ 401. Guard REUTILIZÁVEL (Onda 3: advogado).
+  requireBearer(app, { secret: opts.accessSecret ?? '', protect: (path) => path.startsWith('/admin/') });
 
   // ── DASHBOARD ────────────────────────────────────────────────────────────────
   app.get('/admin/dashboard', async () => {
@@ -118,6 +124,141 @@ export function buildAdminServer(op: AssembledAdminOperation): FastifyInstance {
       progress: await op.workflow.progress(missionId),
       chatId: op.projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
     };
+  });
+
+  // B4.1 — ENCERRAMENTO OFICIAL do processo (ato humano do operador). Reutiliza o
+  // Mission Runtime existente (op.mission) e a autenticação do Admin (BL-2.1). Deriva
+  // o Estado terminal ENCERRADA (CloseMission); a partir daí o Brain PARA e todo
+  // acompanhamento recorrente futuro fica bloqueado. Idempotente e compatível com
+  // reabertura futura (B4.3). Não altera nenhuma rota existente.
+  app.post('/admin/missions/:missionId/encerrar', async (request, reply) => {
+    await op.projector.refresh();
+    const { missionId } = request.params as { missionId: string };
+    const body = (request.body ?? {}) as { reason?: string };
+    const mission = op.projector.missions().find((m) => m.missionId === missionId);
+    if (!mission) return reply.code(404).send({ error: 'missão não encontrada' });
+    if (mission.chatId === null) return reply.code(409).send({ error: 'missão sem conversa associada' });
+
+    const now = new Date();
+    const result = await op.mission.execute(
+      {
+        chatId: mission.chatId,
+        senderId: 'operador',
+        messageId: randomUUID(),
+        perceptKind: 'closure',
+        text: body.reason?.trim() ? body.reason.trim() : 'encerramento operacional',
+        mediaRef: null,
+        fileName: null,
+        mimeType: null,
+        occurredAt: now,
+      },
+      [
+        {
+          useCase: 'CloseMission',
+          references: ['encerramento'],
+          decisor: 'operador',
+          tipo: 'encerramento',
+          fundamento: 'Estado Operacional terminal — ENCERRADA (DF-11); RO-R9-001',
+          operationalRuleRef: 'RO-STOP-CONCLUDED-001',
+        },
+      ],
+    );
+    const outcome = result.outcomes.find((o) => o.useCase === 'CloseMission');
+    if (!outcome || (!outcome.ok && !outcome.skipped)) {
+      return reply.code(422).send({ error: outcome?.error ?? 'falha ao encerrar a missão' });
+    }
+    // Drena o outbox: projeta o encerramento (Estado terminal ENCERRADA) nos read
+    // models AGORA — o caminho de conversa drena no full-loop; um comando direto não.
+    // A partir daqui o Brain PARA e nenhum acompanhamento recorrente é enviado.
+    await op.outbox.drainToIdle();
+    return { missionId, closed: true, skipped: outcome.skipped, stateId: outcome.streamId };
+  });
+
+  // B4.3 — REABERTURA OFICIAL de um processo encerrado (ato humano do operador, quando
+  // há fato jurídico legítimo). EVENTO append-only (ReopenMission) que limpa a
+  // terminalidade; o drain re-arma o acompanhamento (Workflow) e a recorrência (B4.2)
+  // volta a valer automaticamente. Mesmo padrão/auth de /encerrar; sem novo fluxo.
+  app.post('/admin/missions/:missionId/reabrir', async (request, reply) => {
+    await op.projector.refresh();
+    const { missionId } = request.params as { missionId: string };
+    const body = (request.body ?? {}) as { reason?: string };
+    const mission = op.projector.missions().find((m) => m.missionId === missionId);
+    if (!mission) return reply.code(404).send({ error: 'missão não encontrada' });
+    if (mission.chatId === null) return reply.code(409).send({ error: 'missão sem conversa associada' });
+
+    const now = new Date();
+    const result = await op.mission.execute(
+      {
+        chatId: mission.chatId,
+        senderId: 'operador',
+        messageId: randomUUID(),
+        perceptKind: 'reopening',
+        text: body.reason?.trim() ? body.reason.trim() : 'reabertura operacional',
+        mediaRef: null,
+        fileName: null,
+        mimeType: null,
+        occurredAt: now,
+      },
+      [
+        {
+          useCase: 'ReopenMission',
+          references: ['reabertura'],
+          decisor: 'operador',
+          tipo: 'reabertura',
+          fundamento: 'Fato jurídico legítimo — retorno ao estado operacional; RO-R9-001',
+          operationalRuleRef: 'RO-R9-001',
+        },
+      ],
+    );
+    const outcome = result.outcomes.find((o) => o.useCase === 'ReopenMission');
+    if (!outcome || (!outcome.ok && !outcome.skipped)) {
+      return reply.code(422).send({ error: outcome?.error ?? 'falha ao reabrir a missão' });
+    }
+    // Drena: projeta a reabertura (terminalidade limpa) e o Workflow re-arma o
+    // acompanhamento — a recorrência (B4.2) volta a valer automaticamente.
+    await op.outbox.drainToIdle();
+    return { missionId, reopened: true, skipped: outcome.skipped, stateId: outcome.streamId };
+  });
+
+  // B4.4 — MÉTRICAS OPERACIONAIS DA RECORRÊNCIA. Indicadores para governar centenas
+  // de processos simultâneos. AGREGA read models JÁ EXISTENTES (projeção de timeline,
+  // Decision State, AdminMetrics, Scheduler, memória, progresso, atribuições) — nenhuma
+  // projeção/store/persistência nova; nada é recalculado a partir do Event Store.
+  app.get('/admin/metrics/operacional', async () => {
+    await op.projector.refresh();
+    const missions = op.projector.missions().map((m) => ({ missionId: m.missionId, createdAt: m.createdAt }));
+    const terminals = op.decisionState
+      ? (await op.decisionState.all()).map((r) => ({ missionId: r.missionId, terminalState: r.terminalState ?? null, updatedAt: r.updatedAt }))
+      : [];
+    const metrics = await op.metricsStore.load();
+    const scheduler = await op.scheduler.counts();
+    const memories = await op.memoryStore.all();
+    const interactions = memories.map((m) => ({
+      messageCount: m.messageCount,
+      firstContactAt: m.firstContactAt,
+      lastContactAt: m.lastContactAt,
+      documentsPending: m.documentsPending.length,
+    }));
+    const progresses = await op.progressStore.all();
+
+    // Casos por advogado: atribuições já existentes (StaffDirectory + trabalho jurídico).
+    const casesByAdvogado: Record<string, number> = {};
+    if (op.work) {
+      const advogados = await op.staff.list('advogado');
+      for (const a of advogados) {
+        casesByAdvogado[a.name] = (await op.work.myMissions(a.id)).length;
+      }
+    }
+
+    return computeOperationalMetrics({
+      missions,
+      terminals,
+      reopenedCount: metrics?.reopenedCount ?? 0,
+      scheduler: { pending: scheduler.pending, fired: scheduler.fired },
+      interactions,
+      progresses: progresses.map((p) => ({ steps: p.steps })),
+      casesByAdvogado,
+    });
   });
 
   // ── DOCUMENTOS / PERÍCIAS ───────────────────────────────────────────────────

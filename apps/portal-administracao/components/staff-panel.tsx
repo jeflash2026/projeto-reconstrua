@@ -2,7 +2,8 @@
 // STAFF PANEL — gestão da equipe por papel: cadastrar, editar, ativar, desativar,
 // fila e carga (read models). Compartilhado por Advogados/Peritos/Operadores/Supervisores.
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import { getJson, sendJson, type StaffData, type StaffMember } from '../lib/api';
+import { type StaffData } from '../lib/api';
+import { createStaff, fetchStaff, setStaffActive } from '../lib/actions';
 import { formatDate } from '../lib/format';
 
 const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElement => {
@@ -12,7 +13,7 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
-    setData(await getJson<StaffData>(`/admin/staff/${role}`));
+    setData(await fetchStaff(role));
   }, [role]);
 
   useEffect(() => {
@@ -31,7 +32,7 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
       setError('Informe o nome.');
       return;
     }
-    const created = await sendJson<StaffMember>('POST', '/admin/staff', { role, name, email: email.trim() === '' ? null : email });
+    const created = await createStaff(role, name, email.trim() === '' ? null : email);
     if (!created) {
       setError('Falha ao cadastrar (API indisponível?).');
       return;
@@ -42,7 +43,7 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
   };
 
   const setActive = async (id: string, active: boolean): Promise<void> => {
-    await sendJson<StaffMember>('PATCH', `/admin/staff/${id}`, { active });
+    await setStaffActive(id, active);
     await load();
   };
 

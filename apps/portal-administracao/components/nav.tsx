@@ -7,6 +7,7 @@ import type { ReactElement } from 'react';
 const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = [
   { href: '/', label: 'Dashboard' },
   { sep: 'Operação' },
+  { href: '/operacao', label: 'Métricas' },
   { href: '/clientes', label: 'Clientes' },
   { href: '/missoes', label: 'Missões' },
   { href: '/documentos', label: 'Documentos' },

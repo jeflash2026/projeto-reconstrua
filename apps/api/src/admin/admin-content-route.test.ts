@@ -35,6 +35,7 @@ class SeqUuid implements UuidGenerator {
 }
 
 const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]); // %PDF-1
+const CONTENT_SECRET = 'TEST-ADMIN-SECRET';
 
 async function appWithContent(): Promise<ReturnType<typeof buildAdminServer>> {
   const clock = new TestClock();
@@ -47,13 +48,13 @@ async function appWithContent(): Promise<ReturnType<typeof buildAdminServer>> {
     ...assembleAdminOperation({ clock, uuid: new SeqUuid(), sleeper: new FakeSleeper(clock) }),
     documentContent: new DocumentContentService(links, store),
   };
-  return buildAdminServer(op);
+  return buildAdminServer(op, { accessSecret: CONTENT_SECRET });
 }
 
 describe('CAT-02C · GET /admin/documents/:documentId/content', () => {
   it('documento com conteúdo ⇒ 200 + bytes + content-type', async () => {
     const app = await appWithContent();
-    const res = await app.inject({ method: 'GET', url: '/admin/documents/DOC-1/content' });
+    const res = await app.inject({ method: 'GET', url: '/admin/documents/DOC-1/content', headers: { authorization: `Bearer ${CONTENT_SECRET}` } });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('application/pdf');
     expect(new Uint8Array(res.rawPayload)).toEqual(bytes);
@@ -61,7 +62,7 @@ describe('CAT-02C · GET /admin/documents/:documentId/content', () => {
 
   it('documento sem conteúdo ⇒ 404', async () => {
     const app = await appWithContent();
-    const res = await app.inject({ method: 'GET', url: '/admin/documents/DESCONHECIDO/content' });
+    const res = await app.inject({ method: 'GET', url: '/admin/documents/DESCONHECIDO/content', headers: { authorization: `Bearer ${CONTENT_SECRET}` } });
     expect(res.statusCode).toBe(404);
   });
 });

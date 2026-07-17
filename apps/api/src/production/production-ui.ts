@@ -24,6 +24,8 @@ pre{background:#121722;border:1px solid #232b3b;border-radius:8px;padding:10px;f
 </style></head><body>
 <h1>AHRIOS — Monitor de Produção</h1>
 <div id="monitor" class="grid"></div>
+<h2>WhatsApp</h2>
+<div id="whatsapp" class="grid"></div>
 <h2>Shadow Center</h2>
 <div id="shadow" class="grid"></div>
 <div id="detections"></div>
@@ -53,6 +55,15 @@ $('#monitor').innerHTML=stat('Clientes online',m.clientsOnline)+stat('Conversas'
 +stat('Latência média',m.latencyAvgMs?Math.round(m.latencyAvgMs)+' ms':'—')
 +stat('Health',m.health,m.health==='ONLINE'?'ok':'bad')+stat('Uptime',m.uptimeSeconds+' s');
 }catch(e){$('#monitor').innerHTML='<div class="card bad">API indisponível</div>'}}
+async function whatsapp(){try{const w=await j('/production/whatsapp');
+const online=w.live&&w.live.state==='open'&&w.matchesOfficial;
+$('#whatsapp').innerHTML=stat('WhatsApp',online?'● Online':'○ Offline',online?'ok':'bad')
++stat('Número conectado',w.live&&w.live.number?('+'+w.live.number):'—')
++stat('OwnerJid',(w.live&&w.live.ownerJid)||'—')
++stat('Instância',w.active.instance||(w.pending&&w.pending.instance)||'—')
++stat('Webhook',w.webhookUrl?'configurado':'—')
++stat('Última sync',w.lastSyncAt||'—');
+}catch(e){$('#whatsapp').innerHTML='<div class="card bad">WhatsApp indisponível</div>'}}
 async function golive(){try{const g=await j('/production/go-live');
 $('#golive').innerHTML='<div class="card"><b class="'+(g.ready?'ok':'bad')+'">'+(g.ready?'PRONTO PARA PRODUÇÃO':'PRODUÇÃO BLOQUEADA')+'</b><table>'+
 g.results.map(r=>'<tr><td>'+r.item+'</td><td class="'+(r.passed?'ok':'bad')+'">'+(r.passed?'✓':'✗')+'</td><td>'+r.detail+'</td></tr>').join('')+'</table></div>'}catch(e){}}
@@ -92,5 +103,5 @@ s.detections.slice(0,30).map(d=>'<tr><td class="'+(d.severity==='CRITICO'||d.sev
 $('#shask').onclick=async()=>{const q=$('#shq').value;if(!q)return;
 const a=await j('/production/shadow/ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question:q})});
 $('#shout').style.display='block';$('#shout').textContent=a.answer+'\\n[fonte: '+a.provenance+']'};
-monitor();golive();cfg();shadow();setInterval(monitor,5000);setInterval(golive,15000);setInterval(shadow,7000);
+monitor();whatsapp();golive();cfg();shadow();setInterval(monitor,5000);setInterval(whatsapp,7000);setInterval(golive,15000);setInterval(shadow,7000);
 </script></body></html>`;

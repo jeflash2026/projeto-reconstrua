@@ -147,6 +147,13 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
   // ── GO-LIVE CHECKLIST (bloqueante) ───────────────────────────────────────────
   app.get('/production/go-live', async () => new ProductionGoLive(prod).verify(new Date(), env));
 
+  // ── CONEXÃO WHATSAPP (leitura para o card do Production UI; sem segredos) ─────
+  app.get('/production/whatsapp', async (_request, reply) => {
+    const wa = prod.adminView.whatsapp;
+    if (!wa) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
+    return wa.getStatus();
+  });
+
   // ── REAL_FIRST_CLIENT (homologação ponta a ponta) ────────────────────────────
   app.post('/production/first-client', async (request) => {
     const body = request.body as { chatId?: string; campaign?: string } | null;

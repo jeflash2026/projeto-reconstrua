@@ -9,6 +9,7 @@
 import type { Clock, UuidGenerator } from '@reconstrua/domain';
 import type { DocumentContentService } from '../media/index.js';
 import type { DecisionStateStore } from '../executive-brain/decision-state-read-model.js';
+import type { WhatsAppConnectionRuntime } from '../whatsapp-connection/index.js';
 import type {
   AdminMetricsStore,
   AdministrationIntelligenceRuntime,
@@ -117,6 +118,8 @@ export interface AssembledAdminOperation {
   readonly decisionState?: DecisionStateStore;
   /** B4.4: trabalho jurídico/atribuições (casos por advogado) para métricas. Opcional. */
   readonly work?: AdvogadoWorkRuntime;
+  /** Conexão WhatsApp (administração de instâncias Evolution pelo Portal Admin). Opcional. */
+  readonly whatsapp?: WhatsAppConnectionRuntime;
 }
 
 export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledAdminOperation {

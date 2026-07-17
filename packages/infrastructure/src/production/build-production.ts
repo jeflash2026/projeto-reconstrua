@@ -135,6 +135,7 @@ import {
   type MediaStorePort,
 } from '../media/index.js';
 import { AnthropicVisionClient, DocumentReaderService, JsonDocumentTextCache } from '../reading/index.js';
+import { EvolutionInstanceClient, FetchEvoHttp, WhatsAppConnectionRuntime } from '../whatsapp-connection/index.js';
 
 export interface ProductionWiring {
   readonly clock: Clock;
@@ -405,6 +406,26 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     documentContent,
   };
 
+  // ── Conexão WhatsApp (Portal Admin) — administração de instâncias Evolution ───
+  // Chave GLOBAL só backend (nunca ao browser/logs/resposta). Número oficial valida
+  // o ownerJid. Config confirmada é PERSISTIDA (configStore) e aplicada no restart.
+  const whatsapp = new WhatsAppConnectionRuntime({
+    client: new EvolutionInstanceClient(new FetchEvoHttp(), {
+      baseUrl: config.evolution.baseUrl,
+      globalApiKey: env['EVOLUTION_GLOBAL_API_KEY'] ?? '',
+    }),
+    configStore,
+    observability,
+    clock,
+    officialNumber: (env['OFFICIAL_WHATSAPP_NUMBER'] ?? '554137989737').replace(/\D/g, ''),
+    active: {
+      instance: config.evolution.instance,
+      number: (config.evolution.whatsappNumber ?? '').replace(/\D/g, ''),
+    },
+    webhookUrl: `${config.publicUrl.replace(/\/+$/, '')}/webhook/evolution`,
+    webhookSecret: env['WEBHOOK_SECRET'] ?? config.evolution.apiKey,
+  });
+
   const boot = new BootRuntime(health, observability, clock);
   const adminView: AssembledAdminOperation = {
     conversation,
@@ -436,6 +457,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // B4.4: read models já existentes para as métricas operacionais (mesma instância).
     decisionState,
     work,
+    // Conexão WhatsApp (Portal Admin).
+    whatsapp,
   };
 
   const cursor = new CursorRuntime(cursorStore);

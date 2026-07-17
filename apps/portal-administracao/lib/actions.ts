@@ -59,6 +59,80 @@ export async function reabrirMission(missionId: string, reason: string | null): 
   return sendJson<ReopenResult>('POST', `/admin/missions/${missionId}/reabrir`, { reason: reason ?? '' });
 }
 
+// ── Conexão WhatsApp — administração de instância Evolution pelo Portal Admin ────
+// Não-destrutivas (status/qr/confirm/apply) usam o Bearer do Admin. Destrutivas
+// (criar/descartar) adicionam o header x-founder-secret com o FOUNDER_API_TOKEN
+// SERVER-SIDE — o segredo Founder nunca chega ao browser.
+const API_BASE = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
+const ADMIN_TOKEN = process.env['ADMIN_API_TOKEN'] ?? '';
+const FOUNDER_TOKEN = process.env['FOUNDER_API_TOKEN'] ?? '';
+
+export interface WhatsAppQr {
+  base64: string | null;
+  pairingCode: string | null;
+}
+export interface WhatsAppStatus {
+  active: { instance: string; number: string };
+  pending: { instance: string; number: string } | null;
+  hasPendingApply: boolean;
+  live: { state: string; ownerJid: string | null; number: string } | null;
+  matchesOfficial: boolean;
+  officialNumber: string;
+  webhookUrl: string;
+  lastSyncAt: string | null;
+}
+export interface WhatsAppConfirm {
+  connected: boolean;
+  ownerJid: string | null;
+  number: string;
+  matchesOfficial: boolean;
+  error: string | null;
+}
+export interface ApplyInstructions {
+  pending: boolean;
+  envToSet?: { EVOLUTION_INSTANCE: string; WHATSAPP_NUMBER: string };
+  note?: string;
+  command?: string;
+}
+
+export async function fetchWhatsappStatus(): Promise<WhatsAppStatus | null> {
+  return getJson<WhatsAppStatus>('/admin/whatsapp/status');
+}
+export async function fetchWhatsappQr(instance: string): Promise<WhatsAppQr | null> {
+  return getJson<WhatsAppQr>(`/admin/whatsapp/qr/${encodeURIComponent(instance)}`);
+}
+export async function confirmWhatsapp(instanceName: string): Promise<WhatsAppConfirm | null> {
+  return sendJson<WhatsAppConfirm>('POST', '/admin/whatsapp/confirm', { instanceName });
+}
+export async function fetchApplyInstructions(): Promise<ApplyInstructions | null> {
+  return getJson<ApplyInstructions>('/admin/whatsapp/apply-instructions');
+}
+
+async function founderPost<T>(path: string, body: unknown): Promise<T | null> {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
+        ...(FOUNDER_TOKEN ? { 'x-founder-secret': FOUNDER_TOKEN } : {}),
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+export async function createWhatsappInstance(instanceName: string): Promise<{ instanceName: string; qr: WhatsAppQr } | null> {
+  return founderPost('/admin/whatsapp/instances', { instanceName });
+}
+export async function discardWhatsappInstance(instanceName: string): Promise<{ discarded: boolean } | null> {
+  return founderPost('/admin/whatsapp/discard', { instanceName, confirm: true });
+}
+
 // BL-3.4: a atribuição de caso NASCE no Portal Admin e chama a API EXISTENTE do
 // servidor Advogado (/advogado-admin/assignments), autenticada pelo segredo do
 // Advogado (BL-3.1). Server-side; o browser nunca vê o segredo. Sem fluxo paralelo,

@@ -37,7 +37,10 @@ async function main(): Promise<void> {
   const port = Number(env['PORT'] ?? '3001');
 
   const main = buildProductionServer({ prod, env, startedAt });
-  const admin = buildAdminServer(prod.adminView, { accessSecret: env['ADMIN_ACCESS_SECRET'] ?? '' });
+  const admin = buildAdminServer(prod.adminView, {
+    accessSecret: env['ADMIN_ACCESS_SECRET'] ?? '',
+    founderSecret: env['FOUNDER_ACCESS_SECRET'] ?? '',
+  });
   const advogado = buildAdvogadoServer(prod.advogadoView, { accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '' });
   const lx = buildLawyerExperienceServer(prod.lxView);
 

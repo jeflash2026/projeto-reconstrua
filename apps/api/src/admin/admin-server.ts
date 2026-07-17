@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
 import { computeOperationalMetrics, type StaffRole } from '@reconstrua/application';
-import { requireBearer } from '../auth/bearer-guard.js';
+import { requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 
 const STAFF_ROLES: readonly StaffRole[] = ['advogado', 'perito', 'operador', 'supervisor', 'administrador'];
 
@@ -17,8 +17,20 @@ function isStaffRole(value: string): value is StaffRole {
   return (STAFF_ROLES as readonly string[]).includes(value);
 }
 
-export function buildAdminServer(op: AssembledAdminOperation, opts: { readonly accessSecret?: string } = {}): FastifyInstance {
+export function buildAdminServer(
+  op: AssembledAdminOperation,
+  opts: { readonly accessSecret?: string; readonly founderSecret?: string } = {},
+): FastifyInstance {
   const app = Fastify({ logger: false });
+
+  // Gate FOUNDER (Super Admin) para operações DESTRUTIVAS de WhatsApp (criar/descartar
+  // instância). Além da auth BL-2.1 (Bearer do Admin), exige o header `x-founder-secret`
+  // = FOUNDER_ACCESS_SECRET, comparado em tempo constante. Fail-closed: segredo vazio ⇒ nega.
+  const founderSecret = opts.founderSecret ?? '';
+  const isFounder = (request: { headers: Record<string, unknown> }): boolean => {
+    const presented = request.headers['x-founder-secret'];
+    return founderSecret !== '' && typeof presented === 'string' && secretsMatch(presented, founderSecret);
+  };
 
   // CORS simples (portal em origem própria); sem dependência externa.
   app.addHook('onSend', (_request, reply, _payload, done) => {
@@ -259,6 +271,57 @@ export function buildAdminServer(op: AssembledAdminOperation, opts: { readonly a
       progresses: progresses.map((p) => ({ steps: p.steps })),
       casesByAdvogado,
     });
+  });
+
+  // ── CONEXÃO WHATSAPP (administração de instância Evolution; auth BL-2.1) ──────
+  app.get('/admin/whatsapp/status', async (_request, reply) => {
+    if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
+    return op.whatsapp.getStatus();
+  });
+
+  app.get('/admin/whatsapp/qr/:instance', async (request, reply) => {
+    if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
+    const { instance } = request.params as { instance: string };
+    return op.whatsapp.getQr(instance);
+  });
+
+  app.post('/admin/whatsapp/confirm', async (request, reply) => {
+    if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
+    const body = request.body as { instanceName?: string };
+    if (!body.instanceName) return reply.code(400).send({ error: 'instanceName obrigatório' });
+    return op.whatsapp.confirm(body.instanceName, { role: 'admin' });
+  });
+
+  app.get('/admin/whatsapp/apply-instructions', async (_request, reply) => {
+    if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
+    const status = await op.whatsapp.getStatus();
+    if (!status.hasPendingApply) return { pending: false, note: 'Nenhuma configuração pendente — a aplicação já usa a instância atual.' };
+    return {
+      pending: true,
+      envToSet: { EVOLUTION_INSTANCE: status.pending?.instance ?? '', WHATSAPP_NUMBER: status.pending?.number ?? '' },
+      note: 'Config confirmada e persistida. Para APLICAR: garanta estes valores no /opt/reconstrua/.env e faça o restart controlado (o EVOLUTION_API_KEY é o retornado na criação da instância).',
+      command: 'bash /opt/reconstrua/deploy.sh',
+    };
+  });
+
+  // Operações DESTRUTIVAS → exigem perfil FOUNDER (x-founder-secret) além do Bearer Admin.
+  app.post('/admin/whatsapp/instances', async (request, reply) => {
+    if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
+    if (!isFounder(request)) return reply.code(403).send({ error: 'operação exige perfil Founder (x-founder-secret)' });
+    const body = request.body as { instanceName?: string };
+    const name = (body.instanceName ?? '').trim();
+    if (name === '') return reply.code(400).send({ error: 'instanceName obrigatório' });
+    return op.whatsapp.createNew(name, { role: 'founder' });
+  });
+
+  app.post('/admin/whatsapp/discard', async (request, reply) => {
+    if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
+    if (!isFounder(request)) return reply.code(403).send({ error: 'operação exige perfil Founder (x-founder-secret)' });
+    const body = request.body as { instanceName?: string; confirm?: boolean };
+    if (!body.instanceName) return reply.code(400).send({ error: 'instanceName obrigatório' });
+    if (body.confirm !== true) return reply.code(400).send({ error: 'confirmação explícita obrigatória (confirm:true)' });
+    await op.whatsapp.discard(body.instanceName, { role: 'founder' });
+    return { discarded: true, instanceName: body.instanceName };
   });
 
   // ── DOCUMENTOS / PERÍCIAS ───────────────────────────────────────────────────

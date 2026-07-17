@@ -59,6 +59,9 @@ function toMemoryView(context: ConversationContextView, now: Date): BrainMemoryV
 
 function toMissionFacts(percept: Percept): MissionFacts {
   const e = percept.envelope;
+  // RFC-0044: monta o PerceivedFact (com proveniência) SE a Percepção o produziu.
+  // Optional chaining protege percepts mecânicos (enrichment = null).
+  const relevance = percept.enrichment?.perceivedRelevance;
   return {
     chatId: e.chatId,
     senderId: e.from,
@@ -69,6 +72,15 @@ function toMissionFacts(percept: Percept): MissionFacts {
     fileName: e.fileName,
     mimeType: e.mediaMimeType,
     occurredAt: e.timestamp,
+    ...(relevance
+      ? {
+          perceivedRelevance: {
+            kind: 'event-relevance' as const,
+            value: relevance,
+            provenance: { perceivedBy: 'perception', perceivedAt: percept.perceivedAt, evidenceRef: e.messageId },
+          },
+        }
+      : {}),
   };
 }
 

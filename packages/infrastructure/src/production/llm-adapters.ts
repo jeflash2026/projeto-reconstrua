@@ -123,8 +123,10 @@ export interface LlmBundle {
 
 const SENTIMENTS = new Set(['positive', 'neutral', 'negative', 'anxious', 'confused', 'unknown']);
 const URGENCIES = new Set(['low', 'normal', 'high', 'unknown']);
+// RFC-0044: vocabulário FECHADO de relevância de evento (DF-14). Fora dele ⇒ ausência.
+const RELEVANCES = new Set(['RELEVANT', 'INFORMATIVE']);
 
-function parseEnrichment(raw: string): PerceptEnrichment | null {
+export function parseEnrichment(raw: string): PerceptEnrichment | null {
   try {
     const start = raw.indexOf('{');
     const end = raw.lastIndexOf('}');
@@ -134,6 +136,7 @@ function parseEnrichment(raw: string): PerceptEnrichment | null {
     if (!record) return null;
     const sentiment = asString(record['sentiment']) ?? 'unknown';
     const urgency = asString(record['urgency']) ?? 'unknown';
+    const relevance = asString(record['perceivedRelevance']) ?? '';
     const artifacts = (asArray(record['detectedArtifacts']) ?? []).map((a) => asString(a) ?? '').filter((a) => a !== '');
     return {
       summary: asString(record['summary']) ?? '',
@@ -142,6 +145,10 @@ function parseEnrichment(raw: string): PerceptEnrichment | null {
       detectedIntentSignal: asString(record['detectedIntentSignal']),
       detectedArtifacts: artifacts,
       language: asString(record['language']),
+      // RFC-0044: só cruza se pertencer ao vocabulário fechado; caso contrário, AUSENTE.
+      ...(RELEVANCES.has(relevance)
+        ? { perceivedRelevance: relevance as NonNullable<PerceptEnrichment['perceivedRelevance']> }
+        : {}),
     };
   } catch {
     return null;
@@ -157,7 +164,7 @@ class LlmPerception implements LlmPerceptionPort {
   ) {}
   async understand(envelope: InboundEnvelope, context: PerceptionContext): Promise<PerceptEnrichment> {
     const t0 = this.clock.now().getTime();
-    const system = `${this.config.prompts.global}\n\nTAREFA DE PERCEPÇÃO: analise a mensagem e responda APENAS um JSON: {"summary":string,"sentiment":"positive|neutral|negative|anxious|confused|unknown","urgency":"low|normal|high|unknown","detectedIntentSignal":string|null,"detectedArtifacts":string[],"language":string|null}. Você PERCEBE; nunca decide.`;
+    const system = `${this.config.prompts.global}\n\nTAREFA DE PERCEPÇÃO: analise a mensagem e responda APENAS um JSON: {"summary":string,"sentiment":"positive|neutral|negative|anxious|confused|unknown","urgency":"low|normal|high|unknown","detectedIntentSignal":string|null,"detectedArtifacts":string[],"language":string|null,"perceivedRelevance":"RELEVANT|INFORMATIVE|null"}. Você PERCEBE; nunca decide.`;
     const user = `Tipo: ${envelope.kind}\nTexto: ${envelope.text ?? envelope.editedText ?? '(sem texto)'}\nArquivo: ${envelope.fileName ?? '-'}\nContexto recente: ${context.recentSummary ?? '-'}`;
     try {
       const raw = (await this.llm.complete(system, user)).text;

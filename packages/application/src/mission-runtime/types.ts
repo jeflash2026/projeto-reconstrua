@@ -5,6 +5,7 @@
 // enfileira a outbox atomicamente). Nunca cria Verdade/Estado/Etapa "diretamente":
 // sempre pela fábrica (synthesize/derive/represent). Nunca usa LLM. Nunca toca infra.
 // ─────────────────────────────────────────────────────────────────────────────
+import type { PerceivedFact } from './perceived-fact.js';
 
 /** Fatos PERCEBIDOS (da Perception) que os Use Cases consomem. Não é linguagem
  *  interpretada: são referências factuais (id da mensagem, arquivo, remetente). */
@@ -18,6 +19,10 @@ export interface MissionFacts {
   readonly fileName: string | null;
   readonly mimeType: string | null;
   readonly occurredAt: Date;
+  /** RFC-0044: fato estruturado percebido (vocabulário fechado, não linguagem) que
+   *  acompanha as referências de evidência. Opcional — ausente quando a Percepção
+   *  não o produz. */
+  readonly perceivedRelevance?: PerceivedFact;
 }
 
 /** A intenção de Use Case vinda EXCLUSIVAMENTE do Executive Brain (com proveniência). */

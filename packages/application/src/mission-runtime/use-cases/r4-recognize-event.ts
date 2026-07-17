@@ -3,7 +3,7 @@
 // Fato (INV-EV-03), em função da Missão (INV-EV-04). Executa `EventAggregate.recognize`
 // e persiste EventRecognized. Pré-condições: Missão + Documento (Fato).
 // ─────────────────────────────────────────────────────────────────────────────
-import { EventAggregate, EventId, EventMissionRef, EventRecognitionResponsibleRef, FactRef } from '@reconstrua/domain';
+import { EventAggregate, EventId, EventMissionRef, EventRecognitionResponsibleRef, FactRef, type EventClassificationValue } from '@reconstrua/domain';
 import { foundedProvenance } from '../provenance.js';
 import { failedOutcome, type UseCaseOutcome } from '../types.js';
 import { persistNew, successOutcome, type MissionContext, type MissionUseCase, type UseCaseDeps } from '../use-case.js';
@@ -21,9 +21,12 @@ export class RecognizeEventUseCase implements MissionUseCase {
       return failedOutcome(this.name, this.streamType, 'pré-condição ausente: Documento como Fato (INV-EV-03)');
     }
     const eventId = this.deps.uuid.next();
+    // RFC-0044: a relevância vem de UMA instância de PerceivedFact (fonte única);
+    // classification, isRelevant e payload.classification derivam TODOS dela. Ausente ⇒ RELEVANT.
+    const classification: EventClassificationValue = ctx.facts.perceivedRelevance?.value ?? 'RELEVANT';
     const result = EventAggregate.recognize({
       id: EventId.fromUuid(eventId),
-      classification: 'RELEVANT',
+      classification,
       mission: EventMissionRef.fromString(ctx.identity.missionId),
       fact: FactRef.fromString(ctx.identity.lastDocumentId),
       occurredAt: ctx.facts.occurredAt,
@@ -37,9 +40,9 @@ export class RecognizeEventUseCase implements MissionUseCase {
       this.streamType,
       eventId,
       result.unwrap(),
-      true,
+      classification === 'RELEVANT',
       foundedProvenance(ctx.intent, ctx.identity.lastDocumentId),
-      { classification: 'RELEVANT', missionId: ctx.identity.missionId, factRef: ctx.identity.lastDocumentId },
+      { classification, missionId: ctx.identity.missionId, factRef: ctx.identity.lastDocumentId },
     );
     return successOutcome(this.name, this.streamType, eventId, appended, { lastEventId: eventId });
   }

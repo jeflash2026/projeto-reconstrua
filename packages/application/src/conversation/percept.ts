@@ -7,6 +7,7 @@
 // O enriquecimento por LLM (`PerceptEnrichment`) é ENTENDIMENTO (resumo, emoção,
 // urgência, sinais) — jamais uma decisão. Toda decisão pertence ao Executive Brain.
 // ─────────────────────────────────────────────────────────────────────────────
+import type { EventClassificationValue } from '@reconstrua/domain';
 
 /** As doze naturezas de entrada que o Runtime percebe (spec 2B). */
 export type PerceptKind =
@@ -90,6 +91,10 @@ export interface PerceptEnrichment {
   /** Artefatos percebidos (ex.: "artefato documental percebido: possível RG"). */
   readonly detectedArtifacts: readonly string[];
   readonly language: string | null;
+  /** RFC-0044: sinal de relevância de evento percebido (vocabulário fechado do
+   *  domínio); é ENTENDIMENTO, montado como PerceivedFact na fronteira. Opcional —
+   *  ausente = não percebido. */
+  readonly perceivedRelevance?: EventClassificationValue;
 }
 
 /** A percepção completa e imutável de um turno de entrada. */

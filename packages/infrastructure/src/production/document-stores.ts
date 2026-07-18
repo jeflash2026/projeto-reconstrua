@@ -26,6 +26,8 @@ import type {
   MissionIdentity,
   MissionIdentityMap,
   MissionProgress,
+  LiberacaoPortal,
+  LiberacaoPortalStore,
   ModalidadeRecord,
   ModalidadeStore,
   PedidosAdministrativosRecord,
@@ -53,7 +55,7 @@ const DATE_KEYS = [
   'lastAccessAt', 'lastInboundAt', 'lastOutboundAt', 'lastContactAt', 'firstContactAt', 'lastSilenceNoticeAt',
   'resolvedAt', 'enqueuedAt', 'nextAttemptAt', 'lockedAt', 'occurredAt', 'recordedAt', 'formedAt',
   'reportedAt', 'lastProcessedAt', 'framedAt', 'presentedAt', 'synthesizedAt', 'derivedAt',
-  'decididaEm', 'vendidaEm', 'confirmadoEm', 'projectedAt',
+  'decididaEm', 'vendidaEm', 'confirmadoEm', 'projectedAt', 'comunicadoEm',
 ] as const;
 
 function revive<T>(value: unknown): T {
@@ -354,6 +356,19 @@ export class JsonPedidosAdministrativosStore implements PedidosAdministrativosSt
   }
   save(record: PedidosAdministrativosRecord): Promise<void> {
     return this.store.put('pedidos-administrativos', record.clienteId, record);
+  }
+}
+
+/** PC-R3 — o FATO do nascimento do Portal (liberação comunicada), por clienteId.
+ *  Lei 8: gravado ANTES da mensagem; garante envio ÚNICO e ancora o relógio. */
+export class JsonLiberacaoPortalStore implements LiberacaoPortalStore {
+  constructor(private readonly store: JsonStore) {}
+  async load(clienteId: string): Promise<LiberacaoPortal | null> {
+    const raw = await this.store.get('liberacao-portal', clienteId);
+    return raw === null ? null : revive<LiberacaoPortal>(raw);
+  }
+  save(record: LiberacaoPortal): Promise<void> {
+    return this.store.put('liberacao-portal', record.clienteId, record);
   }
 }
 

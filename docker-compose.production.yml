@@ -66,6 +66,10 @@ services:
       EVOLUTION_GLOBAL_API_KEY: ${EVOLUTION_GLOBAL_API_KEY:-}
       FOUNDER_ACCESS_SECRET: ${FOUNDER_ACCESS_SECRET:-}
       OFFICIAL_WHATSAPP_NUMBER: ${OFFICIAL_WHATSAPP_NUMBER:-554137989737}
+      # PC-R3 — Portal do Cliente: assinatura do link mágico (fail-closed se vazio)
+      # e a POLÍTICA única de estimativa (D1) usada na mensagem e no Portal.
+      CLIENTE_PORTAL_SECRET: ${CLIENTE_PORTAL_SECRET:-}
+      PROCESSING_ESTIMATE_DAYS: ${PROCESSING_ESTIMATE_DAYS:-12}
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}

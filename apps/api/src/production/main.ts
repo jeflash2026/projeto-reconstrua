@@ -57,6 +57,11 @@ async function main(): Promise<void> {
     void prod.ingress.tick(clock.now()).catch((error: unknown) => {
       prod.observability.error('temporal', 'tick', clock.now(), error instanceof Error ? error.message : 'falha no tick temporal');
     });
+    // PC-R3 — a varredura do NASCIMENTO do Portal (sem clique humano): quando a
+    // AHRI reconhece que recebeu tudo, o fato nasce e a mensagem é entregue.
+    void prod.nascimento.verificar(clock.now()).catch((error: unknown) => {
+      prod.observability.error('nascimento', 'verificar', clock.now(), error instanceof Error ? error.message : 'falha na varredura do nascimento');
+    });
   }, 60_000);
   setInterval(() => {
     const now = clock.now();

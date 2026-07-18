@@ -22,6 +22,7 @@ import type {
 } from '@reconstrua/application';
 import {
   AcompanhamentoView,
+  NascimentoPortalRuntime,
   AdvogadoAhriBridge,
   AdvogadoWorkRuntime,
   BootRuntime,
@@ -91,6 +92,7 @@ import { ProjectionBackedMissionSnapshotAdapter } from '../executive-brain/proje
 import { InMemoryRuleCatalog } from '../executive-brain/in-memory-adapters.js';
 import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
 import { assembleALIR, type AssembledALIR } from '../alir/build-alir.js';
+import { BrainNascimentoComunicador } from '../portal-cliente/nascimento-comunicador.js';
 import { assembleLivingMemory } from '../living-memory/build-living-memory.js';
 import { assembleAdministration } from '../administration/build-administration.js';
 import { AdminProjectionSubscriber } from '../administration/admin-projection-subscriber.js';
@@ -115,6 +117,7 @@ import {
   JsonHandoffStore,
   JsonIdentityMap,
   JsonJuridicalWorkStore,
+  JsonLiberacaoPortalStore,
   JsonMemoryStore,
   JsonMetricsStore,
   JsonModalidadeStore,
@@ -190,6 +193,8 @@ export interface AssembledProduction {
   readonly alir: AssembledALIR;
   /** PC-R1: a projeção segura do processo para o CLIENTE (Portal + AHRI — Princípio 3). */
   readonly acompanhamento: AcompanhamentoView;
+  /** PC-R3: o NASCIMENTO do Portal — varredura automática (tick), sem clique humano. */
+  readonly nascimento: NascimentoPortalRuntime;
 }
 
 export function assembleProduction(wiring: ProductionWiring): AssembledProduction {
@@ -422,19 +427,21 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
 
   const auditor = new EventStoreIntegrityAuditor(eventStore, hasher);
 
-  // ── PORTAL DO CLIENTE · PC-R1: a projeção segura ÚNICA (Portal + AHRI) ────────
+  // ── PORTAL DO CLIENTE · PC-R1/R3: a projeção segura ÚNICA (Portal + AHRI) ─────
   // D1: PROCESSING_ESTIMATE_DAYS lida AQUI, em um único ponto — Portal e mensagens
   // da AHRI consomem o MESMO valor. D3: a visão só compõe; nada nasce nela.
   const officialNumber = (env['OFFICIAL_WHATSAPP_NUMBER'] ?? '554137989737').replace(/\D/g, '');
+  const estimativaDias = Number(env['PROCESSING_ESTIMATE_DAYS'] ?? '12');
+  const liberacaoStore = new JsonLiberacaoPortalStore(json);
   const acompanhamento = new AcompanhamentoView({
     clientes,
     memory: memoryStore,
     juridical: juridicalStore,
     assignments: assignmentStore,
     staff: staffStore,
-    liberacao: () => Promise.resolve(null), // o FATO liberacao-portal nasce no PC-R3
+    liberacao: (clienteId) => liberacaoStore.load(clienteId), // o FATO real (PC-R3)
     config: {
-      estimativaDias: Number(env['PROCESSING_ESTIMATE_DAYS'] ?? '12'),
+      estimativaDias,
       whatsapp: officialNumber,
     },
   });
@@ -450,6 +457,31 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
     textoDoDocumento: (documentId) => documentReader.readById(documentId),
     exporter: new CsvPlanilhaExporter(),
+  });
+
+  // ── PORTAL DO CLIENTE · PC-R3: o NASCIMENTO (varredura sem clique humano) ─────
+  // Brain decide (RO-CADASTRO-CONCLUIDO); fato liberacao-portal ANTES da mensagem
+  // (envio único, Lei 8); entrega pelo pipeline canônico com cadência humana.
+  const nascimento = new NascimentoPortalRuntime({
+    clientes,
+    memory: memoryStore,
+    liberacao: liberacaoStore,
+    comunicador: new BrainNascimentoComunicador({
+      brain: brainAssembly.brain,
+      memory: convMemory,
+      context,
+      queue,
+      delivery,
+      observability,
+      clock,
+      uuid: () => uuid.next(),
+    }),
+    config: {
+      estimativaDias,
+      validadeLinkDias: 90,
+      publicUrl: config.publicUrl,
+      tokenSecret: env['CLIENTE_PORTAL_SECRET'] ?? '',
+    },
   });
 
   // ── Visões estruturais para os servidores CONGELADOS ─────────────────────────
@@ -646,6 +678,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     documentReader,
     alir,
     acompanhamento,
+    nascimento,
   };
 }
 

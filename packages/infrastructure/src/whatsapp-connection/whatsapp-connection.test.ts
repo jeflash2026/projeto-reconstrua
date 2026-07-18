@@ -137,3 +137,92 @@ describe('WhatsAppConnectionRuntime', () => {
     expect(JSON.stringify(s)).not.toContain('GLOBAL-KEY'); // nunca vaza segredo
   });
 });
+
+// ── GO-LIVE-05 · BUG 2: DIAGNÓSTICO com a causa EXATA (nunca genérico) ─────────
+describe('WhatsAppConnectionRuntime.diagnose — a causa real de cada dependência', () => {
+  interface DiagOver {
+    management?: { hasGlobalKey: boolean; hasFounderGate: boolean };
+    diagnostics?: { baseUrl: string; db?: () => Promise<void>; queue?: () => Promise<number> };
+  }
+  function diagRuntime(http: EvoHttp, over: DiagOver = {}): WhatsAppConnectionRuntime {
+    return new WhatsAppConnectionRuntime({
+      client: new EvolutionInstanceClient(http, cfg),
+      configStore: new MemConfigStore(),
+      observability: new ObservabilityRuntime(() => undefined),
+      clock: new FixedClock(),
+      officialNumber: OFFICIAL,
+      active: { instance: 'reconstrua-prod', number: OFFICIAL },
+      webhookUrl: 'https://reconstrua.com.br/webhook/evolution',
+      webhookSecret: 'WH',
+      management: over.management ?? { hasGlobalKey: true, hasFounderGate: true },
+      diagnostics: over.diagnostics ?? { baseUrl: 'https://evo.test', db: () => Promise.resolve(), queue: () => Promise.resolve(3) },
+    });
+  }
+
+  it('TUDO OK: cada passo verde, com a instância presente e as filas contadas', async () => {
+    const http = new FakeEvoHttp(() => ({ status: 200, body: [{ name: 'reconstrua-prod', connectionStatus: 'open' }] }));
+    const report = await diagRuntime(http).diagnose();
+    expect(report.ok).toBe(true);
+    const byStep = Object.fromEntries(report.steps.map((s) => [s.step, s]));
+    expect(byStep['Instância']?.detail).toContain('existe na Evolution');
+    expect(byStep['Filas (outbox)']?.detail).toContain('3');
+  });
+
+  it('EVOLUTION 401: aponta EXATAMENTE a autenticação da chave global', async () => {
+    const http = new FakeEvoHttp(() => ({ status: 401, body: { error: 'Unauthorized' } }));
+    const report = await diagRuntime(http).diagnose();
+    const auth = report.steps.find((s) => s.step === 'Autenticação (chave global)');
+    expect(auth?.ok).toBe(false);
+    expect(auth?.detail).toContain('401');
+    expect(auth?.detail).toContain('EVOLUTION_GLOBAL_API_KEY');
+    expect(report.ok).toBe(false);
+  });
+
+  it('CONNECTION REFUSED: transporte lança → a causa de rede real aparece', async () => {
+    const throwing: EvoHttp = {
+      request: () => Promise.reject(Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNREFUSED' } })),
+    };
+    const report = await diagRuntime(throwing).diagnose();
+    const conn = report.steps.find((s) => s.step === 'Conexão com a Evolution');
+    expect(conn?.ok).toBe(false);
+    expect(conn?.detail).toContain('conexão recusada');
+  });
+
+  it('DNS: ENOTFOUND vira mensagem de host não resolvido', async () => {
+    const throwing: EvoHttp = {
+      request: () => Promise.reject(Object.assign(new Error('fetch failed'), { cause: { code: 'ENOTFOUND' } })),
+    };
+    const report = await diagRuntime(throwing).diagnose();
+    expect(report.steps.find((s) => s.step === 'Conexão com a Evolution')?.detail).toContain('DNS');
+  });
+
+  it('INSTÂNCIA inexistente: lista as encontradas e marca falha', async () => {
+    const http = new FakeEvoHttp(() => ({ status: 200, body: [{ name: 'outra-instancia', connectionStatus: 'open' }] }));
+    const inst = (await diagRuntime(http).diagnose()).steps.find((s) => s.step === 'Instância');
+    expect(inst?.ok).toBe(false);
+    expect(inst?.detail).toContain('NÃO existe');
+    expect(inst?.detail).toContain('outra-instancia');
+  });
+
+  it('VARIÁVEIS ausentes: baseUrl e chave global vazios são apontados', async () => {
+    const http = new FakeEvoHttp(() => ({ status: 200, body: [] }));
+    const rt = diagRuntime(http, {
+      management: { hasGlobalKey: false, hasFounderGate: false },
+      diagnostics: { baseUrl: '', db: () => Promise.resolve(), queue: () => Promise.resolve(0) },
+    });
+    const vars = (await rt.diagnose()).steps.find((s) => s.step === 'Variáveis de ambiente');
+    expect(vars?.ok).toBe(false);
+    expect(vars?.detail).toContain('EVOLUTION_BASE_URL ausente');
+    expect(vars?.detail).toContain('EVOLUTION_GLOBAL_API_KEY ausente');
+  });
+
+  it('BANCO indisponível: a exceção do Postgres vira o detalhe do passo (não engolida)', async () => {
+    const http = new FakeEvoHttp(() => ({ status: 200, body: [{ name: 'reconstrua-prod' }] }));
+    const rt = diagRuntime(http, {
+      diagnostics: { baseUrl: 'https://evo.test', db: () => Promise.reject(new Error("connection to server failed")), queue: () => Promise.resolve(0) },
+    });
+    const db = (await rt.diagnose()).steps.find((s) => s.step === 'Banco de dados');
+    expect(db?.ok).toBe(false);
+    expect(db?.detail).toContain('connection to server failed');
+  });
+});

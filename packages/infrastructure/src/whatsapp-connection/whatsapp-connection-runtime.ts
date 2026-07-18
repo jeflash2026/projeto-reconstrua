@@ -69,6 +69,24 @@ export interface WhatsAppConnectionDeps {
     readonly hasGlobalKey: boolean; // EVOLUTION_GLOBAL_API_KEY presente
     readonly hasFounderGate: boolean; // FOUNDER_ACCESS_SECRET presente
   };
+  /** GO-LIVE-05 (BUG 2) — sondas do diagnóstico (banco e filas). Best-effort. */
+  readonly diagnostics?: {
+    readonly baseUrl: string;
+    readonly db?: () => Promise<void>;
+    readonly queue?: () => Promise<number>;
+  };
+}
+
+/** GO-LIVE-05 (BUG 2) — um passo do diagnóstico com a causa EXATA da falha. */
+export interface DiagnosticStep {
+  readonly step: string;
+  readonly ok: boolean;
+  readonly detail: string;
+}
+export interface DiagnosticReport {
+  readonly ok: boolean;
+  readonly steps: readonly DiagnosticStep[];
+  readonly at: string;
 }
 
 export class WhatsAppConnectionRuntime {
@@ -173,6 +191,64 @@ export class WhatsAppConnectionRuntime {
     await this.persistEvolution({ instance: instanceName, whatsappNumber: number });
     this.audit('confirm-ok', actor, `instancia=${instanceName} numero=${number}`);
     return { connected: true, ownerJid, number, matchesOfficial: true, error: null };
+  }
+
+  /**
+   * GO-LIVE-05 (BUG 2) — DIAGNÓSTICO: sonda cada dependência e diz EXATAMENTE
+   * onde falhou (variáveis, conexão Evolution, autenticação, instância, webhook,
+   * banco, filas). Nenhuma exceção escapa — cada passo vira uma linha com a causa.
+   */
+  async diagnose(): Promise<DiagnosticReport> {
+    const steps: DiagnosticStep[] = [];
+    const add = (step: string, ok: boolean, detail: string): void => { steps.push({ step, ok, detail }); };
+    const d = this.deps.diagnostics;
+
+    // 1) VARIÁVEIS obrigatórias.
+    const baseUrl = d?.baseUrl ?? '';
+    add('Variáveis de ambiente', baseUrl !== '' && this.deps.management.hasGlobalKey,
+      [baseUrl === '' ? 'EVOLUTION_BASE_URL ausente' : `EVOLUTION_BASE_URL=${baseUrl}`,
+       this.deps.management.hasGlobalKey ? 'EVOLUTION_GLOBAL_API_KEY presente' : 'EVOLUTION_GLOBAL_API_KEY ausente',
+       this.deps.management.hasFounderGate ? 'FOUNDER_ACCESS_SECRET presente' : 'FOUNDER_ACCESS_SECRET ausente',
+      ].join(' · '));
+
+    // 2/3) CONEXÃO + AUTENTICAÇÃO com a Evolution (sonda crua: status/erro reais).
+    const probe = await this.deps.client.probe();
+    add('Conexão com a Evolution', probe.reached || probe.status !== null,
+      probe.error ?? `alcançada (HTTP ${String(probe.status)})`);
+    add('Autenticação (chave global)',
+      probe.status !== 401 && probe.status !== 403,
+      probe.status === 401 || probe.status === 403
+        ? `Evolution recusou a chave global (HTTP ${String(probe.status)}) — verifique EVOLUTION_GLOBAL_API_KEY`
+        : probe.reached ? 'chave global aceita' : 'não avaliada (Evolution inacessível)');
+
+    // 4) INSTÂNCIA oficial presente na Evolution.
+    const alvo = this.deps.active.instance || (await this.storedConfig()).evolution.instance;
+    add('Instância', alvo !== '' && probe.instanceNames.includes(alvo),
+      alvo === '' ? 'nenhuma instância configurada'
+      : probe.instanceNames.includes(alvo) ? `instância "${alvo}" existe na Evolution`
+      : probe.reached ? `instância "${alvo}" NÃO existe (encontradas: ${probe.instanceNames.join(', ') || 'nenhuma'})`
+      : 'não avaliada (Evolution inacessível)');
+
+    // 5) WEBHOOK configurado (URL + segredo presentes).
+    add('Webhook', this.deps.webhookUrl !== '' && this.deps.webhookSecret !== '',
+      this.deps.webhookUrl === '' ? 'webhookUrl ausente'
+      : this.deps.webhookSecret === '' ? 'WEBHOOK_SECRET ausente'
+      : `${this.deps.webhookUrl}`);
+
+    // 6) BANCO (toca o Postgres via configStore).
+    if (d?.db) {
+      try { await d.db(); add('Banco de dados', true, 'Postgres acessível'); }
+      catch (e) { add('Banco de dados', false, e instanceof Error ? e.message : 'falha ao consultar o banco'); }
+    }
+
+    // 7) FILAS (outbox/dispatcher).
+    if (d?.queue) {
+      try { const pending = await d.queue(); add('Filas (outbox)', true, `${String(pending)} entrega(s) pendente(s)`); }
+      catch (e) { add('Filas (outbox)', false, e instanceof Error ? e.message : 'falha ao consultar a fila'); }
+    }
+
+    this.audit('diagnose', { role: 'admin' }, `passos=${String(steps.length)} ok=${String(steps.every((s) => s.ok))}`);
+    return { ok: steps.every((s) => s.ok), steps, at: this.deps.clock.now().toISOString() };
   }
 
   /** Descarta uma instância (destrutivo → gate Founder + confirmação na rota). */

@@ -158,6 +158,44 @@ export class EvolutionInstanceClient {
     return null;
   }
 
+  /**
+   * GO-LIVE-05 (BUG 2) — SONDA CRUA para o diagnóstico: devolve o status HTTP
+   * REAL, o erro de rede REAL (ECONNREFUSED/DNS/timeout) e a lista de instâncias.
+   * Nunca engole a causa (ao contrário de fetchInstance, que devolve null).
+   */
+  async probe(): Promise<{
+    readonly reached: boolean;
+    readonly status: number | null;
+    readonly error: string | null;
+    readonly instanceNames: readonly string[];
+  }> {
+    try {
+      const res = await this.http.request('GET', `${this.base()}/instance/fetchInstances`, this.gkey());
+      const list: unknown[] = Array.isArray(res.body) ? (res.body as unknown[]) : [];
+      const names = list
+        .map((raw) => asStr(pick(pick(raw, ['instance']) ?? raw, ['name', 'instanceName', 'id'])))
+        .filter((n): n is string => n !== null);
+      return {
+        reached: res.status < 300,
+        status: res.status,
+        error: res.status >= 300 ? `Evolution respondeu HTTP ${String(res.status)}` : null,
+        instanceNames: names,
+      };
+    } catch (error) {
+      // node fetch lança em falha de transporte; a causa real vive em .cause.
+      const cause = (error as { cause?: unknown }).cause;
+      const code = typeof cause === 'object' && cause !== null ? (cause as { code?: string }).code : undefined;
+      const raw = error instanceof Error ? error.message : 'erro de rede';
+      const detail =
+        code === 'ECONNREFUSED' ? 'conexão recusada (Evolution fora do ar ou porta errada)'
+        : code === 'ENOTFOUND' ? 'DNS não resolveu o host da Evolution (EVOLUTION_BASE_URL)'
+        : code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT' ? 'timeout ao conectar na Evolution'
+        : code !== undefined ? `${raw} (${code})`
+        : raw;
+      return { reached: false, status: null, error: detail, instanceNames: [] };
+    }
+  }
+
   async logout(instanceName: string): Promise<void> {
     await this.http.request('DELETE', `${this.base()}/instance/logout/${instanceName}`, this.gkey());
   }

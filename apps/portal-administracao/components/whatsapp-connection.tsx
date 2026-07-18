@@ -7,8 +7,8 @@
 import { useEffect, useState, useCallback, type ReactElement } from 'react';
 import {
   fetchWhatsappStatus, fetchWhatsappQr, confirmWhatsapp, fetchApplyInstructions,
-  createWhatsappInstance, discardWhatsappInstance,
-  type WhatsAppStatus, type WhatsAppQr, type ApplyInstructions,
+  createWhatsappInstance, discardWhatsappInstance, runWhatsappDiagnostics,
+  type WhatsAppStatus, type WhatsAppQr, type ApplyInstructions, type DiagnosticReport,
 } from '../lib/actions';
 
 function fmtNumber(digits: string): string {
@@ -25,6 +25,18 @@ const WhatsAppConnection = (): ReactElement => {
   const [activeInstance, setActiveInstance] = useState<string>('');
   const [newName, setNewName] = useState('reconstrua-prod');
   const [apply, setApply] = useState<ApplyInstructions | null>(null);
+  // GO-LIVE-05 (BUG 2): diagnóstico sob demanda.
+  const [diag, setDiag] = useState<DiagnosticReport | null>(null);
+  const [diagErr, setDiagErr] = useState<string | null>(null);
+  const [diagBusy, setDiagBusy] = useState(false);
+
+  const diagnosticar = async (): Promise<void> => {
+    setDiagBusy(true); setDiag(null); setDiagErr(null);
+    const res = await runWhatsappDiagnostics();
+    setDiag(res.report);
+    setDiagErr(res.error);
+    setDiagBusy(false);
+  };
 
   const refresh = useCallback(async (): Promise<void> => {
     const s = await fetchWhatsappStatus();
@@ -108,11 +120,45 @@ const WhatsAppConnection = (): ReactElement => {
     setApply(await fetchApplyInstructions());
   };
 
+  // GO-LIVE-05 (BUG 2): o painel de diagnóstico — sempre disponível, INCLUSIVE
+  // quando o status falha. Cada passo mostra a causa EXATA (nunca "API indisponível").
+  const DiagPanel = (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <h3>Diagnóstico da conexão</h3>
+      <p className="page-sub">Testa Evolution, autenticação, instância, webhook, banco e filas — e mostra onde falhou.</p>
+      <button disabled={diagBusy} onClick={() => { void diagnosticar(); }}>
+        {diagBusy ? 'Diagnosticando…' : 'Diagnóstico'}
+      </button>
+      {diagErr ? <div className="error-box" style={{ marginTop: 12 }}>{diagErr}</div> : null}
+      {diag ? (
+        <div style={{ marginTop: 12 }}>
+          {diag.steps.map((s) => (
+            <div key={s.step} style={{ display: 'flex', gap: 8, padding: '4px 0', borderBottom: '1px solid var(--border, #2a2a2a)' }}>
+              <span aria-hidden style={{ color: s.ok ? 'var(--accent, #1da851)' : 'var(--brand, #d90416)' }}>{s.ok ? '✓' : '✗'}</span>
+              <span style={{ minWidth: 220, fontWeight: 600 }}>{s.step}</span>
+              <span style={{ color: 'var(--text-dim)' }}>{s.detail}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+
   if (loading) return <div className="card">Carregando conexão…</div>;
-  if (!status) return <div className="error-box">API indisponível.</div>;
+  if (!status) {
+    return (
+      <>
+        <div className="error-box" style={{ marginBottom: 16 }}>
+          Não foi possível carregar o status da conexão. Rode o diagnóstico abaixo para ver a causa exata.
+        </div>
+        {DiagPanel}
+      </>
+    );
+  }
 
   return (
     <>
+      {DiagPanel}
       {/* GO-LIVE-03 (item 6): pré-condições ausentes são DECLARADAS — nunca botões mortos. */}
       {status.capabilities.canManageInstances ? null : (
         <div className="error-box" style={{ marginBottom: 16 }}>

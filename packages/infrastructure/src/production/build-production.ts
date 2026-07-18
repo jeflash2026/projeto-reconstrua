@@ -629,6 +629,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       hasGlobalKey: (env['EVOLUTION_GLOBAL_API_KEY'] ?? '') !== '',
       hasFounderGate: (env['FOUNDER_ACCESS_SECRET'] ?? '') !== '',
     },
+    // GO-LIVE-05 (BUG 2): sondas do diagnóstico — banco (toca o Postgres via
+    // configStore) e filas (outbox). Best-effort; nunca alteram estado.
+    diagnostics: {
+      baseUrl: config.evolution.baseUrl,
+      db: async () => { await configStore.load(); },
+      queue: async () => (await deliveries.countByStatus()).pending,
+    },
   });
 
   const boot = new BootRuntime(health, observability, clock);

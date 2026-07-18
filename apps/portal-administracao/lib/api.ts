@@ -68,14 +68,32 @@ export interface ComponentHealth {
   reportedAt: string;
 }
 
-export interface ClientRow {
+// ── JORNADA A (R4) — a LISTA ÚNICA de clientes (status DERIVADO em leitura). ─────
+// Substitui a antiga listagem por memória (removida na R4; Regra 2 — sem LEGACY).
+export type ClienteStatus =
+  | 'ATENDIMENTO'
+  | 'COLETANDO_DOCUMENTOS'
+  | 'PRONTO_AGUARDANDO_MODALIDADE'
+  | 'PRONTO_AGUARDANDO_VENDA'
+  | 'PRONTO_AGUARDANDO_PERICIA'
+  | 'AGUARDANDO_10_DIAS'
+  | 'AGUARDANDO_SOCIO'
+  | 'EM_PROCESSO'
+  | 'VENDIDO'
+  | 'ENCERRADO';
+
+export interface JornadaCliente {
+  clienteId: string;
   chatId: string;
-  name: string | null;
-  firstContactAt: string | null;
-  lastContactAt: string | null;
-  messageCount: number;
-  pendingDocuments: string[];
-  missions: string[];
+  missionId: string | null;
+  quem: string;
+  status: ClienteStatus;
+  modalidade: 'VENDA' | 'SOCIEDADE' | null;
+  pronto: boolean;
+  faltando: string[];
+  saude: 'GREEN' | 'YELLOW' | 'RED' | null;
+  ultimoContatoAt: string | null;
+  pedidosConfirmadosEm: string | null;
 }
 
 export interface ClientDetail {

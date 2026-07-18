@@ -8,6 +8,7 @@ import {
   sendJson,
   type FounderAnswer,
   type FounderBriefing,
+  type JornadaCliente,
   type StaffData,
   type StaffMember,
 } from './api';
@@ -30,6 +31,70 @@ export async function createStaff(role: string, name: string, email: string | nu
 
 export async function setStaffActive(id: string, active: boolean): Promise<StaffMember | null> {
   return sendJson<StaffMember>('PATCH', `/admin/staff/${id}`, { active });
+}
+
+// ── JORNADA A (R4) — lista única + os DOIS atos do Admin (Regra 3: comandos
+// canônicos da API; nenhum caminho paralelo de escrita). Server-side, autenticado.
+export async function fetchJornadaClientes(): Promise<{ clientes: JornadaCliente[] } | null> {
+  return getJson<{ clientes: JornadaCliente[] }>('/admin/jornada/clientes');
+}
+
+export async function definirModalidade(
+  clienteId: string,
+  modalidade: 'VENDA' | 'SOCIEDADE',
+): Promise<{ clienteId: string; modalidade: string } | null> {
+  return sendJson('POST', `/admin/jornada/clientes/${encodeURIComponent(clienteId)}/modalidade`, { modalidade });
+}
+
+export async function venderCliente(
+  clienteId: string,
+  comprador: string,
+): Promise<{ clienteId: string; vendido: boolean; comprador: string } | null> {
+  return sendJson('POST', `/admin/jornada/clientes/${encodeURIComponent(clienteId)}/vender`, { comprador });
+}
+
+// ── JORNADA B (B-R6) — operação do PERITO: fila derivada, planilhas (CSV) e o
+// ato "confirmar pedidos administrativos" (o único fato persistido de B). Regra 3:
+// comandos canônicos da API; downloads via conteúdo retornado (token só no server).
+export interface PlanilhaGerada {
+  clienteId: string;
+  quem: string;
+  nomeArquivo: string;
+  mime: string;
+  conteudo: string;
+}
+
+export async function fetchFilaPericia(): Promise<{ clientes: JornadaCliente[] } | null> {
+  return getJson<{ clientes: JornadaCliente[] }>('/admin/jornada/clientes?fila=pericia');
+}
+
+export async function fetchPlanilhaCliente(clienteId: string): Promise<PlanilhaGerada | null> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/jornada/pericia/${encodeURIComponent(clienteId)}/planilha`, {
+      cache: 'no-store',
+      headers: ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {},
+    });
+    if (!res.ok) return null;
+    const conteudo = await res.text();
+    const disposition = res.headers.get('content-disposition') ?? '';
+    const nome = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `contratos-${clienteId}.csv`;
+    return { clienteId, quem: '', nomeArquivo: nome, mime: res.headers.get('content-type') ?? 'text/csv', conteudo };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchPlanilhasLote(): Promise<{ planilhas: PlanilhaGerada[] } | null> {
+  return getJson<{ planilhas: PlanilhaGerada[] }>('/admin/jornada/pericia/planilhas');
+}
+
+export async function confirmarPedidos(
+  clienteId: string,
+  confirmadoPor: string | null,
+): Promise<{ clienteId: string; confirmado: boolean; prazoAte: string } | null> {
+  return sendJson('POST', `/admin/jornada/pericia/${encodeURIComponent(clienteId)}/confirmar-pedidos`, {
+    confirmadoPor: confirmadoPor ?? '',
+  });
 }
 
 // B4.1: encerramento OFICIAL do processo — ato humano do operador. Chama a API do

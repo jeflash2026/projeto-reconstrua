@@ -388,6 +388,27 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     metricsStore,
     ...(llm.narration ? { narration: llm.narration } : {}),
     founder: { founderName: 'Jessé' },
+    // GO-LIVE-03 (itens 4/5): fontes REAIS para o cérebro administrativo — a lista
+    // única (status derivado) e os casos por advogado (staff + atribuições +
+    // trabalho jurídico). Closures avaliadas por chamada (staff/work definidos
+    // adiante nesta composição; invocados só em request-time).
+    sources: {
+      clientes: async () => (await clientes.list(clock.now())).map((c) => ({ status: c.status, quem: c.quem })),
+      porAdvogado: async () => {
+        const advogados = await staff.list('advogado');
+        const out: Array<{ nome: string; casos: number; ultimaAtividadeAt: Date | null }> = [];
+        for (const a of advogados) {
+          const casos = (await work.myMissions(a.id)).length;
+          const entries = await work.myEntries(a.id);
+          const ultima = entries.reduce<Date | null>(
+            (max, e) => (max === null || e.createdAt.getTime() > max.getTime() ? e.createdAt : max),
+            null,
+          );
+          out.push({ nome: a.name, casos, ultimaAtividadeAt: ultima });
+        }
+        return out;
+      },
+    },
   });
 
   // ── 2F ───────────────────────────────────────────────────────────────────────
@@ -593,6 +614,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
     webhookUrl: `${config.publicUrl.replace(/\/+$/, '')}/webhook/evolution`,
     webhookSecret: env['WEBHOOK_SECRET'] ?? config.evolution.apiKey,
+    // GO-LIVE-03 (item 6): pré-condições declaradas — a tela sabe O QUE falta.
+    management: {
+      hasGlobalKey: (env['EVOLUTION_GLOBAL_API_KEY'] ?? '') !== '',
+      hasFounderGate: (env['FOUNDER_ACCESS_SECRET'] ?? '') !== '',
+    },
   });
 
   const boot = new BootRuntime(health, observability, clock);

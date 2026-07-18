@@ -13,10 +13,12 @@ export type AdminQueryKind =
   | 'client_count'
   | 'mission_count'
   | 'process_count'
+  | 'document_count'
   | 'documents_today'
   | 'clients_awaiting_documents'
   | 'clients_awaiting_lawyer'
   | 'clients_awaiting_expertise'
+  | 'lawyer_count'
   | 'lawyer_most_processes'
   | 'lawyer_stalest'
   | 'bottlenecks'
@@ -24,6 +26,19 @@ export type AdminQueryKind =
   | 'best_campaign'
   | 'roi'
   | 'sector_needing_attention';
+
+/**
+ * GO-LIVE-03 (itens 4/5) — fontes REAIS opcionais (aditivo): a lista única de
+ * clientes (GO LIVE A, status derivado) e os casos por advogado (atribuições +
+ * trabalho jurídico). Sem a fonte, a resposta continua honestamente "não
+ * disponível" — jamais inventada.
+ */
+export interface AdminIntelligenceSources {
+  readonly clientes?: () => Promise<ReadonlyArray<{ readonly status: string; readonly quem: string }>>;
+  readonly porAdvogado?: () => Promise<
+    ReadonlyArray<{ readonly nome: string; readonly casos: number; readonly ultimaAtividadeAt: Date | null }>
+  >;
+}
 
 export interface AdminAnswer {
   readonly kind: AdminQueryKind;
@@ -42,6 +57,7 @@ export class AdministrationIntelligenceRuntime {
   constructor(
     private readonly metricsStore: AdminMetricsStore,
     private readonly memoryStore: MemoryStore,
+    private readonly sources: AdminIntelligenceSources = {},
   ) {}
 
   /** Roteia uma pergunta em linguagem para uma métrica. Determinístico; null = não sei. */
@@ -56,6 +72,11 @@ export class AdministrationIntelligenceRuntime {
     if (q.includes('aguard') && q.includes('advogado')) return 'clients_awaiting_lawyer';
     if (q.includes('aguard') && q.includes('pericia')) return 'clients_awaiting_expertise';
     if (q.includes('documento') && q.includes('hoje')) return 'documents_today';
+    // GO-LIVE-03: cobertura ampliada — perícia, fila do sócio, documentos e advogados.
+    if (q.includes('pericia')) return 'clients_awaiting_expertise';
+    if (q.includes('socio')) return 'clients_awaiting_lawyer';
+    if (q.includes('documento')) return 'document_count';
+    if (q.includes('advogado')) return 'lawyer_count';
     if (q.includes('processo')) return 'process_count';
     if (q.includes('missao') || q.includes('missoes')) return 'mission_count';
     if (q.includes('cliente')) return 'client_count';
@@ -121,16 +142,93 @@ export class AdministrationIntelligenceRuntime {
           provenance: 'read-model:living-memory',
         };
       }
-      // ── Dados não capturados → NÃO DISPONÍVEL (jamais inventado) ──────────────
-      case 'clients_awaiting_lawyer':
-      case 'clients_awaiting_expertise':
-      case 'lawyer_most_processes':
-      case 'lawyer_stalest':
+      case 'document_count':
+        return this.numeric(kind, metrics.documentCount, `${String(metrics.documentCount)} documentos reconhecidos no total`, src);
+
+      // ── GO-LIVE-03: fontes REAIS (lista única + atribuições) quando ligadas ───
+      case 'clients_awaiting_lawyer': {
+        const lista = await this.sources.clientes?.();
+        if (lista === undefined) return this.notCaptured(kind, src);
+        const fila = lista.filter((c) => c.status === 'AGUARDANDO_SOCIO');
+        return {
+          kind,
+          available: true,
+          value: fila.length,
+          items: fila.map((c) => c.quem),
+          fact: `${String(fila.length)} clientes na fila do sócio (aguardando advogado)`,
+          provenance: 'read-model:clientes-list',
+        };
+      }
+      case 'clients_awaiting_expertise': {
+        const lista = await this.sources.clientes?.();
+        if (lista === undefined) return this.notCaptured(kind, src);
+        const fila = lista.filter((c) => c.status === 'PRONTO_AGUARDANDO_PERICIA');
+        return {
+          kind,
+          available: true,
+          value: fila.length,
+          items: fila.map((c) => c.quem),
+          fact: `${String(fila.length)} clientes aguardando perícia`,
+          provenance: 'read-model:clientes-list',
+        };
+      }
+      case 'lawyer_count': {
+        const advogados = await this.sources.porAdvogado?.();
+        if (advogados === undefined) return this.notCaptured(kind, src);
+        return {
+          kind,
+          available: true,
+          value: advogados.length,
+          items: advogados.map((a) => `${a.nome} (${String(a.casos)} casos)`),
+          fact: `${String(advogados.length)} advogados ativos`,
+          provenance: 'read-model:staff+assignments',
+        };
+      }
+      case 'lawyer_most_processes': {
+        const advogados = await this.sources.porAdvogado?.();
+        if (advogados === undefined || advogados.length === 0) return this.notCaptured(kind, src);
+        const top = [...advogados].sort((a, b) => b.casos - a.casos)[0];
+        if (top === undefined) return this.notCaptured(kind, src);
+        return {
+          kind,
+          available: true,
+          value: top.casos,
+          items: [top.nome],
+          fact: `${top.nome} tem mais processos: ${String(top.casos)}`,
+          provenance: 'read-model:staff+assignments',
+        };
+      }
+      case 'lawyer_stalest': {
+        const advogados = await this.sources.porAdvogado?.();
+        const comCasos = (advogados ?? []).filter((a) => a.casos > 0);
+        if (advogados === undefined || comCasos.length === 0) return this.notCaptured(kind, src);
+        const stalest = [...comCasos].sort(
+          (a, b) => (a.ultimaAtividadeAt?.getTime() ?? 0) - (b.ultimaAtividadeAt?.getTime() ?? 0),
+        )[0];
+        if (stalest === undefined) return this.notCaptured(kind, src);
+        return {
+          kind,
+          available: true,
+          value: stalest.casos,
+          items: [stalest.nome],
+          fact:
+            stalest.ultimaAtividadeAt === null
+              ? `${stalest.nome} está há mais tempo sem movimentação (nenhuma atividade registrada)`
+              : `${stalest.nome} está há mais tempo sem movimentação (última em ${stalest.ultimaAtividadeAt.toISOString().slice(0, 10)})`,
+          provenance: 'read-model:staff+juridical',
+        };
+      }
+
+      // ── Dados não capturados no domínio → NÃO DISPONÍVEL (jamais inventado) ───
       case 'financial_under_administration':
       case 'best_campaign':
       case 'roi':
-        return { kind, available: false, value: null, items: [], fact: NOT_CAPTURED, provenance: src };
+        return this.notCaptured(kind, src);
     }
+  }
+
+  private notCaptured(kind: AdminQueryKind, provenance: string): AdminAnswer {
+    return { kind, available: false, value: null, items: [], fact: NOT_CAPTURED, provenance };
   }
 
   private numeric(kind: AdminQueryKind, value: number, fact: string, provenance: string): AdminAnswer {

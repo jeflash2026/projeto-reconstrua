@@ -249,7 +249,11 @@ class LlmNarration implements AdminNarrationPort {
     } catch {
       this.track('narration', this.clock.now().getTime() - t0, false);
     }
-    return `${input.topic}: ${facts.replace(/\n/g, '; ')}`; // degrade determinístico
+    // Degrade determinístico HONESTO (GO-LIVE-03: nunca vazar slug interno tipo
+    // "unknown"): sem LLM, fala o fato já calculado — ou declara a ausência.
+    if (!input.available) return 'Ainda não tenho esse dado — não vou inventar. Posso capturá-lo quando a fonte existir.';
+    const fact = input.facts['fact'];
+    return typeof fact === 'string' && fact !== '' ? fact : 'Sem dados para esta pergunta.';
   }
 }
 

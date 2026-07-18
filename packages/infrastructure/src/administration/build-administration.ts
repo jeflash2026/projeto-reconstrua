@@ -4,7 +4,7 @@
 // Dispatcher), a inteligência administrativa e o console do fundador. Um lugar de
 // montagem.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { AdminMetricsStore, AdminNarrationPort, MemoryStore } from '@reconstrua/application';
+import type { AdminIntelligenceSources, AdminMetricsStore, AdminNarrationPort, MemoryStore } from '@reconstrua/application';
 import {
   AdministrationIntelligenceRuntime,
   FounderConsoleRuntime,
@@ -18,6 +18,8 @@ export interface AdministrationWiring {
   readonly metricsStore?: AdminMetricsStore;
   readonly narration?: AdminNarrationPort;
   readonly founder?: FounderConsoleConfig;
+  /** GO-LIVE-03 (aditivo): fontes reais (lista única + casos por advogado). */
+  readonly sources?: AdminIntelligenceSources;
 }
 
 export interface AssembledAdministration {
@@ -33,7 +35,7 @@ export function assembleAdministration(wiring: AdministrationWiring): AssembledA
   const founder = wiring.founder ?? { founderName: 'Jessé' };
 
   const projectionSubscriber = new AdminProjectionSubscriber(metricsStore);
-  const admin = new AdministrationIntelligenceRuntime(metricsStore, wiring.memoryStore);
+  const admin = new AdministrationIntelligenceRuntime(metricsStore, wiring.memoryStore, wiring.sources ?? {});
   const founderConsole = new FounderConsoleRuntime(admin, narration, metricsStore, founder);
 
   return { metricsStore, projectionSubscriber, admin, founderConsole };

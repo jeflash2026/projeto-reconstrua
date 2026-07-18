@@ -80,7 +80,13 @@ export class FounderConsoleRuntime {
 
     const kind = this.admin.route(question);
     if (kind === null) {
-      const answer = await this.narration.narrate({ topic: 'unknown', available: false, facts: {} });
+      // GO-LIVE-03 (item 5): NUNCA "unknown" — resposta honesta e ÚTIL, sem LLM
+      // (não há fato a narrar): diz o que sabe responder e o que não inventa.
+      const answer =
+        'Não encontrei essa informação nos meus registros. Posso responder sobre: clientes, missões, ' +
+        'processos, documentos (total e de hoje), quem aguarda documentos, advogado ou perícia, ' +
+        'casos por advogado, gargalos e o setor que precisa de atenção. O que não estiver capturado ' +
+        'no domínio, eu digo que não tenho — nunca invento.';
       return { question, answer, available: false, provenance: 'none', isRecommendation: false, decidesNothing: true };
     }
     const result = await this.admin.answer(kind, now);

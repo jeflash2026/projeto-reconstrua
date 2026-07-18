@@ -29,3 +29,4 @@ export * from './migrations/index.js';
 export * from './media/index.js';
 export * from './reading/index.js';
 export * from './whatsapp-connection/index.js';
+export * from './alir/index.js';

@@ -18,17 +18,15 @@ import { emptySnapshot } from '@reconstrua/application';
 import type { MissionIdentityMap, MissionSnapshot, MissionSnapshotPort } from '@reconstrua/application';
 import type { DecisionStateStore } from './decision-state-read-model.js';
 
-export class ProjectionBackedMissionSnapshotAdapter implements MissionSnapshotPort {
-  constructor(
-    private readonly store: DecisionStateStore,
-    private readonly identities: MissionIdentityMap,
-  ) {}
+/**
+ * Snapshot chaveado por MISSÃO — a IMPLEMENTAÇÃO ÚNICA do overlay (R1/refactor):
+ * campos com produtor real sobre `emptySnapshot`; nada além. Usada diretamente pelo
+ * ALIR (que já possui o missionId) e, por delegação, pelo adapter do Brain abaixo.
+ */
+export class MissionKeyedSnapshotAdapter implements MissionSnapshotPort {
+  constructor(private readonly store: DecisionStateStore) {}
 
-  async load(chatId: string): Promise<MissionSnapshot | null> {
-    const identity = await this.identities.load(chatId);
-    const missionId = identity?.missionId ?? null;
-    if (missionId === null) return null; // missão ainda não nasceu → emptySnapshot no chamador
-
+  async load(missionId: string): Promise<MissionSnapshot | null> {
     const record = await this.store.load(missionId);
     if (record === null) return null; // projeção ainda não alcançou esta missão → emptySnapshot
 
@@ -39,5 +37,23 @@ export class ProjectionBackedMissionSnapshotAdapter implements MissionSnapshotPo
       truthEstablished: record.truthEstablished,
       ...(record.terminalState === 'ENCERRADA' ? { stateCode: 'ENCERRADA' } : {}),
     };
+  }
+}
+
+export class ProjectionBackedMissionSnapshotAdapter implements MissionSnapshotPort {
+  private readonly byMission: MissionKeyedSnapshotAdapter;
+
+  constructor(
+    store: DecisionStateStore,
+    private readonly identities: MissionIdentityMap,
+  ) {
+    this.byMission = new MissionKeyedSnapshotAdapter(store);
+  }
+
+  async load(chatId: string): Promise<MissionSnapshot | null> {
+    const identity = await this.identities.load(chatId);
+    const missionId = identity?.missionId ?? null;
+    if (missionId === null) return null; // missão ainda não nasceu → emptySnapshot no chamador
+    return this.byMission.load(missionId); // overlay ÚNICO (MissionKeyedSnapshotAdapter)
   }
 }

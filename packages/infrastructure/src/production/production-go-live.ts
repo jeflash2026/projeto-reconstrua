@@ -78,8 +78,19 @@ export class ProductionGoLive {
     // HTTPS: URL pública precisa ser https.
     add('https', p.config.publicUrl.startsWith('https://'), p.config.publicUrl === '' ? 'PUBLIC_URL ausente' : p.config.publicUrl);
 
-    // Variáveis obrigatórias.
-    const required = ['DATABASE_URL', 'EVOLUTION_BASE_URL', 'EVOLUTION_INSTANCE', 'EVOLUTION_API_KEY', 'PUBLIC_URL'];
+    // Variáveis obrigatórias. GO-LIVE-02: os SEGREDOS entram no bloqueio — sem
+    // CLIENTE_PORTAL_SECRET o Portal nunca nasce (silenciosamente); sem
+    // ADMIN_ACCESS_SECRET/WEBHOOK_SECRET as portas administrativas ficam fail-closed.
+    const required = [
+      'DATABASE_URL',
+      'EVOLUTION_BASE_URL',
+      'EVOLUTION_INSTANCE',
+      'EVOLUTION_API_KEY',
+      'PUBLIC_URL',
+      'CLIENTE_PORTAL_SECRET',
+      'ADMIN_ACCESS_SECRET',
+      'WEBHOOK_SECRET',
+    ];
     const missing = required.filter((k) => (env[k] ?? '') === '');
     add('env-vars', missing.length === 0, missing.length === 0 ? 'todas presentes' : `ausentes: ${missing.join(', ')}`);
 

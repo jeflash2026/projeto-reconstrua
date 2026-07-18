@@ -78,6 +78,10 @@ describe('Produção — GO-LIVE bloqueante', () => {
     expect(failed).toContain('https');
     expect(failed).toContain('env-vars');
     expect(failed).toContain('llm');
+    // GO-LIVE-02: o segredo do Portal do Cliente agora BLOQUEIA a subida quando
+    // ausente (antes o sistema subia "verde" com o Portal silenciosamente morto).
+    const envVars = report.results.find((r) => r.item === 'env-vars') as { detail?: string } | undefined;
+    expect(envVars?.detail).toContain('CLIENTE_PORTAL_SECRET');
   });
 
   it('itens estruturais passam mesmo offline (workers/scheduler/read-models/dispatcher/event-store/redis)', async () => {

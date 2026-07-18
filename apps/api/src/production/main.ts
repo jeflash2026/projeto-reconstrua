@@ -44,16 +44,10 @@ async function main(): Promise<void> {
   const advogado = buildAdvogadoServer(prod.advogadoView, { accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '' });
   const lx = buildLawyerExperienceServer(prod.lxView);
 
-  // [BOOT-DIAG] instrumentação TEMPORÁRIA: registra cada listen() concluído —
-  // a ausência de uma linha identifica exatamente qual servidor não abriu.
   await main.listen({ port, host: '0.0.0.0' });
-  process.stdout.write(`[BOOT-DIAG] listen OK: main :${String(port)}\n`);
   await admin.listen({ port: port + 1, host: '0.0.0.0' });
-  process.stdout.write(`[BOOT-DIAG] listen OK: admin :${String(port + 1)}\n`);
   await advogado.listen({ port: port + 2, host: '0.0.0.0' });
-  process.stdout.write(`[BOOT-DIAG] listen OK: advogado :${String(port + 2)}\n`);
   await lx.listen({ port: port + 3, host: '0.0.0.0' });
-  process.stdout.write(`[BOOT-DIAG] listen OK: lx :${String(port + 3)}\n`);
   process.stdout.write(`AHRIOS em produção: main:${String(port)} admin:${String(port + 1)} advogado:${String(port + 2)} lx:${String(port + 3)}\n`);
 
   // Loop temporal pela ENTRADA ÚNICA serializada (A2/4C) + preparação noturna às 03h.
@@ -73,20 +67,6 @@ async function main(): Promise<void> {
     }
   }, 60_000);
 }
-
-// [BOOT-DIAG] instrumentação TEMPORÁRIA: hoje um crash pós-boot morre SEM LOG
-// (`void main()` + rejeições assíncronas). Loga a causa fatal no stderr e SAI com
-// código 1 — semântica de crash preservada (o restart do Docker continua igual),
-// mas a causa fica visível no `docker logs`.
-process.on('uncaughtException', (error) => {
-  process.stderr.write(`[BOOT-DIAG] uncaughtException FATAL: ${error.stack ?? error.message}\n`);
-  process.exit(1);
-});
-process.on('unhandledRejection', (reason) => {
-  const msg = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
-  process.stderr.write(`[BOOT-DIAG] unhandledRejection FATAL: ${msg}\n`);
-  process.exit(1);
-});
 
 // Executado apenas quando o DONO roda este arquivo (node dist/production/main.js).
 void main();

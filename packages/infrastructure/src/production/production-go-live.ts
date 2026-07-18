@@ -115,20 +115,6 @@ export class ProductionGoLive {
       add('event-store', false, error instanceof Error ? error.message : 'falha');
     }
 
-    // [DEBUG-GOLIVE] instrumentação temporária: imprime cada check ANTES de
-    // calcular ready. Não altera nenhuma regra — só observa.
-    process.stdout.write('===== GO-LIVE CHECKS (item | passed | detail) =====\n');
-    for (const r of results) {
-      process.stdout.write(`[GOLIVE] ${r.item} | passed=${String(r.passed)} | ${r.detail}\n`);
-    }
-    const firstFail = results.find((r) => !r.passed);
-    if (firstFail) {
-      process.stdout.write(`[GOLIVE] PRIMEIRO passed=false → item='${firstFail.item}' detail='${firstFail.detail}'\n`);
-    } else {
-      process.stdout.write('[GOLIVE] nenhum item false — todos passed=true\n');
-    }
-    process.stdout.write('===================================================\n');
-
     return { ready: results.every((r) => r.passed), at: now, results };
   }
 }

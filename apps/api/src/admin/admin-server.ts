@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
-import { computeOperationalMetrics, type StaffRole } from '@reconstrua/application';
+import { computeOperationalMetrics, prazoDosPedidos, type StaffRole } from '@reconstrua/application';
 import { requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 
 const STAFF_ROLES: readonly StaffRole[] = ['advogado', 'perito', 'operador', 'supervisor', 'administrador'];
@@ -81,30 +81,223 @@ export function buildAdminServer(
     };
   });
 
-  // ── CLIENTES ────────────────────────────────────────────────────────────────
-  app.get('/admin/clients', async (request) => {
-    await op.projector.refresh();
-    const { q } = request.query as { q?: string };
-    const memories = await op.memoryStore.all();
-    const query = (q ?? '').trim().toLowerCase();
-    const filtered = query === ''
-      ? memories
-      : memories.filter(
-          (m) =>
-            m.chatId.toLowerCase().includes(query) ||
-            m.attributes.some((a) => a.value.toLowerCase().includes(query)),
-        );
-    return filtered.map((m) => ({
-      chatId: m.chatId,
-      name: m.attributes.find((a) => a.key === 'name')?.value ?? null,
-      firstContactAt: m.firstContactAt,
-      lastContactAt: m.lastContactAt,
-      messageCount: m.messageCount,
-      pendingDocuments: m.documentsPending,
-      missions: op.projector.missionsOf(m.chatId),
-    }));
+  // ── Regra 3 (permanente): uma ação operacional NUNCA recria lógica — reutiliza o
+  // comando canônico. Helper ÚNICO do bloco execute(use case) → outcome → drain,
+  // usado por /encerrar, /reabrir e /vender.
+  interface MissionCommand {
+    readonly chatId: string;
+    readonly senderId: string;
+    readonly perceptKind: 'closure' | 'reopening';
+    readonly text: string;
+    readonly useCase: 'CloseMission' | 'ReopenMission';
+    readonly references: readonly string[];
+    readonly decisor: string;
+    readonly tipo: string;
+    readonly fundamento: string;
+    readonly operationalRuleRef: string;
+  }
+  async function runMissionCommand(
+    cmd: MissionCommand,
+  ): Promise<
+    | { readonly ok: true; readonly skipped: boolean; readonly streamId: string | null }
+    | { readonly ok: false; readonly error: string }
+  > {
+    const result = await op.mission.execute(
+      {
+        chatId: cmd.chatId,
+        senderId: cmd.senderId,
+        messageId: randomUUID(),
+        perceptKind: cmd.perceptKind,
+        text: cmd.text,
+        mediaRef: null,
+        fileName: null,
+        mimeType: null,
+        occurredAt: new Date(),
+      },
+      [
+        {
+          useCase: cmd.useCase,
+          references: [...cmd.references],
+          decisor: cmd.decisor,
+          tipo: cmd.tipo,
+          fundamento: cmd.fundamento,
+          operationalRuleRef: cmd.operationalRuleRef,
+        },
+      ],
+    );
+    const outcome = result.outcomes.find((o) => o.useCase === cmd.useCase);
+    if (!outcome || (!outcome.ok && !outcome.skipped)) {
+      return { ok: false, error: outcome?.error ?? `falha ao executar ${cmd.useCase}` };
+    }
+    // Drena o outbox: projeta a consequência nos read models AGORA — um comando
+    // direto não passa pelo full-loop de conversa (que drena sozinho).
+    await op.outbox.drainToIdle();
+    return { ok: true, skipped: outcome.skipped, streamId: outcome.streamId ?? null };
+  }
+
+  // ── JORNADA (GO LIVE A · R2) — lista única com status DERIVADO em leitura ────
+  // `?fila=venda` devolve apenas a fila do Modelo A (PRONTO_AGUARDANDO_VENDA).
+  app.get('/admin/jornada/clientes', async (request, reply) => {
+    if (!op.clientes) return reply.code(503).send({ error: 'jornada indisponível nesta montagem' });
+    const { fila } = request.query as { fila?: string };
+    // As filas nomeadas do SO — todas DERIVADAS (Regra 1); B-R4 adiciona `socio`.
+    const FILAS: Record<string, string> = {
+      venda: 'PRONTO_AGUARDANDO_VENDA',
+      pericia: 'PRONTO_AGUARDANDO_PERICIA',
+      socio: 'AGUARDANDO_SOCIO',
+    };
+    const todos = await op.clientes.list();
+    const status = fila !== undefined ? FILAS[fila] : undefined;
+    const clientes = status !== undefined ? todos.filter((c) => c.status === status) : todos;
+    return { clientes };
   });
 
+  // ── JORNADA B (B-R2) — PERITO: contratos organizados + planilha (CSV hoje; a
+  // troca por XLSX é só do exporter). Somente leitura; nada persistido.
+  app.get('/admin/jornada/pericia/:clienteId/contratos', async (request, reply) => {
+    if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
+    const { clienteId } = request.params as { clienteId: string };
+    const contratos = await op.perito.contratos(clienteId);
+    if (contratos === null) return reply.code(404).send({ error: 'cliente não encontrado' });
+    return contratos;
+  });
+
+  app.get('/admin/jornada/pericia/:clienteId/planilha', async (request, reply) => {
+    if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
+    const { clienteId } = request.params as { clienteId: string };
+    const gerada = await op.perito.planilha(clienteId);
+    if (gerada === null) return reply.code(404).send({ error: 'cliente não encontrado' });
+    return reply
+      .header('content-type', gerada.mime)
+      .header('content-disposition', `attachment; filename="${gerada.nomeArquivo}"`)
+      .send(gerada.conteudo);
+  });
+
+  // Lote: um arquivo POR CLIENTE (JSON com os conteúdos; a tela dispara os downloads).
+  app.get('/admin/jornada/pericia/planilhas', async (_request, reply) => {
+    if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
+    return { planilhas: await op.perito.planilhasDaFila() };
+  });
+
+  // ── JORNADA B (B-R3) — PERITO CONFIRMA os pedidos administrativos ─────────────
+  // O ÚNICO fato persistido da Jornada B (homologado). Lei 8: grava o FATO (quem/
+  // quando) e agenda a CONSEQUÊNCIA (10 dias) no scheduler EXISTENTE (idempotente
+  // por id). As filas derivam do fato + relógio — nunca do timer.
+  app.post('/admin/jornada/pericia/:clienteId/confirmar-pedidos', async (request, reply) => {
+    if (!op.clientes || !op.pedidosStore) {
+      return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
+    }
+    const { clienteId } = request.params as { clienteId: string };
+    const body = (request.body ?? {}) as { confirmadoPor?: string };
+
+    const cliente = (await op.clientes.list()).find((c) => c.clienteId === clienteId);
+    if (!cliente) return reply.code(404).send({ error: 'cliente não encontrado' });
+    if (cliente.status === 'AGUARDANDO_10_DIAS' || cliente.status === 'AGUARDANDO_SOCIO') {
+      return reply.code(409).send({ error: 'pedidos já confirmados para este cliente' });
+    }
+    if (cliente.status !== 'PRONTO_AGUARDANDO_PERICIA') {
+      return reply.code(409).send({ error: `cliente não está na fila da perícia (status: ${cliente.status})` });
+    }
+
+    // Rastreabilidade (Lei 10): snapshot dos bancos/contratos no momento do ato.
+    const contratos = op.perito ? await op.perito.contratos(clienteId) : null;
+    const now = new Date();
+    await op.pedidosStore.save({
+      clienteId,
+      chatId: cliente.chatId,
+      confirmadoEm: now,
+      confirmadoPor: body.confirmadoPor?.trim() ? body.confirmadoPor.trim() : 'perito',
+      bancos: contratos !== null ? Object.keys(contratos.parse.porBanco) : [],
+      contratos: contratos !== null ? contratos.parse.contratos.length : 0,
+    });
+
+    // Consequência temporal: sinal para a AHRI quando o prazo vencer (Lei 8).
+    await op.scheduler.schedule({
+      id: `pedidos-adm:${clienteId}`,
+      chatId: cliente.chatId,
+      missionId: cliente.missionId,
+      kind: 'follow_deadline',
+      dueAt: prazoDosPedidos(now),
+      note: 'prazo dos pedidos administrativos (10 dias)',
+      createdAt: now,
+    });
+
+    return { clienteId, confirmado: true, prazoAte: prazoDosPedidos(now).toISOString() };
+  });
+
+  // ── JORNADA (R3) — Admin DEFINE A MODALIDADE (VENDA | SOCIEDADE) do cliente ──
+  // O último ponto não-derivável do sistema (modelo congelado): 1 marcador por
+  // cliente RECONHECIDO. Chat é canal; a modalidade pertence ao cliente.
+  app.post('/admin/jornada/clientes/:clienteId/modalidade', async (request, reply) => {
+    if (!op.clientes || !op.modalidadeStore) {
+      return reply.code(503).send({ error: 'jornada indisponível nesta montagem' });
+    }
+    const { clienteId } = request.params as { clienteId: string };
+    const body = (request.body ?? {}) as { modalidade?: string; decididaPor?: string };
+    if (body.modalidade !== 'VENDA' && body.modalidade !== 'SOCIEDADE') {
+      return reply.code(400).send({ error: 'modalidade deve ser VENDA ou SOCIEDADE' });
+    }
+    const cliente = (await op.clientes.list()).find((c) => c.clienteId === clienteId);
+    if (!cliente) return reply.code(404).send({ error: 'cliente não encontrado' });
+    if (cliente.clienteId === cliente.chatId) {
+      return reply.code(409).send({ error: 'contato ainda não reconhecido como cliente' });
+    }
+    await op.modalidadeStore.save({
+      clienteId,
+      modalidade: body.modalidade,
+      decididaEm: new Date(),
+      decididaPor: body.decididaPor?.trim() ? body.decididaPor.trim() : 'admin',
+    });
+    return { clienteId, modalidade: body.modalidade };
+  });
+
+  // ── JORNADA (R3) — Admin VENDE o cliente qualificado (Jornada A completa) ────
+  // Guarda: só vende quem está PRONTO_AGUARDANDO_VENDA. Registra a venda e ENCERRA
+  // o caso pelo MESMO caminho de /encerrar (CloseMission + drain) — zero fluxo novo.
+  app.post('/admin/jornada/clientes/:clienteId/vender', async (request, reply) => {
+    if (!op.clientes || !op.vendaStore) {
+      return reply.code(503).send({ error: 'jornada indisponível nesta montagem' });
+    }
+    const { clienteId } = request.params as { clienteId: string };
+    const body = (request.body ?? {}) as { comprador?: string; vendidaPor?: string };
+    const comprador = body.comprador?.trim() ?? '';
+    if (comprador === '') return reply.code(400).send({ error: 'comprador é obrigatório' });
+
+    const cliente = (await op.clientes.list()).find((c) => c.clienteId === clienteId);
+    if (!cliente) return reply.code(404).send({ error: 'cliente não encontrado' });
+    if (cliente.status === 'VENDIDO') return reply.code(409).send({ error: 'cliente já vendido' });
+    if (cliente.status !== 'PRONTO_AGUARDANDO_VENDA') {
+      return reply.code(409).send({ error: `cliente não está pronto para venda (status: ${cliente.status})` });
+    }
+
+    await op.vendaStore.save({
+      clienteId,
+      chatId: cliente.chatId,
+      comprador,
+      vendidaEm: new Date(),
+      vendidaPor: body.vendidaPor?.trim() ? body.vendidaPor.trim() : 'admin',
+    });
+
+    const executed = await runMissionCommand({
+      chatId: cliente.chatId,
+      senderId: 'administrador',
+      perceptKind: 'closure',
+      text: `caso vendido — ${comprador}`,
+      useCase: 'CloseMission',
+      references: ['encerramento'],
+      decisor: 'administrador',
+      tipo: 'encerramento',
+      fundamento: 'Caso vendido (Jornada A) — Estado Operacional terminal ENCERRADA (DF-11)',
+      operationalRuleRef: 'RO-STOP-CONCLUDED-001',
+    });
+    if (!executed.ok) return reply.code(422).send({ error: executed.error });
+    return { clienteId, vendido: true, comprador };
+  });
+
+  // ── CLIENTES ────────────────────────────────────────────────────────────────
+  // A LISTAGEM por memória (/admin/clients) foi REMOVIDA na R4 (Regra 2 — LEGACY não
+  // convive): a lista única é /admin/jornada/clientes (status derivado). O DETALHE
+  // do cliente (abaixo) permanece — não foi substituído.
   app.get('/admin/clients/:chatId', async (request, reply) => {
     await op.projector.refresh();
     const { chatId } = request.params as { chatId: string };
@@ -151,39 +344,21 @@ export function buildAdminServer(
     if (!mission) return reply.code(404).send({ error: 'missão não encontrada' });
     if (mission.chatId === null) return reply.code(409).send({ error: 'missão sem conversa associada' });
 
-    const now = new Date();
-    const result = await op.mission.execute(
-      {
-        chatId: mission.chatId,
-        senderId: 'operador',
-        messageId: randomUUID(),
-        perceptKind: 'closure',
-        text: body.reason?.trim() ? body.reason.trim() : 'encerramento operacional',
-        mediaRef: null,
-        fileName: null,
-        mimeType: null,
-        occurredAt: now,
-      },
-      [
-        {
-          useCase: 'CloseMission',
-          references: ['encerramento'],
-          decisor: 'operador',
-          tipo: 'encerramento',
-          fundamento: 'Estado Operacional terminal — ENCERRADA (DF-11); RO-R9-001',
-          operationalRuleRef: 'RO-STOP-CONCLUDED-001',
-        },
-      ],
-    );
-    const outcome = result.outcomes.find((o) => o.useCase === 'CloseMission');
-    if (!outcome || (!outcome.ok && !outcome.skipped)) {
-      return reply.code(422).send({ error: outcome?.error ?? 'falha ao encerrar a missão' });
-    }
-    // Drena o outbox: projeta o encerramento (Estado terminal ENCERRADA) nos read
-    // models AGORA — o caminho de conversa drena no full-loop; um comando direto não.
-    // A partir daqui o Brain PARA e nenhum acompanhamento recorrente é enviado.
-    await op.outbox.drainToIdle();
-    return { missionId, closed: true, skipped: outcome.skipped, stateId: outcome.streamId };
+    // Comando canônico (Regra 3): mesmo helper de /vender e /reabrir.
+    const executed = await runMissionCommand({
+      chatId: mission.chatId,
+      senderId: 'operador',
+      perceptKind: 'closure',
+      text: body.reason?.trim() ? body.reason.trim() : 'encerramento operacional',
+      useCase: 'CloseMission',
+      references: ['encerramento'],
+      decisor: 'operador',
+      tipo: 'encerramento',
+      fundamento: 'Estado Operacional terminal — ENCERRADA (DF-11); RO-R9-001',
+      operationalRuleRef: 'RO-STOP-CONCLUDED-001',
+    });
+    if (!executed.ok) return reply.code(422).send({ error: executed.error });
+    return { missionId, closed: true, skipped: executed.skipped, stateId: executed.streamId };
   });
 
   // B4.3 — REABERTURA OFICIAL de um processo encerrado (ato humano do operador, quando
@@ -198,38 +373,22 @@ export function buildAdminServer(
     if (!mission) return reply.code(404).send({ error: 'missão não encontrada' });
     if (mission.chatId === null) return reply.code(409).send({ error: 'missão sem conversa associada' });
 
-    const now = new Date();
-    const result = await op.mission.execute(
-      {
-        chatId: mission.chatId,
-        senderId: 'operador',
-        messageId: randomUUID(),
-        perceptKind: 'reopening',
-        text: body.reason?.trim() ? body.reason.trim() : 'reabertura operacional',
-        mediaRef: null,
-        fileName: null,
-        mimeType: null,
-        occurredAt: now,
-      },
-      [
-        {
-          useCase: 'ReopenMission',
-          references: ['reabertura'],
-          decisor: 'operador',
-          tipo: 'reabertura',
-          fundamento: 'Fato jurídico legítimo — retorno ao estado operacional; RO-R9-001',
-          operationalRuleRef: 'RO-R9-001',
-        },
-      ],
-    );
-    const outcome = result.outcomes.find((o) => o.useCase === 'ReopenMission');
-    if (!outcome || (!outcome.ok && !outcome.skipped)) {
-      return reply.code(422).send({ error: outcome?.error ?? 'falha ao reabrir a missão' });
-    }
-    // Drena: projeta a reabertura (terminalidade limpa) e o Workflow re-arma o
-    // acompanhamento — a recorrência (B4.2) volta a valer automaticamente.
-    await op.outbox.drainToIdle();
-    return { missionId, reopened: true, skipped: outcome.skipped, stateId: outcome.streamId };
+    // Comando canônico (Regra 3): mesmo helper de /encerrar e /vender. O drain
+    // projeta a reabertura e o Workflow re-arma o acompanhamento (B4.2).
+    const executed = await runMissionCommand({
+      chatId: mission.chatId,
+      senderId: 'operador',
+      perceptKind: 'reopening',
+      text: body.reason?.trim() ? body.reason.trim() : 'reabertura operacional',
+      useCase: 'ReopenMission',
+      references: ['reabertura'],
+      decisor: 'operador',
+      tipo: 'reabertura',
+      fundamento: 'Fato jurídico legítimo — retorno ao estado operacional; RO-R9-001',
+      operationalRuleRef: 'RO-R9-001',
+    });
+    if (!executed.ok) return reply.code(422).send({ error: executed.error });
+    return { missionId, reopened: true, skipped: executed.skipped, stateId: executed.streamId };
   });
 
   // B4.4 — MÉTRICAS OPERACIONAIS DA RECORRÊNCIA. Indicadores para governar centenas

@@ -24,3 +24,5 @@ export * from './lawyer-experience/index.js';
 export * from './production/index.js';
 export * from './alir/index.js';
 export * from './qualification/index.js';
+export * from './clientes/index.js';
+export * from './pericia/index.js';

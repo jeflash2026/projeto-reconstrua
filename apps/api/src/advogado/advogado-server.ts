@@ -145,6 +145,10 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
         attachmentRef: body.attachmentRef ?? null,
       });
       // A AHRI é SEMPRE informada; o Executive Brain decide a comunicação.
+      // B-R5: o chatOf do bridge lê projector.missions() (síncrono) — refresh ANTES
+      // garante a resolução da conversa mesmo com projector frio (processo recém-
+      // iniciado). Sem isto, a notificação falharia em silêncio (chatId null).
+      await op.projector.refresh();
       const ahri = await op.bridge.notify(entry);
       return { entry, ahri };
     } catch (error) {

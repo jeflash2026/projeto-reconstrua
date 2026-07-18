@@ -10,6 +10,7 @@ import type { Clock, UuidGenerator } from '@reconstrua/domain';
 import type { DocumentContentService } from '../media/index.js';
 import type { DecisionStateStore } from '../executive-brain/decision-state-read-model.js';
 import type { WhatsAppConnectionRuntime } from '../whatsapp-connection/index.js';
+import type { ClientesList, ModalidadeStore, PedidosAdministrativosStore, PeritoView, VendaStore } from '@reconstrua/application';
 import type {
   AdminMetricsStore,
   AdministrationIntelligenceRuntime,
@@ -120,6 +121,16 @@ export interface AssembledAdminOperation {
   readonly work?: AdvogadoWorkRuntime;
   /** Conexão WhatsApp (administração de instâncias Evolution pelo Portal Admin). Opcional. */
   readonly whatsapp?: WhatsAppConnectionRuntime;
+  /** GO LIVE A · R2: lista única de clientes com status DERIVADO em leitura. Opcional. */
+  readonly clientes?: ClientesList;
+  /** GO LIVE A · R2: marcador de modalidade (VENDA|SOCIEDADE) por clienteId. Opcional. */
+  readonly modalidadeStore?: ModalidadeStore;
+  /** GO LIVE A · R3: registro da venda (Jornada A) por clienteId. Opcional. */
+  readonly vendaStore?: VendaStore;
+  /** GO LIVE B · B-R2: visão do Perito (fila, contratos, planilhas). Opcional. */
+  readonly perito?: PeritoView;
+  /** GO LIVE B · B-R3: o fato "pedidos administrativos confirmados" por clienteId. Opcional. */
+  readonly pedidosStore?: PedidosAdministrativosStore;
 }
 
 export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledAdminOperation {

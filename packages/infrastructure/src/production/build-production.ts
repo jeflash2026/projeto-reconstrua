@@ -24,6 +24,9 @@ import {
   AdvogadoAhriBridge,
   AdvogadoWorkRuntime,
   BootRuntime,
+  ClientesList,
+  CsvPlanilhaExporter,
+  PeritoView,
   ConversationContextRuntime,
   ConversationMemoryRuntime,
   ConversationRuntime as ConversationRuntimeClass,
@@ -86,6 +89,7 @@ import { DecisionStateProjectionSubscriber } from '../executive-brain/decision-s
 import { ProjectionBackedMissionSnapshotAdapter } from '../executive-brain/projection-backed-mission-snapshot-adapter.js';
 import { InMemoryRuleCatalog } from '../executive-brain/in-memory-adapters.js';
 import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
+import { assembleALIR, type AssembledALIR } from '../alir/build-alir.js';
 import { assembleLivingMemory } from '../living-memory/build-living-memory.js';
 import { assembleAdministration } from '../administration/build-administration.js';
 import { AdminProjectionSubscriber } from '../administration/admin-projection-subscriber.js';
@@ -112,7 +116,10 @@ import {
   JsonJuridicalWorkStore,
   JsonMemoryStore,
   JsonMetricsStore,
+  JsonModalidadeStore,
+  JsonPedidosAdministrativosStore,
   JsonProductivityStore,
+  JsonVendaStore,
   JsonProgressStore,
   JsonSchedulerStore,
   JsonSessionStore,
@@ -178,6 +185,8 @@ export interface AssembledProduction {
   readonly mediaCapture: MediaCaptureRuntime;
   /** CAT-03A: transforma um documento em texto bruto (disponível; sem gatilho automático). */
   readonly documentReader: DocumentReaderService;
+  /** GO LIVE A · R1: a visão única do cliente (ALIR) + persona Operador de Qualificação. */
+  readonly alir: AssembledALIR;
 }
 
 export function assembleProduction(wiring: ProductionWiring): AssembledProduction {
@@ -238,6 +247,31 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const identityMap = new JsonIdentityMap(json);
   // RFC-0035-G: Read Model de DECISÃO (por missão) que respalda a fronteira do Brain.
   const decisionState = new JsonDecisionStateStore(json);
+
+  // ── GO LIVE A · R1: ALIR ligado aos stores REAIS (visão única do cliente) ─────
+  const alir = assembleALIR({
+    identityMap,
+    memoryStore,
+    decisionState,
+    progressStore,
+    schedulerStore,
+    handoffStore,
+    assignmentStore,
+    staffStore,
+    juridicalStore,
+  });
+
+  // ── GO LIVE A · R2/R3: lista única (status derivado) + modalidade + venda ─────
+  const modalidadeStore = new JsonModalidadeStore(json);
+  const vendaStore = new JsonVendaStore(json);
+  const pedidosStore = new JsonPedidosAdministrativosStore(json);
+  const clientes = new ClientesList({
+    memory: memoryStore,
+    alir: alir.builder,
+    modalidade: modalidadeStore,
+    venda: vendaStore,
+    pedidos: pedidosStore,
+  });
 
   // ── LLM real (4 ports) e HTTP resiliente ─────────────────────────────────────
   const resilientHttp = new ResilientHttpClient(new FetchHttpClient(), sleeper, observability, clock, 'http');
@@ -385,6 +419,19 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
 
   const auditor = new EventStoreIntegrityAuditor(eventStore, hasher);
 
+  // ── GO LIVE B · B-R2: visão do Perito (fila derivada + contratos + planilha) ──
+  // Deps são funções simples sobre componentes JÁ existentes: projector (documentos
+  // reconhecidos por missão, com refresh) e DocumentReader (texto cacheado).
+  const perito = new PeritoView({
+    clientes,
+    documentosDaMissao: async (missionId) => {
+      await projector.refresh();
+      return projector.allDocuments().filter((d) => d.missionId === missionId).map((d) => d.documentId);
+    },
+    textoDoDocumento: (documentId) => documentReader.readById(documentId),
+    exporter: new CsvPlanilhaExporter(),
+  });
+
   // ── Visões estruturais para os servidores CONGELADOS ─────────────────────────
   // Nota: os servidores 3A/3B/3D nunca usam `eventStore` da visão (apenas read
   // models); o campo é tipado concretamente por herança histórica — cast declarado.
@@ -459,6 +506,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     work,
     // Conexão WhatsApp (Portal Admin).
     whatsapp,
+    // GO LIVE A · R2/R3: lista única (derivada) + marcador modalidade + registro de venda.
+    clientes,
+    modalidadeStore,
+    vendaStore,
+    // GO LIVE B · B-R2/B-R3: visão do Perito + o fato "pedidos administrativos".
+    perito,
+    pedidosStore,
   };
 
   const cursor = new CursorRuntime(cursorStore);
@@ -570,6 +624,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     databaseUrl,
     mediaCapture,
     documentReader,
+    alir,
   };
 }
 

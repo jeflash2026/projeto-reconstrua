@@ -79,14 +79,9 @@ describe('Admin Portal API', () => {
     expect(body.expectedFees).toBeNull(); // sem fonte → nunca inventado
   });
 
-  it('GET /admin/clients — lista e pesquisa', async () => {
+  it('GET /admin/clients (lista LEGACY) foi REMOVIDA — a lista única é /admin/jornada/clientes', async () => {
     const res = await call({ method: 'GET', url: '/admin/clients?q=maria' });
-    const body: Array<{ chatId: string; name: string | null; missions: string[] }> = res.json();
-    expect(body).toHaveLength(1);
-    expect(body[0]?.chatId).toBe(CHAT);
-    expect(body[0]?.missions.length).toBeGreaterThanOrEqual(1);
-    const miss = await call({ method: 'GET', url: '/admin/clients?q=inexistente' });
-    expect(miss.json()).toHaveLength(0);
+    expect(res.statusCode).toBe(404); // Regra 2: sem convivência de duas listagens
   });
 
   it('GET /admin/clients/:chatId — memória, relationship, conversa e missões', async () => {

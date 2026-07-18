@@ -26,6 +26,12 @@ import type {
   MissionIdentity,
   MissionIdentityMap,
   MissionProgress,
+  ModalidadeRecord,
+  ModalidadeStore,
+  PedidosAdministrativosRecord,
+  PedidosAdministrativosStore,
+  VendaRecord,
+  VendaStore,
   ProductionConfig,
   ProductivityEvent,
   ProductivityStore,
@@ -46,6 +52,7 @@ const DATE_KEYS = [
   'lastAccessAt', 'lastInboundAt', 'lastOutboundAt', 'lastContactAt', 'firstContactAt', 'lastSilenceNoticeAt',
   'resolvedAt', 'enqueuedAt', 'nextAttemptAt', 'lockedAt', 'occurredAt', 'recordedAt', 'formedAt',
   'reportedAt', 'lastProcessedAt', 'framedAt', 'presentedAt', 'synthesizedAt', 'derivedAt',
+  'decididaEm', 'vendidaEm', 'confirmadoEm',
 ] as const;
 
 function revive<T>(value: unknown): T {
@@ -293,6 +300,43 @@ export class JsonProductivityStore implements ProductivityStore {
   }
   async byAdvogado(advogadoId: string): Promise<readonly ProductivityEvent[]> {
     return (await this.store.list('productivity')).map((e) => revive<ProductivityEvent>(e)).filter((e) => e.advogadoId === advogadoId);
+  }
+}
+
+/** GO LIVE A · R2 — o marcador MODALIDADE (VENDA|SOCIEDADE), chaveado por clienteId. */
+export class JsonModalidadeStore implements ModalidadeStore {
+  constructor(private readonly store: JsonStore) {}
+  async load(clienteId: string): Promise<ModalidadeRecord | null> {
+    const raw = await this.store.get('modalidade', clienteId);
+    return raw === null ? null : revive<ModalidadeRecord>(raw);
+  }
+  save(record: ModalidadeRecord): Promise<void> {
+    return this.store.put('modalidade', record.clienteId, record);
+  }
+}
+
+/** GO LIVE A · R3 — o registro da VENDA (Jornada A), chaveado por clienteId. */
+export class JsonVendaStore implements VendaStore {
+  constructor(private readonly store: JsonStore) {}
+  async load(clienteId: string): Promise<VendaRecord | null> {
+    const raw = await this.store.get('venda', clienteId);
+    return raw === null ? null : revive<VendaRecord>(raw);
+  }
+  save(record: VendaRecord): Promise<void> {
+    return this.store.put('venda', record.clienteId, record);
+  }
+}
+
+/** GO LIVE B · B-R3 — o ÚNICO fato persistido da Jornada B: confirmação dos
+ *  pedidos administrativos pelo perito (Lei 8: o fato; o timer é consequência). */
+export class JsonPedidosAdministrativosStore implements PedidosAdministrativosStore {
+  constructor(private readonly store: JsonStore) {}
+  async load(clienteId: string): Promise<PedidosAdministrativosRecord | null> {
+    const raw = await this.store.get('pedidos-administrativos', clienteId);
+    return raw === null ? null : revive<PedidosAdministrativosRecord>(raw);
+  }
+  save(record: PedidosAdministrativosRecord): Promise<void> {
+    return this.store.put('pedidos-administrativos', record.clienteId, record);
   }
 }
 

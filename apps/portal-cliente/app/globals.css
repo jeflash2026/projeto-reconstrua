@@ -1,0 +1,227 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   PORTAL DO CLIENTE — a carta viva (UX Blueprint + Presence, congelados).
+   Toda manifestação visual tem significado: presença, tranquilidade ou
+   continuidade. Nada além disso existe (regra permanente).
+   ──────────────────────────────────────────────────────────────────────────── */
+:root {
+  --paper: #f8f9fb;
+  --ink: #1c2128;
+  --dim: #5c6672;
+  --brand: #d90416;      /* identidade apenas — NUNCA alerta */
+  --green: #1da851;      /* exclusivo: WhatsApp e o ✓ da pílula */
+  --green-soft: #eaf7ef;
+  --line: #e3e6ea;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+}
+@media (min-width: 480px) { body { font-size: 17px; } }
+
+/* A carta: coluna única de 640px — no desktop continua carta, nunca dashboard. */
+.carta {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 20px 64px;
+}
+
+/* Blocos entram em cascata suave — uma vez só (continuidade, não espetáculo). */
+.bloco {
+  animation: chegar 250ms ease-out both;
+}
+.bloco:nth-child(2) { animation-delay: 60ms; }
+.bloco:nth-child(3) { animation-delay: 120ms; }
+.bloco:nth-child(4) { animation-delay: 180ms; }
+.bloco:nth-child(5) { animation-delay: 240ms; }
+.bloco:nth-child(6) { animation-delay: 300ms; }
+.bloco:nth-child(7) { animation-delay: 360ms; }
+.bloco:nth-child(8) { animation-delay: 420ms; }
+.bloco:nth-child(9) { animation-delay: 480ms; }
+@keyframes chegar {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.bloco + .bloco { margin-top: 40px; }
+@media (min-width: 480px) { .bloco + .bloco { margin-top: 56px; } }
+
+/* ── PRESENÇA — o pulso (semântica real; Presence §2) ───────────────────────── */
+.presenca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--dim);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+.presenca__ponto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--brand);
+  flex: 0 0 auto;
+}
+/* atenta: respiração plena (~3s) — "estou aqui, acompanhando" */
+.presenca--atenta .presenca__ponto { animation: respirar 3s ease-in-out infinite; }
+/* serena: mais lenta e sutil (~5s) — espera legítima */
+.presenca--serena .presenca__ponto { animation: respirar 5s ease-in-out infinite; }
+/* repouso: pleno e imóvel — "terminei de vigiar, mas não fui embora" */
+.presenca--repouso .presenca__ponto { animation: none; opacity: 0.9; }
+@keyframes respirar {
+  0%, 100% { transform: scale(1); opacity: 0.75; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+/* ── SAUDAÇÃO ────────────────────────────────────────────────────────────────── */
+.saudacao { margin-top: 20px; }
+.saudacao h1 {
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+@media (min-width: 480px) { .saudacao h1 { font-size: 36px; } }
+.saudacao p {
+  margin-top: 12px;
+  font-size: 18px;
+  color: var(--ink);
+}
+@media (min-width: 480px) { .saudacao p { font-size: 20px; } }
+
+/* ── PÍLULA DE TRANQUILIDADE ─────────────────────────────────────────────────── */
+.pilula {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--green-soft);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+.pilula__check { color: var(--green); font-weight: 700; line-height: 1.65; }
+
+/* ── PERGUNTA (título pequeno, resposta grande — a resposta é a estrela) ─────── */
+.pergunta h2 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+  margin-bottom: 8px;
+}
+.pergunta p { color: var(--ink); }
+.pergunta p + p { margin-top: 8px; }
+
+/* ── O CAMINHO (timeline vertical — um caminho, não um Gantt) ────────────────── */
+.caminho { list-style: none; position: relative; }
+.caminho li {
+  position: relative;
+  padding: 0 0 24px 28px;
+}
+.caminho li:last-child { padding-bottom: 0; }
+/* a linha */
+.caminho li::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 18px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--line);
+}
+.caminho li:last-child::before { display: none; }
+/* o ponto */
+.caminho__ponto {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--paper);
+}
+.caminho .concluida .caminho__ponto { background: var(--ink); border-color: var(--ink); }
+.caminho .atual .caminho__ponto {
+  background: var(--brand);
+  border-color: var(--brand);
+  animation: respirar 3s ease-in-out infinite;
+}
+.caminho__titulo { font-weight: 600; }
+.caminho .futura .caminho__titulo,
+.caminho .futura .caminho__frase { color: var(--dim); }
+.caminho__aqui {
+  font-size: 12px;
+  color: var(--brand);
+  letter-spacing: 0.04em;
+  margin-left: 8px;
+}
+.caminho__frase { font-size: 15px; color: var(--dim); margin-top: 2px; }
+.caminho .atual .caminho__frase { color: var(--ink); }
+
+/* ── NOVIDADES — mensagens da AHRI (a mesma voz do WhatsApp) ─────────────────── */
+.balao {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px 16px 16px 16px;
+  padding: 14px 16px;
+  max-width: 92%;
+}
+.balao + .balao { margin-top: 12px; }
+.balao__quando { font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+.novidades__rodape { margin-top: 12px; font-size: 14px; color: var(--dim); }
+
+/* ── VOLTAR AO WHATSAPP — a única ação da página ─────────────────────────────── */
+.whatsapp {
+  display: inline-block;
+  background: var(--green);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 14px 22px;
+  border-radius: 999px;
+  min-height: 44px;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.whatsapp:active { transform: translateY(1px); }
+.whatsapp:focus-visible { outline: 3px solid var(--green-soft); outline-offset: 2px; }
+.fecho p { margin-bottom: 14px; }
+
+/* documentos recebidos — frase + chips suaves (nunca tabela) */
+.docs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.docs span {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 14px;
+  color: var(--dim);
+}
+
+/* ── SKELETON — "a AHRI escrevendo" (sem spinner) ────────────────────────────── */
+.escrevendo { display: flex; gap: 5px; }
+.escrevendo i {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--dim); opacity: 0.5;
+  animation: escrever 1.2s ease-in-out infinite;
+}
+.escrevendo i:nth-child(2) { animation-delay: 0.15s; }
+.escrevendo i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes escrever { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.8; } }
+.linha-suave {
+  height: 14px; border-radius: 7px; background: var(--line);
+  animation: escrever 1.6s ease-in-out infinite;
+}
+
+/* ── Movimento reduzido: a presença permanece pela Voz ───────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .bloco, .presenca__ponto, .caminho .atual .caminho__ponto, .escrevendo i, .linha-suave {
+    animation: none !important;
+  }
+}

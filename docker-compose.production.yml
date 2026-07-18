@@ -129,6 +129,24 @@ services:
       - default
       - npm-net
 
+  # ── PORTAL DO CLIENTE (a carta viva da AHRI) — /portal no mesmo domínio ───────
+  # Sem segredos próprios: repassa o token do cliente server-side; a API valida.
+  portal-cliente:
+    build:
+      context: .
+      target: portal-cliente
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      # servidor MAIN (rota /cliente/acompanhamento) — na VPS PORT=3101.
+      API_URL: http://api:${PORT:-3001}
+    ports:
+      - '3300:3300'
+    networks:
+      - default
+      - npm-net
+
 volumes:
   ahrios-prod-pgdata:
 

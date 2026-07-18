@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "portal-cliente",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": [
+        "apps/portal-cliente/node_modules/next/dist/bin/next",
+        "dev",
+        "apps/portal-cliente",
+        "--port",
+        "3300"
+      ],
+      "port": 3300
+    }
+  ]
+}

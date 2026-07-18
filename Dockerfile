@@ -40,8 +40,9 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
 COPY apps/portal-administracao ./apps/portal-administracao
 COPY apps/portal-advogado ./apps/portal-advogado
+COPY apps/portal-cliente ./apps/portal-cliente
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado build
+RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente build
 
 FROM portal-build AS portal-admin
 ENV NODE_ENV=production
@@ -52,3 +53,8 @@ FROM portal-build AS portal-advogado
 ENV NODE_ENV=production
 EXPOSE 3200
 CMD ["pnpm", "--filter", "@reconstrua/portal-advogado", "start"]
+
+FROM portal-build AS portal-cliente
+ENV NODE_ENV=production
+EXPOSE 3300
+CMD ["pnpm", "--filter", "@reconstrua/portal-cliente", "start"]

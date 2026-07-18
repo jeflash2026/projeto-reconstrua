@@ -104,6 +104,21 @@ describe('AcompanhamentoView · as 5 perguntas em linguagem humana', () => {
   });
 });
 
+describe('AcompanhamentoView · presença e frase de abertura (PC-R2 — docs congelados)', () => {
+  it('pulso com semântica real: atenta (em curso) · serena (espera legítima) · repouso (concluído)', async () => {
+    expect((await view([resumo({})]).acompanhamento('cli-1', NOW))?.presenca).toBe('atenta');
+    expect((await view([resumo({ status: 'AGUARDANDO_10_DIAS' })]).acompanhamento('cli-1', NOW))?.presenca).toBe('serena');
+    expect((await view([resumo({ status: 'ENCERRADO' })]).acompanhamento('cli-1', NOW))?.presenca).toBe('repouso');
+  });
+
+  it('fraseAbertura nasce na visão (P3: portal sem lógica) — voz da AHRI', async () => {
+    const analise = await view([resumo({ status: 'AGUARDANDO_10_DIAS' })]).acompanhamento('cli-1', NOW);
+    expect(analise?.fraseAbertura).toBe('Seu caso está em análise técnica — e eu estou acompanhando cada passo.');
+    const processo = await view([resumo({})]).acompanhamento('cli-1', NOW);
+    expect(processo?.fraseAbertura).toContain('processo está em andamento');
+  });
+});
+
 describe('AcompanhamentoView · transparência SEM exposição (Princípio 6)', () => {
   it('NEGAÇÃO de vazamento: nada interno atravessa a projeção', async () => {
     const a = await view([resumo({})]).acompanhamento('cli-1', NOW);

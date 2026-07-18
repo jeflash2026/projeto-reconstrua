@@ -29,9 +29,16 @@ export interface EtapaTimeline {
   readonly situacao: 'concluida' | 'atual' | 'futura';
 }
 
+/** Estado do PULSO (Presence §2) — semântica real, nunca cosmética. */
+export type EstadoPresenca = 'atenta' | 'serena' | 'repouso';
+
 export interface AcompanhamentoCliente {
   readonly clienteId: string;
   readonly quem: string;
+  // ── Presença (Presence doc) — o Portal só renderiza; a semântica nasce aqui ──
+  readonly presenca: EstadoPresenca;
+  /** A frase de abertura da carta (UX §2) — composta AQUI (P3: portal sem lógica). */
+  readonly fraseAbertura: string;
   // ── As 5 perguntas (Princípio 4) — textos prontos, voz da AHRI ────────────────
   readonly ondeEsta: string;
   readonly agora: string;
@@ -91,9 +98,21 @@ function etapaIndex(status: ClienteStatus): number {
 
 interface Textos {
   readonly ondeEsta: string;
+  readonly fraseAbertura: string;
   readonly agora: string;
   readonly proximoPasso: string;
   readonly quantoTempo: string;
+}
+
+/**
+ * Estado do pulso (Presence §2): atenta = caso em curso; serena = espera legítima
+ * de terceiros (solicitações enviadas); repouso = concluído ("terminei de vigiar —
+ * mas não fui embora"). Sempre ancorado no estado REAL do caso.
+ */
+function presencaPara(status: ClienteStatus): EstadoPresenca {
+  if (status === 'VENDIDO' || status === 'ENCERRADO') return 'repouso';
+  if (status === 'AGUARDANDO_10_DIAS') return 'serena';
+  return 'atenta';
 }
 
 /** Voz da AHRI (1ª pessoa, Princípio 7). NENHUM termo interno vaza (Princípio 5). */
@@ -104,6 +123,7 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
     case 'COLETANDO_DOCUMENTOS':
       return {
         ondeEsta: 'Documentação',
+        fraseAbertura: 'Estamos organizando a sua documentação — e eu estou com você em cada passo.',
         agora: 'Estou organizando a sua documentação com você pelo WhatsApp.',
         proximoPasso: 'Assim que tudo estiver completo, seu caso entra na análise técnica da nossa equipe — e eu te aviso.',
         quantoTempo: 'Depende só dos documentos — assim que chegarem, seguimos na hora.',
@@ -111,6 +131,7 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
     case 'AGUARDANDO_10_DIAS':
       return {
         ondeEsta: 'Análise técnica',
+        fraseAbertura: 'Seu caso está em análise técnica — e eu estou acompanhando cada passo.',
         agora: 'Já enviamos as solicitações administrativas do seu caso e estou acompanhando as respostas.',
         proximoPasso: 'Com as respostas em mãos, definimos os próximos passos — e eu te aviso por aqui e pelo WhatsApp.',
         quantoTempo: analiseTempo,
@@ -118,6 +139,7 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
     case 'AGUARDANDO_SOCIO':
       return {
         ondeEsta: 'Análise técnica',
+        fraseAbertura: 'Seu caso está em análise técnica — e eu estou acompanhando cada passo.',
         agora: 'Estamos concluindo a análise técnica do seu caso.',
         proximoPasso: 'Em seguida, um advogado da nossa equipe assume a condução do seu processo.',
         quantoTempo: analiseTempo,
@@ -125,6 +147,7 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
     case 'EM_PROCESSO':
       return {
         ondeEsta: 'Processo em andamento',
+        fraseAbertura: 'Seu processo está em andamento — e eu acompanho cada movimentação.',
         agora:
           advogadoNome !== null
             ? `O advogado ${advogadoNome} está conduzindo o seu processo.`
@@ -137,6 +160,7 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
       // Texto neutro PROVISÓRIO (pendência §9.3 da spec — homologar redação final).
       return {
         ondeEsta: 'Conclusão',
+        fraseAbertura: 'Esta etapa do seu caso foi concluída — e eu continuo por aqui.',
         agora: 'Esta etapa do seu caso foi concluída.',
         proximoPasso: 'Se houver qualquer novidade, eu falo com você pelo WhatsApp.',
         quantoTempo: 'Etapa concluída.',
@@ -144,6 +168,7 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
     default:
       return {
         ondeEsta: 'Análise técnica',
+        fraseAbertura: 'Seu caso está em análise técnica — e eu estou acompanhando cada passo.',
         agora: 'Sua documentação está completa e a nossa equipe está analisando o seu caso.',
         proximoPasso: 'Ao concluir a análise, damos entrada nas solicitações do seu caso — e eu te aviso.',
         quantoTempo: analiseTempo,
@@ -200,6 +225,8 @@ export class AcompanhamentoView {
     return {
       clienteId: cliente.clienteId,
       quem: cliente.quem,
+      presenca: presencaPara(cliente.status),
+      fraseAbertura: t.fraseAbertura,
       ondeEsta: t.ondeEsta,
       agora: t.agora,
       proximoPasso: t.proximoPasso,

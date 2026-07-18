@@ -1,9 +1,13 @@
 /** @type {import('next').NextConfig} */
-// Portal Cliente — superfície que SOMENTE consome Read Models da Verdade
-// Operacional (DF-08; decisão do fundador, item 12). Nenhum acesso ao Event Store.
+// Portal do Cliente — a "carta viva" da AHRI (5 documentos fundadores congelados).
+// SOMENTE renderiza a projeção segura servida pela API (Princípio 3); nenhuma
+// lógica própria, nenhuma escrita. Vive sob /portal no MESMO domínio.
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  basePath: '/portal',
+  // Lint e typecheck rodam como gates próprios; o build não duplica.
+  eslint: { ignoreDuringBuilds: true },
 };
 
 export default nextConfig;

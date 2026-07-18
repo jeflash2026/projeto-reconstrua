@@ -47,9 +47,6 @@ const Pagina = async ({ searchParams }: { searchParams: { demo?: string } }): Pr
 
   if (dados === null) return <PedirLink />;
 
-  const estimativa =
-    dados.estimativaAte !== null ? ` A previsão é até ${dataHumana(dados.estimativaAte, agora)}.` : '';
-
   return (
     <main className="carta">
       <AutoRefresh seconds={60} />
@@ -84,11 +81,9 @@ const Pagina = async ({ searchParams }: { searchParams: { demo?: string } }): Pr
         <p>{dados.proximoPasso}</p>
       </Pergunta>
 
+      {/* A frase completa (incl. previsão/atraso honesto) vem pronta da visão (P3). */}
       <Pergunta titulo="Quanto tempo costuma levar">
-        <p>
-          {dados.quantoTempo}
-          {estimativa}
-        </p>
+        <p>{dados.quantoTempo}</p>
       </Pergunta>
 
       <section className="bloco pergunta">
@@ -111,7 +106,7 @@ const Pagina = async ({ searchParams }: { searchParams: { demo?: string } }): Pr
       {dados.advogado !== null ? (
         <Pergunta titulo="Quem está cuidando do seu processo">
           <p>
-            O advogado responsável pelo seu processo é <strong>{dados.advogado.nome}</strong>.
+            Quem cuida do seu processo é <strong>{dados.advogado.nome}</strong>.
           </p>
           {dados.processo !== null ? (
             <p>Número do seu processo na Justiça: {dados.processo.numero}</p>

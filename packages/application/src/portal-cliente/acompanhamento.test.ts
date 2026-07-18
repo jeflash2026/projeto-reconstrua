@@ -97,6 +97,19 @@ describe('AcompanhamentoView · as 5 perguntas em linguagem humana', () => {
     expect(JSON.stringify(a)).not.toContain('10 dias restantes');
   });
 
+  it('PC-R5: a frase da previsão nasce NA VISÃO (P3) — e o atraso vira honestidade', async () => {
+    const liberacao: LiberacaoPortal = { clienteId: 'cli-1', chatId: 'c1', comunicadoEm: NOW, estimativaDiasInformada: 12 };
+    // Em curso: previsão embutida na frase completa.
+    const emCurso = await view([resumo({ status: 'AGUARDANDO_10_DIAS' })], liberacao, 12).acompanhamento('cli-1', NOW);
+    expect(emCurso?.quantoTempo).toContain('A previsão é até 30 de julho');
+    // VENCIDA (16 dias depois): nunca repetir "12 dias" em loop — honestidade.
+    const DEPOIS = new Date(NOW.getTime() + 16 * 24 * 60 * 60 * 1000);
+    const vencida = await view([resumo({ status: 'AGUARDANDO_10_DIAS' })], liberacao, 12).acompanhamento('cli-1', DEPOIS);
+    expect(vencida?.quantoTempo).toContain('um pouco mais do que o previsto');
+    expect(vencida?.quantoTempo).not.toContain('previsão é até');
+    expect(vencida?.quantoTempo).not.toContain('12 dias');
+  });
+
   it('sem liberação registrada → estimativaAte null (nunca inventada — Lei 9)', async () => {
     const a = await view([resumo({ status: 'PRONTO_AGUARDANDO_PERICIA' })]).acompanhamento('cli-1', NOW);
     expect(a?.estimativaAte).toBeNull();

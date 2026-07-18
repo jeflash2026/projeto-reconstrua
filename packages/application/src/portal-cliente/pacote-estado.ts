@@ -26,7 +26,7 @@ export function pacoteDeEstado(view: AcompanhamentoCliente, link: string | null)
   ];
 
   if (view.advogado !== null) {
-    linhas.push(`- Advogado responsável: ${view.advogado.nome}.`);
+    linhas.push(`- Responsável pela condução do processo: ${view.advogado.nome}.`);
   }
   if (view.processo !== null) {
     linhas.push(`- Número do processo na Justiça: ${view.processo.numero}.`);

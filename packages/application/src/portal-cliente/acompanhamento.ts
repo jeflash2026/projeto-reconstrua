@@ -76,6 +76,25 @@ export interface AcompanhamentoDeps {
 
 const ETAPAS = ['Documentação', 'Análise técnica', 'Processo', 'Conclusão'] as const;
 
+const MESES = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+] as const;
+
+/** "2 de agosto" no fuso do Brasil — a frase da previsão nasce AQUI (P3). */
+function dataPorExtenso(d: Date): string {
+  const fmt = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'numeric' });
+  const partes = Object.fromEntries(fmt.formatToParts(d).map((p) => [p.type, p.value]));
+  const mes = MESES[Number(partes['month']) - 1] ?? '';
+  return `${String(Number(partes['day']))} de ${mes}`;
+}
+
+/** PC-R5 — previsão VENCIDA: honestidade em vez de promessa em loop (Lei 8/11:
+ *  o fato é imutável; a leitura reconhece o relógio). */
+const TEXTO_PREVISAO_VENCIDA =
+  'Está levando um pouco mais do que o previsto — isso acontece em alguns casos e não significa nenhum problema. ' +
+  'Eu continuo acompanhando de perto e te aviso na hora em que houver novidade.';
+
 /** Índice da etapa atual na jornada visual (derivado; jamais persistido). */
 function etapaIndex(status: ClienteStatus): number {
   switch (status) {
@@ -148,9 +167,10 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
       return {
         ondeEsta: 'Processo em andamento',
         fraseAbertura: 'Seu processo está em andamento — e eu acompanho cada movimentação.',
+        // PC-R5: sem artigo de gênero — advogadas existem.
         agora:
           advogadoNome !== null
-            ? `O advogado ${advogadoNome} está conduzindo o seu processo.`
+            ? `Quem está conduzindo o seu processo é ${advogadoNome}.`
             : 'Nosso time jurídico está conduzindo o seu processo.',
         proximoPasso: 'Cada movimentação importante aparece aqui — e eu também aviso você no WhatsApp.',
         quantoTempo: 'Cada processo tem o seu próprio ritmo — mas você não precisa vigiar prazos: eu acompanho tudo e te aviso a cada novidade.',
@@ -222,6 +242,18 @@ export class AcompanhamentoView {
     }));
 
     const t = textosPara(cliente.status, dias, advogado?.nome ?? null);
+
+    // A frase completa do TEMPO nasce aqui (P3 — o Portal não compõe nada):
+    // na fase de ANÁLISE, com previsão em curso → "A previsão é até {data}";
+    // previsão VENCIDA → honestidade (nunca repetir "12 dias" em loop).
+    const agoraMesmo = now ?? new Date();
+    let quantoTempo = t.quantoTempo;
+    if (idx === 1 && estimativaAte !== null) {
+      quantoTempo =
+        agoraMesmo.getTime() > estimativaAte.getTime()
+          ? TEXTO_PREVISAO_VENCIDA
+          : `${t.quantoTempo} A previsão é até ${dataPorExtenso(estimativaAte)}.`;
+    }
     return {
       clienteId: cliente.clienteId,
       quem: cliente.quem,
@@ -232,7 +264,7 @@ export class AcompanhamentoView {
       proximoPasso: t.proximoPasso,
       precisaFazerAlgo:
         'Nada por enquanto — estou cuidando de tudo. Se eu precisar de algo, falo com você no WhatsApp.',
-      quantoTempo: t.quantoTempo,
+      quantoTempo,
       etapas,
       estimativaDias: dias,
       estimativaAte,

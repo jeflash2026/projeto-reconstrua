@@ -18,7 +18,7 @@ export const DEMO_ANALISE: AcompanhamentoCliente = {
   agora: 'Já enviamos as solicitações administrativas do seu caso e estou acompanhando as respostas.',
   proximoPasso: 'Com as respostas em mãos, definimos os próximos passos — e eu te aviso por aqui e pelo WhatsApp.',
   precisaFazerAlgo: 'Nada por enquanto — estou cuidando de tudo. Se eu precisar de algo, falo com você no WhatsApp.',
-  quantoTempo: 'Essa fase costuma levar aproximadamente 12 dias.',
+  quantoTempo: 'Essa fase costuma levar aproximadamente 12 dias. A previsão é até 27 de julho.',
   etapas: [
     { titulo: 'Documentação', situacao: 'concluida' },
     { titulo: 'Análise técnica', situacao: 'atual' },
@@ -41,7 +41,7 @@ export const DEMO_PROCESSO: AcompanhamentoCliente = {
   presenca: 'atenta',
   fraseAbertura: 'Seu processo está em andamento — e eu acompanho cada movimentação.',
   ondeEsta: 'Processo em andamento',
-  agora: 'A advogada Ana Lima está conduzindo o seu processo.',
+  agora: 'Quem está conduzindo o seu processo é Ana Lima.',
   proximoPasso: 'Cada movimentação importante aparece aqui — e eu também aviso você no WhatsApp.',
   quantoTempo: 'Cada processo tem o seu próprio ritmo — mas você não precisa vigiar prazos: eu acompanho tudo e te aviso a cada novidade.',
   etapas: [

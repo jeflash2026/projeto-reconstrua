@@ -18,7 +18,7 @@ import {
 // na API — nenhum segredo novo). Sessão = cookie httpOnly com HMAC do segredo.
 // Bootstrap SEGURO do 1º administrador: só com o segredo válido e só enquanto o
 // diretório de administradores estiver vazio (staff existente — nada novo).
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { adminSessionToken, secretsMatch, ADMIN_SESSION_COOKIE } from './session';
 
 export interface LoginResult {
@@ -288,6 +288,43 @@ export interface AssignmentResult {
   advogadoId: string;
   assignedBy: string;
   assignedAt: string;
+}
+
+// ── GO-LIVE-04: CONVITE do advogado — o link de criação de senha nasce do ATO
+// do Administrador (nunca cadastro público, nunca criação pela URL). O token é
+// assinado pelo Auth Runtime na API do Advogado; aqui só transporte + montagem
+// do link no domínio único da plataforma.
+export async function gerarConviteAdvogado(advogadoId: string): Promise<{ link: string | null; error: string | null }> {
+  if (ADVOGADO_API_URL === '') return { link: null, error: 'integração com o Portal do Advogado não configurada (ADVOGADO_API_URL)' };
+  try {
+    const res = await fetch(`${ADVOGADO_API_URL}/advogado-admin/convite`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(ADVOGADO_API_TOKEN ? { authorization: `Bearer ${ADVOGADO_API_TOKEN}` } : {}),
+      },
+      body: JSON.stringify({ advogadoId }),
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      let detail = `HTTP ${String(res.status)}`;
+      try {
+        const parsed = (await res.json()) as { error?: string };
+        if (typeof parsed.error === 'string' && parsed.error !== '') detail = parsed.error;
+      } catch {
+        /* corpo não-JSON */
+      }
+      return { link: null, error: detail };
+    }
+    const data = (await res.json()) as { token: string };
+    const h = headers();
+    const proto = h.get('x-forwarded-proto') ?? 'https';
+    const host = h.get('x-forwarded-host') ?? h.get('host') ?? '';
+    if (host === '') return { link: null, error: 'não foi possível determinar o domínio da plataforma' };
+    return { link: `${proto}://${host}/advogado/convite?t=${data.token}`, error: null };
+  } catch {
+    return { link: null, error: 'API do Portal do Advogado inacessível' };
+  }
 }
 
 export async function assignCase(

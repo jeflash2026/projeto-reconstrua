@@ -2,8 +2,8 @@
 // agora nasce no LOGIN (sessão + advogado-id httpOnly); o form provisório foi
 // substituído (Regra 2) — para trocar de identidade, Sair e entrar novamente.
 import type { ReactElement } from 'react';
-import { getJson, advogadoId, type Perfil } from '../../lib/api';
-import { formatDate } from '../../lib/format';
+import { getJson, advogadoId, type Perfil } from '../../../lib/api';
+import { formatDate } from '../../../lib/format';
 
 const PerfilPage = async (): Promise<ReactElement> => {
   const perfil = advogadoId() !== null ? await getJson<Perfil>('/advogado/perfil') : null;

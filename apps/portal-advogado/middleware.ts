@@ -28,5 +28,5 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ['/((?!login|_next/|favicon\\.ico).*)'],
+  matcher: ['/((?!login|convite|_next/|favicon\\.ico).*)'],
 };

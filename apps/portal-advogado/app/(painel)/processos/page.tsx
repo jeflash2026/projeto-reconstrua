@@ -1,9 +1,9 @@
 // MEUS PROCESSOS — exclusivamente os atribuídos pelo Administrador.
 import Link from 'next/link';
 import type { ReactElement } from 'react';
-import AutoRefresh from '../../components/auto-refresh';
-import { getJson, type ProcessRow } from '../../lib/api';
-import { formatDate, shortId } from '../../lib/format';
+import AutoRefresh from '../../../components/auto-refresh';
+import { getJson, type ProcessRow } from '../../../lib/api';
+import { formatDate, shortId } from '../../../lib/format';
 
 const ProcessosPage = async (): Promise<ReactElement> => {
   const rows = await getJson<ProcessRow[]>('/advogado/processos');

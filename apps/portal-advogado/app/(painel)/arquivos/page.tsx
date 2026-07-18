@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
-import AutoRefresh from '../../components/auto-refresh';
-import EntriesTable from '../../components/entries-table';
-import { getJson, type JuridicalEntry } from '../../lib/api';
+import AutoRefresh from '../../../components/auto-refresh';
+import EntriesTable from '../../../components/entries-table';
+import { getJson, type JuridicalEntry } from '../../../lib/api';
 
 const ArquivosPage = async (): Promise<ReactElement> => {
   const entries = await getJson<JuridicalEntry[]>('/advogado/arquivos');

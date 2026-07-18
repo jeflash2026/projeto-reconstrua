@@ -1,8 +1,8 @@
 // DOCUMENTOS — documentos reconhecidos NOS SEUS processos (read model filtrado).
 import type { ReactElement } from 'react';
-import AutoRefresh from '../../components/auto-refresh';
-import { getJson } from '../../lib/api';
-import { formatDate, shortId } from '../../lib/format';
+import AutoRefresh from '../../../components/auto-refresh';
+import { getJson } from '../../../lib/api';
+import { formatDate, shortId } from '../../../lib/format';
 
 interface Doc {
   documentId: string;

@@ -1,11 +1,11 @@
 // PROCESSO — timeline completa (somente leitura, auditável), documentos, perícia,
 // estado/etapa, histórico e os CAMPOS JURÍDICOS do advogado (única escrita).
 import type { ReactElement } from 'react';
-import AutoRefresh from '../../../components/auto-refresh';
-import ActivityForm from '../../../components/activity-form';
-import EntriesTable from '../../../components/entries-table';
-import { getJson, type ProcessDetail } from '../../../lib/api';
-import { formatDate, shortId } from '../../../lib/format';
+import AutoRefresh from '../../../../components/auto-refresh';
+import ActivityForm from '../../../../components/activity-form';
+import EntriesTable from '../../../../components/entries-table';
+import { getJson, type ProcessDetail } from '../../../../lib/api';
+import { formatDate, shortId } from '../../../../lib/format';
 
 const ProcessoPage = async ({ params }: { params: { id: string } }): Promise<ReactElement> => {
   const data = await getJson<ProcessDetail>(`/advogado/processos/${params.id}`);

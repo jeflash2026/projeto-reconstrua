@@ -8,15 +8,14 @@ import { cookies } from 'next/headers';
 import { API_BASE, sendJson } from './api';
 import {
   advogadoSessionToken,
-  secretsMatch,
   ADVOGADO_ID_COOKIE,
   ADVOGADO_SESSION_COOKIE,
 } from './session';
 
-// ── AUTENTICAÇÃO (visitante → login → painel) ─────────────────────────────────
-// Login = segredo de acesso (BL-3.1) + ID do advogado (fornecido pelo Admin ao
-// cadastrá-lo em /admin/advogados). A identidade é VALIDADA contra o diretório
-// (perfil precisa existir e estar ATIVO) antes de abrir a sessão.
+// ── AUTENTICAÇÃO (GO-LIVE-04: convite → senha INDIVIDUAL → login → sessão) ────
+// A senha global de transporte (segredo do portal) NÃO autentica mais pessoas:
+// cada advogado tem credencial própria, criada a partir do convite do escritório.
+// O Auth Runtime compartilhado (application) decide; aqui só transporte + sessão.
 const ADVOGADO_TOKEN_LOGIN = process.env['ADVOGADO_API_TOKEN'] ?? '';
 
 export interface LoginResult {
@@ -24,19 +23,22 @@ export interface LoginResult {
   error?: string;
 }
 
-export async function loginAdvogado(senha: string, advogadoId: string): Promise<LoginResult> {
+export async function loginAdvogado(advogadoId: string, senha: string): Promise<LoginResult> {
   if (ADVOGADO_TOKEN_LOGIN === '') return { ok: false, error: 'servidor sem segredo de acesso configurado (ADVOGADO_ACCESS_SECRET)' };
-  if (!secretsMatch(senha.trim(), ADVOGADO_TOKEN_LOGIN)) return { ok: false, error: 'senha de acesso incorreta' };
   const id = advogadoId.trim();
-  if (id === '') return { ok: false, error: 'informe o seu ID de advogado' };
+  if (id === '' || senha === '') return { ok: false, error: 'informe o seu ID e a sua senha' };
 
-  // Identidade validada no servidor: perfil existente e ATIVO (401 caso contrário).
+  // Credencial INDIVIDUAL validada pelo Auth Runtime (erro único; fail-closed).
   try {
-    const res = await fetch(`${API_BASE}/advogado/perfil`, {
+    const res = await fetch(`${API_BASE}/advogado-auth/login`, {
+      method: 'POST',
       cache: 'no-store',
-      headers: { authorization: `Bearer ${ADVOGADO_TOKEN_LOGIN}`, 'x-advogado-id': id },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${ADVOGADO_TOKEN_LOGIN}` },
+      body: JSON.stringify({ advogadoId: id, senha }),
     });
-    if (!res.ok) return { ok: false, error: 'advogado não encontrado ou inativo (confira o ID com o Administrador)' };
+    if (!res.ok) {
+      return { ok: false, error: res.status === 401 ? 'credenciais inválidas' : 'falha na autenticação — tente novamente' };
+    }
   } catch {
     return { ok: false, error: 'API indisponível' };
   }
@@ -45,6 +47,33 @@ export async function loginAdvogado(senha: string, advogadoId: string): Promise<
   cookies().set(ADVOGADO_SESSION_COOKIE, advogadoSessionToken(ADVOGADO_TOKEN_LOGIN), opts);
   cookies().set(ADVOGADO_ID_COOKIE, id, opts);
   return { ok: true };
+}
+
+/** GO-LIVE-04: cria a senha própria a partir do CONVITE assinado do escritório. */
+export async function definirSenhaAdvogado(token: string, senha: string): Promise<LoginResult> {
+  if (ADVOGADO_TOKEN_LOGIN === '') return { ok: false, error: 'servidor sem segredo de acesso configurado (ADVOGADO_ACCESS_SECRET)' };
+  if (token.trim() === '' || senha === '') return { ok: false, error: 'convite e senha são obrigatórios' };
+  try {
+    const res = await fetch(`${API_BASE}/advogado-auth/definir-senha`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${ADVOGADO_TOKEN_LOGIN}` },
+      body: JSON.stringify({ token: token.trim(), senha }),
+    });
+    if (!res.ok) {
+      let detail = 'não foi possível concluir — peça um novo convite ao escritório';
+      try {
+        const parsed = (await res.json()) as { error?: string };
+        if (typeof parsed.error === 'string' && parsed.error !== '') detail = parsed.error;
+      } catch {
+        /* corpo não-JSON */
+      }
+      return { ok: false, error: detail };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'API indisponível' };
+  }
 }
 
 export async function logoutAdvogado(): Promise<void> {

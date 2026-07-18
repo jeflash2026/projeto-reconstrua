@@ -1,7 +1,7 @@
 // PAINEL — visão do advogado: só o que é dele (read models isolados por atribuição).
 import type { ReactElement } from 'react';
-import AutoRefresh from '../components/auto-refresh';
-import { getJson, advogadoId, type PainelData } from '../lib/api';
+import AutoRefresh from '../../components/auto-refresh';
+import { getJson, advogadoId, type PainelData } from '../../lib/api';
 
 const Stat = ({ label, value }: { label: string; value: string | number }): ReactElement => (
   <div className="card stat">

@@ -3,7 +3,7 @@
 // fila e carga (read models). Compartilhado por Advogados/Peritos/Operadores/Supervisores.
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { type StaffData } from '../lib/api';
-import { createStaff, fetchStaff, setStaffActive } from '../lib/actions';
+import { createStaff, fetchStaff, gerarConviteAdvogado, setStaffActive } from '../lib/actions';
 import { formatDate } from '../lib/format';
 
 const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElement => {
@@ -11,6 +11,19 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // GO-LIVE-04: convite do advogado (link de criação de senha) — só role advogado.
+  const [convite, setConvite] = useState<{ id: string; link: string } | null>(null);
+
+  const convidar = async (id: string): Promise<void> => {
+    setError(null);
+    setConvite(null);
+    const res = await gerarConviteAdvogado(id);
+    if (res.link === null) {
+      setError(res.error ?? 'Falha ao gerar o convite.');
+      return;
+    }
+    setConvite({ id, link: res.link });
+  };
 
   const load = useCallback(async (): Promise<void> => {
     setData(await fetchStaff(role));
@@ -76,6 +89,17 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
         {error ? <div className="error-box">{error}</div> : null}
       </div>
 
+      {convite !== null ? (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3>Convite gerado (válido por 7 dias)</h3>
+          <p className="page-sub">
+            Envie este link ao advogado — nele, ele cria a própria senha. O ID de login dele é{' '}
+            <span className="mono">{convite.id}</span>.
+          </p>
+          <pre style={{ overflow: 'auto', userSelect: 'all' }}>{convite.link}</pre>
+        </div>
+      ) : null}
+
       <div className="card">
         <h3>Equipe</h3>
         {!data ? (
@@ -105,6 +129,9 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
                     <td>{formatDate(m.createdAt)}</td>
                     <td>
                       <button onClick={() => { void setActive(m.id, !m.active); }}>{m.active ? 'Desativar' : 'Ativar'}</button>
+                      {role === 'advogado' && m.active ? (
+                        <button style={{ marginLeft: 6 }} onClick={() => { void convidar(m.id); }}>Gerar convite</button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

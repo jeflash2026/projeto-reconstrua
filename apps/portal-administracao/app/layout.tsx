@@ -1,9 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactElement, ReactNode } from 'react';
 import './globals.css';
-import Nav from '../components/nav';
-import ThemeToggle from '../components/theme-toggle';
-import LogoutButton from '../components/logout-button';
 
 export const metadata: Metadata = {
   title: 'AHRIOS — Administração',
@@ -14,21 +11,12 @@ export const metadata: Metadata = {
 // API — páginas estáticas assariam "API indisponível" na imagem). Tudo dinâmico.
 export const dynamic = 'force-dynamic';
 
+// GO-LIVE-03 (item 3): o layout raiz é NU — sem sidebar, sem menu, sem rotas.
+// O shell do painel vive em app/(painel)/layout.tsx, que só envolve rotas
+// autenticadas. Visitante em /login não vê NADA além do formulário de acesso.
 const RootLayout = ({ children }: { children: ReactNode }): ReactElement => (
   <html lang="pt-BR">
-    <body>
-      <div className="shell">
-        <aside className="sidebar">
-          <div className="brand">
-            AHRIOS <span>ADMIN</span>
-          </div>
-          <Nav />
-          <ThemeToggle />
-          <LogoutButton />
-        </aside>
-        <main className="main">{children}</main>
-      </div>
-    </body>
+    <body>{children}</body>
   </html>
 );
 

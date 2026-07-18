@@ -60,13 +60,14 @@ const WhatsAppConnection = (): ReactElement => {
     if (busy || newName.trim() === '') return;
     setBusy(true); setMsg(null); setError(null);
     const res = await createWhatsappInstance(newName.trim());
-    if (res) {
-      setActiveInstance(res.instanceName);
-      setQr(res.qr);
+    if (res.ok && res.data) {
+      setActiveInstance(res.data.instanceName);
+      setQr(res.data.qr);
       setMsg('Instância criada. Leia o QR Code com o número oficial (+55 41 3798-9737).');
       void refresh();
     } else {
-      setError('Falha ao criar (verifique EVOLUTION_GLOBAL_API_KEY e o perfil Founder).');
+      // GO-LIVE-03 (item 6): a CAUSA real vem da API/servidor — nunca um erro genérico.
+      setError(res.error ?? 'Falha ao criar a instância.');
     }
     setBusy(false);
   };
@@ -98,8 +99,8 @@ const WhatsAppConnection = (): ReactElement => {
     if (!window.confirm(`Descartar a instância "${instance}"? Esta ação é destrutiva.`)) return;
     setBusy(true); setMsg(null); setError(null);
     const res = await discardWhatsappInstance(instance);
-    if (res?.discarded) { setMsg(`Instância "${instance}" descartada.`); void refresh(); }
-    else setError('Falha ao descartar (perfil Founder necessário).');
+    if (res.ok && res.data?.discarded) { setMsg(`Instância "${instance}" descartada.`); void refresh(); }
+    else setError(res.error ?? 'Falha ao descartar a instância.');
     setBusy(false);
   };
 
@@ -112,6 +113,14 @@ const WhatsAppConnection = (): ReactElement => {
 
   return (
     <>
+      {/* GO-LIVE-03 (item 6): pré-condições ausentes são DECLARADAS — nunca botões mortos. */}
+      {status.capabilities.canManageInstances ? null : (
+        <div className="error-box" style={{ marginBottom: 16 }}>
+          <strong>Gerenciamento de instâncias indisponível.</strong> Faltam no .env do servidor:{' '}
+          <span className="mono">{status.capabilities.missing.join(', ')}</span>. Defina-os e recrie os
+          containers (api e portal-admin) para criar/descartar instâncias por aqui.
+        </div>
+      )}
       {/* Estado atual */}
       {connected ? (
         <div className="card" style={{ marginBottom: 16, borderColor: 'var(--accent)' }}>

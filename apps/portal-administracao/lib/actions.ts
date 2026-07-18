@@ -43,16 +43,21 @@ export async function loginAdmin(senha: string): Promise<LoginResult> {
   if (ADMIN_TOKEN_LOGIN === '') return { ok: false, error: 'servidor sem segredo de acesso configurado (ADMIN_ACCESS_SECRET)' };
   if (!secretsMatch(senha.trim(), ADMIN_TOKEN_LOGIN)) return { ok: false, error: 'senha de acesso incorreta' };
   setAdminSession();
+  // GO-LIVE-03 (item 3, FAIL-CLOSED): o bootstrap só é oferecido com o diretório
+  // VERIFICADO vazio. API inacessível ⇒ NUNCA oferecer bootstrap (staff === null).
   const staff = await fetchStaff('administrador');
-  const needsBootstrap = (staff?.members ?? []).filter((m) => m.active).length === 0;
+  const needsBootstrap = staff !== null && staff.members.filter((m) => m.active).length === 0;
   return { ok: true, needsBootstrap };
 }
 
 export async function bootstrapAdmin(senha: string, nome: string): Promise<LoginResult> {
   if (!secretsMatch(senha.trim(), ADMIN_TOKEN_LOGIN)) return { ok: false, error: 'senha de acesso incorreta' };
+  // GO-LIVE-03 (item 3, FAIL-CLOSED): sem conseguir VERIFICAR o diretório, o
+  // bootstrap NÃO acontece — jamais criar administrador às cegas.
   const staff = await fetchStaff('administrador');
-  if ((staff?.members ?? []).filter((m) => m.active).length > 0) {
-    return { ok: true }; // já existe administrador — bootstrap não se repete
+  if (staff === null) return { ok: false, error: 'não foi possível verificar o diretório de administradores — tente novamente' };
+  if (staff.members.filter((m) => m.active).length > 0) {
+    return { ok: true }; // já existe administrador — bootstrap permanentemente desabilitado
   }
   const created = await createStaff('administrador', nome.trim(), null);
   if (!created) return { ok: false, error: 'falha ao cadastrar o administrador (API indisponível?)' };
@@ -197,6 +202,7 @@ export interface WhatsAppStatus {
   officialNumber: string;
   webhookUrl: string;
   lastSyncAt: string | null;
+  capabilities: { canManageInstances: boolean; missing: string[] };
 }
 export interface WhatsAppConfirm {
   connected: boolean;
@@ -225,28 +231,48 @@ export async function fetchApplyInstructions(): Promise<ApplyInstructions | null
   return getJson<ApplyInstructions>('/admin/whatsapp/apply-instructions');
 }
 
-async function founderPost<T>(path: string, body: unknown): Promise<T | null> {
+// GO-LIVE-03 (item 6): o erro REAL da API atravessa até a tela — nunca um null
+// mudo. Se o servidor do portal não tem o segredo Founder, a causa é declarada.
+export interface FounderActionResult<T> {
+  ok: boolean;
+  data: T | null;
+  error: string | null;
+}
+
+async function founderPost<T>(path: string, body: unknown): Promise<FounderActionResult<T>> {
+  if (FOUNDER_TOKEN === '') {
+    return { ok: false, data: null, error: 'FOUNDER_ACCESS_SECRET não configurado no servidor — defina no .env e recrie os containers.' };
+  }
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         ...(ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
-        ...(FOUNDER_TOKEN ? { 'x-founder-secret': FOUNDER_TOKEN } : {}),
+        'x-founder-secret': FOUNDER_TOKEN,
       },
       body: JSON.stringify(body),
       cache: 'no-store',
     });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
+    if (!res.ok) {
+      let detail = `HTTP ${String(res.status)}`;
+      try {
+        const parsed = (await res.json()) as { error?: string };
+        if (typeof parsed.error === 'string' && parsed.error !== '') detail = parsed.error;
+      } catch {
+        /* corpo não-JSON: mantém o status */
+      }
+      return { ok: false, data: null, error: detail };
+    }
+    return { ok: true, data: (await res.json()) as T, error: null };
+  } catch (error) {
+    return { ok: false, data: null, error: error instanceof Error ? `API inacessível: ${error.message}` : 'API inacessível' };
   }
 }
-export async function createWhatsappInstance(instanceName: string): Promise<{ instanceName: string; qr: WhatsAppQr } | null> {
+export async function createWhatsappInstance(instanceName: string): Promise<FounderActionResult<{ instanceName: string; qr: WhatsAppQr }>> {
   return founderPost('/admin/whatsapp/instances', { instanceName });
 }
-export async function discardWhatsappInstance(instanceName: string): Promise<{ discarded: boolean } | null> {
+export async function discardWhatsappInstance(instanceName: string): Promise<FounderActionResult<{ discarded: boolean }>> {
   return founderPost('/admin/whatsapp/discard', { instanceName, confirm: true });
 }
 

@@ -23,3 +23,4 @@ export * from './advogado-portal/index.js';
 export * from './lawyer-experience/index.js';
 export * from './production/index.js';
 export * from './alir/index.js';
+export * from './qualification/index.js';

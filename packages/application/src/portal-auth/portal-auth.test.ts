@@ -111,6 +111,23 @@ describe('AdvogadoAuthRuntime · convite → senha → login (fail-closed em tud
     expect(errada.ok).toBe(false);
   });
 
+  it('GO-LIVE-04.1 — CONVITE NÃO É REUTILIZÁVEL: morto após a senha criada; redefinir exige convite NOVO', async () => {
+    const { auth } = harness([member({})]);
+    const convite = await auth.emitirConvite('adv-1', NOW);
+    expect((await auth.definirSenha(convite ?? '', 'primeira-senha-123', NOW)).ok).toBe(true);
+    // Reuso do MESMO convite (vazado) para trocar a senha ⇒ NEGA:
+    const reuso = await auth.definirSenha(convite ?? '', 'senha-do-atacante', new Date(NOW.getTime() + 60_000));
+    expect(reuso.ok).toBe(false);
+    if (!reuso.ok) expect(reuso.error).toContain('já foi utilizado');
+    // A senha original permanece:
+    expect((await auth.login('adv-1', 'primeira-senha-123')).ok).toBe(true);
+    // Convite NOVO (emitido DEPOIS da senha) permite redefinição legítima:
+    const DEPOIS = new Date(NOW.getTime() + 2 * 60_000);
+    const novo = await auth.emitirConvite('adv-1', DEPOIS);
+    expect((await auth.definirSenha(novo ?? '', 'senha-redefinida-123', DEPOIS)).ok).toBe(true);
+    expect((await auth.login('adv-1', 'senha-redefinida-123')).ok).toBe(true);
+  });
+
   it('FAIL-CLOSED: servidor sem segredo ⇒ nenhum convite nasce', async () => {
     const staff: StaffStore = {
       save: () => Promise.resolve(),

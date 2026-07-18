@@ -29,6 +29,9 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 // Tudo exige sessão, exceto o login e os assets do Next.
+// GO-LIVE-04.1: '/' EXPLÍCITO no matcher — a homologação real provou que a raiz
+// do basePath atravessava o padrão com grupo e abria o Dashboard sem sessão.
+// Defesa em profundidade: o layout do (painel) também valida a sessão (SSR).
 export const config = {
-  matcher: ['/((?!login|_next/|favicon\\.ico).*)'],
+  matcher: ['/', '/((?!login|_next/|favicon\\.ico).*)'],
 };

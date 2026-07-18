@@ -32,6 +32,12 @@ export interface WhatsAppStatus {
   readonly officialNumber: string;
   readonly webhookUrl: string;
   readonly lastSyncAt: string | null;
+  /** GO-LIVE-03 (item 6): pré-condições DECLARADAS — a tela diz o que falta em vez
+   *  de exibir botões que falham em silêncio (Lei 9: ausência declarada). */
+  readonly capabilities: {
+    readonly canManageInstances: boolean;
+    readonly missing: readonly string[];
+  };
 }
 
 export interface CreateResult {
@@ -58,6 +64,11 @@ export interface WhatsAppConnectionDeps {
   readonly active: { readonly instance: string; readonly number: string };
   readonly webhookUrl: string;
   readonly webhookSecret: string;
+  /** Pré-condições do gerenciamento de instâncias (criar/descartar). */
+  readonly management: {
+    readonly hasGlobalKey: boolean; // EVOLUTION_GLOBAL_API_KEY presente
+    readonly hasFounderGate: boolean; // FOUNDER_ACCESS_SECRET presente
+  };
 }
 
 export class WhatsAppConnectionRuntime {
@@ -107,6 +118,10 @@ export class WhatsAppConnectionRuntime {
       pendingInstance !== '' &&
       (pendingInstance !== this.deps.active.instance || pendingNumber !== this.deps.active.number);
 
+    const missing: string[] = [];
+    if (!this.deps.management.hasGlobalKey) missing.push('EVOLUTION_GLOBAL_API_KEY');
+    if (!this.deps.management.hasFounderGate) missing.push('FOUNDER_ACCESS_SECRET');
+
     return {
       active: this.deps.active,
       pending: hasPendingApply ? { instance: pendingInstance, number: pendingNumber } : null,
@@ -116,6 +131,7 @@ export class WhatsAppConnectionRuntime {
       officialNumber: this.deps.officialNumber,
       webhookUrl: this.deps.webhookUrl,
       lastSyncAt: this.lastSyncAt?.toISOString() ?? null,
+      capabilities: { canManageInstances: missing.length === 0, missing },
     };
   }
 

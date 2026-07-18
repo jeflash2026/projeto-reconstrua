@@ -78,6 +78,7 @@ function runtime(routes: (m: string, u: string) => EvoHttpResponse, active = { i
   const rt = new WhatsAppConnectionRuntime({
     client, configStore: store, observability: new ObservabilityRuntime(() => undefined), clock: new FixedClock(),
     officialNumber: OFFICIAL, active, webhookUrl: 'https://reconstrua.com.br/webhook/evolution', webhookSecret: 'WH',
+    management: { hasGlobalKey: true, hasFounderGate: true },
   });
   return { rt, http, store };
 }

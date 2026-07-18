@@ -207,6 +207,38 @@ describe('Admin Portal API', () => {
     expect(invalid.statusCode).toBe(400);
   });
 
+  // ── GO-LIVE-05 · BUG 1: bootstrap ONE-TIME, server-authoritative ─────────────
+  it('bootstrap acontece UMA vez e persiste; depois GET /admin/bootstrap = true para sempre', async () => {
+    const antes = await call({ method: 'GET', url: '/admin/bootstrap' });
+    expect(antes.statusCode).toBe(200);
+    const antesBody: { bootstrapped: boolean } = antes.json();
+    expect(antesBody.bootstrapped).toBe(false);
+
+    const criar = await call({ method: 'POST', url: '/admin/bootstrap', payload: { name: 'Jessé Fundador' } });
+    expect(criar.statusCode).toBe(200);
+    const criarBody: { bootstrapped: boolean; member: { name: string } } = criar.json();
+    expect(criarBody.member.name).toBe('Jessé Fundador');
+
+    // Releitura (equivale ao próximo login após logout): permanece inicializado.
+    const depois = await call({ method: 'GET', url: '/admin/bootstrap' });
+    const depoisBody: { bootstrapped: boolean } = depois.json();
+    expect(depoisBody.bootstrapped).toBe(true);
+
+    // Segundo bootstrap (corrida/duplo clique/link vazado) → 409, NUNCA cria outro.
+    const denovo = await call({ method: 'POST', url: '/admin/bootstrap', payload: { name: 'Intruso' } });
+    expect(denovo.statusCode).toBe(409);
+    const admins = await call({ method: 'GET', url: '/admin/staff/administrador' });
+    const adminsBody: { members: unknown[] } = admins.json();
+    expect(adminsBody.members).toHaveLength(1); // só o primeiro
+  });
+
+  it('bootstrap exige o Bearer do Admin (nunca público)', async () => {
+    const get = await app.inject({ method: 'GET', url: '/admin/bootstrap' });
+    const post = await app.inject({ method: 'POST', url: '/admin/bootstrap', payload: { name: 'X' } });
+    expect(get.statusCode).toBe(401);
+    expect(post.statusCode).toBe(401);
+  });
+
   it('founder console — briefing e pergunta com proveniência (nunca decide)', async () => {
     const briefing = await call({ method: 'GET', url: '/admin/founder/briefing' });
     const briefingBody: { greeting: string } = briefing.json();

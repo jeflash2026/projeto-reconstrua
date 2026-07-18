@@ -43,24 +43,29 @@ export async function loginAdmin(senha: string): Promise<LoginResult> {
   if (ADMIN_TOKEN_LOGIN === '') return { ok: false, error: 'servidor sem segredo de acesso configurado (ADMIN_ACCESS_SECRET)' };
   if (!secretsMatch(senha.trim(), ADMIN_TOKEN_LOGIN)) return { ok: false, error: 'senha de acesso incorreta' };
   setAdminSession();
-  // GO-LIVE-03 (item 3, FAIL-CLOSED): o bootstrap só é oferecido com o diretório
-  // VERIFICADO vazio. API inacessível ⇒ NUNCA oferecer bootstrap (staff === null).
-  const staff = await fetchStaff('administrador');
-  const needsBootstrap = staff !== null && staff.members.filter((m) => m.active).length === 0;
+  // GO-LIVE-05: a verdade do bootstrap é do SERVIDOR (∃ administrador ativo),
+  // NUNCA inferida contando a lista (causa raiz do bug: leitura vazia/falha
+  // reabria o bootstrap). Fail-closed: se a consulta falhar, NÃO oferece
+  // bootstrap (uma tela de login a mais é seguro; recriar admin não é).
+  const state = await getJson<{ bootstrapped: boolean }>('/admin/bootstrap');
+  const needsBootstrap = state !== null && state.bootstrapped === false;
   return { ok: true, needsBootstrap };
 }
 
 export async function bootstrapAdmin(senha: string, nome: string): Promise<LoginResult> {
   if (!secretsMatch(senha.trim(), ADMIN_TOKEN_LOGIN)) return { ok: false, error: 'senha de acesso incorreta' };
-  // GO-LIVE-03 (item 3, FAIL-CLOSED): sem conseguir VERIFICAR o diretório, o
-  // bootstrap NÃO acontece — jamais criar administrador às cegas.
-  const staff = await fetchStaff('administrador');
-  if (staff === null) return { ok: false, error: 'não foi possível verificar o diretório de administradores — tente novamente' };
-  if (staff.members.filter((m) => m.active).length > 0) {
-    return { ok: true }; // já existe administrador — bootstrap permanentemente desabilitado
+  // GO-LIVE-05: bootstrap ONE-TIME no servidor. 409 = já inicializado (corrida ou
+  // duplo clique) ⇒ tratamos como sucesso e apenas abrimos a sessão.
+  const res = await fetch(`${API_BASE}/admin/bootstrap`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${ADMIN_TOKEN_LOGIN}` },
+    body: JSON.stringify({ name: nome.trim() }),
+    cache: 'no-store',
+  }).catch(() => null);
+  if (res === null) return { ok: false, error: 'API indisponível — tente novamente' };
+  if (!res.ok && res.status !== 409) {
+    return { ok: false, error: 'falha ao inicializar o administrador — tente novamente' };
   }
-  const created = await createStaff('administrador', nome.trim(), null);
-  if (!created) return { ok: false, error: 'falha ao cadastrar o administrador (API indisponível?)' };
   setAdminSession();
   return { ok: true };
 }
@@ -229,6 +234,26 @@ export async function confirmWhatsapp(instanceName: string): Promise<WhatsAppCon
 }
 export async function fetchApplyInstructions(): Promise<ApplyInstructions | null> {
   return getJson<ApplyInstructions>('/admin/whatsapp/apply-instructions');
+}
+
+// GO-LIVE-05 (BUG 2): DIAGNÓSTICO — o erro REAL de cada dependência. Diferente do
+// getJson genérico: quando a própria API falha, devolve a causa (HTTP/rede), não null.
+export interface DiagnosticStep { step: string; ok: boolean; detail: string }
+export interface DiagnosticReport { ok: boolean; steps: DiagnosticStep[]; at: string }
+
+export async function runWhatsappDiagnostics(): Promise<{ report: DiagnosticReport | null; error: string | null }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/whatsapp/diagnostics`, { cache: 'no-store', headers: ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {} });
+    if (!res.ok) {
+      let detail = `A API administrativa respondeu HTTP ${String(res.status)}`;
+      if (res.status === 401) detail = 'A API recusou a autenticação (ADMIN_ACCESS_SECRET incorreto no servidor)';
+      if (res.status === 503) detail = 'A conexão WhatsApp não está montada na API (verifique a configuração da Evolution)';
+      return { report: null, error: detail };
+    }
+    return { report: (await res.json()) as DiagnosticReport, error: null };
+  } catch (error) {
+    return { report: null, error: error instanceof Error ? `API administrativa inacessível: ${error.message}` : 'API administrativa inacessível' };
+  }
 }
 
 // GO-LIVE-03 (item 6): o erro REAL da API atravessa até a tela — nunca um null

@@ -451,6 +451,12 @@ export function buildAdminServer(
     return op.whatsapp.confirm(body.instanceName, { role: 'admin' });
   });
 
+  // GO-LIVE-05 (BUG 2): DIAGNÓSTICO — sonda cada dependência e diz onde falhou.
+  app.get('/admin/whatsapp/diagnostics', async (_request, reply) => {
+    if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
+    return op.whatsapp.diagnose();
+  });
+
   app.get('/admin/whatsapp/apply-instructions', async (_request, reply) => {
     if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
     const status = await op.whatsapp.getStatus();
@@ -518,6 +524,24 @@ export function buildAdminServer(
       return reply.code(400).send({ error: 'role e name são obrigatórios' });
     }
     return op.staff.register(body.role, body.name, body.email ?? null);
+  });
+
+  // ── BOOTSTRAP (GO-LIVE-05) — one-time, SERVER-AUTHORITATIVE ──────────────────
+  // A verdade do bootstrap vive no servidor (∃ administrador ativo), nunca é
+  // inferida no cliente contando a lista. Guardado pelo Bearer do Admin como todo
+  // /admin/*: só quem tem o segredo inicializa. Uma vez feito, jamais reaparece.
+  app.get('/admin/bootstrap', async () => ({ bootstrapped: await op.staff.isBootstrapped() }));
+
+  app.post('/admin/bootstrap', async (request, reply) => {
+    const body = request.body as { name?: string };
+    if (!body.name || body.name.trim() === '') return reply.code(400).send({ error: 'name é obrigatório' });
+    try {
+      const member = await op.staff.bootstrapFirstAdmin(body.name.trim());
+      return { bootstrapped: true, member };
+    } catch {
+      // AlreadyBootstrappedError: o sistema já foi inicializado (idempotente/one-time).
+      return reply.code(409).send({ bootstrapped: true, error: 'sistema já inicializado — o bootstrap não se repete' });
+    }
   });
 
   app.patch('/admin/staff/:id', async (request, reply) => {

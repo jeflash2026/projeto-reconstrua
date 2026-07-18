@@ -41,6 +41,14 @@ export interface StaffWorkload {
   readonly avgQueuePerMember: number | null;
 }
 
+/** GO-LIVE-05 — sinaliza tentativa de bootstrap com o sistema já inicializado. */
+export class AlreadyBootstrappedError extends Error {
+  constructor() {
+    super('sistema já inicializado — o bootstrap do administrador não se repete');
+    this.name = 'AlreadyBootstrappedError';
+  }
+}
+
 export class StaffDirectoryRuntime {
   constructor(
     private readonly store: StaffStore,
@@ -83,6 +91,24 @@ export class StaffDirectoryRuntime {
 
   async list(role: StaffRole): Promise<readonly StaffMember[]> {
     return this.store.byRole(role);
+  }
+
+  /**
+   * GO-LIVE-05 — o sistema JÁ foi inicializado? Autoritativo: existe pelo menos
+   * um administrador ATIVO. É a única verdade do bootstrap (nunca inferida no
+   * cliente). Uma vez true, permanece true — o bootstrap não reaparece.
+   */
+  async isBootstrapped(): Promise<boolean> {
+    return (await this.store.byRole('administrador')).some((m) => m.active);
+  }
+
+  /**
+   * GO-LIVE-05 — o bootstrap do PRIMEIRO administrador: acontece UMA vez na vida
+   * do sistema. Se já inicializado, recusa (nunca cria um segundo por bootstrap).
+   */
+  async bootstrapFirstAdmin(name: string): Promise<StaffMember> {
+    if (await this.isBootstrapped()) throw new AlreadyBootstrappedError();
+    return this.register('administrador', name, null);
   }
 
   async workload(role: StaffRole): Promise<StaffWorkload> {

@@ -21,6 +21,7 @@ import type {
   Sleeper,
 } from '@reconstrua/application';
 import {
+  AcompanhamentoView,
   AdvogadoAhriBridge,
   AdvogadoWorkRuntime,
   BootRuntime,
@@ -187,6 +188,8 @@ export interface AssembledProduction {
   readonly documentReader: DocumentReaderService;
   /** GO LIVE A · R1: a visão única do cliente (ALIR) + persona Operador de Qualificação. */
   readonly alir: AssembledALIR;
+  /** PC-R1: a projeção segura do processo para o CLIENTE (Portal + AHRI — Princípio 3). */
+  readonly acompanhamento: AcompanhamentoView;
 }
 
 export function assembleProduction(wiring: ProductionWiring): AssembledProduction {
@@ -419,6 +422,23 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
 
   const auditor = new EventStoreIntegrityAuditor(eventStore, hasher);
 
+  // ── PORTAL DO CLIENTE · PC-R1: a projeção segura ÚNICA (Portal + AHRI) ────────
+  // D1: PROCESSING_ESTIMATE_DAYS lida AQUI, em um único ponto — Portal e mensagens
+  // da AHRI consomem o MESMO valor. D3: a visão só compõe; nada nasce nela.
+  const officialNumber = (env['OFFICIAL_WHATSAPP_NUMBER'] ?? '554137989737').replace(/\D/g, '');
+  const acompanhamento = new AcompanhamentoView({
+    clientes,
+    memory: memoryStore,
+    juridical: juridicalStore,
+    assignments: assignmentStore,
+    staff: staffStore,
+    liberacao: () => Promise.resolve(null), // o FATO liberacao-portal nasce no PC-R3
+    config: {
+      estimativaDias: Number(env['PROCESSING_ESTIMATE_DAYS'] ?? '12'),
+      whatsapp: officialNumber,
+    },
+  });
+
   // ── GO LIVE B · B-R2: visão do Perito (fila derivada + contratos + planilha) ──
   // Deps são funções simples sobre componentes JÁ existentes: projector (documentos
   // reconhecidos por missão, com refresh) e DocumentReader (texto cacheado).
@@ -464,7 +484,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     configStore,
     observability,
     clock,
-    officialNumber: (env['OFFICIAL_WHATSAPP_NUMBER'] ?? '554137989737').replace(/\D/g, ''),
+    officialNumber,
     active: {
       instance: config.evolution.instance,
       number: (config.evolution.whatsappNumber ?? '').replace(/\D/g, ''),
@@ -625,6 +645,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     mediaCapture,
     documentReader,
     alir,
+    acompanhamento,
   };
 }
 

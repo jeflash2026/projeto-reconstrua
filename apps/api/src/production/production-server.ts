@@ -16,7 +16,7 @@ import {
   mapEvolutionUpsert,
   summarize,
 } from '@reconstrua/infrastructure';
-import { configFromEnv, maskConfig, mergeConfigUpdate, type ProductionConfig } from '@reconstrua/application';
+import { configFromEnv, maskConfig, mergeConfigUpdate, validarTokenCliente, type ProductionConfig } from '@reconstrua/application';
 import type { FastifyRequest } from 'fastify';
 import { bearerToken, requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 import { PRODUCTION_UI_HTML } from './production-ui.js';
@@ -72,6 +72,21 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
 
   app.options('/*', (_request, reply) => {
     void reply.code(204).send();
+  });
+
+  // ── PORTAL DO CLIENTE · PC-R1 — leitura da projeção segura, autorizada pelo
+  // TOKEN do próprio cliente (link mágico; escopo = 1 cliente; stateless — Lei 13).
+  // O segredo vive SÓ aqui (assinatura/validação); o portal apenas repassa o token
+  // server-side. 401 NEUTRO: nunca confirma a existência de um cliente (Princípio 6).
+  const clientePortalSecret = env['CLIENTE_PORTAL_SECRET'] ?? '';
+  app.get('/cliente/acompanhamento', async (request, reply) => {
+    const token = bearerToken(request);
+    const clienteId = token !== null ? validarTokenCliente(token, new Date(), clientePortalSecret) : null;
+    const view = clienteId !== null ? await prod.acompanhamento.acompanhamento(clienteId) : null;
+    if (view === null) {
+      return reply.code(401).send({ error: 'peça um novo link de acesso conversando com a AHRI no WhatsApp' });
+    }
+    return view;
   });
 
   // ── WEBHOOK Evolution (produção): ACK imediato; turno destacado entra pela

@@ -23,6 +23,8 @@ import type {
 import {
   AcompanhamentoView,
   NascimentoPortalRuntime,
+  emitirTokenCliente,
+  pacoteDeEstado,
   AdvogadoAhriBridge,
   AdvogadoWorkRuntime,
   BootRuntime,
@@ -281,6 +283,48 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     pedidos: pedidosStore,
   });
 
+  // ── PORTAL DO CLIENTE · PC-R1/R3/R4: a projeção segura ÚNICA (Portal + AHRI) ──
+  // D1: PROCESSING_ESTIMATE_DAYS lida AQUI, em um único ponto — Portal e mensagens
+  // da AHRI consomem o MESMO valor. D3: a visão só compõe; nada nasce nela.
+  const officialNumber = (env['OFFICIAL_WHATSAPP_NUMBER'] ?? '554137989737').replace(/\D/g, '');
+  const estimativaDias = Number(env['PROCESSING_ESTIMATE_DAYS'] ?? '12');
+  const clientePortalSecret = env['CLIENTE_PORTAL_SECRET'] ?? '';
+  const liberacaoStore = new JsonLiberacaoPortalStore(json);
+  const acompanhamento = new AcompanhamentoView({
+    clientes,
+    memory: memoryStore,
+    juridical: juridicalStore,
+    assignments: assignmentStore,
+    staff: staffStore,
+    liberacao: (clienteId) => liberacaoStore.load(clienteId), // o FATO real (PC-R3)
+    config: {
+      estimativaDias,
+      whatsapp: officialNumber,
+    },
+  });
+
+  // ── PC-R4 · CONTINUIDADE DA RELAÇÃO: o pacote de FATOS do caso para a conversa.
+  // Deriva da MESMA visão segura do Portal (teto do dizível). O link só existe se
+  // o Portal já NASCEU (fato) — renovação é consequência da conversa, nunca fluxo.
+  // Best-effort: qualquer falha ⇒ null; a conversa NUNCA quebra por causa dele.
+  const casoFatos = async (chatId: string): Promise<string | null> => {
+    try {
+      const identity = await identityMap.load(chatId);
+      const clienteId = identity?.clienteId ?? null;
+      if (clienteId === null) return null;
+      const visao = await acompanhamento.acompanhamento(clienteId);
+      if (visao === null) return null;
+      const liberado = await liberacaoStore.load(clienteId);
+      const link =
+        liberado !== null && clientePortalSecret !== ''
+          ? `${config.publicUrl.replace(/\/+$/, '')}/portal?t=${emitirTokenCliente(clienteId, 90, clock.now(), clientePortalSecret)}`
+          : null;
+      return pacoteDeEstado(visao, link);
+    } catch {
+      return null;
+    }
+  };
+
   // ── LLM real (4 ports) e HTTP resiliente ─────────────────────────────────────
   const resilientHttp = new ResilientHttpClient(new FetchHttpClient(), sleeper, observability, clock, 'http');
   const llm = createLlmBundle({ config, http: resilientHttp, observability, clock });
@@ -379,7 +423,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // ── 2B: Conversa (peças públicas; handles retidos para a ponte 3B) ───────────
   const sessions = new SessionRuntime(sessionStore);
   const convMemory = new ConversationMemoryRuntime(conversationStore, clock, uuid);
-  const context = new ConversationContextRuntime(sessions, convMemory);
+  // PC-R4: o contexto de conversa carrega o pacote de FATOS do caso (best-effort).
+  const context = new ConversationContextRuntime(sessions, convMemory, {}, casoFatos);
   const promptBuilder = new PromptBuilderRuntime(policy.antiRepetitionWindow);
   const timing = new HumanLikeTimingRuntime(policy, Math.random);
   const delay = new DelayRuntime(sleeper);
@@ -427,25 +472,6 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
 
   const auditor = new EventStoreIntegrityAuditor(eventStore, hasher);
 
-  // ── PORTAL DO CLIENTE · PC-R1/R3: a projeção segura ÚNICA (Portal + AHRI) ─────
-  // D1: PROCESSING_ESTIMATE_DAYS lida AQUI, em um único ponto — Portal e mensagens
-  // da AHRI consomem o MESMO valor. D3: a visão só compõe; nada nasce nela.
-  const officialNumber = (env['OFFICIAL_WHATSAPP_NUMBER'] ?? '554137989737').replace(/\D/g, '');
-  const estimativaDias = Number(env['PROCESSING_ESTIMATE_DAYS'] ?? '12');
-  const liberacaoStore = new JsonLiberacaoPortalStore(json);
-  const acompanhamento = new AcompanhamentoView({
-    clientes,
-    memory: memoryStore,
-    juridical: juridicalStore,
-    assignments: assignmentStore,
-    staff: staffStore,
-    liberacao: (clienteId) => liberacaoStore.load(clienteId), // o FATO real (PC-R3)
-    config: {
-      estimativaDias,
-      whatsapp: officialNumber,
-    },
-  });
-
   // ── GO LIVE B · B-R2: visão do Perito (fila derivada + contratos + planilha) ──
   // Deps são funções simples sobre componentes JÁ existentes: projector (documentos
   // reconhecidos por missão, com refresh) e DocumentReader (texto cacheado).
@@ -480,7 +506,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       estimativaDias,
       validadeLinkDias: 90,
       publicUrl: config.publicUrl,
-      tokenSecret: env['CLIENTE_PORTAL_SECRET'] ?? '',
+      tokenSecret: clientePortalSecret,
     },
   });
 

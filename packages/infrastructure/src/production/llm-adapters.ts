@@ -197,10 +197,18 @@ class LlmExpression implements LlmExpressionPort {
     const t0 = this.clock.now().getTime();
     const intent = request.intent;
     const system = `${this.config.prompts.global}\n\n${this.config.prompts.conversation}`;
+    // PC-R4 — continuidade da relação: a expressão vê a ÚLTIMA MENSAGEM da pessoa
+    // (para responder o que foi de fato perguntado) e o PACOTE DE FATOS do caso
+    // (a MESMA verdade do Portal — o teto do dizível). O Brain continua decidindo;
+    // o pacote só dá fatos e limites à fala — nunca decide.
+    const ultimaMensagem = request.context.lastPercept?.envelope.text ?? null;
+    const casoFatos = request.context.casoFatos ?? null;
     const user = [
       `INTENÇÃO DECIDIDA (você apenas frasea): ${intent.directive}${intent.speechAct ? ` / ${intent.speechAct}` : ''}`,
       `Tópico: ${intent.topic ?? '-'}`,
       `Referências: ${intent.references.join(', ') || '-'}`,
+      ...(ultimaMensagem !== null && ultimaMensagem !== '' ? [`Última mensagem da pessoa: "${ultimaMensagem}"`] : []),
+      ...(casoFatos !== null ? [casoFatos] : []),
       `Tom: ${request.styleGuidance}`,
       `NUNCA repita estas frases: ${request.avoidPhrases.slice(0, 6).join(' | ') || '-'}`,
       'Responda APENAS a mensagem final ao cliente, sem aspas.',

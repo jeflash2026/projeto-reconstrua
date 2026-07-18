@@ -5,3 +5,4 @@
 export * from './acompanhamento.js';
 export * from './token.js';
 export * from './nascimento.js';
+export * from './pacote-estado.js';

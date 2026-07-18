@@ -145,4 +145,7 @@ export interface ConversationContextView {
   readonly recentOutboundTexts: readonly string[];
   readonly lastPercept: Percept | null;
   readonly silenceMs: number | null;
+  /** PC-R4 — a VERDADE do caso para a expressão (derivada da MESMA visão segura
+   *  do Portal — o teto do dizível). null/ausente = sem cliente reconhecido. */
+  readonly casoFatos?: string | null;
 }

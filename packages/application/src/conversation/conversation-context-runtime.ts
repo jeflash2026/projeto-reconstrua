@@ -20,6 +20,10 @@ export const DEFAULT_CONTEXT_OPTIONS: ContextOptions = {
   outboundWindow: 8,
 };
 
+/** PC-R4 — fornece o pacote de FATOS do caso (derivado da visão segura do Portal).
+ *  Opcional e best-effort: falha ⇒ null; a conversa NUNCA quebra por causa dele. */
+export type CasoFatosProvider = (chatId: string) => Promise<string | null>;
+
 export class ConversationContextRuntime {
   private readonly options: ContextOptions;
 
@@ -27,6 +31,7 @@ export class ConversationContextRuntime {
     private readonly sessions: SessionRuntime,
     private readonly memory: ConversationMemoryRuntime,
     options: Partial<ContextOptions> = {},
+    private readonly casoFatos?: CasoFatosProvider,
   ) {
     this.options = { ...DEFAULT_CONTEXT_OPTIONS, ...options };
   }
@@ -38,9 +43,10 @@ export class ConversationContextRuntime {
     silenceMs: number | null = null,
   ): Promise<ConversationContextView> {
     const session: Session = await this.sessions.getOrOpen(chatId, now);
-    const [recentEntries, recentOutboundTexts] = await Promise.all([
+    const [recentEntries, recentOutboundTexts, casoFatos] = await Promise.all([
       this.memory.recent(chatId, this.options.memoryWindow),
       this.memory.recentOutboundTexts(chatId, this.options.outboundWindow),
+      this.casoFatos !== undefined ? this.casoFatos(chatId).catch(() => null) : Promise.resolve(null),
     ]);
     return {
       chatId,
@@ -49,6 +55,7 @@ export class ConversationContextRuntime {
       recentOutboundTexts,
       lastPercept,
       silenceMs,
+      casoFatos,
     };
   }
 }

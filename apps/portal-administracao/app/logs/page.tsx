@@ -14,7 +14,8 @@ const LogsPage = async ({ searchParams }: { searchParams: { q?: string } }): Pro
       <h1 className="page-title">Logs</h1>
       <p className="page-sub">Tudo auditável: eventos de domínio e observações de runtime.</p>
 
-      <form className="form-row" action="/logs" method="get">
+      {/* Sem `action` absoluto: submete à própria URL (funciona sob o basePath /admin). */}
+      <form className="form-row" method="get">
         <input type="text" name="q" placeholder="Pesquisar (evento, stream, ator, regra, componente)…" defaultValue={q} />
         <button type="submit" className="primary">
           Pesquisar

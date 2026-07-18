@@ -1,8 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# AHRIOS — PRODUÇÃO (Sprint 4A): Postgres 16 + API completa (webhook + admin +
-# advogado + lawyer-experience + monitor/config/go-live). O compose de dev
-# (docker-compose.yml, só banco) permanece intocado. Os portais Next são servidos
-# à parte (next start) apontando NEXT_PUBLIC_API_URL; a landing é estática.
+# AHRIOS — PRODUÇÃO: Postgres 16 + API completa (webhook + admin + advogado +
+# lawyer-experience + monitor/config/go-live) + PORTAIS Next containerizados.
+# Plataforma inteira em UM domínio (NPM): / → api:3001 · /admin → portal-admin:3100
+# · /advogado → portal-advogado:3200 · /pericias → proxy interno p/ /admin/pericias.
+# O compose de dev (docker-compose.yml, só banco) permanece intocado.
 # Uso: docker compose -f docker-compose.production.yml up -d
 # ─────────────────────────────────────────────────────────────────────────────
 services:
@@ -77,5 +78,54 @@ services:
       - '${ADVOGADO_PORT:-3003}'   # advogado API (interno, rede Docker)
       - '${LX_PORT:-3004}'         # lawyer experience API (interno, rede Docker)
 
+  # ── PORTAIS (Next.js) — plataforma em UM domínio, subpaths /admin e /advogado ─
+  # O NPM alcança os portais pela REDE DOCKER compartilhada (npm-net), por NOME de
+  # serviço — sem depender do IP do host. Portas publicadas só para diagnóstico
+  # local (curl localhost:3100/3200). A página do Perito é /admin/pericias; o NPM
+  # serve /pericias com proxy interno preservando a URL no navegador.
+  portal-admin:
+    build:
+      context: .
+      target: portal-admin
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:${ADMIN_PORT:-3002}
+      ADMIN_API_TOKEN: ${ADMIN_ACCESS_SECRET:-}
+      FOUNDER_API_TOKEN: ${FOUNDER_ACCESS_SECRET:-}
+      ADVOGADO_API_URL: http://api:${ADVOGADO_PORT:-3003}
+      ADVOGADO_API_TOKEN: ${ADVOGADO_ACCESS_SECRET:-}
+    ports:
+      - '3100:3100'
+    networks:
+      - default
+      - npm-net
+
+  portal-advogado:
+    build:
+      context: .
+      target: portal-advogado
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:${ADVOGADO_PORT:-3003}
+      ADVOGADO_API_TOKEN: ${ADVOGADO_ACCESS_SECRET:-}
+    ports:
+      - '3200:3200'
+    networks:
+      - default
+      - npm-net
+
 volumes:
   ahrios-prod-pgdata:
+
+networks:
+  default:
+  # Rede EXTERNA do Nginx Proxy Manager — permite proxy por NOME de serviço
+  # (portal-admin:3100 / portal-advogado:3200). Descubra o nome da rede com:
+  #   docker inspect <container-do-npm> --format '{{json .NetworkSettings.Networks}}'
+  npm-net:
+    external: true
+    name: ${NPM_NETWORK:?defina NPM_NETWORK no .env (nome da rede docker do Nginx Proxy Manager)}

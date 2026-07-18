@@ -27,3 +27,28 @@ RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 EXPOSE 3001 3002 3003 3004
 ENV PORT=3001
 CMD ["node", "apps/api/dist/production/main.js"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PORTAIS (Next.js) — plataforma inteira em UM domínio, sob subpath (basePath):
+#   /admin    → portal-administracao (:3100) — inclui a página do Perito (/admin/pericias)
+#   /advogado → portal-advogado (:3200)
+# Build compartilhado; targets separados por serviço (compose: build.target).
+# ─────────────────────────────────────────────────────────────────────────────
+FROM node:22-alpine AS portal-build
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9 --activate
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
+COPY apps/portal-administracao ./apps/portal-administracao
+COPY apps/portal-advogado ./apps/portal-advogado
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado build
+
+FROM portal-build AS portal-admin
+ENV NODE_ENV=production
+EXPOSE 3100
+CMD ["pnpm", "--filter", "@reconstrua/portal-administracao", "start"]
+
+FROM portal-build AS portal-advogado
+ENV NODE_ENV=production
+EXPOSE 3200
+CMD ["pnpm", "--filter", "@reconstrua/portal-advogado", "start"]

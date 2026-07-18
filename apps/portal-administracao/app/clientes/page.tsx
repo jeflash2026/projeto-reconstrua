@@ -48,7 +48,8 @@ const ClientsPage = async ({ searchParams }: { searchParams: { q?: string } }): 
       <h1 className="page-title">Clientes</h1>
       <p className="page-sub">A jornada de cada cliente — do primeiro contato à venda. Status derivado em tempo real.</p>
 
-      <form className="form-row" action="/clientes" method="get">
+      {/* Sem `action` absoluto: submete à própria URL (funciona sob o basePath /admin). */}
+      <form className="form-row" method="get">
         <input type="text" name="q" placeholder="Pesquisar por nome, WhatsApp ou status…" defaultValue={searchParams.q ?? ''} />
         <button type="submit" className="primary">
           Pesquisar

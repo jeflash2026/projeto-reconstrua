@@ -5,7 +5,6 @@ node_modules
 **/dist
 docs
 constitution
-apps/portal-*
 apps/landing
 *.md
 .git

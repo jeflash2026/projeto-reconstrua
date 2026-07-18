@@ -23,6 +23,17 @@ export function buildAdminServer(
 ): FastifyInstance {
   const app = Fastify({ logger: false });
 
+  // [DEBUG-500] instrumentação TEMPORÁRIA (2ª rodada — remover após o diagnóstico):
+  // stack completa de 5xx no stderr para confirmar se a origem mudou de linha após
+  // a correção de 038fc26 ou se o código corrigido nem está em execução.
+  app.setErrorHandler((error: unknown, request, reply) => {
+    const err = error instanceof Error ? error : new Error(String(error));
+    const rawStatus = (err as { statusCode?: unknown }).statusCode;
+    const status = typeof rawStatus === 'number' && rawStatus >= 400 ? rawStatus : 500;
+    process.stderr.write(`[DEBUG-500] ${request.method} ${request.url}\n${err.stack ?? err.message}\n`);
+    void reply.code(status).send({ statusCode: status, error: 'Internal Server Error', message: err.message });
+  });
+
   // Gate FOUNDER (Super Admin) para operações DESTRUTIVAS de WhatsApp (criar/descartar
   // instância). Além da auth BL-2.1 (Bearer do Admin), exige o header `x-founder-secret`
   // = FOUNDER_ACCESS_SECRET, comparado em tempo constante. Fail-closed: segredo vazio ⇒ nega.

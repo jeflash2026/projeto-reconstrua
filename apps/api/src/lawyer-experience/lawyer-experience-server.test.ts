@@ -64,13 +64,17 @@ describe('Lawyer Experience (3D) — o advogado nunca começa do zero', () => {
   let gateway: InMemoryConversationGateway;
   let ana = '';
   let missionId = '';
-  const H = (): Record<string, string> => ({ 'x-advogado-id': ana });
+  const ADVOGADO_SECRET = 'TEST-LX-ADVOGADO-SECRET';
+  const ADMIN_SECRET = 'TEST-LX-ADMIN-SECRET';
+  // GO-LIVE-04.2: toda rota /lx/* exige o Bearer do advogado ALÉM do x-advogado-id.
+  const H = (): Record<string, string> => ({ 'x-advogado-id': ana, authorization: `Bearer ${ADVOGADO_SECRET}` });
+  const nightShift = (): Record<string, string> => ({ authorization: `Bearer ${ADMIN_SECRET}` });
 
   beforeAll(async () => {
     clock = new TestClock();
     gateway = new InMemoryConversationGateway(clock);
     lx = assembleLawyerExperience({ clock, uuid: new SeqUuid(), gateway, sleeper: new FakeSleeper(clock) });
-    app = buildLawyerExperienceServer(lx);
+    app = buildLawyerExperienceServer(lx, { advogadoSecret: ADVOGADO_SECRET, adminSecret: ADMIN_SECRET });
 
     // MADRUGADA (03:00): cliente chega e envia documento — a operação trabalha sozinha.
     await lx.op.conversation.receive(envelope('text', 'olá, sou o Carlos', 'M1'));
@@ -82,13 +86,13 @@ describe('Lawyer Experience (3D) — o advogado nunca começa do zero', () => {
   });
 
   it('PREPARAÇÃO NOTURNA: abre o ponto de decisão (documentação presente → confirmar distribuição)', async () => {
-    const res = await app.inject({ method: 'POST', url: '/lx-admin/night-shift' });
+    const res = await app.inject({ method: 'POST', url: '/lx-admin/night-shift', headers: nightShift() });
     const report: { decisionsOpened: number; missionsPrepared: number } = res.json();
     expect(report.missionsPrepared).toBe(1);
     expect(report.decisionsOpened).toBeGreaterThanOrEqual(1);
 
     // Idempotente: rodar de novo não duplica.
-    await app.inject({ method: 'POST', url: '/lx-admin/night-shift' });
+    await app.inject({ method: 'POST', url: '/lx-admin/night-shift', headers: nightShift() });
     const open = await lx.gate.awaiting(ana);
     expect(open.filter((d) => d.type === 'confirm_distribution')).toHaveLength(1);
   });
@@ -198,14 +202,66 @@ describe('Lawyer Experience (3D) — o advogado nunca começa do zero', () => {
     await lx.nightShift.run(clock.now());
     const open = (await lx.gate.awaiting(ana)).find((d) => d.type === 'juridical_review');
     expect(open).toBeDefined();
-    // Bruno tenta resolver a decisão de Ana → 403.
+    // Bruno tenta resolver a decisão de Ana (autenticado, mas sem permissão) → 403.
     const res = await app.inject({
       method: 'POST',
       url: `/lx/decisoes/${open?.id ?? ''}/resolver`,
-      headers: { 'x-advogado-id': bruno },
+      headers: { 'x-advogado-id': bruno, authorization: `Bearer ${ADVOGADO_SECRET}` },
       payload: { accepted: true },
     });
     expect(res.statusCode).toBe(403);
     // E não existe NENHUMA rota que permita à AHRI resolver: só o POST do advogado dono.
+  });
+
+  // ── GO-LIVE-04.2: AUDITORIA DE AUTENTICAÇÃO DA API (ataques) ─────────────────
+  describe('proteção da API (sessão · perfil · permissão) — nunca 200 sem autenticar', () => {
+    const rotasLx = [
+      { method: 'GET' as const, url: '/lx/plantao' },
+      { method: 'GET' as const, url: '/lx/decisoes' },
+      { method: 'GET' as const, url: '/lx/metricas' },
+      { method: 'GET' as const, url: '/lx/processos/qualquer/quadro' },
+      { method: 'POST' as const, url: '/lx/decisoes/qualquer/resolver' },
+    ];
+
+    it('SESSÃO ausente: nenhuma rota /lx/* abre sem o Bearer (mesmo com x-advogado-id válido)', async () => {
+      for (const r of rotasLx) {
+        const semTudo = await app.inject({ method: r.method, url: r.url });
+        expect(semTudo.statusCode, `${r.url} sem headers`).toBe(401);
+        // x-advogado-id VÁLIDO mas SEM segredo: identidade não é sessão → 401.
+        const soIdentidade = await app.inject({ method: r.method, url: r.url, headers: { 'x-advogado-id': ana } });
+        expect(soIdentidade.statusCode, `${r.url} só x-advogado-id`).toBe(401);
+      }
+    });
+
+    it('SESSÃO inválida/adulterada: Bearer errado → 401', async () => {
+      for (const r of rotasLx) {
+        const res = await app.inject({ method: r.method, url: r.url, headers: { 'x-advogado-id': ana, authorization: 'Bearer token-adulterado' } });
+        expect(res.statusCode, r.url).toBe(401);
+      }
+    });
+
+    it('PERFIL: Bearer válido mas x-advogado-id ausente/inexistente → 401 (perfil não resolvido)', async () => {
+      const semId = await app.inject({ method: 'GET', url: '/lx/plantao', headers: { authorization: `Bearer ${ADVOGADO_SECRET}` } });
+      expect(semId.statusCode).toBe(401);
+      const idFalso = await app.inject({ method: 'GET', url: '/lx/plantao', headers: { 'x-advogado-id': 'fantasma', authorization: `Bearer ${ADVOGADO_SECRET}` } });
+      expect(idFalso.statusCode).toBe(401);
+    });
+
+    it('CRON DO DONO: /lx-admin/night-shift exige o segredo do Admin — não o do advogado', async () => {
+      const aberto = await app.inject({ method: 'POST', url: '/lx-admin/night-shift' });
+      expect(aberto.statusCode).toBe(401);
+      const comAdvogado = await app.inject({ method: 'POST', url: '/lx-admin/night-shift', headers: { authorization: `Bearer ${ADVOGADO_SECRET}` } });
+      expect(comAdvogado.statusCode).toBe(401); // segredo de advogado NÃO abre o cron
+      const comAdmin = await app.inject({ method: 'POST', url: '/lx-admin/night-shift', headers: nightShift() });
+      expect(comAdmin.statusCode).toBe(200);
+    });
+
+    it('FAIL-CLOSED: servidor sem segredo ⇒ toda rota /lx/* responde 401 (nunca abre por engano)', async () => {
+      const semSegredo = buildLawyerExperienceServer(lx, { advogadoSecret: '', adminSecret: '' });
+      const res = await semSegredo.inject({ method: 'GET', url: '/lx/plantao', headers: { 'x-advogado-id': ana, authorization: 'Bearer ' + ADVOGADO_SECRET } });
+      expect(res.statusCode).toBe(401);
+      const cron = await semSegredo.inject({ method: 'POST', url: '/lx-admin/night-shift', headers: { authorization: 'Bearer ' + ADMIN_SECRET } });
+      expect(cron.statusCode).toBe(401);
+    });
   });
 });

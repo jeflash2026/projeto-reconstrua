@@ -42,7 +42,10 @@ async function main(): Promise<void> {
     founderSecret: env['FOUNDER_ACCESS_SECRET'] ?? '',
   });
   const advogado = buildAdvogadoServer(prod.advogadoView, { accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '' });
-  const lx = buildLawyerExperienceServer(prod.lxView);
+  const lx = buildLawyerExperienceServer(prod.lxView, {
+    advogadoSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',
+    adminSecret: env['ADMIN_ACCESS_SECRET'] ?? '',
+  });
 
   await main.listen({ port, host: '0.0.0.0' });
   await admin.listen({ port: port + 1, host: '0.0.0.0' });

@@ -6,19 +6,39 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import type { AssembledLawyerExperience } from '@reconstrua/infrastructure';
+import { bearerToken, requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 
-export function buildLawyerExperienceServer(lx: AssembledLawyerExperience): FastifyInstance {
+export interface LawyerExperienceServerOptions {
+  /** Segredo do Advogado (BL-3.1) — protege TODA rota /lx/* (defesa em profundidade). */
+  readonly advogadoSecret?: string;
+  /** Segredo do Administrador — protege o cron do dono (/lx-admin/*). */
+  readonly adminSecret?: string;
+}
+
+export function buildLawyerExperienceServer(
+  lx: AssembledLawyerExperience,
+  opts: LawyerExperienceServerOptions = {},
+): FastifyInstance {
   const app = Fastify({ logger: false });
+  const advogadoSecret = opts.advogadoSecret ?? '';
+  const adminSecret = opts.adminSecret ?? '';
 
   app.addHook('onSend', (_request, reply, _payload, done) => {
     reply.header('access-control-allow-origin', '*');
     reply.header('access-control-allow-methods', 'GET,POST,OPTIONS');
-    reply.header('access-control-allow-headers', 'content-type,x-advogado-id');
+    reply.header('access-control-allow-headers', 'content-type,x-advogado-id,authorization');
     done();
   });
   app.options('/*', (_request, reply) => {
     void reply.code(204).send();
   });
+
+  // GO-LIVE-04.2 — AUTENTICAÇÃO REAL: antes, as rotas /lx/* confiavam SÓ no header
+  // x-advogado-id (um UUID não-secreto, exibido no painel Admin) — sem prova de
+  // segredo. Agora o MESMO guard Bearer do 3B protege toda rota /lx/ (sessão), e
+  // o isolamento por atribuição (perfil ativo + isAssigned) permanece por baixo.
+  // O cron do dono (/lx-admin/*) é gated pelo segredo do Administrador. Fail-closed.
+  requireBearer(app, { secret: advogadoSecret, protect: (path) => path.startsWith('/lx/') });
 
   async function advogadoOf(request: FastifyRequest): Promise<string | null> {
     const id = request.headers['x-advogado-id'];
@@ -74,8 +94,15 @@ export function buildLawyerExperienceServer(lx: AssembledLawyerExperience): Fast
     return lx.productivity.report(advogadoId);
   });
 
-  // ── PREPARAÇÃO NOTURNA (cron do dono) ────────────────────────────────────────
-  app.post('/lx-admin/night-shift', async () => lx.nightShift.run(new Date()));
+  // ── PREPARAÇÃO NOTURNA (cron do dono) — GO-LIVE-04.2: exige o segredo do
+  // Administrador (antes era ABERTA: qualquer um disparava o night-shift). Fail-closed.
+  app.post('/lx-admin/night-shift', async (request, reply) => {
+    const token = bearerToken(request);
+    if (adminSecret === '' || token === null || !secretsMatch(token, adminSecret)) {
+      return reply.code(401).send({ error: 'não autenticado' });
+    }
+    return lx.nightShift.run(new Date());
+  });
 
   return app;
 }

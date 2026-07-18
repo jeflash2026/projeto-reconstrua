@@ -28,7 +28,12 @@ services:
   # MIG-01: runner de migrations DEDICADO (one-shot). Roda até concluir ANTES da api.
   # A aplicação nunca executa DDL; todo DDL vive nos .sql aplicados por este serviço.
   migrate:
-    build: .
+    build:
+      context: .
+      # MESMA causa raiz da api (e9fec8d): sem target, o Docker builda o ÚLTIMO
+      # estágio do Dockerfile (portal-cliente, que não contém apps/api). O runner
+      # de migrations vive na imagem runtime — apps/api/dist/migrate/main.js.
+      target: runtime
     command: ['node', 'apps/api/dist/migrate/main.js']
     restart: 'no'
     depends_on:

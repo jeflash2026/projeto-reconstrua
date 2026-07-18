@@ -5,7 +5,11 @@
 // (`null`) — a UI mostra "API indisponível", nunca dado inventado.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const API_BASE = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
+// CAUSA RAIZ (integração): NEXT_PUBLIC_* é INLINADO no build do Next — no build
+// Docker a variável não existe e o fallback localhost fica assado na imagem.
+// Toda chamada é SERVER-SIDE (BL-2.2), então o nome correto é runtime: API_URL.
+export const API_BASE =
+  process.env['API_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
 
 // BL-2.1 (DF-12): o portal apresenta o segredo do Admin (server-side, nunca ao browser).
 const ADMIN_TOKEN = process.env['ADMIN_API_TOKEN'] ?? '';

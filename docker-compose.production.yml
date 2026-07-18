@@ -91,7 +91,8 @@ services:
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_URL: http://api:${ADMIN_PORT:-3002}
+      # Runtime (não NEXT_PUBLIC — seria inlinado no build): URL interna da API admin.
+      API_URL: http://api:${ADMIN_PORT:-3002}
       ADMIN_API_TOKEN: ${ADMIN_ACCESS_SECRET:-}
       FOUNDER_API_TOKEN: ${FOUNDER_ACCESS_SECRET:-}
       ADVOGADO_API_URL: http://api:${ADVOGADO_PORT:-3003}
@@ -110,7 +111,8 @@ services:
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_URL: http://api:${ADVOGADO_PORT:-3003}
+      # Runtime (não NEXT_PUBLIC — seria inlinado no build): URL interna da API advogado.
+      API_URL: http://api:${ADVOGADO_PORT:-3003}
       ADVOGADO_API_TOKEN: ${ADVOGADO_ACCESS_SECRET:-}
     ports:
       - '3200:3200'

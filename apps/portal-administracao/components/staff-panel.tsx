@@ -89,6 +89,7 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
                 <tr>
                   <th>Nome</th>
                   <th>E-mail</th>
+                  <th>ID (login no portal)</th>
                   <th>Status</th>
                   <th>Cadastro</th>
                   <th>Ações</th>
@@ -99,6 +100,7 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
                   <tr key={m.id}>
                     <td style={{ fontWeight: 600 }}>{m.name}</td>
                     <td>{m.email ?? '—'}</td>
+                    <td className="mono" style={{ fontSize: 12 }}>{m.id}</td>
                     <td>{m.active ? <span className="badge ok">ativo</span> : <span className="badge bad">inativo</span>}</td>
                     <td>{formatDate(m.createdAt)}</td>
                     <td>

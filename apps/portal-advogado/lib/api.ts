@@ -6,7 +6,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { cookies } from 'next/headers';
 
-export const API_BASE = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3003';
+// Runtime (não NEXT_PUBLIC): NEXT_PUBLIC_* é inlinado no build do Next — no build
+// Docker não existe e o fallback fica assado. Chamadas são server-side (BL-3.2).
+export const API_BASE =
+  process.env['API_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3003';
 
 // BL-3.1 (DF-12): o portal apresenta o segredo do Advogado (server-side, nunca ao
 // browser). A identidade (x-advogado-id) segue atrás dessa autenticação real.

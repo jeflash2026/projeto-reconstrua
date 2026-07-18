@@ -3,11 +3,15 @@ import type { ReactElement, ReactNode } from 'react';
 import './globals.css';
 import Nav from '../components/nav';
 import ThemeToggle from '../components/theme-toggle';
+import LogoutButton from '../components/logout-button';
 
 export const metadata: Metadata = {
   title: 'AHRIOS — Advogado',
   description: 'Portal do Advogado AHRIOS — trabalho jurídico sobre processos atribuídos.',
 };
+
+// Portal operacional: nunca pré-renderizar no build (sem API no build Docker).
+export const dynamic = 'force-dynamic';
 
 const RootLayout = ({ children }: { children: ReactNode }): ReactElement => (
   <html lang="pt-BR">
@@ -19,6 +23,7 @@ const RootLayout = ({ children }: { children: ReactNode }): ReactElement => (
           </div>
           <Nav />
           <ThemeToggle />
+          <LogoutButton />
         </aside>
         <main className="main">{children}</main>
       </div>

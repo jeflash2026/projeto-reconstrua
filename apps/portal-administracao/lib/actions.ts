@@ -13,6 +13,58 @@ import {
   type StaffMember,
 } from './api';
 
+// ── AUTENTICAÇÃO (visitante → login → painel; nunca painel direto) ────────────
+// Login = prova do segredo de acesso (BL-2.1, o MESMO segredo que o portal usa
+// na API — nenhum segredo novo). Sessão = cookie httpOnly com HMAC do segredo.
+// Bootstrap SEGURO do 1º administrador: só com o segredo válido e só enquanto o
+// diretório de administradores estiver vazio (staff existente — nada novo).
+import { cookies } from 'next/headers';
+import { adminSessionToken, secretsMatch, ADMIN_SESSION_COOKIE } from './session';
+
+export interface LoginResult {
+  ok: boolean;
+  needsBootstrap?: boolean;
+  error?: string;
+}
+
+const ADMIN_TOKEN_LOGIN = process.env['ADMIN_API_TOKEN'] ?? '';
+
+function setAdminSession(): void {
+  cookies().set(ADMIN_SESSION_COOKIE, adminSessionToken(ADMIN_TOKEN_LOGIN), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60 * 12, // 12h de expediente
+  });
+}
+
+export async function loginAdmin(senha: string): Promise<LoginResult> {
+  if (ADMIN_TOKEN_LOGIN === '') return { ok: false, error: 'servidor sem segredo de acesso configurado (ADMIN_ACCESS_SECRET)' };
+  if (!secretsMatch(senha.trim(), ADMIN_TOKEN_LOGIN)) return { ok: false, error: 'senha de acesso incorreta' };
+  setAdminSession();
+  const staff = await fetchStaff('administrador');
+  const needsBootstrap = (staff?.members ?? []).filter((m) => m.active).length === 0;
+  return { ok: true, needsBootstrap };
+}
+
+export async function bootstrapAdmin(senha: string, nome: string): Promise<LoginResult> {
+  if (!secretsMatch(senha.trim(), ADMIN_TOKEN_LOGIN)) return { ok: false, error: 'senha de acesso incorreta' };
+  const staff = await fetchStaff('administrador');
+  if ((staff?.members ?? []).filter((m) => m.active).length > 0) {
+    return { ok: true }; // já existe administrador — bootstrap não se repete
+  }
+  const created = await createStaff('administrador', nome.trim(), null);
+  if (!created) return { ok: false, error: 'falha ao cadastrar o administrador (API indisponível?)' };
+  setAdminSession();
+  return { ok: true };
+}
+
+export async function logoutAdmin(): Promise<void> {
+  cookies().delete(ADMIN_SESSION_COOKIE);
+  return Promise.resolve(); // server action: assinatura async exigida
+}
+
 export async function fetchFounderBriefing(): Promise<FounderBriefing | null> {
   return getJson<FounderBriefing>('/admin/founder/briefing');
 }
@@ -128,7 +180,7 @@ export async function reabrirMission(missionId: string, reason: string | null): 
 // Não-destrutivas (status/qr/confirm/apply) usam o Bearer do Admin. Destrutivas
 // (criar/descartar) adicionam o header x-founder-secret com o FOUNDER_API_TOKEN
 // SERVER-SIDE — o segredo Founder nunca chega ao browser.
-const API_BASE = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
+const API_BASE = process.env['API_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
 const ADMIN_TOKEN = process.env['ADMIN_API_TOKEN'] ?? '';
 const FOUNDER_TOKEN = process.env['FOUNDER_API_TOKEN'] ?? '';
 

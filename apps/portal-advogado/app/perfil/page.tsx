@@ -1,6 +1,7 @@
-// PERFIL — identificação e dados do advogado (leitura do diretório operacional).
+// PERFIL — dados do advogado (leitura do diretório operacional). A identificação
+// agora nasce no LOGIN (sessão + advogado-id httpOnly); o form provisório foi
+// substituído (Regra 2) — para trocar de identidade, Sair e entrar novamente.
 import type { ReactElement } from 'react';
-import IdentityForm from '../../components/identity-form';
 import { getJson, advogadoId, type Perfil } from '../../lib/api';
 import { formatDate } from '../../lib/format';
 
@@ -9,8 +10,7 @@ const PerfilPage = async (): Promise<ReactElement> => {
   return (
     <>
       <h1 className="page-title">Perfil</h1>
-      <p className="page-sub">Sua identificação e seus dados no diretório da equipe.</p>
-      <IdentityForm />
+      <p className="page-sub">Seus dados no diretório da equipe.</p>
       {perfil ? (
         <div className="card">
           <h3>Meus dados</h3>
@@ -32,7 +32,7 @@ const PerfilPage = async (): Promise<ReactElement> => {
           </dl>
         </div>
       ) : (
-        <div className="card empty">Identifique-se acima para carregar seus dados.</div>
+        <div className="card empty">Sessão sem identidade válida — clique em Sair e entre novamente.</div>
       )}
     </>
   );

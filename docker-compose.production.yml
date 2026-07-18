@@ -38,7 +38,12 @@ services:
       DATABASE_URL: postgres://reconstrua:${POSTGRES_PASSWORD:?}@postgres:5432/reconstrua
 
   api:
-    build: .
+    build:
+      context: .
+      # CAUSA RAIZ (integração): sem target, o Docker builda o ÚLTIMO estágio do
+      # Dockerfile — que, desde a adição dos portais, é portal-advogado. A imagem
+      # da api DEVE ser o estágio runtime (node apps/api/dist/production/main.js).
+      target: runtime
     restart: unless-stopped
     depends_on:
       postgres:

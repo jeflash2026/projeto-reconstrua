@@ -44,6 +44,7 @@ import type {
   StaffStore,
   WorkflowProgressStore,
 } from '@reconstrua/application';
+import { emptyMemory, emptyMetrics } from '@reconstrua/application';
 import type { JsonStore } from './json-store.js';
 import { reviveDates } from './json-store.js';
 
@@ -52,7 +53,7 @@ const DATE_KEYS = [
   'lastAccessAt', 'lastInboundAt', 'lastOutboundAt', 'lastContactAt', 'firstContactAt', 'lastSilenceNoticeAt',
   'resolvedAt', 'enqueuedAt', 'nextAttemptAt', 'lockedAt', 'occurredAt', 'recordedAt', 'formedAt',
   'reportedAt', 'lastProcessedAt', 'framedAt', 'presentedAt', 'synthesizedAt', 'derivedAt',
-  'decididaEm', 'vendidaEm', 'confirmadoEm',
+  'decididaEm', 'vendidaEm', 'confirmadoEm', 'projectedAt',
 ] as const;
 
 function revive<T>(value: unknown): T {
@@ -71,12 +72,14 @@ export class JsonConfigStore implements ConfigStore {
 }
 
 /** Registros LEGADOS de client-memory (builds antigos no mesmo volume Postgres)
- *  podem não ter `documentsPending` — normaliza na FRONTEIRA (causa provada do 500
- *  em /admin/dashboard: undefined.length na linha do dist 56:77). Um único ponto
- *  cobre todos os consumidores (dashboard + administration intelligence). */
+ *  chegam com CAMPOS AUSENTES — causas provadas em produção: documentsPending
+ *  (undefined.length) e lastContactAt (guard `!== null` não pega undefined →
+ *  undefined.getTime()). Normalização DEFINITIVA na fronteira: defaults completos
+ *  de emptyMemory + o registro por cima — elimina a classe inteira, em um ponto,
+ *  para todos os consumidores. Campos presentes nunca são alterados. */
 function reviveMemory(raw: unknown): ClientMemory {
-  const m = revive<ClientMemory>(raw);
-  return m.documentsPending === undefined ? { ...m, documentsPending: [] } : m;
+  const m = revive<Partial<ClientMemory>>(raw);
+  return { ...emptyMemory(typeof m.chatId === 'string' ? m.chatId : ''), ...m };
 }
 
 export class JsonMemoryStore implements MemoryStore {
@@ -97,7 +100,12 @@ export class JsonMetricsStore implements AdminMetricsStore {
   constructor(private readonly store: JsonStore) {}
   async load(): Promise<AdminMetrics | null> {
     const raw = await this.store.get('admin-metrics', 'current');
-    return raw === null ? null : revive<AdminMetrics>(raw);
+    if (raw === null) return null;
+    // Mesma classe legada do client-memory: registro antigo sem campos novos
+    // (documentsByDay/processedByStream/closedCount/…) — defaults completos na
+    // fronteira; campos presentes nunca são alterados.
+    const m = revive<Partial<AdminMetrics>>(raw);
+    return { ...emptyMetrics(new Date(0)), ...m };
   }
   save(metrics: AdminMetrics): Promise<void> {
     return this.store.put('admin-metrics', 'current', metrics);

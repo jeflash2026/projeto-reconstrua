@@ -62,6 +62,16 @@ async function main(): Promise<void> {
     void prod.nascimento.verificar(clock.now()).catch((error: unknown) => {
       prod.observability.error('nascimento', 'verificar', clock.now(), error instanceof Error ? error.message : 'falha na varredura do nascimento');
     });
+    // GO-LIVE-02 — a varredura da DESPEDIDA (Modelo A): a relação se encerra
+    // como começou — conversando. Fato antes da mensagem; envio único.
+    void prod.despedida.verificar(clock.now()).catch((error: unknown) => {
+      prod.observability.error('despedida', 'verificar', clock.now(), error instanceof Error ? error.message : 'falha na varredura da despedida');
+    });
+    // GO-LIVE-02 — traduções pendentes (fail-closed): nenhum balão nasce cru;
+    // o que falhou na escrita é traduzido aqui assim que o LLM responder.
+    void prod.traducao.reprocessarPendentes().catch((error: unknown) => {
+      prod.observability.error('traducao', 'reprocessar', clock.now(), error instanceof Error ? error.message : 'falha no reprocesso de traduções');
+    });
   }, 60_000);
   setInterval(() => {
     const now = clock.now();

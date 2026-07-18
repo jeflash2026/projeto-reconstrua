@@ -6,7 +6,7 @@
 // ponte automática Advogado→AHRI. Aditivo puro; nenhum congelado alterado.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock, UuidGenerator } from '@reconstrua/domain';
-import type { ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore } from '@reconstrua/application';
+import type { ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore, TraducaoClienteRuntime } from '@reconstrua/application';
 import {
   AdvogadoAhriBridge,
   AdvogadoWorkRuntime,
@@ -91,6 +91,8 @@ export interface AssembledAdvogadoOperation {
   readonly workflow: WorkflowRuntime;
   // BL-3.3: conteúdo real de documento (CAT-02C) — MESMA instância do adminView (opcional).
   readonly documentContent?: DocumentContentService;
+  // GO-LIVE-02: tradução humanizada na escrita (só na composição de produção).
+  readonly traducao?: TraducaoClienteRuntime;
 }
 
 export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): AssembledAdvogadoOperation {

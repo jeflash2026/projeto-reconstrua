@@ -176,14 +176,22 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
         quantoTempo: 'Cada processo tem o seu próprio ritmo — mas você não precisa vigiar prazos: eu acompanho tudo e te aviso a cada novidade.',
       };
     case 'VENDIDO':
-    case 'ENCERRADO':
-      // Texto neutro PROVISÓRIO (pendência §9.3 da spec — homologar redação final).
+      // Texto FINAL homologado (GO-LIVE-02) — a conclusão da etapa com a AHRI.
       return {
         ondeEsta: 'Conclusão',
-        fraseAbertura: 'Esta etapa do seu caso foi concluída — e eu continuo por aqui.',
-        agora: 'Esta etapa do seu caso foi concluída.',
-        proximoPasso: 'Se houver qualquer novidade, eu falo com você pelo WhatsApp.',
-        quantoTempo: 'Etapa concluída.',
+        fraseAbertura: 'Esta etapa do seu caso foi concluída — e foi um prazer acompanhar você até aqui.',
+        agora: 'Concluímos esta etapa do seu caso. Tudo o que construímos — seus documentos, cada passo do caminho — continua registrado aqui para você.',
+        proximoPasso: 'Se houver qualquer novidade, eu mesma falo com você pelo WhatsApp — você não precisa vigiar nada.',
+        quantoTempo: 'Esta etapa está concluída — não há mais prazos correndo para você acompanhar.',
+      };
+    case 'ENCERRADO':
+      // Texto FINAL homologado (GO-LIVE-02) — o fim do caminho, nunca frio.
+      return {
+        ondeEsta: 'Conclusão',
+        fraseAbertura: 'Seu caso foi concluído — obrigada por confiar em mim durante todo o caminho.',
+        agora: 'Chegamos ao fim deste caminho. Seus documentos e todo o histórico continuam guardados aqui, sempre que quiser rever.',
+        proximoPasso: 'Este espaço fica em repouso, mas eu não vou embora: qualquer dúvida, qualquer novidade, é só me chamar no WhatsApp.',
+        quantoTempo: 'Não há mais nada correndo — você pode ficar em paz.',
       };
     default:
       return {
@@ -220,11 +228,19 @@ export class AcompanhamentoView {
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
       if (numero !== undefined) processo = { numero: numero.text };
       // O MESMO filtro da AHRI (CLIENT_FACING_KINDS) — uma única definição do dizível.
+      // GO-LIVE-02: o cliente SÓ vê a versão humanizada (textoCliente). Sem tradução
+      // ⇒ o balão NÃO aparece (fail-closed, Lei 9) — nunca texto jurídico cru.
       atualizacoes = entries
-        .filter((e) => CLIENT_FACING_KINDS.includes(e.kind) && e.kind !== 'numero_processo')
+        .filter(
+          (e) =>
+            CLIENT_FACING_KINDS.includes(e.kind) &&
+            e.kind !== 'numero_processo' &&
+            typeof e.textoCliente === 'string' &&
+            e.textoCliente !== '',
+        )
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         .slice(0, 10)
-        .map((e) => ({ quando: e.createdAt, texto: e.text }));
+        .map((e) => ({ quando: e.createdAt, texto: e.textoCliente as string }));
     }
 
     const memoria = await this.deps.memory.load(cliente.chatId);

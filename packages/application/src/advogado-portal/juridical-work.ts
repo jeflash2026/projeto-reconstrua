@@ -41,6 +41,12 @@ export interface JuridicalEntry {
   readonly attachmentRef: string | null; // para 'documento'
   readonly done: boolean; // pendência resolvida?
   readonly createdAt: Date;
+  /**
+   * GO-LIVE-02 (aditivo): a versão HUMANIZADA para o cliente, gerada pela AHRI na
+   * escrita (traducao-cliente.ts). O original (`text`) é o fato e nunca é exibido
+   * ao cliente; ausente/null = tradução pendente ⇒ o Portal NÃO mostra (fail-closed).
+   */
+  readonly textoCliente?: string | null;
 }
 
 export interface CaseAssignment {

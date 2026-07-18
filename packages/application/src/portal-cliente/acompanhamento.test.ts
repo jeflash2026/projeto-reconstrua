@@ -25,9 +25,12 @@ function resumo(over: Partial<ClienteResumo>): ClienteResumo {
 
 const ENTRIES: JuridicalEntry[] = [
   { id: 'j1', advogadoId: 'adv-1', missionId: 'm1', kind: 'numero_processo', text: '0001234-55.2026.4.04.7000', dueAt: null, attachmentRef: null, done: true, createdAt: NOW },
-  { id: 'j2', advogadoId: 'adv-1', missionId: 'm1', kind: 'movimentacao', text: 'O juiz determinou a citação do INSS.', dueAt: null, attachmentRef: null, done: true, createdAt: new Date('2026-07-17T10:00:00.000Z') },
+  // GO-LIVE-02: o cliente vê SÓ a versão humanizada (textoCliente) — nunca o original.
+  { id: 'j2', advogadoId: 'adv-1', missionId: 'm1', kind: 'movimentacao', text: 'Expedido mandado de citação da autarquia (INSS).', textoCliente: 'O juiz pediu que o INSS seja oficialmente informado do seu processo — um passo normal do caminho, e eu sigo acompanhando.', dueAt: null, attachmentRef: null, done: true, createdAt: new Date('2026-07-17T10:00:00.000Z') },
   // INTERNA — jamais pode aparecer para o cliente (Princípio 6):
   { id: 'j3', advogadoId: 'adv-1', missionId: 'm1', kind: 'observacao', text: 'ESTRATEGIA-INTERNA: aguardar jurisprudência do TRF4.', dueAt: null, attachmentRef: null, done: false, createdAt: NOW },
+  // PENDENTE de tradução (fail-closed): dizível, mas AINDA sem versão humana ⇒ não aparece.
+  { id: 'j4', advogadoId: 'adv-1', missionId: 'm1', kind: 'despacho', text: 'JURIDIQUES-CRU: intimem-se as partes na forma do art. 269.', dueAt: null, attachmentRef: null, done: true, createdAt: NOW },
 ];
 
 function view(clientes: readonly ClienteResumo[], liberacao: LiberacaoPortal | null = null, estimativaDias = 12) {
@@ -79,8 +82,8 @@ describe('AcompanhamentoView · as 5 perguntas em linguagem humana', () => {
     expect(a?.precisaFazerAlgo).toContain('estou cuidando de tudo');
     expect(a?.advogado).toEqual({ nome: 'Dra. Ana Lima' });
     expect(a?.processo?.numero).toBe('0001234-55.2026.4.04.7000');
-    expect(a?.atualizacoes).toHaveLength(1); // só a movimentação (dizível)
-    expect(a?.atualizacoes[0]?.texto).toContain('citação do INSS');
+    expect(a?.atualizacoes).toHaveLength(1); // só o dizível JÁ humanizado
+    expect(a?.atualizacoes[0]?.texto).toContain('um passo normal do caminho'); // textoCliente, nunca o original
     expect(a?.documentosRecebidos).toEqual(['Documento de identidade']);
     expect(a?.whatsapp).toBe('554137989737');
     expect(a?.etapas.map((e) => e.situacao)).toEqual(['concluida', 'concluida', 'atual', 'futura']);
@@ -124,6 +127,19 @@ describe('AcompanhamentoView · presença e frase de abertura (PC-R2 — docs co
     expect((await view([resumo({ status: 'ENCERRADO' })]).acompanhamento('cli-1', NOW))?.presenca).toBe('repouso');
   });
 
+  it('GO-LIVE-02: textos FINAIS homologados — nunca burocráticos, sempre a AHRI', async () => {
+    const vendido = await view([resumo({ status: 'VENDIDO' })]).acompanhamento('cli-1', NOW);
+    expect(vendido?.fraseAbertura).toContain('foi um prazer acompanhar você até aqui');
+    expect(vendido?.quantoTempo).toContain('não há mais prazos correndo');
+    expect(vendido?.proximoPasso).toContain('eu mesma falo com você pelo WhatsApp');
+    const encerrado = await view([resumo({ status: 'ENCERRADO' })]).acompanhamento('cli-1', NOW);
+    expect(encerrado?.fraseAbertura).toContain('obrigada por confiar em mim');
+    expect(encerrado?.proximoPasso).toContain('eu não vou embora');
+    expect(encerrado?.quantoTempo).toContain('você pode ficar em paz');
+    // o antigo texto burocrático morreu:
+    expect(JSON.stringify(vendido) + JSON.stringify(encerrado)).not.toContain('Etapa concluída.');
+  });
+
   it('fraseAbertura nasce na visão (P3: portal sem lógica) — voz da AHRI', async () => {
     const analise = await view([resumo({ status: 'AGUARDANDO_10_DIAS' })]).acompanhamento('cli-1', NOW);
     expect(analise?.fraseAbertura).toBe('Seu caso está em análise técnica — e eu estou acompanhando cada passo.');
@@ -137,6 +153,8 @@ describe('AcompanhamentoView · transparência SEM exposição (Princípio 6)', 
     const a = await view([resumo({})]).acompanhamento('cli-1', NOW);
     const json = JSON.stringify(a);
     expect(json).not.toContain('ESTRATEGIA-INTERNA'); // observação interna do advogado
+    expect(json).not.toContain('JURIDIQUES-CRU'); // GO-LIVE-02: sem tradução ⇒ NADA (fail-closed)
+    expect(json).not.toContain('Expedido mandado'); // o original NUNCA atravessa
     expect(json).not.toContain('observacao'); // kind interno
     expect(json).not.toContain('AGUARDANDO_'); // status internos crus (Princípio 5)
     expect(json).not.toContain('PRONTO_');

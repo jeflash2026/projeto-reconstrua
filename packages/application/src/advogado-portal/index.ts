@@ -4,3 +4,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
 export * from './juridical-work.js';
 export * from './ahri-bridge.js';
+export * from './traducao-cliente.js';

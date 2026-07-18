@@ -26,6 +26,8 @@ import type {
   MissionIdentity,
   MissionIdentityMap,
   MissionProgress,
+  DespedidaRegistro,
+  DespedidaStore,
   LiberacaoPortal,
   LiberacaoPortalStore,
   ModalidadeRecord,
@@ -55,7 +57,7 @@ const DATE_KEYS = [
   'lastAccessAt', 'lastInboundAt', 'lastOutboundAt', 'lastContactAt', 'firstContactAt', 'lastSilenceNoticeAt',
   'resolvedAt', 'enqueuedAt', 'nextAttemptAt', 'lockedAt', 'occurredAt', 'recordedAt', 'formedAt',
   'reportedAt', 'lastProcessedAt', 'framedAt', 'presentedAt', 'synthesizedAt', 'derivedAt',
-  'decididaEm', 'vendidaEm', 'confirmadoEm', 'projectedAt', 'comunicadoEm',
+  'decididaEm', 'vendidaEm', 'confirmadoEm', 'projectedAt', 'comunicadoEm', 'comunicadaEm',
 ] as const;
 
 function revive<T>(value: unknown): T {
@@ -369,6 +371,19 @@ export class JsonLiberacaoPortalStore implements LiberacaoPortalStore {
   }
   save(record: LiberacaoPortal): Promise<void> {
     return this.store.put('liberacao-portal', record.clienteId, record);
+  }
+}
+
+/** GO-LIVE-02 — o FATO da despedida comunicada (Modelo A), por clienteId.
+ *  Lei 8: gravado ANTES da mensagem; garante envio ÚNICO (espelho do nascimento). */
+export class JsonDespedidaStore implements DespedidaStore {
+  constructor(private readonly store: JsonStore) {}
+  async load(clienteId: string): Promise<DespedidaRegistro | null> {
+    const raw = await this.store.get('despedida', clienteId);
+    return raw === null ? null : revive<DespedidaRegistro>(raw);
+  }
+  save(record: DespedidaRegistro): Promise<void> {
+    return this.store.put('despedida', record.clienteId, record);
   }
 }
 

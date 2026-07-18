@@ -22,7 +22,10 @@ import type {
 } from '@reconstrua/application';
 import {
   AcompanhamentoView,
+  DespedidaRuntime,
   NascimentoPortalRuntime,
+  PROMPT_TRADUCAO_CLIENTE,
+  TraducaoClienteRuntime,
   emitirTokenCliente,
   pacoteDeEstado,
   AdvogadoAhriBridge,
@@ -95,6 +98,7 @@ import { InMemoryRuleCatalog } from '../executive-brain/in-memory-adapters.js';
 import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
 import { assembleALIR, type AssembledALIR } from '../alir/build-alir.js';
 import { BrainNascimentoComunicador } from '../portal-cliente/nascimento-comunicador.js';
+import { BrainDespedidaComunicador } from '../portal-cliente/despedida-comunicador.js';
 import { assembleLivingMemory } from '../living-memory/build-living-memory.js';
 import { assembleAdministration } from '../administration/build-administration.js';
 import { AdminProjectionSubscriber } from '../administration/admin-projection-subscriber.js';
@@ -116,6 +120,7 @@ import {
   JsonConversationStore,
   JsonCursorStore,
   JsonDecisionStore,
+  JsonDespedidaStore,
   JsonHandoffStore,
   JsonIdentityMap,
   JsonJuridicalWorkStore,
@@ -197,6 +202,10 @@ export interface AssembledProduction {
   readonly acompanhamento: AcompanhamentoView;
   /** PC-R3: o NASCIMENTO do Portal — varredura automática (tick), sem clique humano. */
   readonly nascimento: NascimentoPortalRuntime;
+  /** GO-LIVE-02: a DESPEDIDA (Modelo A) — a relação se encerra como começou: conversando. */
+  readonly despedida: DespedidaRuntime;
+  /** GO-LIVE-02: tradução humanizada das anotações do advogado (fail-closed; tick reprocessa). */
+  readonly traducao: TraducaoClienteRuntime;
 }
 
 export function assembleProduction(wiring: ProductionWiring): AssembledProduction {
@@ -290,6 +299,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const estimativaDias = Number(env['PROCESSING_ESTIMATE_DAYS'] ?? '12');
   const clientePortalSecret = env['CLIENTE_PORTAL_SECRET'] ?? '';
   const liberacaoStore = new JsonLiberacaoPortalStore(json);
+  const despedidaStore = new JsonDespedidaStore(json);
   const acompanhamento = new AcompanhamentoView({
     clientes,
     memory: memoryStore,
@@ -510,6 +520,39 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
   });
 
+  // ── GO-LIVE-02 · A DESPEDIDA (Modelo A) — espelho do nascimento ──────────────
+  // Fato despedida ANTES da mensagem (Lei 8); Brain decide (RO-ETAPA-CONCLUIDA);
+  // texto homologado; entrega pelo pipeline canônico com cadência humana.
+  const despedida = new DespedidaRuntime({
+    clientes,
+    despedida: despedidaStore,
+    comunicador: new BrainDespedidaComunicador({
+      brain: brainAssembly.brain,
+      memory: convMemory,
+      context,
+      queue,
+      delivery,
+      observability,
+      clock,
+    }),
+  });
+
+  // ── GO-LIVE-02 · TRADUÇÃO HUMANIZADA — a verdade permanece; a linguagem muda ─
+  // Original = fato (Lei 10); textoCliente gerado UMA vez na escrita; fail-closed
+  // (sem tradução ⇒ Portal não mostra); o tick reprocessa pendentes.
+  const llmCompletion = llm.completion;
+  const traducao = new TraducaoClienteRuntime(
+    juridicalStore,
+    llmCompletion === null
+      ? null
+      : { traduzir: async (original: string) => (await llmCompletion.complete(PROMPT_TRADUCAO_CLIENTE, original)).text },
+    async () =>
+      (await clientes.list(clock.now()))
+        .map((c) => c.missionId)
+        .filter((m): m is string => m !== null),
+    (message) => observability.error('traducao', 'cliente', clock.now(), message),
+  );
+
   // ── Visões estruturais para os servidores CONGELADOS ─────────────────────────
   // Nota: os servidores 3A/3B/3D nunca usam `eventStore` da visão (apenas read
   // models); o campo é tipado concretamente por herança histórica — cast declarado.
@@ -529,6 +572,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     metricsStore,
     workflow,
     documentContent,
+    traducao, // GO-LIVE-02: o servidor do advogado traduz na escrita
   };
 
   // ── Conexão WhatsApp (Portal Admin) — administração de instâncias Evolution ───
@@ -705,6 +749,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     alir,
     acompanhamento,
     nascimento,
+    despedida,
+    traducao,
   };
 }
 

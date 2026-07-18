@@ -111,6 +111,9 @@ export class GeminiCompletion implements LlmCompletion {
 
 // ── Bundle: os quatro ports sobre um LlmCompletion ────────────────────────────
 export interface LlmBundle {
+  /** GO-LIVE-02 (aditivo): o completamento cru — usado pela tradução humanizada
+   *  das anotações do advogado. null = offline (tradução fica pendente). */
+  readonly completion: LlmCompletion | null;
   readonly provider: string;
   readonly perception: LlmPerceptionPort;
   readonly expression: LlmExpressionPort;
@@ -312,6 +315,7 @@ export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
     // Offline: doubles determinísticos (nenhuma rede); narração/extração ficam com
     // os defaults determinísticos CONGELADOS de 2E (null = não injeta).
     return {
+      completion: null,
       provider: 'offline',
       perception: new FakeLlmPerception(),
       expression: new VaryingLlmExpression(),
@@ -334,6 +338,7 @@ export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
   };
 
   return {
+    completion: metered,
     provider: metered.name,
     perception: new LlmPerception(metered, config, track, clock),
     expression: new LlmExpression(metered, config, track, clock),

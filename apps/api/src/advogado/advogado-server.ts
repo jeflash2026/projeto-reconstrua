@@ -136,7 +136,7 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
       return reply.code(400).send({ error: 'kind válido e text são obrigatórios' });
     }
     try {
-      const entry = await op.work.addEntry({
+      const registrada = await op.work.addEntry({
         advogadoId,
         missionId,
         kind: body.kind,
@@ -144,6 +144,9 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
         dueAt: body.dueAt ? new Date(body.dueAt) : null,
         attachmentRef: body.attachmentRef ?? null,
       });
+      // GO-LIVE-02: a versão HUMANIZADA nasce NA ESCRITA (best-effort; falha ⇒
+      // pendente e o tick reprocessa — o cliente nunca vê texto jurídico cru).
+      const entry = op.traducao !== undefined ? await op.traducao.traduzir(registrada) : registrada;
       // A AHRI é SEMPRE informada; o Executive Brain decide a comunicação.
       // B-R5: o chatOf do bridge lê projector.missions() (síncrono) — refresh ANTES
       // garante a resolução da conversa mesmo com projector frio (processo recém-

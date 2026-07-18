@@ -79,8 +79,10 @@ services:
       # não precisam (nem devem) ocupar portas do host — evita conflito de porta.
       - '${PORT:-3001}:${PORT:-3001}'                 # main: webhook + /production/*
     expose:
-      - '${ADMIN_PORT:-3002}'      # admin API (interno, rede Docker)
-      - '${ADVOGADO_PORT:-3003}'   # advogado API (interno, rede Docker)
+      # As portas internas DERIVAM de PORT (main.ts: admin=PORT+1, advogado=PORT+2).
+      # Na VPS PORT=3101 ⇒ admin=3102, advogado=3103 — defaults alinhados a isso.
+      - '${ADMIN_PORT:-3102}'      # admin API (interno, rede Docker)
+      - '${ADVOGADO_PORT:-3103}'   # advogado API (interno, rede Docker)
       - '${LX_PORT:-3004}'         # lawyer experience API (interno, rede Docker)
 
   # ── PORTAIS (Next.js) — plataforma em UM domínio, subpaths /admin e /advogado ─
@@ -97,10 +99,11 @@ services:
       - api
     environment:
       # Runtime (não NEXT_PUBLIC — seria inlinado no build): URL interna da API admin.
-      API_URL: http://api:${ADMIN_PORT:-3002}
+      # admin = PORT+1 (na VPS PORT=3101 ⇒ 3102).
+      API_URL: http://api:${ADMIN_PORT:-3102}
       ADMIN_API_TOKEN: ${ADMIN_ACCESS_SECRET:-}
       FOUNDER_API_TOKEN: ${FOUNDER_ACCESS_SECRET:-}
-      ADVOGADO_API_URL: http://api:${ADVOGADO_PORT:-3003}
+      ADVOGADO_API_URL: http://api:${ADVOGADO_PORT:-3103}
       ADVOGADO_API_TOKEN: ${ADVOGADO_ACCESS_SECRET:-}
     ports:
       - '3100:3100'
@@ -117,7 +120,8 @@ services:
       - api
     environment:
       # Runtime (não NEXT_PUBLIC — seria inlinado no build): URL interna da API advogado.
-      API_URL: http://api:${ADVOGADO_PORT:-3003}
+      # advogado = PORT+2 (na VPS PORT=3101 ⇒ 3103).
+      API_URL: http://api:${ADVOGADO_PORT:-3103}
       ADVOGADO_API_TOKEN: ${ADVOGADO_ACCESS_SECRET:-}
     ports:
       - '3200:3200'

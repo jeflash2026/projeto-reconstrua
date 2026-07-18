@@ -26,6 +26,8 @@ import type {
   MissionIdentity,
   MissionIdentityMap,
   MissionProgress,
+  CredencialPortal,
+  CredenciaisStore,
   DespedidaRegistro,
   DespedidaStore,
   LiberacaoPortal,
@@ -57,7 +59,7 @@ const DATE_KEYS = [
   'lastAccessAt', 'lastInboundAt', 'lastOutboundAt', 'lastContactAt', 'firstContactAt', 'lastSilenceNoticeAt',
   'resolvedAt', 'enqueuedAt', 'nextAttemptAt', 'lockedAt', 'occurredAt', 'recordedAt', 'formedAt',
   'reportedAt', 'lastProcessedAt', 'framedAt', 'presentedAt', 'synthesizedAt', 'derivedAt',
-  'decididaEm', 'vendidaEm', 'confirmadoEm', 'projectedAt', 'comunicadoEm', 'comunicadaEm',
+  'decididaEm', 'vendidaEm', 'confirmadoEm', 'projectedAt', 'comunicadoEm', 'comunicadaEm', 'atualizadaEm',
 ] as const;
 
 function revive<T>(value: unknown): T {
@@ -371,6 +373,19 @@ export class JsonLiberacaoPortalStore implements LiberacaoPortalStore {
   }
   save(record: LiberacaoPortal): Promise<void> {
     return this.store.put('liberacao-portal', record.clienteId, record);
+  }
+}
+
+/** GO-LIVE-04 — credenciais INDIVIDUAIS do Portal do Advogado (hash scrypt; a
+ *  senha nunca é armazenada em claro), por advogadoId. Auth Runtime compartilhado. */
+export class JsonCredenciaisAdvogadoStore implements CredenciaisStore {
+  constructor(private readonly store: JsonStore) {}
+  async load(sujeitoId: string): Promise<CredencialPortal | null> {
+    const raw = await this.store.get('credenciais-advogado', sujeitoId);
+    return raw === null ? null : revive<CredencialPortal>(raw);
+  }
+  save(credencial: CredencialPortal): Promise<void> {
+    return this.store.put('credenciais-advogado', credencial.sujeitoId, credencial);
   }
 }
 

@@ -29,6 +29,7 @@ import {
   emitirTokenCliente,
   pacoteDeEstado,
   AdvogadoAhriBridge,
+  AdvogadoAuthRuntime,
   AdvogadoWorkRuntime,
   BootRuntime,
   ClientesList,
@@ -118,6 +119,7 @@ import {
   JsonAssignmentStore,
   JsonConfigStore,
   JsonConversationStore,
+  JsonCredenciaisAdvogadoStore,
   JsonCursorStore,
   JsonDecisionStore,
   JsonDespedidaStore,
@@ -594,6 +596,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     workflow,
     documentContent,
     traducao, // GO-LIVE-02: o servidor do advogado traduz na escrita
+    // GO-LIVE-04: Auth Runtime compartilhado — provider do advogado (convite→
+    // senha individual→login). O segredo que assina convites é o MESMO segredo
+    // de acesso do portal (nada novo); credenciais persistidas com hash scrypt.
+    auth: new AdvogadoAuthRuntime({
+      staff: staffStore,
+      credenciais: new JsonCredenciaisAdvogadoStore(json),
+      secret: env['ADVOGADO_ACCESS_SECRET'] ?? '',
+    }),
   };
 
   // ── Conexão WhatsApp (Portal Admin) — administração de instâncias Evolution ───

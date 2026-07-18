@@ -233,4 +233,44 @@ describe('Portal do Advogado', () => {
     });
     expect(res.statusCode).toBe(404);
   });
+
+  // ── GO-LIVE-04: convite → senha individual → login (fail-closed) ─────────────
+  it('GO-LIVE-04 — rotas de auth exigem o Bearer de transporte (nunca públicas)', async () => {
+    for (const url of ['/advogado-admin/convite', '/advogado-auth/definir-senha', '/advogado-auth/login']) {
+      const res = await app.inject({ method: 'POST', url, payload: {} });
+      expect(res.statusCode, url).toBe(401);
+    }
+  });
+
+  it('GO-LIVE-04 — fluxo completo: convite do Admin → cria senha → login individual', async () => {
+    const convite = await call({ method: 'POST', url: '/advogado-admin/convite', payload: { advogadoId: advogadoA } });
+    expect(convite.statusCode).toBe(200);
+    const conviteBody: { token: string } = convite.json();
+    expect(conviteBody.token).toBeTruthy();
+
+    const definir = await call({
+      method: 'POST',
+      url: '/advogado-auth/definir-senha',
+      payload: { token: conviteBody.token, senha: 'senha-da-ana-123' },
+    });
+    expect(definir.statusCode).toBe(200);
+
+    const login = await call({ method: 'POST', url: '/advogado-auth/login', payload: { advogadoId: advogadoA, senha: 'senha-da-ana-123' } });
+    expect(login.statusCode).toBe(200);
+    const loginBody: { nome: string } = login.json();
+    expect(loginBody.nome).toBe('Dra. Ana');
+  });
+
+  it('GO-LIVE-04 — FAIL-CLOSED: senha errada, sem credencial e convite forjado negam', async () => {
+    const errada = await call({ method: 'POST', url: '/advogado-auth/login', payload: { advogadoId: advogadoA, senha: 'errada' } });
+    expect(errada.statusCode).toBe(401);
+    // B nunca concluiu convite ⇒ login nega mesmo com ID válido:
+    const semCredencial = await call({ method: 'POST', url: '/advogado-auth/login', payload: { advogadoId: advogadoB, senha: 'qualquer' } });
+    expect(semCredencial.statusCode).toBe(401);
+    const forjado = await call({ method: 'POST', url: '/advogado-auth/definir-senha', payload: { token: 'forjado.deadbeef', senha: 'senha-longa-123' } });
+    expect(forjado.statusCode).toBe(400);
+    // convite para inexistente/inativo nega:
+    const fantasma = await call({ method: 'POST', url: '/advogado-admin/convite', payload: { advogadoId: 'fantasma' } });
+    expect(fantasma.statusCode).toBe(404);
+  });
 });

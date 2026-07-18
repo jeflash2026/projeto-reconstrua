@@ -57,6 +57,41 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
     return member && member.active ? member.id : null;
   }
 
+  // ── GO-LIVE-04 · AUTENTICAÇÃO INDIVIDUAL (Auth Runtime compartilhado) ────────
+  // Convite (ato do Admin) → criar senha (advogado, via convite) → login (ID +
+  // senha própria). Tudo atrás do Bearer de transporte (só os servidores dos
+  // portais o possuem — o browser jamais). Fail-closed: sem runtime ⇒ 503.
+
+  // ATO DO ADMINISTRADOR: emite o convite de um advogado ativo (nunca público).
+  app.post('/advogado-admin/convite', async (request, reply) => {
+    if (!op.auth) return reply.code(503).send({ error: 'autenticação indisponível' });
+    const body = request.body as { advogadoId?: string };
+    if (!body.advogadoId) return reply.code(400).send({ error: 'advogadoId obrigatório' });
+    const token = await op.auth.emitirConvite(body.advogadoId, new Date());
+    if (token === null) return reply.code(404).send({ error: 'advogado não encontrado ou inativo' });
+    return { advogadoId: body.advogadoId, token, validadeDias: 7 };
+  });
+
+  // O ADVOGADO cria a própria senha a partir do convite (nunca pela URL crua).
+  app.post('/advogado-auth/definir-senha', async (request, reply) => {
+    if (!op.auth) return reply.code(503).send({ error: 'autenticação indisponível' });
+    const body = request.body as { token?: string; senha?: string };
+    if (!body.token || !body.senha) return reply.code(400).send({ error: 'token e senha são obrigatórios' });
+    const result = await op.auth.definirSenha(body.token, body.senha, new Date());
+    if (!result.ok) return reply.code(400).send({ error: result.error });
+    return { ok: true, advogadoId: result.advogadoId, nome: result.nome };
+  });
+
+  // LOGIN individual: ID + senha própria. Erro único (nunca vaza qual fator falhou).
+  app.post('/advogado-auth/login', async (request, reply) => {
+    if (!op.auth) return reply.code(503).send({ error: 'autenticação indisponível' });
+    const body = request.body as { advogadoId?: string; senha?: string };
+    if (!body.advogadoId || !body.senha) return reply.code(400).send({ error: 'advogadoId e senha são obrigatórios' });
+    const result = await op.auth.login(body.advogadoId, body.senha);
+    if (!result.ok) return reply.code(401).send({ error: result.error });
+    return { ok: true, advogadoId: result.advogadoId, nome: result.nome };
+  });
+
   // ── ATRIBUIÇÃO (ato do Administrador — consumida pelo Admin Portal) ──────────
   app.post('/advogado-admin/assignments', async (request, reply) => {
     const body = request.body as { missionId?: string; advogadoId?: string; assignedBy?: string };

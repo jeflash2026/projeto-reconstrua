@@ -9,6 +9,7 @@ import type { Clock, UuidGenerator } from '@reconstrua/domain';
 import type { ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore, TraducaoClienteRuntime } from '@reconstrua/application';
 import {
   AdvogadoAhriBridge,
+  AdvogadoAuthRuntime,
   AdvogadoWorkRuntime,
   ConversationContextRuntime,
   ConversationMemoryRuntime,
@@ -64,7 +65,7 @@ import {
 import { FullLoopBrainAdapter } from '../go-live/full-loop-brain-adapter.js';
 import { SerializedSubscriber } from '../go-live/serialized-subscriber.js';
 import { InMemoryStaffStore } from '../admin-portal/in-memory-staff-store.js';
-import { InMemoryAssignmentStore, InMemoryJuridicalWorkStore } from './in-memory-adapters.js';
+import { InMemoryAssignmentStore, InMemoryCredenciaisStore, InMemoryJuridicalWorkStore } from './in-memory-adapters.js';
 import { ADVOGADO_RULE_CATALOG } from './advogado-rule-catalog.js';
 import { ConversationClientMessenger } from './client-messenger.js';
 import type { DocumentContentService } from '../media/document-content-service.js';
@@ -74,6 +75,8 @@ export interface AdvogadoOperationWiring {
   readonly uuid: UuidGenerator;
   readonly gateway?: ConversationGateway;
   readonly sleeper?: Sleeper;
+  /** GO-LIVE-04: segredo que assina convites do advogado (testes/dev). */
+  readonly authSecret?: string;
 }
 
 export interface AssembledAdvogadoOperation {
@@ -93,6 +96,8 @@ export interface AssembledAdvogadoOperation {
   readonly documentContent?: DocumentContentService;
   // GO-LIVE-02: tradução humanizada na escrita (só na composição de produção).
   readonly traducao?: TraducaoClienteRuntime;
+  // GO-LIVE-04: Auth Runtime compartilhado — provider do advogado (convite→senha→login).
+  readonly auth?: AdvogadoAuthRuntime;
 }
 
 export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): AssembledAdvogadoOperation {
@@ -187,7 +192,15 @@ export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): Asse
     clock,
     chatOf: (missionId) => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
   });
-  const staff = new StaffDirectoryRuntime(new InMemoryStaffStore(), handoff, clock, uuid);
+  const staffStore = new InMemoryStaffStore();
+  const staff = new StaffDirectoryRuntime(staffStore, handoff, clock, uuid);
+
+  // GO-LIVE-04: provider do advogado sobre o Auth Runtime compartilhado.
+  const auth = new AdvogadoAuthRuntime({
+    staff: staffStore,
+    credenciais: new InMemoryCredenciaisStore(),
+    secret: wiring.authSecret ?? 'segredo-advogado-dev',
+  });
 
   return {
     conversation,
@@ -202,5 +215,6 @@ export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): Asse
     memoryStore: living.memoryStore,
     metricsStore: administration.metricsStore,
     workflow,
+    auth,
   };
 }

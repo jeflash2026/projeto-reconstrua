@@ -2,7 +2,14 @@
 // Adapters in-memory do Portal do Advogado: atribuições e trabalho jurídico.
 // Adapters Postgres entram pelos mesmos ports.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { AssignmentStore, CaseAssignment, JuridicalEntry, JuridicalWorkStore } from '@reconstrua/application';
+import type {
+  AssignmentStore,
+  CaseAssignment,
+  CredencialPortal,
+  CredenciaisStore,
+  JuridicalEntry,
+  JuridicalWorkStore,
+} from '@reconstrua/application';
 
 export class InMemoryAssignmentStore implements AssignmentStore {
   private readonly byMissionId = new Map<string, CaseAssignment>();
@@ -16,6 +23,19 @@ export class InMemoryAssignmentStore implements AssignmentStore {
   }
   byAdvogado(advogadoId: string): Promise<readonly CaseAssignment[]> {
     return Promise.resolve([...this.byMissionId.values()].filter((a) => a.advogadoId === advogadoId));
+  }
+}
+
+/** GO-LIVE-04: credenciais individuais (Auth Runtime compartilhado). */
+export class InMemoryCredenciaisStore implements CredenciaisStore {
+  private readonly byId = new Map<string, CredencialPortal>();
+
+  save(credencial: CredencialPortal): Promise<void> {
+    this.byId.set(credencial.sujeitoId, credencial);
+    return Promise.resolve();
+  }
+  load(sujeitoId: string): Promise<CredencialPortal | null> {
+    return Promise.resolve(this.byId.get(sujeitoId) ?? null);
   }
 }
 

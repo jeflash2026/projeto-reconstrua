@@ -70,17 +70,26 @@ export class JsonConfigStore implements ConfigStore {
   }
 }
 
+/** Registros LEGADOS de client-memory (builds antigos no mesmo volume Postgres)
+ *  podem não ter `documentsPending` — normaliza na FRONTEIRA (causa provada do 500
+ *  em /admin/dashboard: undefined.length na linha do dist 56:77). Um único ponto
+ *  cobre todos os consumidores (dashboard + administration intelligence). */
+function reviveMemory(raw: unknown): ClientMemory {
+  const m = revive<ClientMemory>(raw);
+  return m.documentsPending === undefined ? { ...m, documentsPending: [] } : m;
+}
+
 export class JsonMemoryStore implements MemoryStore {
   constructor(private readonly store: JsonStore) {}
   async load(chatId: string): Promise<ClientMemory | null> {
     const raw = await this.store.get('client-memory', chatId);
-    return raw === null ? null : revive<ClientMemory>(raw);
+    return raw === null ? null : reviveMemory(raw);
   }
   save(memory: ClientMemory): Promise<void> {
     return this.store.put('client-memory', memory.chatId, memory);
   }
   async all(): Promise<readonly ClientMemory[]> {
-    return (await this.store.list('client-memory')).map((m) => revive<ClientMemory>(m));
+    return (await this.store.list('client-memory')).map((m) => reviveMemory(m));
   }
 }
 

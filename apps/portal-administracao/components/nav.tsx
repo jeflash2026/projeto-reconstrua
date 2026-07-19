@@ -5,7 +5,14 @@ import { usePathname } from 'next/navigation';
 import type { ReactElement } from 'react';
 
 const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = [
-  { href: '/', label: 'Dashboard' },
+  { href: '/', label: 'Centro de Comando' },
+  { sep: 'Inteligência' },
+  { href: '/inteligencia/dossies', label: 'Dossiês Jurídicos' },
+  { href: '/inteligencia/hipoteses', label: 'Hipóteses' },
+  { href: '/inteligencia/estrategias', label: 'Estratégias' },
+  { href: '/inteligencia/conhecimento', label: 'Conhecimento' },
+  { href: '/inteligencia/evolucao', label: 'Evolução do Catálogo' },
+  { href: '/inteligencia/casos-aprendidos', label: 'Casos Aprendidos' },
   { sep: 'Operação' },
   { href: '/conexao-whatsapp', label: 'Conexão WhatsApp' },
   { href: '/operacao', label: 'Métricas' },

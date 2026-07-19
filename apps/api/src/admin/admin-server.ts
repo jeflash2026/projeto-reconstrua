@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
-import { computeOperationalMetrics, prazoDosPedidos, type StaffRole } from '@reconstrua/application';
+import { computeOperationalMetrics, gerarBriefing, indicadoresExecutivos, prazoDosPedidos, type StaffRole } from '@reconstrua/application';
 import { requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 
 const STAFF_ROLES: readonly StaffRole[] = ['advogado', 'perito', 'operador', 'supervisor', 'administrador'];
@@ -19,7 +19,7 @@ function isStaffRole(value: string): value is StaffRole {
 
 export function buildAdminServer(
   op: AssembledAdminOperation,
-  opts: { readonly accessSecret?: string; readonly founderSecret?: string } = {},
+  opts: { readonly accessSecret?: string; readonly founderSecret?: string; readonly founderName?: string } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: false });
 
@@ -79,6 +79,59 @@ export function buildAdminServer(
       health: op.health.all(),
       overall: op.health.overall(),
     };
+  });
+
+  // ── AHRI COMMAND CENTER (GO-LIVE 13A) — o briefing executivo dinâmico + os
+  //    indicadores de negócio. Ambos DERIVADOS dos Read Models pela camada de
+  //    aplicação (command-center); a API só monta as entradas e serve. A interface
+  //    apenas renderiza. Nada é recalculado fora dos Read Models.
+  app.get('/admin/command-center', async () => {
+    await op.projector.refresh();
+    const now = new Date();
+    const metrics = await op.metricsStore.load();
+    const memories = await op.memoryStore.all();
+    const today = now.toISOString().slice(0, 10);
+
+    const aguardandoDocumentos = memories.filter((m) => m.documentsPending.length > 0).length;
+    const novosClientesHoje = memories.filter((m) => (m.firstContactAt?.toISOString().slice(0, 10) ?? '') === today).length;
+    const aguardandoAdvogado = (await op.handoff.openFor('advogado')).length;
+    const bottlenecks = await op.admin.answer('bottlenecks', now);
+    const casosPorAdvogado = metrics?.perAdvogado ?? {};
+
+    const briefing = gerarBriefing({
+      founderName: opts.founderName ?? 'founder',
+      now,
+      clientesAtivos: metrics?.clientCount ?? 0,
+      novosClientesHoje,
+      dossiesProntos: 0, // Read Model de dossiê chega na seção 4 desta Sprint
+      aguardandoDocumentos,
+      aguardandoAdvogado,
+      casosCriticos: 0, // sem Read Model de criticidade dedicado — nunca inventado
+      casosPorAdvogado,
+      limiteCargaAdvogado: 10,
+      confiancaMediaCatalogo: null, // acende quando o store do feedback for exposto ao op
+      confiancaMediaAnterior: null,
+      taxaAcerto: null,
+      estrategiaEmAlta: null,
+      gargalo: bottlenecks.available ? bottlenecks.fact : null,
+    });
+
+    const indicadores = indicadoresExecutivos({
+      clientesAtivos: metrics?.clientCount ?? 0,
+      novosClientesHoje,
+      dossiesGerados: 0,
+      casosDistribuidos: metrics?.processCount ?? 0,
+      aguardandoDocumentos,
+      casosCriticos: 0,
+      tempoMedioAteDecisaoMs: null,
+      precisaoDecisoes: null,
+      confiancaMediaIA: null,
+      documentosProcessados: metrics?.documentCount ?? 0,
+      valorRecuperavel: metrics?.financialUnderAdministration ?? null,
+      receitaPrevista: null,
+    });
+
+    return { briefing, indicadores };
   });
 
   // ── Regra 3 (permanente): uma ação operacional NUNCA recria lógica — reutiliza o

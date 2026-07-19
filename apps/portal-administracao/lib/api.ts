@@ -61,6 +61,38 @@ export interface DashboardData {
   overall: string;
 }
 
+// ── AHRI COMMAND CENTER (13A) — briefing dinâmico + indicadores (Read Models) ──
+export type CCSeveridade = 'critico' | 'alerta' | 'oportunidade' | 'informacao';
+export interface CCInsight {
+  id: string;
+  categoria: string;
+  severidade: CCSeveridade;
+  titulo: string;
+  detalhe: string | null;
+  fonte: string;
+  href: string | null;
+  valor: number | null;
+}
+export interface CCIndicador {
+  id: string;
+  rotulo: string;
+  valor: string;
+  tom: 'neutro' | 'positivo' | 'atencao' | 'critico';
+  fonte: string;
+  href: string | null;
+}
+export interface CommandCenterData {
+  briefing: {
+    saudacao: string;
+    resumo: string;
+    insights: CCInsight[];
+    totalInsights: number;
+    geradoEm: string;
+    fonte: string;
+  };
+  indicadores: CCIndicador[];
+}
+
 export interface ComponentHealth {
   component: string;
   status: 'ONLINE' | 'OFFLINE' | 'DEGRADED' | 'FAILED';

@@ -46,6 +46,24 @@ export class InMemoryJsonStore implements JsonStore {
 }
 
 /** PostgreSQL: tabela production.documents (ver 04-production.sql). */
+/**
+ * GO-LIVE-06.2 — CAUSA RAIZ do BUG 1: a coluna `value` é `jsonb`. Dependendo do
+ * driver/protocolo (aqui `postgres` via `sql.unsafe`), o valor pode voltar como
+ * STRING JSON em vez de OBJETO. Todo o sistema assume OBJETO (ex.: byRole acessa
+ * `.role`; reviveDates percorre chaves). Com o valor como string, `.role` é
+ * `undefined`, o filtro não acha o administrador e o registro "não reaparece" —
+ * embora esteja gravado. Normalizamos na FRONTEIRA de leitura: string → objeto.
+ * Idempotente para objetos; nunca lança (fallback ao valor cru).
+ */
+function coerceJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
 export class PgJsonStore implements JsonStore {
   constructor(private readonly sql: SqlClient) {}
 
@@ -54,7 +72,8 @@ export class PgJsonStore implements JsonStore {
       'SELECT value FROM production.documents WHERE namespace = $1 AND key = $2',
       [namespace, key],
     );
-    return rows[0]?.['value'] ?? null;
+    const raw = rows[0]?.['value'];
+    return raw === undefined || raw === null ? null : coerceJson(raw);
   }
   async put(namespace: string, key: string, value: unknown): Promise<void> {
     await this.sql.query(
@@ -72,7 +91,7 @@ export class PgJsonStore implements JsonStore {
       'SELECT value FROM production.documents WHERE namespace = $1 ORDER BY key',
       [namespace],
     );
-    return rows.map((r) => r['value']);
+    return rows.map((r) => coerceJson(r['value']));
   }
   async keys(namespace: string): Promise<readonly string[]> {
     const rows = await this.sql.query<SqlRow>(

@@ -64,7 +64,15 @@ const FounderChat = (): ReactElement => {
               {m.provenance ? <span className="prov">fonte: {m.provenance}</span> : null}
             </div>
           ))}
-          {busy ? <div className="msg ahri">…</div> : null}
+          {busy ? (
+            <div className="msg ahri typing">
+              <span className="ahri-dots" aria-hidden>
+                <i />
+                <i />
+                <i />
+              </span>
+            </div>
+          ) : null}
         </div>
         <div className="chat-input">
           <input

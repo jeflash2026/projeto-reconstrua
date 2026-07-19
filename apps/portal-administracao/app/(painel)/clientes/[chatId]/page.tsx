@@ -1,8 +1,9 @@
 // CLIENTE — visão completa: memória viva, relationship, conversa WhatsApp,
 // documentos, missões e situação. Tudo dos read models; tudo rastreável.
 import Link from 'next/link';
-import type { ReactElement } from 'react';
+import { Suspense, type ReactElement } from 'react';
 import AutoRefresh from '../../../../components/auto-refresh';
+import AhriThinking from '../../../../components/ahri-thinking';
 import Dossie from '../../../../components/dossie';
 import TimelineCognitiva from '../../../../components/timeline-cognitiva';
 import { getJson, type ClientDetail } from '../../../../lib/api';
@@ -27,9 +28,14 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
       <p className="page-sub mono">{chatId}</p>
 
       {/* GO-LIVE 13A — ORDEM NATURAL DO TRABALHO: primeiro o parecer, depois a
-          história do caso, e só então a conversa completa e os documentos. */}
-      <Dossie chatId={chatId} />
-      <TimelineCognitiva chatId={chatId} />
+          história do caso, e só então a conversa completa e os documentos.
+          14A — estados VIVOS enquanto a AHRI monta cada peça (streaming). */}
+      <Suspense fallback={<AhriThinking label="Gerando o Dossiê Jurídico" />}>
+        <Dossie chatId={chatId} />
+      </Suspense>
+      <Suspense fallback={<AhriThinking label="Reconstruindo a Timeline Cognitiva" />}>
+        <TimelineCognitiva chatId={chatId} />
+      </Suspense>
 
       <div className="grid two" style={{ marginBottom: 16 }}>
         <div className="card">

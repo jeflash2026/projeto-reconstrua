@@ -372,3 +372,133 @@ button:hover { filter: brightness(1.1); }
 .lab-rank li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .lab-rank-key { font-size: 13.5px; }
 .lab-rank-val { font-size: 13px; color: var(--text-dim); white-space: nowrap; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GO-LIVE 14A — POLISH & DELIGHT. Movimento discreto, microinterações e estados
+   vivos. Tudo apenas visual; nenhum dado, nenhum cálculo. Respeita reduced-motion.
+   ═══════════════════════════════════════════════════════════════════════════ */
+html { scroll-behavior: smooth; }
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+::selection { background: var(--accent-soft); color: var(--text); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.nav a, .cc-insight, .cc-ind, .cc-entry, .caso-cta, .lab-strat > summary, details summary,
+.dossie-tese, .caso-card, .lab-hip, .lab-know, .cc-tag, .lab-chip {
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease,
+    transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+/* ── Entrada discreta (surge suave); roda na navegação, não no auto-refresh ── */
+@keyframes cc-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes cc-fade { from { opacity: 0; } to { opacity: 1; } }
+.cc-hero, .cc-insights, .cc-ind-grid, .cc-entry-grid, .cc-tool,
+.card, .dossie, .tlc, .caso-grid, .lab-strat-list, .lab-hip-grid, .lab-know-grid,
+.cc-empty, .cc-section-label {
+  animation: cc-rise 0.44s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Stagger: a página se compõe de cima para baixo, como se a AHRI "montasse" a tela. */
+.cc-insights { animation-delay: 0.06s; }
+.cc-section-label { animation-delay: 0.08s; }
+.cc-ind-grid { animation-delay: 0.12s; }
+.cc-entry-grid { animation-delay: 0.16s; }
+.cc-tool { animation-delay: 0.2s; }
+
+/* Cards em grade surgem em cascata suave. */
+.cc-insight, .cc-ind, .cc-entry, .caso-card, .lab-strat, .lab-hip, .lab-know {
+  animation: cc-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.cc-insight:nth-child(2), .cc-ind:nth-child(2), .cc-entry:nth-child(2), .caso-card:nth-child(2), .lab-hip:nth-child(2), .lab-strat:nth-child(2), .lab-know:nth-child(2) { animation-delay: 0.04s; }
+.cc-insight:nth-child(3), .cc-ind:nth-child(3), .cc-entry:nth-child(3), .caso-card:nth-child(3), .lab-hip:nth-child(3), .lab-strat:nth-child(3), .lab-know:nth-child(3) { animation-delay: 0.08s; }
+.cc-insight:nth-child(4), .cc-ind:nth-child(4), .cc-entry:nth-child(4), .caso-card:nth-child(4), .lab-hip:nth-child(4), .lab-strat:nth-child(4), .lab-know:nth-child(4) { animation-delay: 0.12s; }
+.cc-ind:nth-child(n+5), .cc-entry:nth-child(n+5), .caso-card:nth-child(n+5), .lab-hip:nth-child(n+5) { animation-delay: 0.16s; }
+
+/* ── Founder Console: a AHRI "entra na sala" (revelação sequencial) ── */
+.cc-greeting { animation: cc-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: 0.05s; }
+.cc-summary { animation: cc-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: 0.18s; }
+.cc-live { animation: cc-fade 0.6s ease both; }
+
+/* ── Microinterações: elevação elegante, cards "respirando" no hover ── */
+.card:hover { border-color: var(--border); box-shadow: 0 6px 22px -12px rgba(0, 0, 0, 0.5); }
+.cc-insight-link:hover, .cc-ind-link:hover, .cc-entry:hover { box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.55); }
+.caso-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px -16px rgba(0, 0, 0, 0.55); }
+.lab-strat:hover, .lab-hip:hover, .lab-know:hover { border-color: var(--accent); }
+.caso-cta:active, .cc-entry:active { transform: translateY(0) scale(0.99); }
+
+/* Expansões suaves (details) */
+details > summary { transition: color 0.18s ease; }
+details[open] > .dossie-explica-body, details[open] > .lab-strat-body, details[open] > .lab-explica-body,
+.dossie-explica[open] .dossie-explica-body, .tlc-fatos[open] ul {
+  animation: cc-rise 0.28s ease both;
+}
+
+/* ── Timeline: cronológica de verdade — trilho em gradiente, item que cresce ── */
+.tlc-list::before { background: linear-gradient(var(--border), var(--border) 60%, transparent); }
+.tlc-item { animation: cc-rise 0.36s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.tlc-item:nth-child(2) { animation-delay: 0.05s; }
+.tlc-item:nth-child(3) { animation-delay: 0.1s; }
+.tlc-item:nth-child(4) { animation-delay: 0.15s; }
+.tlc-item:nth-child(n+5) { animation-delay: 0.2s; }
+.tlc-dot { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.tlc-item:hover .tlc-dot { transform: scale(1.08); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+
+/* ── Dossiê: acabamento de parecer profissional ── */
+.dossie { box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 12px 40px -28px rgba(0, 0, 0, 0.5); }
+.dossie-title { letter-spacing: -0.01em; }
+.dossie-tese:hover { border-color: var(--accent); transform: translateX(2px); }
+
+/* ── AHRI THINKING — estado vivo (nunca loader genérico) ── */
+.ahri-thinking { display: flex; align-items: center; gap: 13px; padding: 26px 24px; color: var(--text-dim); font-size: 15px; font-weight: 500; }
+.ahri-orb {
+  width: 26px; height: 26px; border-radius: 50%; flex: 0 0 auto;
+  background: radial-gradient(circle at 35% 30%, var(--accent), rgba(79, 140, 255, 0.15) 70%);
+  animation: ahri-breathe 2.4s ease-in-out infinite;
+}
+@keyframes ahri-breathe {
+  0%, 100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(79, 140, 255, 0.22); }
+  50% { transform: scale(1.06); box-shadow: 0 0 20px 3px rgba(79, 140, 255, 0.22); }
+}
+.ahri-thinking-label { display: inline-flex; align-items: baseline; }
+.ahri-dots { display: inline-flex; gap: 3px; margin-left: 4px; }
+.ahri-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: ahri-dot 1.4s infinite ease-in-out; }
+.ahri-dots i:nth-child(2) { animation-delay: 0.2s; }
+.ahri-dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes ahri-dot { 0%, 60%, 100% { opacity: 0.25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+
+/* ── RESPONSIVIDADE — desktop impecável, tablet funcional, mobile utilizável ── */
+@media (max-width: 1024px) {
+  :root { --sidebar-w: 200px; }
+  .main { padding: 20px 20px; }
+  .cc-greeting { font-size: 28px; }
+}
+@media (max-width: 720px) {
+  .shell { flex-direction: column; }
+  .sidebar {
+    width: 100%; height: auto; position: sticky; top: 0; z-index: 20;
+    border-right: none; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px; padding: 8px 12px; overflow-x: auto;
+  }
+  .brand { padding: 4px 8px; white-space: nowrap; font-size: 14px; }
+  .nav { display: flex; gap: 2px; flex: 1 1 auto; overflow-x: auto; }
+  .nav a { white-space: nowrap; margin-bottom: 0; padding: 6px 10px; }
+  .nav .sep { display: none; }
+  .main { padding: 16px 14px; }
+  .cc-greeting { font-size: 24px; }
+  .cc-summary { font-size: 16px; }
+  .cc-ind-grid, .cc-entry-grid, .caso-grid, .lab-hip-grid, .lab-know-grid, .grid.two, .grid.stats { grid-template-columns: 1fr; }
+  .dossie { padding: 18px 16px; }
+  .dossie-cols { grid-template-columns: 1fr; }
+  .dossie-meta { font-size: 10px; }
+}
+
+/* ── Acessibilidade: quem prefere menos movimento, recebe zero movimento ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}
+
+/* ── Founder Console: o briefing como CONVERSA (a AHRI falando) ── */
+.msg { animation: cc-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; position: relative; line-height: 1.5; }
+.msg.ahri { border-top-left-radius: 4px; }
+.msg.founder { border-top-right-radius: 4px; }
+.msg.ahri.typing { display: inline-flex; align-items: center; color: var(--text-dim); }
+.msg.ahri.typing .ahri-dots i { width: 5px; height: 5px; }
+.chat-input input { border-radius: 10px; transition: border-color 0.18s ease, box-shadow 0.18s ease; }
+.chat-input input:focus { box-shadow: 0 0 0 3px var(--accent-soft); }

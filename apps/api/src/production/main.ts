@@ -34,6 +34,21 @@ async function main(): Promise<void> {
     prod.observability.degraded('go-live', 'degraded-start', clock.now(), `iniciado em modo degradado (ALLOW_DEGRADED); itens vermelhos: ${red}`);
   }
 
+  // GO-LIVE-06 (BUG 1) — SEED idempotente do primeiro administrador. Sem isto,
+  // nada provisiona o admin: uma base fresca (ou reiniciada) ficava eternamente
+  // "sem administrador cadastrado", reabrindo o bootstrap a cada login. Roda uma
+  // única vez (no-op se já houver administrador ativo). Nome opcional via ADMIN_NAME.
+  try {
+    const seeded = await prod.adminView.staff.ensureBootstrapped(env['ADMIN_NAME'] ?? 'Administrador');
+    process.stdout.write(
+      seeded === null
+        ? 'ADMIN: já inicializado (seed no-op).\n'
+        : `ADMIN: primeiro administrador provisionado ("${seeded.name}").\n`,
+    );
+  } catch (error) {
+    prod.observability.error('bootstrap', 'seed-admin', clock.now(), error instanceof Error ? error.message : 'falha ao provisionar administrador');
+  }
+
   const port = Number(env['PORT'] ?? '3001');
 
   const main = buildProductionServer({ prod, env, startedAt });

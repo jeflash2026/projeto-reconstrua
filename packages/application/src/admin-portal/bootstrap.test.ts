@@ -78,4 +78,23 @@ describe('StaffDirectory · bootstrap ONE-TIME (BUG 1)', () => {
     await dir.deactivate(admin.id);
     expect(await dir.isBootstrapped()).toBe(false); // sem admin ATIVO → pode reinicializar
   });
+
+  // ── GO-LIVE-06 · BUG 1: SEED idempotente na subida da API ────────────────────
+  it('ensureBootstrapped provisiona o 1º admin numa base fresca e é NO-OP depois', async () => {
+    const store = memStore();
+    const seeded = await runtime(store).ensureBootstrapped('Jessé Fundador');
+    expect(seeded?.name).toBe('Jessé Fundador');
+    expect(seeded?.role).toBe('administrador');
+
+    // Próxima subida (novo processo, mesmo banco): NÃO cria outro — no-op.
+    const again = await runtime(store).ensureBootstrapped('Outro');
+    expect(again).toBeNull();
+    expect(await runtime(store).isBootstrapped()).toBe(true);
+    expect((await runtime(store).list('administrador'))).toHaveLength(1);
+  });
+
+  it('ensureBootstrapped usa nome padrão quando o informado é vazio', async () => {
+    const seeded = await runtime().ensureBootstrapped('   ');
+    expect(seeded?.name).toBe('Administrador');
+  });
 });

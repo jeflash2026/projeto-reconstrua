@@ -111,6 +111,19 @@ export class StaffDirectoryRuntime {
     return this.register('administrador', name, null);
   }
 
+  /**
+   * GO-LIVE-06 — SEED idempotente do 1º administrador, executado na subida da API.
+   * Causa raiz do bug "sempre pede bootstrap": NADA provisionava o primeiro
+   * administrador — só o passo manual interativo. Numa base de produção fresca
+   * (ou reiniciada) isso deixava o sistema eternamente NÃO inicializado. Este seed
+   * garante que exista um administrador sem depender do passo manual. Idempotente:
+   * se já houver administrador ativo, é no-op (retorna null).
+   */
+  async ensureBootstrapped(name: string): Promise<StaffMember | null> {
+    if (await this.isBootstrapped()) return null;
+    return this.register('administrador', name.trim() === '' ? 'Administrador' : name.trim(), null);
+  }
+
   async workload(role: StaffRole): Promise<StaffWorkload> {
     const members = await this.store.byRole(role);
     const active = members.filter((m) => m.active).length;

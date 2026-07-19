@@ -6,3 +6,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
 export * from './process-turn.js';
 export * from './autonomous-brain-adapter.js';
+export * from './mission-closure-feedback-subscriber.js';

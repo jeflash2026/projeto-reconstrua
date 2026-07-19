@@ -59,7 +59,8 @@ import { assembleExecutiveBrain } from '../executive-brain/build-executive-brain
 import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
 import { MISSION_RULE_CATALOG } from '../mission-runtime/mission-rule-catalog.js';
 import { AutonomousBrainAdapter } from '../pipeline/autonomous-brain-adapter.js';
-import { CATALOGO_CONSIGNADO_INSS, ESTRATEGIAS_CONSIGNADO_INSS } from '@reconstrua/application';
+import { MissionClosureFeedbackSubscriber, defaultEncerramentoResolver } from '../pipeline/mission-closure-feedback-subscriber.js';
+import { CATALOGO_CONSIGNADO_INSS, ESTRATEGIAS_CONSIGNADO_INSS, InMemoryAtendimentoStore, ProductionFeedbackLoop } from '@reconstrua/application';
 import { InMemoryRuleCatalog } from '../executive-brain/in-memory-adapters.js';
 import { assembleLivingMemory } from '../living-memory/build-living-memory.js';
 import { assembleAdministration } from '../administration/build-administration.js';
@@ -117,6 +118,9 @@ export interface AssembledGoLive {
   readonly eventStore: InMemoryEventStore;
   /** GO-LIVE 10E — qual pipeline está no ar (auditoria do cutover). */
   readonly pipelineMode: PipelineMode;
+  /** GO-LIVE 11D/11C — o laço de feedback e o store lido pelo painel do arquiteto. */
+  readonly feedbackLoop: ProductionFeedbackLoop;
+  readonly atendimentoStore: InMemoryAtendimentoStore;
 }
 
 export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
@@ -158,6 +162,18 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
   // subscribers fazem read-modify-write em documento único (ver SerializedSubscriber).
   registry.register(new SerializedSubscriber(new AdminProjectionSubscriber(administration.metricsStore)), 1, clock.now());
   registry.register(new SerializedSubscriber(workflow), 1, clock.now());
+
+  // ── GO-LIVE 11D — HOOK DE PRODUÇÃO: no encerramento (operational-state →
+  //    ENCERRADA), o feedback loop (11C) é chamado automaticamente. Assíncrono e
+  //    isolado de falha: nunca derruba o encerramento. Persiste no store lido pelo
+  //    painel do arquiteto. Não toca Planner/Brain/Reasoning/Conversation.
+  const atendimentoStore = new InMemoryAtendimentoStore();
+  const feedbackLoop = new ProductionFeedbackLoop(atendimentoStore);
+  registry.register(
+    new MissionClosureFeedbackSubscriber({ loop: feedbackLoop, resolver: defaultEncerramentoResolver, observability, uuid, clock }),
+    1,
+    clock.now(),
+  );
 
   // ── 2C: Executive Brain (catálogo de missão 2D injetado) ────────────────────
   const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(MISSION_RULE_CATALOG) });
@@ -329,5 +345,7 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
     admin: administration.admin,
     eventStore,
     pipelineMode,
+    feedbackLoop,
+    atendimentoStore,
   };
 }

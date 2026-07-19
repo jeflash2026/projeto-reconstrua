@@ -41,18 +41,32 @@ export interface FeedbackHookDeps {
   readonly clock: Clock;
 }
 
-/** Resolver DEFAULT de produção: usa EXCLUSIVAMENTE o que o evento de
- *  encerramento já carrega (nenhuma nova consulta). Sem os identificadores
- *  mínimos já existentes (correlationId + cliente), NÃO fabrica registro. */
+const CONFIANCAS = new Set(['alta', 'media', 'baixa']);
+
+/** Resolver DEFAULT de produção: MAPEIA exclusivamente o que o evento de
+ *  encerramento ENRIQUECIDO (12A) já carrega — nenhuma nova consulta/cálculo.
+ *  Sem os identificadores mínimos já existentes (correlationId + cliente), NÃO
+ *  fabrica registro. */
 export const defaultEncerramentoResolver: EncerramentoResolver = (event) => {
   const p = event.payload;
   const str = (k: string): string | null => {
     const v = p[k];
     return typeof v === 'string' ? v : null;
   };
+  const strArray = (k: string): readonly string[] => {
+    const v = p[k];
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  };
+  const num = (k: string): number => {
+    const v = p[k];
+    return typeof v === 'number' ? v : 0;
+  };
   const correlationId = str('correlationId');
   const cliente = str('chatId') ?? str('cliente');
   if (correlationId === null || cliente === null) return null;
+
+  const confRaw = str('confidence');
+  const confianca = confRaw !== null && CONFIANCAS.has(confRaw) ? (confRaw as EncerramentoAutomatico['confianca']) : 'media';
   return {
     missionId: str('missionId') ?? event.streamId,
     decisionId: str('decisionId'),
@@ -61,11 +75,11 @@ export const defaultEncerramentoResolver: EncerramentoResolver = (event) => {
     advogado: str('advogado') ?? 'sistema',
     data: event.occurredAt,
     strategyRef: str('strategyRef') ?? event.provenance.operationalRuleRef ?? 'desconhecida',
-    confianca: 'media',
-    documentosRecebidos: [],
-    documentosFaltantes: [],
-    tempoAteDecisaoMs: 0,
-    fatosAprendidos: [],
+    confianca,
+    documentosRecebidos: strArray('documentosRecebidos'),
+    documentosFaltantes: strArray('documentosFaltantes'),
+    tempoAteDecisaoMs: num('tempoDaMissao'),
+    fatosAprendidos: strArray('fatosAprendidos'),
   };
 };
 

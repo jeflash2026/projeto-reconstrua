@@ -115,3 +115,40 @@ describe('GO-LIVE 11D · resolver default usa exclusivamente dados existentes', 
     expect(auto.decisionId).toBeNull();
   });
 });
+
+describe('GO-LIVE 12A · evento ENRIQUECIDO ⇒ registro COMPLETO sem consultas adicionais', () => {
+  // O payload que o CloseMission (12A) publica na ORIGEM, autossuficiente.
+  const enriquecido = evento({
+    payload: {
+      terminalState: 'ENCERRADA', missionId: 'M-7', cliente: 'CLI-7', correlationId: 'corr-7',
+      decisionId: 'dec-77777777', strategyRef: 'EST-CONSIG-CARTAO-RMC-001', confidence: 'alta', advogado: 'dr. bruno',
+      documentosRecebidos: ['HISCON'], documentosFaltantes: ['extrato da RMC / cartão consignado'],
+      fatosAprendidos: ['problema_principal=cartao_rmc'], tempoDaMissao: 90_000,
+    },
+  });
+
+  it('o resolver monta o AtendimentoEncerrado COMPLETO só com o evento', () => {
+    const auto = defaultEncerramentoResolver(enriquecido) as EncerramentoAutomatico;
+    expect(auto).toMatchObject({
+      missionId: 'M-7', cliente: 'CLI-7', correlationId: 'corr-7', decisionId: 'dec-77777777',
+      strategyRef: 'EST-CONSIG-CARTAO-RMC-001', confianca: 'alta', advogado: 'dr. bruno',
+      documentosRecebidos: ['HISCON'], documentosFaltantes: ['extrato da RMC / cartão consignado'],
+      fatosAprendidos: ['problema_principal=cartao_rmc'], tempoAteDecisaoMs: 90_000,
+    });
+  });
+
+  it('o painel apresenta EXATAMENTE os dados provenientes do evento', async () => {
+    const { store, sub } = harness();
+    await sub.handle(enriquecido);
+    const painel = montarPainelDoArquiteto(ESTRATEGIAS_CONSIGNADO_INSS, await store.listar());
+
+    expect(painel.totalAtendimentos).toBe(1);
+    expect(painel.estrategiasMaisUtilizadas[0]).toEqual({ chave: 'EST-CONSIG-CARTAO-RMC-001', ocorrencias: 1 });
+    expect(painel.documentosMaisFaltantes[0]).toEqual({ chave: 'extrato da RMC / cartão consignado', ocorrencias: 1 });
+    expect(painel.tempoMedioAteDecisaoMs).toBe(90_000);
+    expect(painel.confiancaMedia).toBe(1); // 'alta' vindo do evento
+
+    const persistido = (await store.listar())[0];
+    expect(persistido?.auditoria).toMatchObject({ missionId: 'M-7', decisionId: 'dec-77777777', correlationId: 'corr-7', cliente: 'CLI-7', advogado: 'dr. bruno' });
+  });
+});

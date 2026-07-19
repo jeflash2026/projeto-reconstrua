@@ -40,6 +40,26 @@ export class CloseMissionUseCase implements MissionUseCase {
     if (result.isErr()) return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
 
     const reason = ctx.facts.text !== null && ctx.facts.text.trim() !== '' ? ctx.facts.text.trim() : 'encerramento operacional';
+
+    // GO-LIVE 12A — ENRIQUECIMENTO DO EVENTO. O evento de encerramento passa a
+    // carregar, SEMPRE QUE DISPONÍVEIS, os dados que a missão e sua proveniência
+    // já possuem — PROPAGADOS, nunca recalculados nem buscados de novo:
+    //  • a decisão estratégica (10C) viaja na intenção (decisionId/strategyRef/
+    //    confidence); • cliente e correlação vêm dos facts/identidade;
+    //  • o responsável vem da config. O evento torna-se AUTOSSUFICIENTE: qualquer
+    //    consumidor (feedback/analytics/BI/auditoria) reconstrói o encerramento
+    //    só com o evento publicado. Nenhuma lógica de negócio muda — só o payload.
+    const sd = ctx.intent.strategicDecision;
+    const payload: Record<string, unknown> = {
+      missionId: ctx.identity.missionId,
+      truthId: ctx.identity.latestTruthId,
+      terminalState: 'ENCERRADA',
+      reason,
+      correlationId: ctx.facts.messageId,
+      cliente: ctx.identity.clienteId ?? ctx.facts.chatId,
+      advogado: this.deps.config.ahriResponsibleId,
+      ...(sd ? { decisionId: sd.decisionId, strategyRef: sd.strategyRef, confidence: sd.confidence } : {}),
+    };
     const appended = await persistNew(
       this.deps.appender,
       this.streamType,
@@ -47,7 +67,7 @@ export class CloseMissionUseCase implements MissionUseCase {
       result.unwrap(),
       true,
       foundedProvenance(ctx.intent, ctx.identity.latestTruthId),
-      { missionId: ctx.identity.missionId, truthId: ctx.identity.latestTruthId, terminalState: 'ENCERRADA', reason },
+      payload,
     );
     return successOutcome(this.name, this.streamType, stateId, appended, { latestStateId: stateId });
   }

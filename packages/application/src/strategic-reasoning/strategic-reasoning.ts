@@ -43,6 +43,16 @@ export interface EstrategiaSpec {
     readonly acao: string;
     readonly justificativa: string;
   }>;
+  /** GO-LIVE 11A — CRITÉRIOS DE EXCLUSÃO: se ALGUM casar, a estratégia é
+   *  DESQUALIFICADA (não entra no raciocínio), mesmo com os requisitos presentes. */
+  readonly criteriosDeExclusao?: readonly Condition[];
+  /** GO-LIVE 11A — documentos ESPERADOS para instruir esta estratégia (domínio). */
+  readonly documentosEsperados?: readonly string[];
+  /** GO-LIVE 11A — documentos OPCIONAIS que reforçam a instrução (domínio). */
+  readonly documentosOpcionais?: readonly string[];
+  /** GO-LIVE 11A — CRITÉRIO DE PRIORIDADE do domínio (maior = mais forte). Desempata
+   *  hipóteses de mesma confiança/reforços. Ausente ⇒ 0 (comportamento legado). */
+  readonly prioridade?: number;
   /** A próxima melhor ação quando esta é a hipótese principal. */
   readonly proximaAcao: string;
   /** Base do domínio (regra jurídica/negócio) — auditabilidade. */
@@ -59,6 +69,10 @@ export interface HipoteseAvaliada {
   readonly sustentadaPor: readonly string[];
   /** Fatos que a reforçaram (elevaram a confiança). */
   readonly reforcadaPor: readonly string[];
+  /** GO-LIVE 11A — documentos esperados/opcionais e prioridade do domínio (passthrough). */
+  readonly documentosEsperados: readonly string[];
+  readonly documentosOpcionais: readonly string[];
+  readonly prioridade: number;
   readonly fundamento: string;
 }
 
@@ -111,6 +125,9 @@ export function raciocinar(facts: BrainFacts, catalogo: CatalogoDeEstrategias): 
   for (const spec of catalogo) {
     // NUNCA inventar: sem TODOS os requisitos casando, a hipótese não existe.
     if (spec.requer.length === 0 || !casamTodas(spec.requer, facts)) continue;
+    // GO-LIVE 11A — CRITÉRIOS DE EXCLUSÃO: se ALGUM casa, a estratégia é
+    // desqualificada (ex.: processo já encerrado, benefício incompatível).
+    if ((spec.criteriosDeExclusao ?? []).some((c) => evaluateCondition(c, facts))) continue;
 
     const sustentadaPor = spec.requer.map((c) => fatoTexto(facts, c));
     const reforcadaPor = (spec.reforca ?? []).filter((c) => evaluateCondition(c, facts)).map((c) => fatoTexto(facts, c));
@@ -121,6 +138,9 @@ export function raciocinar(facts: BrainFacts, catalogo: CatalogoDeEstrategias): 
       confianca: confiancaDe(reforcadaPor.length),
       sustentadaPor,
       reforcadaPor,
+      documentosEsperados: spec.documentosEsperados ?? [],
+      documentosOpcionais: spec.documentosOpcionais ?? [],
+      prioridade: spec.prioridade ?? 0,
       fundamento: spec.fundamento,
     });
 
@@ -139,8 +159,11 @@ export function raciocinar(facts: BrainFacts, catalogo: CatalogoDeEstrategias): 
     }
   }
 
-  // COMPARAR e ESCOLHER (determinístico): confiança > nº de reforços > ordem do catálogo.
-  hipoteses.sort((a, b) => RANK[b.confianca] - RANK[a.confianca] || b.reforcadaPor.length - a.reforcadaPor.length);
+  // COMPARAR e ESCOLHER (determinístico): confiança > reforços > PRIORIDADE do
+  // domínio (11A) > ordem do catálogo. Prioridade ausente = 0 (legado inalterado).
+  hipoteses.sort(
+    (a, b) => RANK[b.confianca] - RANK[a.confianca] || b.reforcadaPor.length - a.reforcadaPor.length || b.prioridade - a.prioridade,
+  );
   const principal = hipoteses[0] ?? null;
 
   const proximaMelhorAcao =

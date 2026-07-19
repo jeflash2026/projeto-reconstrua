@@ -37,6 +37,12 @@ export const CATALOGO_CONSIGNADO_INSS: CatalogoDeConhecimento = [
       if (/empr[ée]stimo[^.?!]*n[ãa]o (fiz|contratei|pedi|solicitei)/.test(r)) return { valor: 'emprestimo_nao_contratado' };
       if (/juros?[^.?!]*(abusiv|muito alto|alt[oa]s? demais)/.test(r)) return { valor: 'juros_abusivos' };
       if (/(parcela|desconto)[^.?!]*(errad|maior|a mais)/.test(r)) return { valor: 'desconto_errado' };
+      // GO-LIVE 11A — novos cenários jurídicos do consignado INSS (acréscimo).
+      if (/rmc|reserva de margem|cart[ãa]o (de )?(cr[ée]dito )?consignad|cart[ãa]o benef[íi]cio/.test(r)) return { valor: 'cartao_rmc' };
+      if (/(seguro|tarifa|taxa)[^.?!]*(embutid|junto|n[ãa]o (contratei|pedi|sabia|solicitei|autorizei))/.test(r)) return { valor: 'tarifas_indevidas' };
+      if (/(portabilidade|refinancia\w*)[^.?!]*(n[ãa]o (autoriz|pedi|fiz|contratei|sabia))|(n[ãa]o autorizei|sem (minha )?autoriza\w*)[^.?!]*(portabilidade|refinancia)/.test(r)) return { valor: 'portabilidade_indevida' };
+      if (/superendivid|n[ãa]o (sobra|consigo)[^.?!]*(pagar|comer|viver|sobreviver|nada)|comprometi\w*[^.?!]*tudo|n[ãa]o sobra nada/.test(r)) return { valor: 'superendividamento' };
+      if (/(desconto|parcela)s?[^.?!]*(acima|ultrapass|passou|mais de 35|mais de 45)|extrapol\w*[^.?!]*margem|margem[^.?!]*(estourad|extrapol|acima)/.test(r)) return { valor: 'margem_extrapolada' };
       return null;
     },
   },
@@ -69,6 +75,9 @@ export const CATALOGO_CONSIGNADO_INSS: CatalogoDeConhecimento = [
       if (/hiscon|hist[óo]rico de (empr[ée]stimos? )?consignad/.test(r)) return { valor: 'hiscon' };
       if (/extrato do inss|extrato de (empr[ée]stimo|pagamento)/.test(r)) return { valor: 'extrato_inss' };
       if (/contracheque|holerite/.test(r)) return { valor: 'contracheque' };
+      // GO-LIVE 11A — documentos adicionais frequentes (acréscimo).
+      if (/c[óo]pia do contrato|contrato assinado|o contrato/.test(r)) return { valor: 'contrato' };
+      if (/extrato banc[áa]rio|extrato da conta/.test(r)) return { valor: 'extrato_bancario' };
       return null;
     },
   },

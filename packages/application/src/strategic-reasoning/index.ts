@@ -7,3 +7,4 @@
 export * from './strategic-reasoning.js';
 export * from './fatos-estrategicos.js';
 export * from './consignado-strategies.js';
+export * from './catalog-validation.js';

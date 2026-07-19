@@ -65,6 +65,9 @@ function motivoDerrota(vencedora: HipoteseAvaliada, perdedora: HipoteseAvaliada)
   if (perdedora.reforcadaPor.length < vencedora.reforcadaPor.length) {
     return `menos fatos de reforço (${String(perdedora.reforcadaPor.length)} < ${String(vencedora.reforcadaPor.length)})`;
   }
+  if (perdedora.prioridade < vencedora.prioridade) {
+    return `prioridade de domínio inferior (${String(perdedora.prioridade)} < ${String(vencedora.prioridade)})`;
+  }
   return 'empate técnico — ordem do raciocínio decidiu (determinístico)';
 }
 
@@ -74,7 +77,8 @@ function motivoDerrota(vencedora: HipoteseAvaliada, perdedora: HipoteseAvaliada)
  */
 export function deliberar(raciocinio: RaciocinioEstrategico): StrategicDecision | null {
   const candidatas = [...raciocinio.hipoteses].sort(
-    (a, b) => RANK[b.confianca] - RANK[a.confianca] || b.reforcadaPor.length - a.reforcadaPor.length,
+    // 11A: confiança > reforços > prioridade do domínio (desempate consistente com o raciocínio).
+    (a, b) => RANK[b.confianca] - RANK[a.confianca] || b.reforcadaPor.length - a.reforcadaPor.length || b.prioridade - a.prioridade,
   );
   const vencedora = candidatas[0];
   if (vencedora === undefined) return null;

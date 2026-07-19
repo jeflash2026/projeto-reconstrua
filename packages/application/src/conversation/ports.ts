@@ -148,4 +148,7 @@ export interface ConversationContextView {
   /** PC-R4 — a VERDADE do caso para a expressão (derivada da MESMA visão segura
    *  do Portal — o teto do dizível). null/ausente = sem cliente reconhecido. */
   readonly casoFatos?: string | null;
+  /** GO-LIVE 9F — o FIO da conversa ativa ("perguntei X → respondeu Y"), derivado
+   *  por turno pela Conversational Memory. null/ausente = turno sem fio anterior. */
+  readonly fioDaConversa?: string | null;
 }

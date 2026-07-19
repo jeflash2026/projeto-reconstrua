@@ -20,6 +20,7 @@
 import type { ConversationIntent } from './intent.js';
 import type { ConversationContextView } from './ports.js';
 import { doseConversa, turnoSocial } from './conversation-dosage.js';
+import { memoriaDaConversa } from './conversation-memory.js';
 
 export type ModoDoTurno = 'social' | 'descoberta' | 'informativo';
 
@@ -31,6 +32,8 @@ export interface CondutaDoTurno {
   readonly conduta: string;
   /** Perguntas já feitas pela AHRI (mecânico) — proibidas de repetir. */
   readonly perguntasJaFeitas: readonly string[];
+  /** GO-LIVE 9F — o fio da conversa ativa ("perguntei X → respondeu Y"). */
+  readonly fioDaConversa: string | null;
 }
 
 /** Extrai, mecanicamente, as perguntas já feitas nos últimos outbounds. */
@@ -46,8 +49,19 @@ export function perguntasFeitas(recentOutboundTexts: readonly string[]): readonl
  *  pela Expression, mas SOB esta disciplina (no máximo uma; nunca redundante). */
 export function conduzirTurno(intent: ConversationIntent, context: ConversationContextView): CondutaDoTurno {
   const dose = doseConversa(intent, context);
-  const jaFeitas = perguntasFeitas(context.recentOutboundTexts);
   const purpose = context.lastPercept?.enrichment?.perceivedPurpose ?? 'unknown';
+
+  // GO-LIVE 9F — Conversational Memory: a memória ATIVA do diálogo (derivada,
+  // nunca persistida). Perguntas RESPONDIDAS são assunto encerrado; as feitas
+  // (respondidas ∪ abertas ∪ janela recente) nunca podem ser repetidas.
+  const memoria = memoriaDaConversa(intent, context);
+  const jaFeitas = [
+    ...new Set([
+      ...memoria.perguntasRespondidas,
+      ...memoria.perguntasAbertas,
+      ...perguntasFeitas(context.recentOutboundTexts),
+    ]),
+  ].slice(0, 10);
 
   if (turnoSocial(intent, context)) {
     // A pergunta "como posso ajudar?" É a única curiosidade do turno social.
@@ -56,8 +70,18 @@ export function conduzirTurno(intent: ConversationIntent, context: ConversationC
       casoFatos: dose.casoFatos,
       conduta: 'apenas retribua o cumprimento com calor humano e pergunte como pode ajudar — nada mais',
       perguntasJaFeitas: jaFeitas,
+      fioDaConversa: memoria.fioDaConversa,
     };
   }
+
+  // 9F — continuidade: cada resposta nasce da resposta ANTERIOR, nunca de um
+  // turno isolado. O planejamento do turno: o que já descobrimos? o que falta?
+  // qual a MENOR pergunta restante? Se nada falta — não perguntar.
+  const continuidade =
+    memoria.fioDaConversa !== null
+      ? '; continue EXATAMENTE de onde a conversa parou — a próxima curiosidade nasce da última resposta da pessoa; ' +
+        'nunca reabra assunto já respondido; nunca volte ao começo; se nada falta descobrir, apenas confirme com naturalidade e espere'
+      : '';
 
   if (purpose === 'question') {
     // A pessoa perguntou: responder é o centro; curiosidade só se faltar algo.
@@ -66,8 +90,10 @@ export function conduzirTurno(intent: ConversationIntent, context: ConversationC
       casoFatos: dose.casoFatos,
       conduta:
         'a MENOR resposta verdadeira: responda somente ao que a pessoa pediu; nunca antecipe informações não perguntadas; ' +
-        'não pergunte nada que os FATOS fornecidos já respondem; se faltar algo essencial, faça NO MÁXIMO UMA pergunta e espere',
+        'não pergunte nada que os FATOS fornecidos já respondem; se faltar algo essencial, faça NO MÁXIMO UMA pergunta e espere' +
+        continuidade,
       perguntasJaFeitas: jaFeitas,
+      fioDaConversa: memoria.fioDaConversa,
     };
   }
 
@@ -78,7 +104,9 @@ export function conduzirTurno(intent: ConversationIntent, context: ConversationC
     conduta:
       'acolha o que a pessoa trouxe em UMA frase curta e humana; depois escolha UMA única curiosidade natural — a MENOR ' +
       'pergunta que mais ajuda a entender o que ela precisa — e espere a resposta; NUNCA faça duas perguntas; nunca vire ' +
-      'entrevista; nunca antecipe explicações sobre empresa, serviços ou etapas; não pergunte o que os FATOS já dizem nem repita pergunta já feita',
+      'entrevista; nunca antecipe explicações sobre empresa, serviços ou etapas; não pergunte o que os FATOS já dizem nem repita pergunta já feita' +
+      continuidade,
     perguntasJaFeitas: jaFeitas,
+    fioDaConversa: memoria.fioDaConversa,
   };
 }

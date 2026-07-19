@@ -29,3 +29,4 @@ export * from './pericia/index.js';
 export * from './portal-cliente/index.js';
 export * from './portal-auth/index.js';
 export * from './strategic-reasoning/index.js';
+export * from './executive-mind/index.js';

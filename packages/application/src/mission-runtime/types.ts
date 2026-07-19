@@ -25,6 +25,16 @@ export interface MissionFacts {
   readonly perceivedRelevance?: PerceivedFact;
 }
 
+/** GO-LIVE 10C — a ORIGEM ESTRATÉGICA de uma missão: a StrategicDecision que o
+ *  Executive Mind já deliberou. O Planner NÃO compara/escolhe — apenas carrega
+ *  esta origem para a auditoria da missão. Ausente ⇒ fluxo LEGADO (compatível). */
+export interface MissionStrategicOrigin {
+  readonly decisionId: string;
+  readonly strategyRef: string;
+  readonly confidence: string;
+  readonly decisionReason: string; // o `why` da decisão (por que venceu/perderam)
+}
+
 /** A intenção de Use Case vinda EXCLUSIVAMENTE do Executive Brain (com proveniência). */
 export interface MissionUseCaseIntent {
   readonly useCase: string;
@@ -33,6 +43,8 @@ export interface MissionUseCaseIntent {
   readonly tipo: string; // TIPO
   readonly fundamento: string; // FUNDAMENTO
   readonly operationalRuleRef: string; // REGRA OPERACIONAL
+  /** GO-LIVE 10C — origem estratégica (Executive Mind). Presente ⇒ novo fluxo. */
+  readonly strategicDecision?: MissionStrategicOrigin;
 }
 
 /** Identidades conhecidas da conversa/missão — dá idempotência e fluxo de dados

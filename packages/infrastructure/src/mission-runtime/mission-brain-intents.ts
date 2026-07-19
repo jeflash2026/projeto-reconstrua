@@ -3,10 +3,29 @@
 // Mission Runtime executa. SÓ as intenções `use_case` viram trabalho de missão —
 // preservando DECISOR/TIPO/FUNDAMENTO/REGRA. As demais (conversation/…) seguem para
 // seus consumidores. O Mission Runtime NUNCA cria intenção: só executa as do Brain.
+//
+// GO-LIVE 10C — Planner Integration: quando o Executive Mind já deliberou uma
+// StrategicDecision, ela é CARIMBADA (origem estratégica) em cada intenção de
+// missão — o Planner NÃO compara nem escolhe: apenas executa e registra a origem.
+// Sem decisão (undefined/null) ⇒ fluxo LEGADO idêntico. A projeção é pura: NÃO
+// consulta Strategic Reasoning nem catálogos — só carimba o que já foi decidido.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { BrainIntent, MissionUseCaseIntent } from '@reconstrua/application';
+import type { BrainIntent, MissionStrategicOrigin, MissionUseCaseIntent, StrategicDecision } from '@reconstrua/application';
 
-export function toMissionUseCaseIntents(intents: readonly BrainIntent[]): readonly MissionUseCaseIntent[] {
+function toStrategicOrigin(decision: StrategicDecision): MissionStrategicOrigin {
+  return {
+    decisionId: decision.decisionId,
+    strategyRef: decision.strategyRef,
+    confidence: decision.confidence,
+    decisionReason: decision.why,
+  };
+}
+
+export function toMissionUseCaseIntents(
+  intents: readonly BrainIntent[],
+  decision?: StrategicDecision | null,
+): readonly MissionUseCaseIntent[] {
+  const origin = decision === undefined || decision === null ? undefined : toStrategicOrigin(decision);
   const result: MissionUseCaseIntent[] = [];
   for (const intent of intents) {
     if (intent.kind !== 'use_case') continue;
@@ -17,6 +36,8 @@ export function toMissionUseCaseIntents(intents: readonly BrainIntent[]): readon
       tipo: intent.provenance.tipo,
       fundamento: intent.provenance.fundamento,
       operationalRuleRef: intent.provenance.operationalRuleRef,
+      // exactOptionalPropertyTypes: só inclui a chave quando há origem estratégica.
+      ...(origin === undefined ? {} : { strategicDecision: origin }),
     });
   }
   return result;

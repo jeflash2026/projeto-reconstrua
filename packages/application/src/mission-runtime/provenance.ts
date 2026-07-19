@@ -7,10 +7,19 @@ import type { EventProvenance } from '../event-store/index.js';
 import type { MissionUseCaseIntent } from './types.js';
 
 export function baseProvenance(intent: MissionUseCaseIntent): EventProvenance {
+  // GO-LIVE 10C — quando a missão tem ORIGEM ESTRATÉGICA (Executive Mind), o
+  // FUNDAMENTO persistido passa a referenciar decisionId/strategyRef/confidence,
+  // tornando a missão rastreável até os fatos que originaram a estratégia.
+  // Sem origem (fluxo legado) ⇒ fundamento intacto ⇒ nenhuma missão existente muda.
+  const sd = intent.strategicDecision;
+  const fundamento =
+    sd === undefined
+      ? intent.fundamento
+      : `${intent.fundamento} | StrategicDecision ${sd.decisionId} (strategyRef=${sd.strategyRef}, confiança=${sd.confidence}): ${sd.decisionReason}`;
   return {
     actor: intent.decisor,
     decisionType: intent.tipo,
-    fundamento: intent.fundamento,
+    fundamento,
     operationalRuleRef: intent.operationalRuleRef,
   };
 }

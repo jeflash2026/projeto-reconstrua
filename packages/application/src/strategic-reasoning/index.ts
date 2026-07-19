@@ -9,3 +9,4 @@ export * from './fatos-estrategicos.js';
 export * from './consignado-strategies.js';
 export * from './catalog-validation.js';
 export * from './catalog-evolution.js';
+export * from './production-feedback-loop.js';

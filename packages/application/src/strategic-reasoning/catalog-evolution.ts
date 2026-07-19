@@ -14,6 +14,16 @@ import type { CatalogoDeEstrategias, Confianca } from './strategic-reasoning.js'
 /** O que o advogado fez com a estratégia proposta pela AHRI ao encerrar o caso. */
 export type DecisaoAdvogado = 'confirmada' | 'corrigida' | 'rejeitada';
 
+/** GO-LIVE 11C — auditoria do registro: rastreia o atendimento até a origem. */
+export interface AtendimentoAuditoria {
+  readonly missionId: string;
+  readonly decisionId: string | null;
+  readonly correlationId: string;
+  readonly cliente: string;
+  readonly data: Date;
+  readonly advogado: string; // responsável pelo encerramento
+}
+
 /** O desfecho REGISTRADO de um atendimento encerrado (anonimizado). */
 export interface AtendimentoEncerrado {
   readonly ref: string; // id do atendimento
@@ -27,6 +37,10 @@ export interface AtendimentoEncerrado {
   readonly motivoCorrecao: string | null;
   readonly fatosDificeis: readonly string[]; // fatos difíceis de descobrir no atendimento
   readonly tempoAteDecisaoMs: number; // tempo do início do atendimento até a decisão
+  /** GO-LIVE 11C — fatos APRENDIDOS na conversa (Conversation Knowledge). */
+  readonly fatosAprendidos?: readonly string[];
+  /** GO-LIVE 11C — auditoria (missionId/decisionId/correlationId/cliente/data/advogado). */
+  readonly auditoria?: AtendimentoAuditoria;
 }
 
 export interface ContagemPorChave {

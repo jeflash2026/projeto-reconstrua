@@ -17,7 +17,11 @@ import {
   indicadoresExecutivos,
   montarDossie,
   montarPainelDoArquiteto,
+  montarTimelineCognitiva,
+  ordenarCasos,
   prazoDosPedidos,
+  resumirCaso,
+  type DossieJuridico,
   type ConversationContextView,
   type StaffRole,
 } from '@reconstrua/application';
@@ -390,13 +394,10 @@ export function buildAdminServer(
   //    Models (memória viva, conversa, missões) + o motor de raciocínio que a AHRI
   //    já possui. O conhecimento é RE-DERIVADO da conversa pela MESMA função do
   //    pipeline (aprenderDaConversa) — nenhuma arquitetura nova, nada recalculado
-  //    na interface, nada inventado.
-  app.get('/admin/clients/:chatId/dossie', async (request, reply) => {
-    await op.projector.refresh();
-    const { chatId } = request.params as { chatId: string };
+  //    na interface, nada inventado. Helper reutilizado pela timeline e pelos casos.
+  async function dossieDoCliente(chatId: string): Promise<DossieJuridico | null> {
     const memory = await op.memoryStore.load(chatId);
-    if (!memory) return reply.code(404).send({ error: 'cliente não encontrado' });
-
+    if (!memory) return null;
     const now = new Date();
     const entries = await op.conversationStore.recent(chatId, 200);
     const ultimoInbound = [...entries].reverse().find((e) => e.kind === 'inbound' && e.text !== null && e.text !== '');
@@ -410,27 +411,84 @@ export function buildAdminServer(
         : null,
       silenceMs: null,
     } as unknown as ConversationContextView;
-
     const conhecimento = aprenderDaConversa(context, CATALOGO_CONSIGNADO_INSS);
     const documentosReconhecidos = memory.documentsSent.map((d) => d.label);
     const contratosEncontrados = documentosReconhecidos.filter((d) => /contrato/i.test(d));
     const timeline = memory.rememberedEvents.map((e) => ({ rotulo: e.description, em: e.source.at, fonte: `read-model:memory:${e.source.kind}` }));
     const missionId = op.projector.missionsOf(chatId)[0] ?? null;
-
-    const dossie = montarDossie({
-      clienteId: chatId,
-      chatId,
-      missionId,
-      decisionId: null,
-      correlationId: null,
-      versaoCatalogo: '11A',
-      geradoEm: now,
+    return montarDossie({
+      clienteId: chatId, chatId, missionId, decisionId: null, correlationId: null,
+      versaoCatalogo: '11A', geradoEm: now,
       entradas: { conhecimento, documentosRecebidos: documentosReconhecidos },
-      documentosReconhecidos,
-      contratosEncontrados,
-      timeline,
+      documentosReconhecidos, contratosEncontrados, timeline,
     });
+  }
+
+  app.get('/admin/clients/:chatId/dossie', async (request, reply) => {
+    await op.projector.refresh();
+    const { chatId } = request.params as { chatId: string };
+    const dossie = await dossieDoCliente(chatId);
+    if (!dossie) return reply.code(404).send({ error: 'cliente não encontrado' });
     return dossie;
+  });
+
+  // ── TIMELINE COGNITIVA (GO-LIVE 13A · seção 5) — a HISTÓRIA do caso, derivada
+  //    dos Read Models + o dossiê. Narra como a AHRI pensou. Nada recalculado na UI.
+  app.get('/admin/clients/:chatId/timeline', async (request, reply) => {
+    await op.projector.refresh();
+    const { chatId } = request.params as { chatId: string };
+    const memory = await op.memoryStore.load(chatId);
+    if (!memory) return reply.code(404).send({ error: 'cliente não encontrado' });
+    const dossie = await dossieDoCliente(chatId);
+    const entries = await op.conversationStore.recent(chatId, 200);
+    const primeiroInbound = entries.find((e) => e.kind === 'inbound');
+    const missionId = op.projector.missionsOf(chatId)[0] ?? null;
+    const missionTimeline = missionId ? op.projector.missionTimeline(missionId) : [];
+    const documentos = memory.documentsSent.map((d) => ({ label: d.label, em: d.source.at, reconhecidoComo: d.label }));
+
+    const timeline = montarTimelineCognitiva({
+      conversaIniciadaEm: primeiroInbound?.at ?? null,
+      totalMensagens: entries.filter((e) => e.kind === 'inbound' || e.kind === 'outbound').length,
+      beneficio: dossie?.evidenciasEncontradas.find((f) => f.startsWith('beneficio='))?.split('=')[1] ?? null,
+      fatosAprendidos: dossie?.evidenciasEncontradas ?? [],
+      documentos,
+      contratos: dossie?.contratosEncontrados ?? [],
+      raciocinio: dossie && dossie.hipoteses.length > 0
+        ? { totalHipoteses: dossie.hipoteses.length, principal: dossie.hipoteses[0]?.ref ?? null, fatosDaPrincipal: dossie.explicacao.fatosUtilizados }
+        : null,
+      decisao: dossie?.strategyRef ? { strategyRef: dossie.strategyRef, confianca: dossie.grauConfianca ?? 'a apurar', em: dossie.geradoEm } : null,
+      missao: missionId ? { missionId, criadaEm: missionTimeline[0]?.at ?? null, advogado: null, recebidaEm: null } : null,
+      dossieAtualizadoEm: dossie?.geradoEm ?? null,
+      encerradoEm: null,
+      feedback: null,
+    });
+    return { chatId, timeline };
+  });
+
+  // ── PAINEL DO ADVOGADO (GO-LIVE 13A · seção 1) — cada card é um CASO. Resume o
+  //    caso em segundos (confiança/hipótese/próxima ação/urgência) e a ação
+  //    principal ABRE O DOSSIÊ. Derivado do dossiê + status da jornada.
+  app.get('/admin/casos', async () => {
+    await op.projector.refresh();
+    if (!op.clientes) return { casos: [] };
+    const now = Date.now();
+    const clientes = await op.clientes.list();
+    const casos = await Promise.all(
+      clientes.map(async (c) => {
+        const dossie = await dossieDoCliente(c.chatId);
+        const tempoParadoMs = c.ultimoContatoAt ? now - c.ultimoContatoAt.getTime() : null;
+        if (!dossie) {
+          return resumirCaso({
+            chatId: c.chatId, clienteNome: c.quem, status: c.status, tempoParadoMs, advogadoResponsavel: null,
+            dossie: { grauConfianca: null, hipoteses: [], proximasAcoes: [], documentosPendentes: [], missionId: c.missionId },
+          });
+        }
+        return resumirCaso({
+          chatId: c.chatId, clienteNome: c.quem, status: c.status, tempoParadoMs, advogadoResponsavel: null, dossie,
+        });
+      }),
+    );
+    return { casos: ordenarCasos(casos) };
   });
 
   // ── MISSÕES ─────────────────────────────────────────────────────────────────

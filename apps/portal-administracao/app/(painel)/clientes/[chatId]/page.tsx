@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ReactElement } from 'react';
 import AutoRefresh from '../../../../components/auto-refresh';
 import Dossie from '../../../../components/dossie';
+import TimelineCognitiva from '../../../../components/timeline-cognitiva';
 import { getJson, type ClientDetail } from '../../../../lib/api';
 import { formatDate, formatMs, shortId } from '../../../../lib/format';
 
@@ -25,8 +26,10 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
       <h1 className="page-title">{relationship.knownName ?? 'Cliente'}</h1>
       <p className="page-sub mono">{chatId}</p>
 
-      {/* GO-LIVE 13A — o parecer inicial da AHRI abre a ficha do cliente */}
+      {/* GO-LIVE 13A — ORDEM NATURAL DO TRABALHO: primeiro o parecer, depois a
+          história do caso, e só então a conversa completa e os documentos. */}
       <Dossie chatId={chatId} />
+      <TimelineCognitiva chatId={chatId} />
 
       <div className="grid two" style={{ marginBottom: 16 }}>
         <div className="card">

@@ -138,6 +138,41 @@ export interface DossieJuridico {
   fonte: string;
 }
 
+// ── TIMELINE COGNITIVA (13A · seção 5) ─────────────────────────────────────────
+export interface TimelineCognitivaItem {
+  ordem: number;
+  quando: string | null;
+  responsavel: string;
+  origem: string;
+  titulo: string;
+  descricao: string | null;
+  fonte: string;
+  categoria: string;
+  fatosUtilizados: string[] | null;
+}
+export interface TimelineCognitivaData {
+  chatId: string;
+  timeline: TimelineCognitivaItem[];
+}
+
+// ── PAINEL DO ADVOGADO (13A · seção 1) — cada card é um CASO ────────────────────
+export interface CartaoCaso {
+  chatId: string;
+  clienteNome: string;
+  status: string;
+  grauConfianca: 'alta' | 'media' | 'baixa' | null;
+  principalHipotese: string | null;
+  proximaAcao: string | null;
+  documentosPendentes: string[];
+  tempoParadoMs: number | null;
+  urgencia: 'alta' | 'media' | 'baixa';
+  dossieDisponivel: boolean;
+  missionId: string | null;
+  advogadoResponsavel: string | null;
+  href: string;
+  fonte: string;
+}
+
 export interface ComponentHealth {
   component: string;
   status: 'ONLINE' | 'OFFLINE' | 'DEGRADED' | 'FAILED';

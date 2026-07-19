@@ -272,3 +272,47 @@ button:hover { filter: brightness(1.1); }
   border-top: 1px solid var(--border); font-family: var(--mono); font-size: 11px; color: var(--text-dim);
 }
 .dossie-meta b { color: var(--text); font-weight: 600; }
+
+/* ── TIMELINE COGNITIVA (GO-LIVE 13A · seção 5) ────────────────────────────── */
+.tlc-list { list-style: none; margin: 8px 0 0; padding: 0; position: relative; }
+.tlc-list::before { content: ''; position: absolute; left: 15px; top: 6px; bottom: 6px; width: 2px; background: var(--border); }
+.tlc-item { position: relative; display: flex; gap: 14px; padding: 8px 0; }
+.tlc-dot {
+  z-index: 1; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--bg); border: 1px solid var(--border); font-size: 15px;
+}
+.tlc-body { flex: 1 1 auto; min-width: 0; padding-top: 2px; }
+.tlc-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.tlc-title { font-weight: 620; font-size: 14.5px; }
+.tlc-when { font-family: var(--mono); font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.tlc-desc { margin: 3px 0 0; font-size: 13px; color: var(--text-dim); }
+.tlc-meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 11.5px; color: var(--text-dim); flex-wrap: wrap; }
+.tlc-fatos { margin-top: 6px; }
+.tlc-fatos summary { cursor: pointer; font-size: 12px; color: var(--accent); }
+.tlc-fatos ul { margin: 6px 0 0; padding-left: 16px; }
+.tlc-fatos li { font-size: 12px; color: var(--text-dim); }
+
+/* ── PAINEL DO ADVOGADO — cards de CASO (GO-LIVE 13A · seção 1) ─────────────── */
+.caso-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.caso-card {
+  background: var(--bg-elev); border: 1px solid var(--border); border-left: 3px solid var(--text-dim);
+  border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 8px;
+}
+.caso-urg-alta { border-left-color: var(--bad); }
+.caso-urg-media { border-left-color: var(--warn); }
+.caso-urg-baixa { border-left-color: var(--ok); }
+.caso-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.caso-nome { font-size: 17px; font-weight: 680; }
+.caso-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.caso-status { font-size: 12px; color: var(--text-dim); text-transform: capitalize; }
+.caso-hipotese { font-size: 14px; font-weight: 550; line-height: 1.4; margin: 2px 0; }
+.caso-acao { font-size: 13px; color: var(--text-dim); margin: 0; }
+.caso-acao span { color: var(--accent); font-weight: 600; }
+.caso-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 6px 0; }
+.caso-kv dt { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); }
+.caso-kv dd { margin: 1px 0 0; font-size: 13px; }
+.caso-cta {
+  margin-top: 6px; text-align: center; padding: 10px; border-radius: 8px; font-weight: 650; font-size: 14px;
+  background: var(--accent-soft); color: var(--accent); text-decoration: none; transition: background 0.15s;
+}
+.caso-cta:hover { background: var(--accent); color: #fff; }

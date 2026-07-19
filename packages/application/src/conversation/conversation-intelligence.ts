@@ -21,6 +21,8 @@ import type { ConversationIntent } from './intent.js';
 import type { ConversationContextView } from './ports.js';
 import { doseConversa, turnoSocial } from './conversation-dosage.js';
 import { memoriaDaConversa } from './conversation-memory.js';
+import { aprenderDaConversa, resumoDoConhecimento, type CatalogoDeConhecimento, type FatoAprendido } from './conversation-knowledge.js';
+import { CATALOGO_CONSIGNADO_INSS } from './consignado-knowledge.js';
 
 export type ModoDoTurno = 'social' | 'descoberta' | 'informativo';
 
@@ -34,6 +36,10 @@ export interface CondutaDoTurno {
   readonly perguntasJaFeitas: readonly string[];
   /** GO-LIVE 9F — o fio da conversa ativa ("perguntei X → respondeu Y"). */
   readonly fioDaConversa: string | null;
+  /** GO-LIVE 9G — fatos APRENDIDOS na conversa (derivados; nunca persistidos). */
+  readonly conhecimento: readonly FatoAprendido[];
+  /** Resumo compacto do conhecimento ("beneficio=aposentadoria; …") p/ o fraseado. */
+  readonly conhecimentoResumo: string | null;
 }
 
 /** Extrai, mecanicamente, as perguntas já feitas nos últimos outbounds. */
@@ -47,7 +53,13 @@ export function perguntasFeitas(recentOutboundTexts: readonly string[]): readonl
 
 /** O próximo passo da conversa — determinístico; a curiosidade em si é fraseada
  *  pela Expression, mas SOB esta disciplina (no máximo uma; nunca redundante). */
-export function conduzirTurno(intent: ConversationIntent, context: ConversationContextView): CondutaDoTurno {
+export function conduzirTurno(
+  intent: ConversationIntent,
+  context: ConversationContextView,
+  // GO-LIVE 9G: o catálogo é do DOMÍNIO (default = Reconstrua Consignado INSS);
+  // AHRI Business/Life trocam apenas este parâmetro — o motor é genérico.
+  catalogo: CatalogoDeConhecimento = CATALOGO_CONSIGNADO_INSS,
+): CondutaDoTurno {
   const dose = doseConversa(intent, context);
   const purpose = context.lastPercept?.enrichment?.perceivedPurpose ?? 'unknown';
 
@@ -63,6 +75,12 @@ export function conduzirTurno(intent: ConversationIntent, context: ConversationC
     ]),
   ].slice(0, 10);
 
+  // GO-LIVE 9G — Conversation Knowledge: FATOS aprendidos na conversa ativa
+  // (derivados; morrem com ela). A memória mantém o fio; o conhecimento, o que
+  // já foi APRENDIDO — e o que foi aprendido jamais é perguntado de novo.
+  const conhecimento = aprenderDaConversa(context, catalogo);
+  const conhecimentoResumo = resumoDoConhecimento(conhecimento);
+
   if (turnoSocial(intent, context)) {
     // A pergunta "como posso ajudar?" É a única curiosidade do turno social.
     return {
@@ -71,6 +89,8 @@ export function conduzirTurno(intent: ConversationIntent, context: ConversationC
       conduta: 'apenas retribua o cumprimento com calor humano e pergunte como pode ajudar — nada mais',
       perguntasJaFeitas: jaFeitas,
       fioDaConversa: memoria.fioDaConversa,
+      conhecimento,
+      conhecimentoResumo,
     };
   }
 
@@ -83,6 +103,12 @@ export function conduzirTurno(intent: ConversationIntent, context: ConversationC
         'nunca reabra assunto já respondido; nunca volte ao começo; se nada falta descobrir, apenas confirme com naturalidade e espere'
       : '';
 
+  // 9G — condução pelo conhecimento: o já aprendido dirige a PRÓXIMA curiosidade.
+  const aprendizado =
+    conhecimentoResumo !== null
+      ? '; use o CONHECIMENTO JÁ APRENDIDO para escolher a próxima curiosidade e JAMAIS pergunte algo cujo fato já foi aprendido'
+      : '';
+
   if (purpose === 'question') {
     // A pessoa perguntou: responder é o centro; curiosidade só se faltar algo.
     return {
@@ -91,9 +117,12 @@ export function conduzirTurno(intent: ConversationIntent, context: ConversationC
       conduta:
         'a MENOR resposta verdadeira: responda somente ao que a pessoa pediu; nunca antecipe informações não perguntadas; ' +
         'não pergunte nada que os FATOS fornecidos já respondem; se faltar algo essencial, faça NO MÁXIMO UMA pergunta e espere' +
-        continuidade,
+        continuidade +
+        aprendizado,
       perguntasJaFeitas: jaFeitas,
       fioDaConversa: memoria.fioDaConversa,
+      conhecimento,
+      conhecimentoResumo,
     };
   }
 
@@ -105,8 +134,11 @@ export function conduzirTurno(intent: ConversationIntent, context: ConversationC
       'acolha o que a pessoa trouxe em UMA frase curta e humana; depois escolha UMA única curiosidade natural — a MENOR ' +
       'pergunta que mais ajuda a entender o que ela precisa — e espere a resposta; NUNCA faça duas perguntas; nunca vire ' +
       'entrevista; nunca antecipe explicações sobre empresa, serviços ou etapas; não pergunte o que os FATOS já dizem nem repita pergunta já feita' +
-      continuidade,
+      continuidade +
+      aprendizado,
     perguntasJaFeitas: jaFeitas,
     fioDaConversa: memoria.fioDaConversa,
+    conhecimento,
+    conhecimentoResumo,
   };
 }

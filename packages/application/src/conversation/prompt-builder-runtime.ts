@@ -56,9 +56,14 @@ export class PromptBuilderRuntime {
     ].slice(0, this.antiRepetitionWindow + conduta.perguntasJaFeitas.length);
     return {
       intent,
-      // GO-LIVE 9F: o FIO da conversa ativa viaja no contexto — a Expression
-      // continua exatamente de onde o diálogo parou (nunca de um turno isolado).
-      context: { ...context, casoFatos: conduta.casoFatos, fioDaConversa: conduta.fioDaConversa },
+      // GO-LIVE 9F/9G: o FIO e o CONHECIMENTO da conversa ativa viajam no contexto —
+      // a Expression continua de onde parou e jamais pergunta um fato já aprendido.
+      context: {
+        ...context,
+        casoFatos: conduta.casoFatos,
+        fioDaConversa: conduta.fioDaConversa,
+        conhecimentoDaConversa: conduta.conhecimentoResumo,
+      },
       avoidPhrases,
       styleGuidance: `${toneFor(intent, context)}; ${conduta.conduta}`,
     };

@@ -151,4 +151,7 @@ export interface ConversationContextView {
   /** GO-LIVE 9F — o FIO da conversa ativa ("perguntei X → respondeu Y"), derivado
    *  por turno pela Conversational Memory. null/ausente = turno sem fio anterior. */
   readonly fioDaConversa?: string | null;
+  /** GO-LIVE 9G — o CONHECIMENTO aprendido na conversa ativa (resumo compacto
+   *  "factKey=valor; …"), derivado por turno. null/ausente = nada aprendido. */
+  readonly conhecimentoDaConversa?: string | null;
 }

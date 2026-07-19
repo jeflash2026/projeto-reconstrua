@@ -215,12 +215,17 @@ class LlmExpression implements LlmExpressionPort {
     const casoFatos = request.context.casoFatos ?? null;
     // GO-LIVE 9F — o fio da conversa ativa: a resposta nasce da resposta anterior.
     const fio = request.context.fioDaConversa ?? null;
+    // GO-LIVE 9G — o conhecimento aprendido: fato aprendido jamais é reperguntado.
+    const conhecimento = request.context.conhecimentoDaConversa ?? null;
     const user = [
       `INTENÇÃO DECIDIDA (você apenas frasea): ${intent.directive}${intent.speechAct ? ` / ${intent.speechAct}` : ''}`,
       `Tópico: ${intent.topic ?? '-'}`,
       `Referências: ${intent.references.join(', ') || '-'}`,
       ...(ultimaMensagem !== null && ultimaMensagem !== '' ? [`Última mensagem da pessoa: "${ultimaMensagem}"`] : []),
       ...(fio !== null ? [`FIO DA CONVERSA: ${fio}`] : []),
+      ...(conhecimento !== null
+        ? [`CONHECIMENTO JÁ APRENDIDO NESTA CONVERSA (jamais pergunte isto de novo): ${conhecimento}`]
+        : []),
       ...(casoFatos !== null ? [casoFatos] : []),
       `Tom: ${request.styleGuidance}`,
       `NUNCA repita estas frases: ${request.avoidPhrases.slice(0, 6).join(' | ') || '-'}`,

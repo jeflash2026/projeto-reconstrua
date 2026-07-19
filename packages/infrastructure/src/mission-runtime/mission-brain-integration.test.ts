@@ -44,14 +44,15 @@ function facts(perceptKind: string): MissionFacts {
   };
 }
 
-function brainContext(kind: string, turnCount: number): BrainContext {
-  const percept: PerceptView = { kind, sentiment: 'neutral', urgency: 'normal', hasArtifacts: kind !== 'text', artifactCount: kind !== 'text' ? 1 : 0, silenceMs: null };
+function brainContext(kind: string, turnCount: number, purpose = 'service_request', caseExists = false): BrainContext {
+  // GO-LIVE 9C: onboarding só nasce de PEDIDO percebido (service_request) ou documento.
+  const percept: PerceptView = { kind, sentiment: 'neutral', urgency: 'normal', hasArtifacts: kind !== 'text', artifactCount: kind !== 'text' ? 1 : 0, silenceMs: null, purpose };
   const memory: BrainMemoryView = { turnCount, lastOutboundAgoMs: null };
-  return { percept, snapshot: emptySnapshot(CHAT), memory, rules: MISSION_RULE_CATALOG, chatId: CHAT, now: NOW };
+  return { percept, snapshot: { ...emptySnapshot(CHAT), ...(caseExists ? { caseExists: true } : {}) }, memory, rules: MISSION_RULE_CATALOG, chatId: CHAT, now: NOW };
 }
 
 describe('Fluxo obrigatório: Percepção → Brain → Mission Runtime → Event Store', () => {
-  it('"Olá" → o Brain decide onboarding + saudação; o Mission Runtime cria a Missão', async () => {
+  it('PEDIDO percebido (service_request) → onboarding + resposta; o Mission Runtime cria a Missão (GO-LIVE 9C)', async () => {
     const clock = new TestClock();
     const eventStore = new InMemoryEventStore(new CryptoHasher(), new SeqUuid(), clock);
     const brain = new ExecutiveBrainRuntime({ clock, uuid: new SeqUuid() });
@@ -89,8 +90,8 @@ describe('Fluxo obrigatório: Percepção → Brain → Mission Runtime → Even
     const onboard = await brain.decide(brainContext('text', 1));
     await runtime.execute(facts('text'), toMissionUseCaseIntents(onboard.intents));
 
-    // documento
-    const docOutcome = await brain.decide(brainContext('pdf', 2));
+    // documento (onboarding JÁ existe no domínio → caseExists=true; ONBOARD-DOC não re-dispara)
+    const docOutcome = await brain.decide(brainContext('pdf', 2, 'unknown', true));
     const docIntents = toMissionUseCaseIntents(docOutcome.intents);
     expect(docIntents.some((i) => i.useCase === 'IngestDocument')).toBe(true);
 

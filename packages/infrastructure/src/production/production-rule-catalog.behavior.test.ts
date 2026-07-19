@@ -169,11 +169,17 @@ describe('B4.1 · RO-STOP-CONCLUDED-001 (missão ENCERRADA → PARA, sem acompan
 });
 
 describe('CAT-01 · regressão — regras existentes ainda disparam quando devem', () => {
-  it('primeiro turno de texto ⇒ ONBOARD (missão nasce) + GREET (acolhe)', async () => {
-    const outcome = await brain().decide(ctx({ kind: 'text' }, {}, 1));
+  it('GO-LIVE 9C: PEDIDO percebido no 1º turno ⇒ ONBOARD + GREET', async () => {
+    const outcome = await brain().decide(ctx({ kind: 'text', purpose: 'service_request' }, {}, 1));
     expect(outcome.record.chosenRefs).toContain('RO-2D-ONBOARD');
     expect(outcome.record.chosenRefs).toContain('RO-2D-GREET');
     expect(outcome.intents.some((i) => i.kind === 'use_case')).toBe(true);
+  });
+  it('GO-LIVE 9C: saudação PURA no 1º turno ⇒ SÓ GREET — nenhuma suposição operacional', async () => {
+    const outcome = await brain().decide(ctx({ kind: 'text', purpose: 'greeting' }, {}, 1));
+    expect(outcome.record.chosenRefs).toContain('RO-2D-GREET');
+    expect(outcome.record.chosenRefs).not.toContain('RO-2D-ONBOARD');
+    expect(outcome.intents.some((i) => i.kind === 'use_case')).toBe(false); // zero operação
   });
   it('silêncio ⇒ RO-4C-FOLLOWUP-SILENCE (reengaja)', async () => {
     const outcome = await brain().decide(ctx({ kind: 'silence', silenceMs: 120000 }, {}));

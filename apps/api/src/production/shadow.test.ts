@@ -88,7 +88,8 @@ describe('Shadow Mode — recorder', () => {
 
   it('turno temporal também gera report (origin=temporal) com a RO de follow-up', async () => {
     const { prod, clock } = harness();
-    await prod.ingress.receive(env('olá', 'S1'));
+    // GO-LIVE 9C: só um PEDIDO abre missão/workflow — 'olá' puro não agenda follow-up.
+    await prod.ingress.receive(env('quero dar entrada no meu benefício', 'S1'));
     clock.advance(4 * 24 * 60 * 60_000);
     await prod.ingress.tick(clock.now());
     const reports = await prod.shadowStore.all();

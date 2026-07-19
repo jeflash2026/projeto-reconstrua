@@ -128,6 +128,8 @@ const SENTIMENTS = new Set(['positive', 'neutral', 'negative', 'anxious', 'confu
 const URGENCIES = new Set(['low', 'normal', 'high', 'unknown']);
 // RFC-0044: vocabulário FECHADO de relevância de evento (DF-14). Fora dele ⇒ ausência.
 const RELEVANCES = new Set(['RELEVANT', 'INFORMATIVE']);
+// GO-LIVE 9C: vocabulário FECHADO do propósito percebido (gate do onboarding).
+const PURPOSES = new Set(['greeting', 'smalltalk', 'question', 'service_request', 'unknown']);
 
 export function parseEnrichment(raw: string): PerceptEnrichment | null {
   try {
@@ -140,6 +142,7 @@ export function parseEnrichment(raw: string): PerceptEnrichment | null {
     const sentiment = asString(record['sentiment']) ?? 'unknown';
     const urgency = asString(record['urgency']) ?? 'unknown';
     const relevance = asString(record['perceivedRelevance']) ?? '';
+    const purpose = asString(record['perceivedPurpose']) ?? 'unknown';
     const artifacts = (asArray(record['detectedArtifacts']) ?? []).map((a) => asString(a) ?? '').filter((a) => a !== '');
     return {
       summary: asString(record['summary']) ?? '',
@@ -148,6 +151,8 @@ export function parseEnrichment(raw: string): PerceptEnrichment | null {
       detectedIntentSignal: asString(record['detectedIntentSignal']),
       detectedArtifacts: artifacts,
       language: asString(record['language']),
+      // GO-LIVE 9C: propósito só entra se pertencer ao vocabulário FECHADO.
+      perceivedPurpose: (PURPOSES.has(purpose) ? purpose : 'unknown') as NonNullable<PerceptEnrichment['perceivedPurpose']>,
       // RFC-0044: só cruza se pertencer ao vocabulário fechado; caso contrário, AUSENTE.
       ...(RELEVANCES.has(relevance)
         ? { perceivedRelevance: relevance as NonNullable<PerceptEnrichment['perceivedRelevance']> }
@@ -167,7 +172,7 @@ class LlmPerception implements LlmPerceptionPort {
   ) {}
   async understand(envelope: InboundEnvelope, context: PerceptionContext): Promise<PerceptEnrichment> {
     const t0 = this.clock.now().getTime();
-    const system = `${this.config.prompts.global}\n\nTAREFA DE PERCEPÇÃO: analise a mensagem e responda APENAS um JSON: {"summary":string,"sentiment":"positive|neutral|negative|anxious|confused|unknown","urgency":"low|normal|high|unknown","detectedIntentSignal":string|null,"detectedArtifacts":string[],"language":string|null,"perceivedRelevance":"RELEVANT|INFORMATIVE|null"}. Você PERCEBE; nunca decide.`;
+    const system = `${this.config.prompts.global}\n\nTAREFA DE PERCEPÇÃO: analise a mensagem e responda APENAS um JSON: {"summary":string,"sentiment":"positive|neutral|negative|anxious|confused|unknown","urgency":"low|normal|high|unknown","detectedIntentSignal":string|null,"detectedArtifacts":string[],"language":string|null,"perceivedRelevance":"RELEVANT|INFORMATIVE|null","perceivedPurpose":"greeting|smalltalk|question|service_request|unknown"}. perceivedPurpose: greeting=saudação/apresentação sem pedido; smalltalk=conversa social; question=dúvida genérica; service_request=a pessoa PEDE atendimento/serviço (ex.: quer dar entrada, resolver aposentadoria/benefício); unknown=incerto. Você PERCEBE; nunca decide.`;
     const user = `Tipo: ${envelope.kind}\nTexto: ${envelope.text ?? envelope.editedText ?? '(sem texto)'}\nArquivo: ${envelope.fileName ?? '-'}\nContexto recente: ${context.recentSummary ?? '-'}`;
     try {
       const raw = (await this.llm.complete(system, user)).text;
@@ -177,7 +182,8 @@ class LlmPerception implements LlmPerceptionPort {
     } catch {
       this.track('perception', this.clock.now().getTime() - t0, false);
     }
-    // Degrade explícito: percepção neutra factual (nunca inventa).
+    // Degrade explícito: percepção neutra factual (nunca inventa). GO-LIVE 9C:
+    // purpose 'unknown' = FAIL-SAFE — sem entendimento, nenhum onboarding nasce.
     return {
       summary: `entrada percebida: ${envelope.kind}`,
       sentiment: 'unknown',
@@ -185,6 +191,7 @@ class LlmPerception implements LlmPerceptionPort {
       detectedIntentSignal: null,
       detectedArtifacts: envelope.fileName !== null ? [`artefato documental: ${envelope.fileName}`] : [],
       language: null,
+      perceivedPurpose: 'unknown',
     };
   }
 }

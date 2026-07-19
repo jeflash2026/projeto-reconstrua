@@ -117,7 +117,7 @@ describe('GO LIVE — o fluxo obrigatório completo num turno real', () => {
   it('sinal temporal do Scheduler → Brain decide (com Regra Operacional) → sem mensagem mecânica', async () => {
     const { live, clock, gateway } = harness();
     await live.boot.boot(live.bootComponents);
-    await live.conversation.receive(envelope('olá', 'M1'));
+    await live.conversation.receive(envelope('olá, preciso de ajuda com meu benefício', 'M1'));
     const textsAfterHello = gateway.texts().length;
 
     // Vence o follow-up agendado pelo Workflow (3 dias) e o tempo chega ao Brain.

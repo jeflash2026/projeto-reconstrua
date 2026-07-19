@@ -109,8 +109,8 @@ describe('A2 — unicidade de missão sob qualquer concorrência (entrada única
   it('2 mensagens SIMULTÂNEAS de cliente novo → exatamente 1 missão (o cenário que falhou no 4B)', async () => {
     const { prod } = harness();
     await Promise.all([
-      prod.ingress.receive(env(CHAT, 'oi', 'R1')),
-      prod.ingress.receive(env(CHAT, 'tem alguém aí?', 'R2')),
+      prod.ingress.receive(env(CHAT, 'quero dar entrada no meu benefício', 'R1')),
+      prod.ingress.receive(env(CHAT, 'é sobre a minha aposentadoria', 'R2')),
     ]);
     expect(await missionsOf(prod, CHAT)).toBe(1);
   });
@@ -125,7 +125,7 @@ describe('A2 — unicidade de missão sob qualquer concorrência (entrada única
 
   it('RETRY/REDELIVERY: o MESMO messageId reenviado 5× em paralelo → 1 missão e 1 processamento', async () => {
     const { prod, gateway } = harness();
-    await Promise.all(Array.from({ length: 5 }, () => prod.ingress.receive(env(CHAT, 'oi', 'DUP-1'))));
+    await Promise.all(Array.from({ length: 5 }, () => prod.ingress.receive(env(CHAT, 'quero dar entrada no meu benefício', 'DUP-1'))));
     expect(await missionsOf(prod, CHAT)).toBe(1);
     // Só um turno gerou resposta (os demais foram idempotentes DENTRO da fila).
     expect(gateway.texts().length).toBe(1);
@@ -147,7 +147,7 @@ describe('A2 — unicidade de missão sob qualquer concorrência (entrada única
   it('clientes DIFERENTES continuam paralelos (a serialização é POR conversa)', async () => {
     const { prod } = harness();
     const chats = Array.from({ length: 4 }, (_, i) => `551190000${String(i)}@s.whatsapp.net`);
-    await Promise.all(chats.map((c, i) => prod.ingress.receive(env(c, 'oi', `P${String(i)}`))));
+    await Promise.all(chats.map((c, i) => prod.ingress.receive(env(c, 'quero dar entrada no meu benefício', `P${String(i)}`))));
     for (const c of chats) expect(await missionsOf(prod, c)).toBe(1);
     await prod.adminView.projector.refresh();
     expect(prod.adminView.projector.missions().length).toBe(4);
@@ -160,7 +160,7 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
 
   it('acompanhamento vencido → Brain decide FALAR por RO-4C → cliente recebe mensagem humanizada', async () => {
     const { prod, clock, gateway } = harness();
-    await prod.ingress.receive(env(CHAT, 'olá', 'T1'));
+    await prod.ingress.receive(env(CHAT, 'olá, preciso de ajuda com meu benefício', 'T1'));
     const before = gateway.texts().length;
 
     clock.advance(4 * 24 * 60 * 60_000); // vence o follow-up do workflow
@@ -182,7 +182,7 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
 
   it('follow-up NÃO redispara (sem loop) e segunda tarefa futura permanece agendada', async () => {
     const { prod, clock } = harness();
-    await prod.ingress.receive(env(CHAT, 'olá', 'T1'));
+    await prod.ingress.receive(env(CHAT, 'olá, preciso de ajuda com meu benefício', 'T1'));
     clock.advance(4 * 24 * 60 * 60_000);
     await prod.ingress.tick(clock.now());
     expect(await prod.ingress.tick(clock.now())).toHaveLength(0);
@@ -190,7 +190,7 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
 
   it('B4.2 — acompanhamento RECORRE num processo longo (2º follow-up após a cadência)', async () => {
     const { prod, clock } = harness();
-    await prod.ingress.receive(env(CHAT, 'olá', 'T1'));
+    await prod.ingress.receive(env(CHAT, 'olá, preciso de ajuda com meu benefício', 'T1'));
 
     // 1º acompanhamento vence e é decidido por Regra Operacional.
     clock.advance(4 * 24 * 60 * 60_000);
@@ -207,7 +207,7 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
 
   it('B4.2 — a recorrência tem TETO anti-spam (não acompanha infinitamente)', async () => {
     const { prod, clock } = harness();
-    await prod.ingress.receive(env(CHAT, 'olá', 'T1'));
+    await prod.ingress.receive(env(CHAT, 'olá, preciso de ajuda com meu benefício', 'T1'));
     // Avança bem além do teto (maxConsecutive=8 × 3 dias) disparando a cada cadência.
     let followUps = 0;
     for (let i = 0; i < 20; i += 1) {
@@ -223,7 +223,7 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
   it('B4.1 — processo ENCERRADO oficialmente jamais recebe acompanhamento (end-to-end)', async () => {
     const { prod, clock, gateway } = harness();
     // Onboarding real → missão nasce, Verdade estabelecida, follow-up agendado.
-    await prod.ingress.receive(env(CHAT, 'olá', 'T1'));
+    await prod.ingress.receive(env(CHAT, 'olá, preciso de ajuda com meu benefício', 'T1'));
     await prod.adminView.projector.refresh();
     const missionId = prod.adminView.projector.missionsOf(CHAT)[0];
     expect(missionId).toBeDefined();
@@ -260,7 +260,7 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
 
   it('B4.3 — ciclo completo: encerrar → silêncio → REABRIR → acompanhamento volta automaticamente', async () => {
     const { prod, clock } = harness();
-    await prod.ingress.receive(env(CHAT, 'olá', 'T1'));
+    await prod.ingress.receive(env(CHAT, 'olá, preciso de ajuda com meu benefício', 'T1'));
     await prod.adminView.projector.refresh();
     const missionId = prod.adminView.projector.missionsOf(CHAT)[0];
 

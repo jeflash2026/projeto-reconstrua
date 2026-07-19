@@ -27,18 +27,33 @@ export const MISSION_RULE_CATALOG: readonly OperationalRuleSpec[] = [
     action: { kind: 'escalation', role: 'advogado', reasonCode: 'COMPETENCIA_HUMANA' },
     fundamento: 'DF-09; INV-AD-01/02; RO-R7-001',
   },
-  // ── Flow 1: "Olá" → Onboarding + resposta ──────────────────────────────────
+  // ── Flow 1 (GO-LIVE 9C): onboarding SÓ nasce de FATO — pedido percebido ou
+  // documento. Conversa iniciada (saudação, smalltalk, primeiro turno) NUNCA
+  // promove relacionamento a onboarding: "Olá" não abre cadastro.
   {
     ref: 'RO-2D-ONBOARD',
-    title: 'Iniciar missão no primeiro contato (R1→R2→Missão→Verdade→Estado→Etapa)',
+    title: 'Iniciar missão quando a pessoa PEDE atendimento (propósito percebido)',
     priority: 58,
     preconditions: [
-      { fact: 'isFirstTurn', op: 'eq', value: true },
       { fact: 'perceptKind', op: 'eq', value: 'text' },
+      { fact: 'perceptPurpose', op: 'eq', value: 'service_request' },
+      { fact: 'onboardingExists', op: 'falsy' },
     ],
     blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
     action: { kind: 'use_case', useCase: 'OnboardClient', references: [] },
-    fundamento: 'R1/R2 + nascimento da Missão (INV-17) + R6 (Verdade/Estado/Etapa); RO-R7-001',
+    fundamento: 'R1/R2 + nascimento da Missão (INV-17) + R6; RO-R7-001; GO-LIVE 9C (relação ≠ onboarding)',
+  },
+  {
+    ref: 'RO-2D-ONBOARD-DOC',
+    title: 'Iniciar missão quando um DOCUMENTO chega sem atendimento aberto (pedido implícito)',
+    priority: 58,
+    preconditions: [
+      { fact: 'perceptKind', op: 'in', value: ['pdf', 'document', 'image'] },
+      { fact: 'onboardingExists', op: 'falsy' },
+    ],
+    blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
+    action: { kind: 'use_case', useCase: 'OnboardClient', references: ['artefato-documental'] },
+    fundamento: 'R1/R2 + INV-17 — o documento é fato de domínio que inaugura o atendimento; GO-LIVE 9C',
   },
   {
     ref: 'RO-2D-GREET',

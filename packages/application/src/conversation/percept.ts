@@ -78,6 +78,18 @@ export type PerceivedSentiment =
 export type PerceivedUrgency = 'low' | 'normal' | 'high' | 'unknown';
 
 /**
+ * GO-LIVE 9C — PROPÓSITO percebido da mensagem (vocabulário FECHADO): o sinal
+ * estruturado que permite ao Planner distinguir "conversa" de "pedido de
+ * atendimento" SEM ler texto. É percepção (sinal), nunca decisão:
+ *  - greeting: saudação/apresentação, sem pedido ("Olá", "oi, tudo bem?")
+ *  - smalltalk: conversa social sem demanda
+ *  - question: dúvida/pergunta genérica (não é pedido de atendimento)
+ *  - service_request: a pessoa PEDE atendimento/serviço (ex.: aposentadoria)
+ *  - unknown: não foi possível perceber (inclui degrade do LLM — fail-safe)
+ */
+export type PerceivedPurpose = 'greeting' | 'smalltalk' | 'question' | 'service_request' | 'unknown';
+
+/**
  * Enriquecimento produzido pelo LLM de PERCEPÇÃO. É ENTENDIMENTO puro. Nunca
  * contém decisão, próxima ação, fato novo ou reconhecimento de documento (isso é
  * ato de domínio posterior, decidido pelo Brain — ADR-0002A §3, Camada 1).
@@ -95,6 +107,9 @@ export interface PerceptEnrichment {
    *  domínio); é ENTENDIMENTO, montado como PerceivedFact na fronteira. Opcional —
    *  ausente = não percebido. */
   readonly perceivedRelevance?: EventClassificationValue;
+  /** GO-LIVE 9C: propósito percebido (vocabulário fechado). Opcional — ausente =
+   *  'unknown'. É o único caminho pelo qual "pedido de atendimento" vira fato. */
+  readonly perceivedPurpose?: PerceivedPurpose;
 }
 
 /** A percepção completa e imutável de um turno de entrada. */

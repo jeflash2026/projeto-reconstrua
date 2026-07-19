@@ -49,6 +49,9 @@ function toPerceptView(percept: Percept): PerceptView {
     hasArtifacts: artifactCount > 0,
     artifactCount,
     silenceMs: percept.envelope.silenceMs,
+    // GO-LIVE 9C: propósito percebido (vocabulário fechado) — o gate estruturado
+    // que separa conversa de pedido de atendimento. Ausente/degrade ⇒ 'unknown'.
+    purpose: enrichment?.perceivedPurpose ?? 'unknown',
   };
 }
 

@@ -13,6 +13,18 @@ import type {
   PhrasingRequest,
 } from '@reconstrua/application';
 
+// GO-LIVE 9C: heurística DETERMINÍSTICA do propósito (double da percepção).
+// Saudação PURA (sem conteúdo além do cumprimento/apresentação curta) ⇒ greeting;
+// pergunta ⇒ question; qualquer conteúdo substantivo ⇒ service_request (mantém os
+// fluxos homologados: "olá, sou o José" segue abrindo atendimento nos harnesses).
+function fakePurpose(kind: string, text: string): NonNullable<PerceptEnrichment['perceivedPurpose']> {
+  if (kind !== 'text' || text === '') return 'unknown';
+  const t = text.trim().toLowerCase().replace(/[!.…\s]+$/g, '');
+  if (/^(oi|ol[áa]|opa|hey|e a[íi]|bom dia|boa tarde|boa noite)([,!.\s]*(tudo bem|td bem|tudo bom))?[?!.]*$/.test(t)) return 'greeting';
+  if (t.includes('?')) return 'question';
+  return 'service_request';
+}
+
 export class FakeLlmPerception implements LlmPerceptionPort {
   understand(envelope: InboundEnvelope, _context: PerceptionContext): Promise<PerceptEnrichment> {
     const text = (envelope.text ?? envelope.editedText ?? '').toLowerCase();
@@ -33,6 +45,7 @@ export class FakeLlmPerception implements LlmPerceptionPort {
       detectedIntentSignal: null,
       detectedArtifacts: artifacts,
       language: text !== '' ? 'pt-BR' : null,
+      perceivedPurpose: fakePurpose(envelope.kind, text),
     });
   }
 }

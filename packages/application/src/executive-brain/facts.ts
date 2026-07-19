@@ -19,6 +19,9 @@ export interface PerceptView {
   readonly hasArtifacts: boolean; // artefatos documentais percebidos?
   readonly artifactCount: number;
   readonly silenceMs: number | null;
+  /** GO-LIVE 9C: propósito percebido (vocabulário fechado da Percepção). Opcional
+   *  — ausente = 'unknown'. Sinal estruturado; o Brain continua sem ler texto. */
+  readonly purpose?: string;
 }
 
 /** Visão de MEMÓRIA/relacionamento que o Brain lê (contexto, não decisão). */
@@ -46,6 +49,9 @@ export function buildFacts(
     artifactCount: percept.artifactCount,
     silenceMs: percept.silenceMs ?? -1,
     isSilence: percept.kind === 'silence' || percept.kind === 'timeout',
+    // GO-LIVE 9C: propósito percebido (vocabulário fechado; 'unknown' = fail-safe:
+    // sem entendimento, NENHUMA regra operacional pode presumir pedido).
+    perceptPurpose: percept.purpose ?? 'unknown',
 
     stageCode: snapshot.stageCode,
     stateCode: snapshot.stateCode,
@@ -64,6 +70,21 @@ export function buildFacts(
           : snapshot.truthEstablished
             ? 'em_andamento'
             : 'abertura',
+
+    // ── GO-LIVE 9C · ONBOARDING como eixo próprio (derivado SÓ do domínio) ─────
+    // Relacionamento (conversa/sessão/memória/nota) JAMAIS implica onboarding.
+    // onboardingExists nasce da missão (vínculo de atendimento no domínio) — que,
+    // após 9C, só é criada por pedido percebido (service_request) ou documento.
+    onboardingExists: snapshot.caseExists === true && snapshot.stateCode !== 'ENCERRADA',
+    onboardingTruth: snapshot.caseExists === true && snapshot.truthEstablished,
+    onboardingPhase:
+      snapshot.caseExists !== true
+        ? 'inexistente'
+        : snapshot.stateCode === 'ENCERRADA'
+          ? 'encerrado'
+          : snapshot.truthEstablished
+            ? 'qualificado'
+            : 'cadastro',
     pendingDocumentCount: snapshot.pendingDocuments.length,
     hasPendingDocuments: snapshot.pendingDocuments.length > 0,
     hasDeadline: snapshot.deadlines.length > 0,

@@ -17,8 +17,10 @@ import type { AcompanhamentoCliente } from './acompanhamento.js';
 // da ausência, declarado; caso em abertura → o FATO da fase. `null`/silêncio
 // deixou de existir: o vazio não pode ser preenchido pela imaginação do LLM.
 export const PACOTE_SEM_CASO =
+  'FATO SOBRE O ATENDIMENTO: nenhum cadastro ou atendimento foi iniciado para esta pessoa — ' +
+  'nada está sendo organizado, coletado ou analisado. ' +
   'FATO SOBRE O CASO: esta pessoa NÃO possui caso nem processo registrado no escritório. ' +
-  'Não existe acompanhamento de caso em andamento.';
+  'Não existe acompanhamento de caso em andamento. Vocês estão apenas conversando.';
 
 export const PACOTE_CASO_EM_ABERTURA =
   'FATO SOBRE O CASO: o atendimento desta pessoa está em fase inicial (cadastro/coleta). ' +

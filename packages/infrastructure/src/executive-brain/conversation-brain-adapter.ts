@@ -42,6 +42,8 @@ function toPerceptView(percept: Percept): PerceptView {
     hasArtifacts: artifactCount > 0,
     artifactCount,
     silenceMs: percept.envelope.silenceMs,
+    // GO-LIVE 9C: propósito percebido (vocabulário fechado; 'unknown' fail-safe).
+    purpose: enrichment?.perceivedPurpose ?? 'unknown',
   };
 }
 

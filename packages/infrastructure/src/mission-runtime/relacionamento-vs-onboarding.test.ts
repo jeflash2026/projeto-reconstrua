@@ -62,6 +62,21 @@ describe('GO-LIVE 9C · "Olá" não promove relacionamento a onboarding', () => 
     expect(textos[0]).not.toMatch(/cadastro|registro|coleta|document|análise|analis|qualifica|processo|organizando/i);
   });
 
+  // GO-LIVE 9E — a conversa evolui UMA descoberta por vez, nunca como fluxo.
+  it('9E: cada turno gera UMA mensagem com NO MÁXIMO uma pergunta (nunca entrevista)', async () => {
+    const { op, gateway } = harness();
+    const turnos = ['Olá', 'perdi muito dinheiro', 'foi em apostas', 'tenho consignado'];
+    for (let i = 0; i < turnos.length; i += 1) {
+      const antes = gateway.texts().length;
+      await op.conversation.receive(envelope(turnos[i] ?? '', `T${String(i)}`));
+      const depois = gateway.texts();
+      expect(depois.length).toBe(antes + 1); // responder → esperar (uma mensagem por turno)
+      const resposta = depois[depois.length - 1] ?? '';
+      const perguntas = (resposta.match(/\?/g) ?? []).length;
+      expect(perguntas).toBeLessThanOrEqual(1); // UMA curiosidade no máximo
+    }
+  });
+
   it('PEDIDO ("quero dar entrada na aposentadoria") ⇒ missão nasce (onboarding por FATO)', async () => {
     const { op } = harness();
     await op.conversation.receive(envelope('Olá', 'M1'));

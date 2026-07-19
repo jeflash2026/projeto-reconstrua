@@ -13,6 +13,7 @@ export * from './conversation-memory-runtime.js';
 export * from './conversation-context-runtime.js';
 export * from './prompt-builder-runtime.js';
 export * from './conversation-dosage.js';
+export * from './conversation-intelligence.js';
 export * from './human-like-timing-runtime.js';
 export * from './delay-runtime.js';
 export * from './presence-runtime.js';

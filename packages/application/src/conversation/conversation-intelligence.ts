@@ -1,0 +1,84 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// CONVERSATION INTELLIGENCE (GO-LIVE 9E) — a condução do diálogo por CURIOSIDADE.
+//
+// Posição na arquitetura (decreto): Planner → Conversation Intelligence →
+// Prompt Builder → Expression. Ela NÃO decide missão, NÃO altera fatos, NÃO
+// toca Truth Layer/Brain Facts/Planner. Ela escolhe apenas o PRÓXIMO PASSO da
+// conversa: responder, observar, UMA única curiosidade natural, esperar.
+//
+// GENÉRICA por construção (AHRI Business/Life/…): trabalha só com sinais
+// universais — propósito percebido (vocabulário fechado), fatos conhecidos
+// (presença de contexto factual), perguntas já feitas (mecânico, dos outbounds)
+// e o objetivo do turno (intenção do Planner). NENHUM conceito de domínio.
+//
+// Disciplina obrigatória:
+//  • uma resposta · UMA curiosidade no máximo · esperar;
+//  • nunca duas perguntas; nunca virar entrevista;
+//  • nunca perguntar o que já se sabe (fatos fornecidos) — minimizar esforço;
+//  • nunca repetir pergunta já feita.
+// ─────────────────────────────────────────────────────────────────────────────
+import type { ConversationIntent } from './intent.js';
+import type { ConversationContextView } from './ports.js';
+import { doseConversa, turnoSocial } from './conversation-dosage.js';
+
+export type ModoDoTurno = 'social' | 'descoberta' | 'informativo';
+
+export interface CondutaDoTurno {
+  readonly modo: ModoDoTurno;
+  /** Fatos dosados para o turno (herda a Camada de Conversação 9D). */
+  readonly casoFatos: string | null;
+  /** A conduta do turno — curta, um princípio; nunca um script. */
+  readonly conduta: string;
+  /** Perguntas já feitas pela AHRI (mecânico) — proibidas de repetir. */
+  readonly perguntasJaFeitas: readonly string[];
+}
+
+/** Extrai, mecanicamente, as perguntas já feitas nos últimos outbounds. */
+export function perguntasFeitas(recentOutboundTexts: readonly string[]): readonly string[] {
+  return recentOutboundTexts
+    .flatMap((t) => t.split(/(?<=[.!?…])\s+/))
+    .map((s) => s.trim())
+    .filter((s) => s.endsWith('?'))
+    .slice(0, 6);
+}
+
+/** O próximo passo da conversa — determinístico; a curiosidade em si é fraseada
+ *  pela Expression, mas SOB esta disciplina (no máximo uma; nunca redundante). */
+export function conduzirTurno(intent: ConversationIntent, context: ConversationContextView): CondutaDoTurno {
+  const dose = doseConversa(intent, context);
+  const jaFeitas = perguntasFeitas(context.recentOutboundTexts);
+  const purpose = context.lastPercept?.enrichment?.perceivedPurpose ?? 'unknown';
+
+  if (turnoSocial(intent, context)) {
+    // A pergunta "como posso ajudar?" É a única curiosidade do turno social.
+    return {
+      modo: 'social',
+      casoFatos: dose.casoFatos,
+      conduta: 'apenas retribua o cumprimento com calor humano e pergunte como pode ajudar — nada mais',
+      perguntasJaFeitas: jaFeitas,
+    };
+  }
+
+  if (purpose === 'question') {
+    // A pessoa perguntou: responder é o centro; curiosidade só se faltar algo.
+    return {
+      modo: 'informativo',
+      casoFatos: dose.casoFatos,
+      conduta:
+        'a MENOR resposta verdadeira: responda somente ao que a pessoa pediu; nunca antecipe informações não perguntadas; ' +
+        'não pergunte nada que os FATOS fornecidos já respondem; se faltar algo essencial, faça NO MÁXIMO UMA pergunta e espere',
+      perguntasJaFeitas: jaFeitas,
+    };
+  }
+
+  // A pessoa trouxe algo (pedido/desabafo/incerto): DESCOBERTA por curiosidade.
+  return {
+    modo: 'descoberta',
+    casoFatos: dose.casoFatos,
+    conduta:
+      'acolha o que a pessoa trouxe em UMA frase curta e humana; depois escolha UMA única curiosidade natural — a MENOR ' +
+      'pergunta que mais ajuda a entender o que ela precisa — e espere a resposta; NUNCA faça duas perguntas; nunca vire ' +
+      'entrevista; nunca antecipe explicações sobre empresa, serviços ou etapas; não pergunte o que os FATOS já dizem nem repita pergunta já feita',
+    perguntasJaFeitas: jaFeitas,
+  };
+}

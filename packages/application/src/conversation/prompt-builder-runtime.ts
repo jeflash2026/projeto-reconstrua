@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { ConversationIntent, SpeechAct } from './intent.js';
 import type { ConversationContextView, PhrasingRequest } from './ports.js';
-import { doseConversa } from './conversation-dosage.js';
+import { conduzirTurno } from './conversation-intelligence.js';
 
 function toneFor(intent: ConversationIntent, context: ConversationContextView): string {
   const sentiment = context.lastPercept?.enrichment?.sentiment ?? 'unknown';
@@ -46,15 +46,19 @@ export class PromptBuilderRuntime {
   constructor(private readonly antiRepetitionWindow: number) {}
 
   build(intent: ConversationIntent, context: ConversationContextView): PhrasingRequest {
-    const avoidPhrases = context.recentOutboundTexts.slice(0, this.antiRepetitionWindow);
-    // GO-LIVE 9D — CAMADA DE CONVERSAÇÃO: dosa o contexto do turno (progressividade).
-    // Turno social ⇒ nenhum fato de caso entra; sempre ⇒ a menor resposta verdadeira.
-    const dose = doseConversa(intent, context);
+    // GO-LIVE 9E — CONVERSATION INTELLIGENCE (engloba a dosagem 9D): o próximo
+    // passo da conversa — modo do turno, fatos dosados, UMA curiosidade no máximo,
+    // e as perguntas já feitas entram nas frases a NUNCA repetir (anti-redundância).
+    const conduta = conduzirTurno(intent, context);
+    const avoidPhrases = [
+      ...conduta.perguntasJaFeitas,
+      ...context.recentOutboundTexts.slice(0, this.antiRepetitionWindow),
+    ].slice(0, this.antiRepetitionWindow + conduta.perguntasJaFeitas.length);
     return {
       intent,
-      context: { ...context, casoFatos: dose.casoFatos },
+      context: { ...context, casoFatos: conduta.casoFatos },
       avoidPhrases,
-      styleGuidance: `${toneFor(intent, context)}; ${dose.principio}`,
+      styleGuidance: `${toneFor(intent, context)}; ${conduta.conduta}`,
     };
   }
 }

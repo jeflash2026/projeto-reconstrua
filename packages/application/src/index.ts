@@ -32,3 +32,4 @@ export * from './strategic-reasoning/index.js';
 export * from './executive-mind/index.js';
 export * from './command-center/index.js';
 export * from './dossie/index.js';
+export * from './inteligencia/index.js';

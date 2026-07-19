@@ -11,10 +11,13 @@ import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
 import {
   CATALOGO_CONSIGNADO_INSS,
   ESTRATEGIAS_CONSIGNADO_INSS,
+  agregarConhecimento,
   aprenderDaConversa,
   computeOperationalMetrics,
   gerarBriefing,
+  hipotesesDoDossie,
   indicadoresExecutivos,
+  montarBibliotecaEstrategias,
   montarDossie,
   montarPainelDoArquiteto,
   montarTimelineCognitiva,
@@ -23,6 +26,8 @@ import {
   resumirCaso,
   type DossieJuridico,
   type ConversationContextView,
+  type FatoAprendidoDeCliente,
+  type HipoteseView,
   type StaffRole,
 } from '@reconstrua/application';
 import { requireBearer, secretsMatch } from '../auth/bearer-guard.js';
@@ -489,6 +494,60 @@ export function buildAdminServer(
       }),
     );
     return { casos: ordenarCasos(casos) };
+  });
+
+  // ── INTELIGÊNCIA (GO-LIVE 13A) — visualização/auditoria de como a AHRI pensa.
+  //    Tudo derivado dos Read Models + catálogo; só consulta; nunca edita a IA.
+
+  // 2. ESTRATÉGIAS — biblioteca navegável do catálogo, com estatísticas de uso.
+  app.get('/admin/inteligencia/estrategias', async () => {
+    const atendimentos = op.atendimentoStore ? await op.atendimentoStore.listar() : [];
+    return { estrategias: montarBibliotecaEstrategias(ESTRATEGIAS_CONSIGNADO_INSS, atendimentos) };
+  });
+
+  // 4. EVOLUÇÃO DO CATÁLOGO — o painel do arquiteto (Catalog Evolution 11B/11C).
+  app.get('/admin/inteligencia/evolucao', async () => {
+    const atendimentos = op.atendimentoStore ? await op.atendimentoStore.listar() : [];
+    return montarPainelDoArquiteto(ESTRATEGIAS_CONSIGNADO_INSS, atendimentos);
+  });
+
+  // 1. HIPÓTESES — todas as hipóteses produzidas pela AHRI (dos dossiês) + a
+  //    explicação auditável "Como a AHRI chegou aqui?". 3. CONHECIMENTO — os
+  //    fatos aprendidos (Conversation Knowledge), agrupados por categoria.
+  app.get('/admin/inteligencia/hipoteses', async () => {
+    await op.projector.refresh();
+    if (!op.clientes) return { hipoteses: [] };
+    const clientes = await op.clientes.list();
+    const linhas: HipoteseView[] = [];
+    for (const c of clientes) {
+      const dossie = await dossieDoCliente(c.chatId);
+      if (dossie) linhas.push(...hipotesesDoDossie(dossie, c.quem));
+    }
+    return { hipoteses: linhas };
+  });
+
+  app.get('/admin/inteligencia/conhecimento', async () => {
+    await op.projector.refresh();
+    if (!op.clientes) return { categorias: [] };
+    const clientes = await op.clientes.list();
+    const fatos: FatoAprendidoDeCliente[] = [];
+    for (const c of clientes) {
+      const entries = await op.conversationStore.recent(c.chatId, 200);
+      const ultimoInbound = [...entries].reverse().find((e) => e.kind === 'inbound' && e.text !== null && e.text !== '');
+      const context = {
+        chatId: c.chatId,
+        session: { chatId: c.chatId, turns: entries.length, lastInboundAt: null, lastOutboundAt: null },
+        recentEntries: entries,
+        recentOutboundTexts: entries.filter((e) => e.kind === 'outbound' && e.text !== null).map((e) => e.text ?? ''),
+        lastPercept: ultimoInbound ? { envelope: { text: ultimoInbound.text }, enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null } } : null,
+        silenceMs: null,
+      } as unknown as ConversationContextView;
+      const conhecimento = aprenderDaConversa(context, CATALOGO_CONSIGNADO_INSS);
+      for (const f of conhecimento) {
+        fatos.push({ clienteId: c.chatId, clienteNome: c.quem, factKey: f.factKey, valor: f.valor, origem: f.origem, confianca: f.confianca });
+      }
+    }
+    return { categorias: agregarConhecimento(fatos) };
   });
 
   // ── MISSÕES ─────────────────────────────────────────────────────────────────

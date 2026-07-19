@@ -155,6 +155,33 @@ export interface TimelineCognitivaData {
   timeline: TimelineCognitivaItem[];
 }
 
+// ── INTELIGÊNCIA (13A) — auditoria de como a AHRI pensa ────────────────────────
+export interface EstrategiaCard {
+  ref: string; descricao: string; problemaJuridico: string;
+  requisitosMinimos: string[]; fatosReforcadores: string[]; criteriosDeExclusao: string[];
+  criterioDePrioridade: number; documentosEsperados: string[]; documentosOpcionais: string[];
+  riscos: string[]; proximaAcao: string; fundamento: string;
+  usos: number; casos: string[]; confiancaMedia: number | null; taxaAcerto: number | null; ultimaUtilizacao: string | null;
+}
+export interface HipoteseView {
+  clienteId: string; clienteNome: string; hipotese: string; estrategiaRef: string;
+  confianca: 'alta' | 'media' | 'baixa'; prioridade: number; posicao: number;
+  decisaoFinal: string | null; status: 'vencedora' | 'avaliada';
+  fatosSustentam: string[]; fatosAusentes: string[]; documentosUtilizados: string[]; quando: string;
+  explicacao: DossieExplicacao;
+}
+export interface FatoConhecimento { clienteId: string; clienteNome: string; factKey: string; valor: string; origem: string; confianca: string; fonte: string; }
+export interface CategoriaConhecimento { categoria: string; factKey: string; itens: FatoConhecimento[]; }
+export interface EvolucaoData {
+  taxaAcerto: number; confiancaMedia: number; tempoMedioAteDecisaoMs: number; totalAtendimentos: number;
+  estrategiasMaisUtilizadas: { chave: string; ocorrencias: number }[];
+  estrategiasNuncaUtilizadas: string[];
+  estrategiasMaisCorrigidas: { ref: string; correcoes: number; usos: number; taxaCorrecao: number }[];
+  documentosMaisFaltantes: { chave: string; ocorrencias: number }[];
+  fatosDificeis: { chave: string; ocorrencias: number }[];
+  historicoMensal: { mes: string; total: number; taxaAcerto: number; confiancaMedia: number; tempoMedioAteDecisaoMs: number }[];
+}
+
 // ── PAINEL DO ADVOGADO (13A · seção 1) — cada card é um CASO ────────────────────
 export interface CartaoCaso {
   chatId: string;

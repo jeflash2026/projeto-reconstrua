@@ -115,6 +115,7 @@ export interface HistoricoMensal {
 export interface PainelDoArquiteto {
   readonly taxaAcerto: number;
   readonly estrategiasMaisUtilizadas: readonly ContagemPorChave[];
+  readonly estrategiasNuncaUtilizadas: readonly string[];
   readonly estrategiasMaisCorrigidas: readonly EstrategiaCorrigida[];
   readonly documentosMaisFaltantes: readonly ContagemPorChave[];
   readonly fatosDificeis: readonly ContagemPorChave[];
@@ -153,6 +154,7 @@ export function montarPainelDoArquiteto(
   return {
     taxaAcerto: rel.taxaAcerto,
     estrategiasMaisUtilizadas: rel.estrategiasMaisUtilizadas,
+    estrategiasNuncaUtilizadas: rel.estrategiasNuncaUtilizadas,
     estrategiasMaisCorrigidas: rel.estrategiasFrequentementeCorrigidas,
     documentosMaisFaltantes: rel.documentosQueMaisFaltam,
     fatosDificeis: rel.fatosMaisDificeis,

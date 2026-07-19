@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { ConversationIntent, SpeechAct } from './intent.js';
 import type { ConversationContextView, PhrasingRequest } from './ports.js';
+import { doseConversa } from './conversation-dosage.js';
 
 function toneFor(intent: ConversationIntent, context: ConversationContextView): string {
   const sentiment = context.lastPercept?.enrichment?.sentiment ?? 'unknown';
@@ -46,11 +47,14 @@ export class PromptBuilderRuntime {
 
   build(intent: ConversationIntent, context: ConversationContextView): PhrasingRequest {
     const avoidPhrases = context.recentOutboundTexts.slice(0, this.antiRepetitionWindow);
+    // GO-LIVE 9D — CAMADA DE CONVERSAÇÃO: dosa o contexto do turno (progressividade).
+    // Turno social ⇒ nenhum fato de caso entra; sempre ⇒ a menor resposta verdadeira.
+    const dose = doseConversa(intent, context);
     return {
       intent,
-      context,
+      context: { ...context, casoFatos: dose.casoFatos },
       avoidPhrases,
-      styleGuidance: toneFor(intent, context),
+      styleGuidance: `${toneFor(intent, context)}; ${dose.principio}`,
     };
   }
 }

@@ -51,6 +51,17 @@ describe('GO-LIVE 9C · "Olá" não promove relacionamento a onboarding', () => 
     expect(gateway.texts().length).toBeGreaterThanOrEqual(1);
   });
 
+  // GO-LIVE 9D — a MENOR resposta verdadeira: "Olá" gera APENAS a saudação.
+  it('9D: "Olá" ⇒ UMA única mensagem, sem NENHUMA palavra operacional', async () => {
+    const { op, gateway } = harness();
+    await op.conversation.receive(envelope('Olá', 'M1'));
+
+    const textos = gateway.texts();
+    expect(textos).toHaveLength(1); // uma saudação — nada mais
+    // Nenhuma etapa operacional inventada na resposta:
+    expect(textos[0]).not.toMatch(/cadastro|registro|coleta|document|análise|analis|qualifica|processo|organizando/i);
+  });
+
   it('PEDIDO ("quero dar entrada na aposentadoria") ⇒ missão nasce (onboarding por FATO)', async () => {
     const { op } = harness();
     await op.conversation.receive(envelope('Olá', 'M1'));

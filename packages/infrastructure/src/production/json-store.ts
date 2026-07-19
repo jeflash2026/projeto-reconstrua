@@ -57,11 +57,19 @@ export class InMemoryJsonStore implements JsonStore {
  */
 function coerceJson(value: unknown): unknown {
   if (typeof value !== 'string') return value;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
+  // Só reinterpretamos strings que representam OBJETO/ARRAY — que é tudo o que o
+  // JsonStore grava (documentos). Escalares e strings comuns ('true', '42',
+  // 'hello', ...) NUNCA são reinterpretados, evitando regressão: no modo normal
+  // do driver (que já devolve objeto) um valor string legítimo permanece string.
+  const trimmed = value.trimStart();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
   }
+  return value;
 }
 
 export class PgJsonStore implements JsonStore {

@@ -58,6 +58,8 @@ import {
 import { assembleExecutiveBrain } from '../executive-brain/build-executive-brain.js';
 import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
 import { MISSION_RULE_CATALOG } from '../mission-runtime/mission-rule-catalog.js';
+import { AutonomousBrainAdapter } from '../pipeline/autonomous-brain-adapter.js';
+import { CATALOGO_CONSIGNADO_INSS, ESTRATEGIAS_CONSIGNADO_INSS } from '@reconstrua/application';
 import { InMemoryRuleCatalog } from '../executive-brain/in-memory-adapters.js';
 import { assembleLivingMemory } from '../living-memory/build-living-memory.js';
 import { assembleAdministration } from '../administration/build-administration.js';
@@ -82,7 +84,12 @@ export interface GoLiveWiring {
   readonly policy?: HumanizationPolicy;
   readonly rng?: Rng;
   readonly founderName?: string;
+  /** GO-LIVE 10E — cutover: 'autonomous' (padrão) usa o pipeline oficial
+   *  (processTurn); 'legacy' mantém o FullLoopBrainAdapter para rollback imediato. */
+  readonly pipeline?: PipelineMode;
 }
+
+export type PipelineMode = 'autonomous' | 'legacy';
 
 export interface AssembledGoLive {
   readonly conversation: ConversationRuntime;
@@ -108,6 +115,8 @@ export interface AssembledGoLive {
   readonly founderConsole: FounderConsoleRuntime;
   readonly admin: AdministrationIntelligenceRuntime;
   readonly eventStore: InMemoryEventStore;
+  /** GO-LIVE 10E — qual pipeline está no ar (auditoria do cutover). */
+  readonly pipelineMode: PipelineMode;
 }
 
 export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
@@ -156,7 +165,11 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
   // ── 2D: Mission Runtime ─────────────────────────────────────────────────────
   const missionAssembly = assembleMissionRuntime({ eventStore, hasher, uuid, clock });
 
-  // ── O laço completo dentro do turno (port congelado de 2B) ──────────────────
+  // ── GO-LIVE 10E — CUTOVER: o port de execução do turno. Padrão = pipeline
+  //    autônomo oficial (processTurn); 'legacy' = FullLoopBrainAdapter (rollback).
+  const pipelineMode: PipelineMode = wiring.pipeline ?? 'autonomous';
+
+  // Laço LEGADO (congelado; só participa quando pipelineMode === 'legacy').
   const fullLoop = new FullLoopBrainAdapter({
     brain: brainAssembly.brain,
     rules: brainAssembly.rules,
@@ -171,13 +184,33 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
     clock,
   });
 
+  // Pipeline AUTÔNOMO oficial (Truth → Strategic → Executive Mind → Planner →
+  // Mission → Conversa), com os catálogos do domínio Consignado INSS injetados.
+  const autonomous = new AutonomousBrainAdapter({
+    brain: brainAssembly.brain,
+    rules: brainAssembly.rules,
+    snapshots: brainAssembly.snapshots,
+    mission: missionAssembly.runtime,
+    outbox,
+    notification,
+    handoff,
+    memoryIngestor: living.ingestor,
+    noteWriter: living.noteWriter,
+    observability,
+    strategyCatalog: ESTRATEGIAS_CONSIGNADO_INSS,
+    knowledgeCatalog: CATALOGO_CONSIGNADO_INSS,
+    clock,
+  });
+
+  const brainPort = pipelineMode === 'legacy' ? fullLoop : autonomous;
+
   // ── 2B: Conversa (Evolution em produção; in-memory por default) ─────────────
   const gateway = wiring.gateway ?? new InMemoryConversationGateway(clock);
   const conversation = assembleConversationRuntime({
     gateway,
     perception: wiring.perception ?? new FakeLlmPerception(),
     expression: wiring.expression ?? new VaryingLlmExpression(),
-    brain: fullLoop,
+    brain: brainPort,
     conversationStore,
     sessionStore: new InMemorySessionStore(),
     queueStore: new InMemoryMessageQueueStore(),
@@ -295,5 +328,6 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
     founderConsole: administration.founderConsole,
     admin: administration.admin,
     eventStore,
+    pipelineMode,
   };
 }

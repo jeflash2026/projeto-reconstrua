@@ -124,6 +124,12 @@ export interface FullLoopDeps {
   readonly clock: Clock;
 }
 
+/**
+ * @deprecated GO-LIVE 10E — LEGADO. O caminho oficial de execução passou a ser o
+ * AutonomousTurnPipeline (via AutonomousBrainAdapter). Este adapter permanece
+ * apenas para ROLLBACK imediato (GoLiveWiring.pipeline = 'legacy'). Não criar
+ * novas dependências sobre ele; não remover ainda.
+ */
 export class FullLoopBrainAdapter implements ExecutiveBrainPort {
   constructor(private readonly deps: FullLoopDeps) {}
 

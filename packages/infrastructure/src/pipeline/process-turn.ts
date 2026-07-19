@@ -30,6 +30,7 @@ import type {
   PerceptView,
   RuleCatalogPort,
   StrategicDecision,
+  UseCaseOutcome,
 } from '@reconstrua/application';
 import {
   aprenderDaConversa,
@@ -83,6 +84,11 @@ export interface TurnOutcome {
   readonly missionId: string | null;
   readonly response: readonly string[];
   readonly steps: readonly TurnStep[];
+  /** As intenções do Planner (para os consumidores de produção: conversa,
+   *  notificação, escalação). Cruas — o mapeamento fica com o consumidor. */
+  readonly intents: readonly BrainIntent[];
+  /** Outcomes da missão (para a Memória Viva ingerir os fatos do turno). */
+  readonly missionOutcomes: readonly UseCaseOutcome[];
 }
 
 /** Mede uma etapa (tempo real de parede) e registra o resultado na trilha. */
@@ -165,6 +171,8 @@ export class AutonomousTurnPipeline {
       missionId: missionResult?.identity.missionId ?? null,
       response,
       steps,
+      intents: outcome.intents,
+      missionOutcomes: missionResult?.outcomes ?? [],
     };
   }
 }

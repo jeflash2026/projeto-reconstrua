@@ -5,3 +5,4 @@
 // auditada de ponta a ponta. Adotado progressivamente; legado intacto.
 // ─────────────────────────────────────────────────────────────────────────────
 export * from './process-turn.js';
+export * from './autonomous-brain-adapter.js';

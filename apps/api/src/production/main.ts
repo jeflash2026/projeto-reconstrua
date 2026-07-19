@@ -34,19 +34,41 @@ async function main(): Promise<void> {
     prod.observability.degraded('go-live', 'degraded-start', clock.now(), `iniciado em modo degradado (ALLOW_DEGRADED); itens vermelhos: ${red}`);
   }
 
-  // GO-LIVE-06 (BUG 1) — SEED idempotente do primeiro administrador. Sem isto,
-  // nada provisiona o admin: uma base fresca (ou reiniciada) ficava eternamente
-  // "sem administrador cadastrado", reabrindo o bootstrap a cada login. Roda uma
-  // única vez (no-op se já houver administrador ativo). Nome opcional via ADMIN_NAME.
-  try {
-    const seeded = await prod.adminView.staff.ensureBootstrapped(env['ADMIN_NAME'] ?? 'Administrador');
-    process.stdout.write(
-      seeded === null
-        ? 'ADMIN: já inicializado (seed no-op).\n'
-        : `ADMIN: primeiro administrador provisionado ("${seeded.name}").\n`,
+  // GO-LIVE-06.1 (BUG 1) — SEED do primeiro administrador: ROBUSTO, VISÍVEL e
+  // VERIFICADO. Antes, uma exceção era engolida na observabilidade (invisível no
+  // `docker logs`) e um único disparo no boot era frágil. Grava em
+  // production.documents (namespace 'staff'). Agora: tenta até 5 vezes, IMPRIME o
+  // resultado/erro no stdout/stderr (docker logs) e CONFIRMA por releitura — a
+  // prova de que o administrador realmente persistiu no banco.
+  const adminName = env['ADMIN_NAME'] ?? 'Administrador';
+  let adminReady = false;
+  for (let attempt = 1; attempt <= 5 && !adminReady; attempt += 1) {
+    try {
+      if (await prod.adminView.staff.isBootstrapped()) {
+        process.stdout.write('ADMIN: já inicializado (nenhum seed necessário).\n');
+        adminReady = true;
+        break;
+      }
+      const created = await prod.adminView.staff.ensureBootstrapped(adminName);
+      // VERIFICAÇÃO por releitura: prova que gravou de fato (não confia na escrita).
+      if (await prod.adminView.staff.isBootstrapped()) {
+        process.stdout.write(`ADMIN: primeiro administrador provisionado e verificado ("${created?.name ?? adminName}").\n`);
+        adminReady = true;
+        break;
+      }
+      process.stderr.write(`ADMIN: gravação não confirmada na releitura (tentativa ${String(attempt)}/5) — repetindo.\n`);
+    } catch (error) {
+      const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+      process.stderr.write(`ADMIN: falha ao provisionar o administrador (tentativa ${String(attempt)}/5): ${detail}\n`);
+      prod.observability.error('bootstrap', 'seed-admin', clock.now(), detail);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+  }
+  if (!adminReady) {
+    process.stderr.write(
+      'ADMIN: NÃO foi possível provisionar o administrador após 5 tentativas. ' +
+        'Verifique DATABASE_URL e a tabela production.documents (namespace "staff") nos logs acima.\n',
     );
-  } catch (error) {
-    prod.observability.error('bootstrap', 'seed-admin', clock.now(), error instanceof Error ? error.message : 'falha ao provisionar administrador');
   }
 
   const port = Number(env['PORT'] ?? '3001');

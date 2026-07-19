@@ -77,16 +77,34 @@ export const MISSION_RULE_CATALOG: readonly OperationalRuleSpec[] = [
     action: { kind: 'conversation', directive: 'speak', speechAct: 'inform', topic: 'documento recebido', references: [], urgency: 'normal' },
     fundamento: 'Art. 15º + RO-R8-002 (continuidade)',
   },
+  // ── GO-LIVE 9B: RELACIONAMENTO ≠ CASO. O antigo RO-2D-EXPLAIN (topic
+  // 'acompanhamento' em QUALQUER 2º turno) confundia continuidade de conversa com
+  // acompanhamento de caso. Agora o Planner decide sobre o FATO `caseExists`
+  // (Truth Layer: identidade/missão no domínio) — nunca sobre conversa/memória.
   {
-    ref: 'RO-2D-EXPLAIN',
-    title: 'Acompanhar em turnos de texto subsequentes',
+    ref: 'RO-2D-RELATE',
+    title: 'Manter a conversa em turnos subsequentes SEM caso no domínio',
     priority: 20,
     preconditions: [
       { fact: 'perceptKind', op: 'eq', value: 'text' },
       { fact: 'isFirstTurn', op: 'eq', value: false },
+      { fact: 'caseExists', op: 'falsy' },
     ],
     blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
-    action: { kind: 'conversation', directive: 'speak', speechAct: 'explain', topic: 'acompanhamento', references: [], urgency: 'normal' },
-    fundamento: 'Art. 15º + RO-R8-002',
+    action: { kind: 'conversation', directive: 'speak', speechAct: 'explain', topic: 'relacionamento', references: [], urgency: 'normal' },
+    fundamento: 'Art. 15º + RO-R8-002; GO-LIVE 9B (relação ≠ caso)',
+  },
+  {
+    ref: 'RO-2D-CASE-FOLLOW',
+    title: 'Acompanhar o CASO em turnos subsequentes (fato de domínio presente)',
+    priority: 20,
+    preconditions: [
+      { fact: 'perceptKind', op: 'eq', value: 'text' },
+      { fact: 'isFirstTurn', op: 'eq', value: false },
+      { fact: 'caseExists', op: 'truthy' },
+    ],
+    blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
+    action: { kind: 'conversation', directive: 'speak', speechAct: 'explain', topic: 'acompanhamento do caso', references: [], urgency: 'normal' },
+    fundamento: 'Art. 15º + RO-R8-002; GO-LIVE 9B (só com caseExists da Truth Layer)',
   },
 ];

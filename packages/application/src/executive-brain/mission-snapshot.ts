@@ -31,6 +31,13 @@ export interface MissionSnapshot {
   readonly canonSilent: boolean;
   /** A missão está aguardando documentos do cliente. */
   readonly awaitingDocuments: boolean;
+  /**
+   * GO-LIVE 9B (Truth Layer): existe um CASO real no domínio para este sujeito?
+   * true SOMENTE quando a identidade/missão existe (fato de domínio) — nunca
+   * derivado de conversa, sessão, memória ou nota. Aditivo: ausente = false
+   * (emptySnapshot de um contato sem caso).
+   */
+  readonly caseExists?: boolean;
 }
 
 /** O objetivo operacional corrente, derivado por GoalSelector de Etapa/Estado/Verdade. */

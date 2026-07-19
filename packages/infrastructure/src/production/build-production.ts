@@ -24,6 +24,8 @@ import {
   AcompanhamentoView,
   DespedidaRuntime,
   NascimentoPortalRuntime,
+  PACOTE_CASO_EM_ABERTURA,
+  PACOTE_SEM_CASO,
   PROMPT_TRADUCAO_CLIENTE,
   TraducaoClienteRuntime,
   emitirTokenCliente,
@@ -323,9 +325,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     try {
       const identity = await identityMap.load(chatId);
       const clienteId = identity?.clienteId ?? null;
-      if (clienteId === null) return null;
+      // GO-LIVE 9B — TRI-ESTADO com ausência declarada (Lei 9): o silêncio (null)
+      // deixava o LLM livre para presumir um caso. Agora a ausência é um FATO.
+      if (identity === null) return PACOTE_SEM_CASO; // nem identidade ⇒ nenhum caso
+      if (clienteId === null || clienteId === identity.chatId) return PACOTE_CASO_EM_ABERTURA; // caso nasceu; fase inicial
       const visao = await acompanhamento.acompanhamento(clienteId);
-      if (visao === null) return null;
+      if (visao === null) return PACOTE_CASO_EM_ABERTURA;
       const liberado = await liberacaoStore.load(clienteId);
       const link =
         liberado !== null && clientePortalSecret !== ''

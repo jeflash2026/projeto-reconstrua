@@ -34,11 +34,16 @@ export const FOLLOW_UP_RULES: readonly OperationalRuleSpec[] = [
     },
     fundamento: 'Art. 9º (INV-07: sempre há próxima ação) + RO-R8-004 (reengajamento respeitoso); RO-R7-001',
   },
+  // GO-LIVE 9B: o follow-up que fala do CASO exige o FATO caseExists (Truth Layer);
+  // sem caso, o timeout reengaja como RELAÇÃO — nunca afirmando caso inexistente.
   {
     ref: 'RO-4C-FOLLOWUP-TIMEOUT',
-    title: 'Acompanhamento agendado vencido → falar com o cliente',
+    title: 'Acompanhamento agendado vencido → falar do CASO (fato de domínio presente)',
     priority: 55,
-    preconditions: [{ fact: 'perceptKind', op: 'eq', value: 'timeout' }],
+    preconditions: [
+      { fact: 'perceptKind', op: 'eq', value: 'timeout' },
+      { fact: 'caseExists', op: 'truthy' },
+    ],
     blocks: [
       { fact: 'matterRequiresHuman', op: 'truthy' },
       { fact: 'stateCode', op: 'eq', value: 'ENCERRADA' },
@@ -51,7 +56,29 @@ export const FOLLOW_UP_RULES: readonly OperationalRuleSpec[] = [
       references: ['acompanhamento-agendado'],
       urgency: 'normal',
     },
-    fundamento: 'Art. 9º (INV-07) + RO-R6-002 (acompanhamento) — a AHRI jamais abandona um cliente; RO-R7-001',
+    fundamento: 'Art. 9º (INV-07) + RO-R6-002 (acompanhamento) — a AHRI jamais abandona um cliente; RO-R7-001; GO-LIVE 9B',
+  },
+  {
+    ref: 'RO-4C-FOLLOWUP-TIMEOUT-RELATE',
+    title: 'Acompanhamento agendado vencido SEM caso → retomar a conversa',
+    priority: 55,
+    preconditions: [
+      { fact: 'perceptKind', op: 'eq', value: 'timeout' },
+      { fact: 'caseExists', op: 'falsy' },
+    ],
+    blocks: [
+      { fact: 'matterRequiresHuman', op: 'truthy' },
+      { fact: 'stateCode', op: 'eq', value: 'ENCERRADA' },
+    ],
+    action: {
+      kind: 'conversation',
+      directive: 'speak',
+      speechAct: 'follow_up',
+      topic: 'retomar nossa conversa',
+      references: ['reengajamento'],
+      urgency: 'normal',
+    },
+    fundamento: 'Art. 9º (INV-07) + RO-R8-004 (reengajamento respeitoso); GO-LIVE 9B (relação ≠ caso)',
   },
 ];
 

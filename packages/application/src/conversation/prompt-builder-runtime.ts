@@ -31,8 +31,10 @@ function toneFor(intent: ConversationIntent, context: ConversationContextView): 
   else if (sentiment === 'negative') parts.push('empático, sem defensividade');
 
   // Turno inicial vs. relação já em curso.
+  // GO-LIVE 9B: continuidade é da RELAÇÃO (conhecer a pessoa) — nunca implica
+  // "acompanhar um caso"; falar de caso exige fatos (casoFatos/Truth Layer).
   if (context.session.turns <= 1) parts.push('como um primeiro contato humano, não robótico');
-  else parts.push('como quem já acompanha a pessoa e lembra do histórico');
+  else parts.push('como quem já conhece a pessoa e lembra das conversas anteriores');
 
   if (intent.urgency === 'high') parts.push('com senso de urgência sem alarmar');
 

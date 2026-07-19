@@ -179,9 +179,14 @@ describe('CAT-01 · regressão — regras existentes ainda disparam quando devem
     const outcome = await brain().decide(ctx({ kind: 'silence', silenceMs: 120000 }, {}));
     expect(outcome.record.chosenRefs).toContain('RO-4C-FOLLOWUP-SILENCE');
   });
-  it('timeout ⇒ RO-4C-FOLLOWUP-TIMEOUT (acompanha)', async () => {
-    const outcome = await brain().decide(ctx({ kind: 'timeout' }, {}));
+  it('timeout COM caso ⇒ RO-4C-FOLLOWUP-TIMEOUT (fala do caso — GO-LIVE 9B)', async () => {
+    const outcome = await brain().decide(ctx({ kind: 'timeout' }, { caseExists: true }));
     expect(outcome.record.chosenRefs).toContain('RO-4C-FOLLOWUP-TIMEOUT');
+  });
+  it('timeout SEM caso ⇒ RO-4C-FOLLOWUP-TIMEOUT-RELATE (retoma a conversa; nunca afirma caso)', async () => {
+    const outcome = await brain().decide(ctx({ kind: 'timeout' }, {}));
+    expect(outcome.record.chosenRefs).toContain('RO-4C-FOLLOWUP-TIMEOUT-RELATE');
+    expect(outcome.record.chosenRefs).not.toContain('RO-4C-FOLLOWUP-TIMEOUT');
   });
   it('documento percebido ⇒ RO-2D-INGEST-DOC (use_case)', async () => {
     const outcome = await brain().decide(ctx({ kind: 'pdf', hasArtifacts: true, artifactCount: 1 }, {}));

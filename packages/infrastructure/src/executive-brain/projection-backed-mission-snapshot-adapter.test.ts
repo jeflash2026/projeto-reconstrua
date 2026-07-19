@@ -37,11 +37,15 @@ describe('ProjectionBackedMissionSnapshotAdapter (RFC-0035-G)', () => {
     expect(await adapter.load('chat-1')).toBeNull();
   });
 
-  it('missionId sem registro projetado ⇒ null', async () => {
+  it('GO-LIVE 9B: identidade SEM registro projetado ⇒ default com caseExists=true (o CASO é fato de domínio, não da projeção)', async () => {
     const ids = new FakeIdentityMap();
     ids.set('chat-1', 'M1');
     const adapter = new ProjectionBackedMissionSnapshotAdapter(new InMemoryDecisionStateStore(), ids);
-    expect(await adapter.load('chat-1')).toBeNull();
+    const snap = await adapter.load('chat-1');
+    expect(snap).not.toBeNull();
+    expect(snap?.caseExists).toBe(true); // missão existe (identidade) ⇒ caso existe
+    expect(snap?.truthEstablished).toBe(false); // demais campos no default (projeção atrasada)
+    expect(snap?.stateCode).toBe('ABERTA');
   });
 
   it('resolve chatId→missionId e reflete truthEstablished; demais campos no default', async () => {

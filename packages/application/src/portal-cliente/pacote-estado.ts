@@ -12,6 +12,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { AcompanhamentoCliente } from './acompanhamento.js';
 
+// ── GO-LIVE 9B · AUSÊNCIA DECLARADA (Lei 9) ──────────────────────────────────
+// O contexto do caso é TRI-ESTADO: com caso → pacote completo; sem caso → o FATO
+// da ausência, declarado; caso em abertura → o FATO da fase. `null`/silêncio
+// deixou de existir: o vazio não pode ser preenchido pela imaginação do LLM.
+export const PACOTE_SEM_CASO =
+  'FATO SOBRE O CASO: esta pessoa NÃO possui caso nem processo registrado no escritório. ' +
+  'Não existe acompanhamento de caso em andamento.';
+
+export const PACOTE_CASO_EM_ABERTURA =
+  'FATO SOBRE O CASO: o atendimento desta pessoa está em fase inicial (cadastro/coleta). ' +
+  'Ainda NÃO existe processo em andamento a relatar.';
+
 /**
  * Monta o pacote compacto e determinístico para o prompt de expressão.
  * `link` null = Portal ainda não nasceu ⇒ NENHUMA menção a link/portal é permitida.

@@ -50,6 +50,20 @@ export function buildFacts(
     stageCode: snapshot.stageCode,
     stateCode: snapshot.stateCode,
     truthEstablished: snapshot.truthEstablished,
+
+    // ── GO-LIVE 9B · TRUTH LAYER → BRAIN FACTS (agnósticos de domínio) ─────────
+    // O Planner decide SOMENTE sobre estes fatos; a existência de conversa/sessão/
+    // memória/nota JAMAIS participa deles. Fonte: snapshot da missão (read model).
+    caseExists: snapshot.caseExists === true,
+    caseTruth: snapshot.truthEstablished,
+    casePhase:
+      snapshot.caseExists !== true
+        ? 'sem_caso'
+        : snapshot.stateCode === 'ENCERRADA'
+          ? 'encerrado'
+          : snapshot.truthEstablished
+            ? 'em_andamento'
+            : 'abertura',
     pendingDocumentCount: snapshot.pendingDocuments.length,
     hasPendingDocuments: snapshot.pendingDocuments.length > 0,
     hasDeadline: snapshot.deadlines.length > 0,

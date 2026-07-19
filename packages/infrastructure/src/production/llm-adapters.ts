@@ -223,8 +223,9 @@ class LlmExpression implements LlmExpressionPort {
     } catch {
       this.track('expression', this.clock.now().getTime() - t0, false);
     }
-    // Degrade explícito: fraseado mínimo FACTUAL derivado da intenção (nunca inventa).
-    return `Sobre ${intent.topic ?? 'sua solicitação'}: estou acompanhando e volto a falar com você em breve.`;
+    // Degrade explícito NEUTRO (GO-LIVE 9B): nunca afirma "acompanhando" nem
+    // caso/processo — isso é privilégio de fatos da Truth Layer, não do fallback.
+    return 'Recebi sua mensagem e volto a falar com você em breve.';
   }
 }
 

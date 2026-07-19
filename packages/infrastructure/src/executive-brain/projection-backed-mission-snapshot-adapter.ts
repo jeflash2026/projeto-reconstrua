@@ -32,8 +32,10 @@ export class MissionKeyedSnapshotAdapter implements MissionSnapshotPort {
 
     // Overlay dos campos COM produtor sobre o default; campos sem produtor ficam no default.
     // B4.1 — Estado terminal ENCERRADA ativa RO-STOP-CONCLUDED e bloqueia o acompanhamento.
+    // GO-LIVE 9B (Truth Layer): registro projetado ⇒ o CASO existe no domínio.
     return {
       ...emptySnapshot(missionId),
+      caseExists: true,
       truthEstablished: record.truthEstablished,
       ...(record.terminalState === 'ENCERRADA' ? { stateCode: 'ENCERRADA' } : {}),
     };
@@ -54,6 +56,10 @@ export class ProjectionBackedMissionSnapshotAdapter implements MissionSnapshotPo
     const identity = await this.identities.load(chatId);
     const missionId = identity?.missionId ?? null;
     if (missionId === null) return null; // missão ainda não nasceu → emptySnapshot no chamador
-    return this.byMission.load(missionId); // overlay ÚNICO (MissionKeyedSnapshotAdapter)
+    // GO-LIVE 9B (Truth Layer): identidade→missão EXISTE ⇒ caseExists=true, mesmo
+    // que a projeção de decisão ainda não tenha alcançado esta missão (lag de turno).
+    // A EXISTÊNCIA do caso é fato de DOMÍNIO (missão criada), não da projeção.
+    const snap = await this.byMission.load(missionId); // overlay ÚNICO (MissionKeyedSnapshotAdapter)
+    return { ...(snap ?? emptySnapshot(missionId)), caseExists: true };
   }
 }

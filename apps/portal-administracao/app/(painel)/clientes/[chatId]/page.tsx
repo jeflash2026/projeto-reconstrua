@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { ReactElement } from 'react';
 import AutoRefresh from '../../../../components/auto-refresh';
+import Dossie from '../../../../components/dossie';
 import { getJson, type ClientDetail } from '../../../../lib/api';
 import { formatDate, formatMs, shortId } from '../../../../lib/format';
 
@@ -23,6 +24,9 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
       <AutoRefresh seconds={5} />
       <h1 className="page-title">{relationship.knownName ?? 'Cliente'}</h1>
       <p className="page-sub mono">{chatId}</p>
+
+      {/* GO-LIVE 13A — o parecer inicial da AHRI abre a ficha do cliente */}
+      <Dossie chatId={chatId} />
 
       <div className="grid two" style={{ marginBottom: 16 }}>
         <div className="card">

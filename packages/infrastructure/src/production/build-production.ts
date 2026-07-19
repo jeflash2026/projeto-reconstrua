@@ -72,8 +72,11 @@ import {
   WorkflowRuntime,
   configFromEnv,
   DEFAULT_PRODUCTION_CONFIG,
+  InMemoryAtendimentoStore,
+  ProductionFeedbackLoop,
 } from '@reconstrua/application';
 import type { BootableComponent } from '@reconstrua/application';
+import { MissionClosureFeedbackSubscriber, defaultEncerramentoResolver } from '../pipeline/mission-closure-feedback-subscriber.js';
 import { online } from '@reconstrua/application';
 import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
 import { InMemorySnapshotStore } from '../event-store/in-memory-snapshot-store.js';
@@ -430,6 +433,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // RFC-0035-G: projeta o Estado de Decisão (hoje: truthEstablished) para o Brain.
   registry.register(new SerializedSubscriber(new DecisionStateProjectionSubscriber(decisionState)), 1, clock.now());
 
+  // GO-LIVE 13A/11D: liga o encerramento real de missão ao feedback loop (11C). O
+  // store alimenta o Command Center (insights cognitivos) e o painel do arquiteto.
+  // Falha isolada: o subscriber jamais derruba o encerramento.
+  const atendimentoStore = new InMemoryAtendimentoStore();
+  const feedbackLoop = new ProductionFeedbackLoop(atendimentoStore);
+  registry.register(
+    new MissionClosureFeedbackSubscriber({ loop: feedbackLoop, resolver: defaultEncerramentoResolver, observability, uuid, clock }),
+    1,
+    clock.now(),
+  );
+
   // ── 2C + 2D (catálogo de PRODUÇÃO = 2D + reengajamento 4C) ───────────────────
   const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(PRODUCTION_RULE_CATALOG) });
   const missionAssembly = assembleMissionRuntime({ eventStore, hasher, uuid, clock, identityMap });
@@ -647,6 +661,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const adminView: AssembledAdminOperation = {
     conversation,
     mission: missionAssembly.runtime,
+    atendimentoStore,
     outbox,
     workflow,
     scheduler,

@@ -93,6 +93,51 @@ export interface CommandCenterData {
   indicadores: CCIndicador[];
 }
 
+// ── DOSSIÊ JURÍDICO (13A · seção 4) — o parecer inicial da AHRI ─────────────────
+export interface DossieTese {
+  posicao: number;
+  ref: string;
+  hipotese: string;
+  confianca: 'alta' | 'media' | 'baixa';
+  prioridade: number;
+  justificativa: string;
+  fundamento: string;
+}
+export interface DossieExplicacao {
+  fatosUtilizados: string[];
+  documentosConsiderados: string[];
+  hipotesesAvaliadas: { ref: string; confianca: string }[];
+  hipotesesDescartadas: { ref: string; motivo: string }[];
+  estrategiaVencedora: string | null;
+  confianca: string | null;
+  criterios: string;
+}
+export interface DossieJuridico {
+  clienteId: string;
+  chatId: string;
+  missionId: string | null;
+  decisionId: string | null;
+  strategyRef: string | null;
+  correlationId: string | null;
+  versaoCatalogo: string;
+  geradoEm: string;
+  grauConfianca: 'alta' | 'media' | 'baixa' | null;
+  resumoExecutivo: string;
+  problemaIdentificado: string | null;
+  hipoteses: DossieTese[];
+  evidenciasEncontradas: string[];
+  evidenciasAusentes: string[];
+  documentosReconhecidos: string[];
+  documentosPendentes: string[];
+  contratosEncontrados: string[];
+  timeline: { rotulo: string; em: string | null; fonte: string }[];
+  proximasAcoes: string[];
+  riscos: string[];
+  observacoesIA: string[];
+  explicacao: DossieExplicacao;
+  fonte: string;
+}
+
 export interface ComponentHealth {
   component: string;
   status: 'ONLINE' | 'OFFLINE' | 'DEGRADED' | 'FAILED';

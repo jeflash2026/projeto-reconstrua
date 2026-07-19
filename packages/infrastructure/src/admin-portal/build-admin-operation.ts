@@ -10,7 +10,7 @@ import type { Clock, UuidGenerator } from '@reconstrua/domain';
 import type { DocumentContentService } from '../media/index.js';
 import type { DecisionStateStore } from '../executive-brain/decision-state-read-model.js';
 import type { WhatsAppConnectionRuntime } from '../whatsapp-connection/index.js';
-import type { ClientesList, ModalidadeStore, PedidosAdministrativosStore, PeritoView, VendaStore } from '@reconstrua/application';
+import type { AtendimentoStore, ClientesList, ModalidadeStore, PedidosAdministrativosStore, PeritoView, VendaStore } from '@reconstrua/application';
 import type {
   AdminMetricsStore,
   AdministrationIntelligenceRuntime,
@@ -119,6 +119,9 @@ export interface AssembledAdminOperation {
   readonly decisionState?: DecisionStateStore;
   /** B4.4: trabalho jurídico/atribuições (casos por advogado) para métricas. Opcional. */
   readonly work?: AdvogadoWorkRuntime;
+  /** GO-LIVE 13A/11C: registros de atendimentos encerrados (feedback) — lidos pelo
+   *  Command Center para acender os insights cognitivos. Opcional. */
+  readonly atendimentoStore?: AtendimentoStore;
   /** Conexão WhatsApp (administração de instâncias Evolution pelo Portal Admin). Opcional. */
   readonly whatsapp?: WhatsAppConnectionRuntime;
   /** GO LIVE A · R2: lista única de clientes com status DERIVADO em leitura. Opcional. */

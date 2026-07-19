@@ -8,7 +8,19 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
-import { computeOperationalMetrics, gerarBriefing, indicadoresExecutivos, prazoDosPedidos, type StaffRole } from '@reconstrua/application';
+import {
+  CATALOGO_CONSIGNADO_INSS,
+  ESTRATEGIAS_CONSIGNADO_INSS,
+  aprenderDaConversa,
+  computeOperationalMetrics,
+  gerarBriefing,
+  indicadoresExecutivos,
+  montarDossie,
+  montarPainelDoArquiteto,
+  prazoDosPedidos,
+  type ConversationContextView,
+  type StaffRole,
+} from '@reconstrua/application';
 import { requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 
 const STAFF_ROLES: readonly StaffRole[] = ['advogado', 'perito', 'operador', 'supervisor', 'administrador'];
@@ -98,34 +110,42 @@ export function buildAdminServer(
     const bottlenecks = await op.admin.answer('bottlenecks', now);
     const casosPorAdvogado = metrics?.perAdvogado ?? {};
 
+    // GO-LIVE 13A — INSIGHTS COGNITIVOS: derivados EXCLUSIVAMENTE dos Read Models
+    // do feedback (11C/11D) via o painel do arquiteto. Sem o store, ficam nulos
+    // (o briefing simplesmente não os mostra) — nunca inventados.
+    const atendimentos = op.atendimentoStore ? await op.atendimentoStore.listar() : [];
+    const painel = montarPainelDoArquiteto(ESTRATEGIAS_CONSIGNADO_INSS, atendimentos);
+    const temFeedback = atendimentos.length > 0;
+    const topEstrategia = painel.estrategiasMaisUtilizadas[0] ?? null;
+
     const briefing = gerarBriefing({
       founderName: opts.founderName ?? 'founder',
       now,
       clientesAtivos: metrics?.clientCount ?? 0,
       novosClientesHoje,
-      dossiesProntos: 0, // Read Model de dossiê chega na seção 4 desta Sprint
+      dossiesProntos: 0, // Read Model de "dossiê pronto/liberado" chega em incremento próprio
       aguardandoDocumentos,
       aguardandoAdvogado,
       casosCriticos: 0, // sem Read Model de criticidade dedicado — nunca inventado
       casosPorAdvogado,
       limiteCargaAdvogado: 10,
-      confiancaMediaCatalogo: null, // acende quando o store do feedback for exposto ao op
-      confiancaMediaAnterior: null,
-      taxaAcerto: null,
-      estrategiaEmAlta: null,
+      confiancaMediaCatalogo: temFeedback ? painel.confiancaMedia : null,
+      confiancaMediaAnterior: null, // sem baseline histórico persistido — não força delta
+      taxaAcerto: temFeedback ? painel.taxaAcerto : null,
+      estrategiaEmAlta: topEstrategia ? { ref: topEstrategia.chave, usos: topEstrategia.ocorrencias } : null,
       gargalo: bottlenecks.available ? bottlenecks.fact : null,
     });
 
     const indicadores = indicadoresExecutivos({
       clientesAtivos: metrics?.clientCount ?? 0,
       novosClientesHoje,
-      dossiesGerados: 0,
+      dossiesGerados: painel.totalAtendimentos,
       casosDistribuidos: metrics?.processCount ?? 0,
       aguardandoDocumentos,
       casosCriticos: 0,
-      tempoMedioAteDecisaoMs: null,
-      precisaoDecisoes: null,
-      confiancaMediaIA: null,
+      tempoMedioAteDecisaoMs: temFeedback ? painel.tempoMedioAteDecisaoMs : null,
+      precisaoDecisoes: temFeedback ? painel.taxaAcerto : null,
+      confiancaMediaIA: temFeedback ? painel.confiancaMedia : null,
       documentosProcessados: metrics?.documentCount ?? 0,
       valorRecuperavel: metrics?.financialUnderAdministration ?? null,
       receitaPrevista: null,
@@ -363,6 +383,54 @@ export function buildAdminServer(
       missionIds.map(async (id) => ({ missionId: id, progress: await op.workflow.progress(id) })),
     );
     return { memory, relationship, conversation, missions };
+  });
+
+  // ── DOSSIÊ JURÍDICO (GO-LIVE 13A · seção 4) — o parecer inicial da AHRI para um
+  //    cliente. Montado pela camada de aplicação (montarDossie) a partir dos Read
+  //    Models (memória viva, conversa, missões) + o motor de raciocínio que a AHRI
+  //    já possui. O conhecimento é RE-DERIVADO da conversa pela MESMA função do
+  //    pipeline (aprenderDaConversa) — nenhuma arquitetura nova, nada recalculado
+  //    na interface, nada inventado.
+  app.get('/admin/clients/:chatId/dossie', async (request, reply) => {
+    await op.projector.refresh();
+    const { chatId } = request.params as { chatId: string };
+    const memory = await op.memoryStore.load(chatId);
+    if (!memory) return reply.code(404).send({ error: 'cliente não encontrado' });
+
+    const now = new Date();
+    const entries = await op.conversationStore.recent(chatId, 200);
+    const ultimoInbound = [...entries].reverse().find((e) => e.kind === 'inbound' && e.text !== null && e.text !== '');
+    const context = {
+      chatId,
+      session: { chatId, turns: entries.length, lastInboundAt: null, lastOutboundAt: null },
+      recentEntries: entries,
+      recentOutboundTexts: entries.filter((e) => e.kind === 'outbound' && e.text !== null).map((e) => e.text ?? ''),
+      lastPercept: ultimoInbound
+        ? { envelope: { text: ultimoInbound.text }, enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null } }
+        : null,
+      silenceMs: null,
+    } as unknown as ConversationContextView;
+
+    const conhecimento = aprenderDaConversa(context, CATALOGO_CONSIGNADO_INSS);
+    const documentosReconhecidos = memory.documentsSent.map((d) => d.label);
+    const contratosEncontrados = documentosReconhecidos.filter((d) => /contrato/i.test(d));
+    const timeline = memory.rememberedEvents.map((e) => ({ rotulo: e.description, em: e.source.at, fonte: `read-model:memory:${e.source.kind}` }));
+    const missionId = op.projector.missionsOf(chatId)[0] ?? null;
+
+    const dossie = montarDossie({
+      clienteId: chatId,
+      chatId,
+      missionId,
+      decisionId: null,
+      correlationId: null,
+      versaoCatalogo: '11A',
+      geradoEm: now,
+      entradas: { conhecimento, documentosRecebidos: documentosReconhecidos },
+      documentosReconhecidos,
+      contratosEncontrados,
+      timeline,
+    });
+    return dossie;
   });
 
   // ── MISSÕES ─────────────────────────────────────────────────────────────────

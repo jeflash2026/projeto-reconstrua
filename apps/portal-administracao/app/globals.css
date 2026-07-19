@@ -229,3 +229,46 @@ button:hover { filter: brightness(1.1); }
 .cc-entry .cc-arrow { position: absolute; top: 16px; right: 16px; }
 
 .cc-tool { max-width: 860px; }
+
+/* ── DOSSIÊ JURÍDICO (GO-LIVE 13A · seção 4) ───────────────────────────────── */
+.dossie {
+  background: var(--bg-elev); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); padding: 22px 24px; margin-bottom: 20px;
+}
+.dossie-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.dossie-kicker { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
+.dossie-title { font-size: 22px; font-weight: 720; margin: 2px 0 0; }
+.dossie-conf { align-self: center; white-space: nowrap; }
+.dossie-resumo { font-size: 15.5px; line-height: 1.6; color: var(--text); margin: 0 0 18px; max-width: 760px; }
+.dossie-block { margin-bottom: 14px; }
+.dossie-block-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin: 14px 0 8px; }
+.dossie-empty { color: var(--text-dim); font-size: 13px; margin: 0; }
+.dossie-list { margin: 0; padding-left: 18px; }
+.dossie-list li { font-size: 13.5px; line-height: 1.6; }
+.dossie-list.ok li::marker { color: var(--ok); }
+.dossie-list.warn li::marker { color: var(--warn); }
+.dossie-teses { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.dossie-tese { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.dossie-tese-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dossie-pos {
+  width: 22px; height: 22px; flex: 0 0 auto; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700;
+}
+.dossie-tese-nome { flex: 1 1 auto; font-weight: 600; font-size: 14.5px; }
+.dossie-tese-just { font-size: 13px; color: var(--text-dim); margin: 8px 0 2px; }
+.dossie-tese-fund { font-size: 12px; color: var(--text-dim); margin: 0; opacity: 0.85; }
+.dossie-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 24px; }
+.dossie-explica { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.dossie-explica summary {
+  cursor: pointer; font-weight: 650; font-size: 14px; color: var(--accent); list-style: none;
+  display: flex; align-items: center; gap: 8px; user-select: none;
+}
+.dossie-explica summary::before { content: '▸'; transition: transform 0.15s; }
+.dossie-explica[open] summary::before { transform: rotate(90deg); }
+.dossie-explica-body { margin-top: 12px; }
+.dossie-crit { font-size: 13px; color: var(--text-dim); margin: 10px 0 0; }
+.dossie-meta {
+  display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 16px; padding-top: 12px;
+  border-top: 1px solid var(--border); font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+}
+.dossie-meta b { color: var(--text); font-weight: 600; }

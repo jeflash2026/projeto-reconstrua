@@ -172,6 +172,7 @@ const WhatsAppConnection = (): ReactElement => {
         <div className="card" style={{ marginBottom: 16, borderColor: 'var(--accent)' }}>
           <h3 style={{ color: 'var(--accent)' }}>✅ WhatsApp conectado</h3>
           <p>Número: <strong className="mono">{fmtNumber(status.live?.number ?? '')}</strong></p>
+          <p>Instância: <span className="mono">{status.resolvedInstance ?? (status.active.instance || '—')}</span></p>
           <p>OwnerJid: <span className="mono">{status.live?.ownerJid ?? '—'}</span></p>
           <p>Status: <span className="badge accent">ONLINE</span></p>
           <p style={{ color: 'var(--text-dim)', fontSize: 12 }}>Última sincronização: {status.lastSyncAt ?? '—'}</p>
@@ -185,6 +186,9 @@ const WhatsAppConnection = (): ReactElement => {
               {status.live.number && status.live.number !== status.officialNumber ? <span className="badge warn" style={{ marginLeft: 6 }}>número divergente</span> : null}
             </p>
           ) : <p style={{ color: 'var(--text-dim)' }}>Sem instância conectada.</p>}
+          {status.resolvedInstance && status.resolvedInstance !== status.active.instance ? (
+            <p><span className="badge warn">instância detectada pelo número: {status.resolvedInstance}</span> — ajuste EVOLUTION_INSTANCE para este nome.</p>
+          ) : null}
           <p style={{ color: 'var(--text-dim)', fontSize: 12 }}>Número oficial esperado: +{status.officialNumber}</p>
         </div>
       )}

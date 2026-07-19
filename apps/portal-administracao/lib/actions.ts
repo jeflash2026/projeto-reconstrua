@@ -208,6 +208,7 @@ export interface WhatsAppStatus {
   webhookUrl: string;
   lastSyncAt: string | null;
   capabilities: { canManageInstances: boolean; missing: string[] };
+  resolvedInstance: string | null;
 }
 export interface WhatsAppConfirm {
   connected: boolean;

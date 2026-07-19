@@ -38,6 +38,9 @@ export interface WhatsAppStatus {
     readonly canManageInstances: boolean;
     readonly missing: readonly string[];
   };
+  /** GO-LIVE-06 (BUG 2): a instância detectada pelo número oficial (nome real na
+   *  Evolution), que pode divergir da configurada; null se o número não está conectado. */
+  readonly resolvedInstance: string | null;
 }
 
 export interface CreateResult {
@@ -125,11 +128,23 @@ export class WhatsAppConnectionRuntime {
     const current = pendingInstance !== '' ? pendingInstance : this.deps.active.instance;
 
     let live: WhatsAppStatus['live'] = null;
+    let resolvedInstance = current;
     if (current !== '') {
       const snap = await this.deps.client.fetchInstance(current);
       if (snap !== null) {
         this.lastSyncAt = this.deps.clock.now();
         live = { state: snap.state, ownerJid: snap.ownerJid, number: numberFromOwnerJid(snap.ownerJid) };
+      }
+    }
+    // GO-LIVE-06 (BUG 2): se a instância configurada não está conectada ao número
+    // oficial, DESCOBRE a instância real pelo número (o nome configurado pode estar
+    // errado no .env/config). A aplicação passa a refletir a instância correta.
+    if (live === null || live.number !== this.deps.officialNumber) {
+      const byNumber = await this.deps.client.findInstanceByNumber(this.deps.officialNumber);
+      if (byNumber !== null) {
+        this.lastSyncAt = this.deps.clock.now();
+        live = { state: byNumber.state, ownerJid: byNumber.ownerJid, number: numberFromOwnerJid(byNumber.ownerJid) };
+        resolvedInstance = byNumber.name;
       }
     }
     const hasPendingApply =
@@ -150,6 +165,9 @@ export class WhatsAppConnectionRuntime {
       webhookUrl: this.deps.webhookUrl,
       lastSyncAt: this.lastSyncAt?.toISOString() ?? null,
       capabilities: { canManageInstances: missing.length === 0, missing },
+      // GO-LIVE-06 (BUG 2): a instância REALMENTE detectada pelo número oficial
+      // (pode diferir da configurada). null quando não há nenhuma conectada ao número.
+      resolvedInstance: live !== null && live.number === this.deps.officialNumber ? resolvedInstance : null,
     };
   }
 
@@ -221,13 +239,22 @@ export class WhatsAppConnectionRuntime {
         ? `Evolution recusou a chave global (HTTP ${String(probe.status)}) — verifique EVOLUTION_GLOBAL_API_KEY`
         : probe.reached ? 'chave global aceita' : 'não avaliada (Evolution inacessível)');
 
-    // 4) INSTÂNCIA oficial presente na Evolution.
-    const alvo = this.deps.active.instance || (await this.storedConfig()).evolution.instance;
-    add('Instância', alvo !== '' && probe.instanceNames.includes(alvo),
-      alvo === '' ? 'nenhuma instância configurada'
-      : probe.instanceNames.includes(alvo) ? `instância "${alvo}" existe na Evolution`
-      : probe.reached ? `instância "${alvo}" NÃO existe (encontradas: ${probe.instanceNames.join(', ') || 'nenhuma'})`
-      : 'não avaliada (Evolution inacessível)');
+    // 4) INSTÂNCIA — GO-LIVE-06 (BUG 2): o que importa é o NÚMERO oficial estar
+    // conectado; o nome pode divergir do configurado. Descobrimos a instância real
+    // pelo número e, se divergir, dizemos EXATAMENTE qual nome usar.
+    const configured = this.deps.active.instance || (await this.storedConfig()).evolution.instance;
+    const byNumber = await this.deps.client.findInstanceByNumber(this.deps.officialNumber);
+    if (byNumber !== null) {
+      const divergente = configured !== '' && configured !== byNumber.name;
+      add('Instância', true,
+        `número oficial ${this.deps.officialNumber} conectado na instância "${byNumber.name}" (estado: ${byNumber.state})` +
+        (divergente ? ` — configurado como "${configured}"; ajuste EVOLUTION_INSTANCE para "${byNumber.name}"` : ''));
+    } else {
+      add('Instância', false,
+        probe.reached
+          ? `nenhuma instância conectada ao número oficial ${this.deps.officialNumber} (configurado: "${configured || '—'}"; encontradas: ${probe.instanceNames.join(', ') || 'nenhuma'})`
+          : 'não avaliada (Evolution inacessível)');
+    }
 
     // 5) WEBHOOK configurado (URL + segredo presentes).
     add('Webhook', this.deps.webhookUrl !== '' && this.deps.webhookSecret !== '',

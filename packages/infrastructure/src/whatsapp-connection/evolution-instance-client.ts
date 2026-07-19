@@ -196,6 +196,37 @@ export class EvolutionInstanceClient {
     }
   }
 
+  /**
+   * GO-LIVE-06 (BUG 2) — descobre a instância REAL pelo NÚMERO oficial (ownerJid),
+   * independentemente do nome configurado. O que identifica a instância certa em
+   * produção é o número da empresa, não um nome que pode estar desatualizado no
+   * .env/config. Devolve o snapshot da instância conectada a esse número, ou null.
+   */
+  async findInstanceByNumber(number: string): Promise<InstanceSnapshot | null> {
+    if (number === '') return null;
+    // Resiliente como fetchInstance: falha de rede/HTTP ⇒ null (nunca propaga).
+    let res: EvoHttpResponse;
+    try {
+      res = await this.http.request('GET', `${this.base()}/instance/fetchInstances`, this.gkey());
+    } catch {
+      return null;
+    }
+    if (res.status >= 300) return null;
+    const list: unknown[] = Array.isArray(res.body) ? (res.body as unknown[]) : [];
+    for (const raw of list) {
+      const inst = pick(raw, ['instance']) ?? raw;
+      const ownerJid = asStr(pick(inst, ['ownerJid', 'owner', 'wuid']));
+      if (numberFromOwnerJid(ownerJid) === number) {
+        return {
+          name: asStr(pick(inst, ['name', 'instanceName', 'id'])) ?? '',
+          ownerJid,
+          state: (asStr(pick(inst, ['connectionStatus', 'status', 'state'])) ?? 'close').toLowerCase(),
+        };
+      }
+    }
+    return null;
+  }
+
   async logout(instanceName: string): Promise<void> {
     await this.http.request('DELETE', `${this.base()}/instance/logout/${instanceName}`, this.gkey());
   }

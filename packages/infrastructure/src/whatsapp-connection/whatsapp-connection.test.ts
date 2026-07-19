@@ -63,6 +63,16 @@ describe('EvolutionInstanceClient — parse defensivo', () => {
     expect(snap).toMatchObject({ name: 'reconstrua-prod', ownerJid: `${OFFICIAL}@s.whatsapp.net`, state: 'open' });
   });
 
+  it('findInstanceByNumber acha a instância pelo número oficial, ignorando o nome', async () => {
+    const http = new FakeEvoHttp(() => ({ status: 200, body: [
+      { name: 'ruido', ownerJid: '5599@s.whatsapp.net', connectionStatus: 'open' },
+      { name: 'BB66-REAL', ownerJid: `${OFFICIAL}@s.whatsapp.net`, connectionStatus: 'open' },
+    ] }));
+    const snap = await new EvolutionInstanceClient(http, cfg).findInstanceByNumber(OFFICIAL);
+    expect(snap).toMatchObject({ name: 'BB66-REAL', state: 'open' });
+    expect(await new EvolutionInstanceClient(http, cfg).findInstanceByNumber('000')).toBeNull();
+  });
+
   it('logout/delete usam DELETE nos endpoints certos', async () => {
     const http = new FakeEvoHttp(() => ({ status: 200, body: {} }));
     const c = new EvolutionInstanceClient(http, cfg);
@@ -136,6 +146,21 @@ describe('WhatsAppConnectionRuntime', () => {
     expect(s.matchesOfficial).toBe(true);
     expect(JSON.stringify(s)).not.toContain('GLOBAL-KEY'); // nunca vaza segredo
   });
+
+  it('GO-LIVE-06 (BUG 2): instância configurada não conectada → resolve pelo número e reporta o nome real', async () => {
+    // active/config apontam para "Ahrios" (inexistente); a Evolution tem "BB66-REAL"
+    // conectada ao número oficial. getStatus deve refletir a instância REAL.
+    const { rt } = runtime(
+      (_m, u) => u.includes('/instance/fetchInstances')
+        ? { status: 200, body: [{ name: 'BB66-REAL', ownerJid: `${OFFICIAL}@s.whatsapp.net`, connectionStatus: 'open' }] }
+        : { status: 200, body: {} },
+      { instance: 'Ahrios', number: '' },
+    );
+    const s = await rt.getStatus();
+    expect(s.matchesOfficial).toBe(true);
+    expect(s.resolvedInstance).toBe('BB66-REAL');
+    expect(s.live?.number).toBe(OFFICIAL);
+  });
 });
 
 // ── GO-LIVE-05 · BUG 2: DIAGNÓSTICO com a causa EXATA (nunca genérico) ─────────
@@ -159,13 +184,23 @@ describe('WhatsAppConnectionRuntime.diagnose — a causa real de cada dependênc
     });
   }
 
-  it('TUDO OK: cada passo verde, com a instância presente e as filas contadas', async () => {
-    const http = new FakeEvoHttp(() => ({ status: 200, body: [{ name: 'reconstrua-prod', connectionStatus: 'open' }] }));
+  it('TUDO OK: número oficial conectado na instância configurada; filas contadas', async () => {
+    const http = new FakeEvoHttp(() => ({ status: 200, body: [{ name: 'reconstrua-prod', ownerJid: `${OFFICIAL}@s.whatsapp.net`, connectionStatus: 'open' }] }));
     const report = await diagRuntime(http).diagnose();
     expect(report.ok).toBe(true);
     const byStep = Object.fromEntries(report.steps.map((s) => [s.step, s]));
-    expect(byStep['Instância']?.detail).toContain('existe na Evolution');
+    expect(byStep['Instância']?.detail).toContain('conectado na instância "reconstrua-prod"');
     expect(byStep['Filas (outbox)']?.detail).toContain('3');
+  });
+
+  it('GO-LIVE-06 (BUG 2): nome configurado ERRADO, mas número conectado sob outro nome → OK + diz o nome certo', async () => {
+    // Evolution tem a instância REAL "BB66-REAL" com o número oficial; o app está
+    // configurado como "reconstrua-prod" (divergente). O diagnóstico se auto-corrige.
+    const http = new FakeEvoHttp(() => ({ status: 200, body: [{ name: 'BB66-REAL', ownerJid: `${OFFICIAL}@s.whatsapp.net`, connectionStatus: 'open' }] }));
+    const inst = (await diagRuntime(http).diagnose()).steps.find((s) => s.step === 'Instância');
+    expect(inst?.ok).toBe(true);
+    expect(inst?.detail).toContain('BB66-REAL');
+    expect(inst?.detail).toContain('ajuste EVOLUTION_INSTANCE para "BB66-REAL"');
   });
 
   it('EVOLUTION 401: aponta EXATAMENTE a autenticação da chave global', async () => {
@@ -196,11 +231,11 @@ describe('WhatsAppConnectionRuntime.diagnose — a causa real de cada dependênc
     expect(report.steps.find((s) => s.step === 'Conexão com a Evolution')?.detail).toContain('DNS');
   });
 
-  it('INSTÂNCIA inexistente: lista as encontradas e marca falha', async () => {
-    const http = new FakeEvoHttp(() => ({ status: 200, body: [{ name: 'outra-instancia', connectionStatus: 'open' }] }));
+  it('NÚMERO OFICIAL não conectado: marca falha e lista as instâncias encontradas', async () => {
+    const http = new FakeEvoHttp(() => ({ status: 200, body: [{ name: 'outra-instancia', ownerJid: '5599@s.whatsapp.net', connectionStatus: 'open' }] }));
     const inst = (await diagRuntime(http).diagnose()).steps.find((s) => s.step === 'Instância');
     expect(inst?.ok).toBe(false);
-    expect(inst?.detail).toContain('NÃO existe');
+    expect(inst?.detail).toContain('nenhuma instância conectada ao número oficial');
     expect(inst?.detail).toContain('outra-instancia');
   });
 

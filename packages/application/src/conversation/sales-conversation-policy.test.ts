@@ -179,17 +179,20 @@ describe('Decreto · JORNADA 1 — ONBOARDING_DOCUMENTAL', () => {
     expect(c).toContain('Painel do Advogado (Jornada 2)');
   });
 
-  it('GUARDA GO-LIVE: arquivo enviado NESTE turno ⇒ agradece SEM pular etapa', () => {
+  it('GUARDA GO-LIVE: arquivo enviado NESTE turno ⇒ nunca negar a chegada, nunca pedir com registro pendente', () => {
     const c = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL', arquivo: 'hiscon.pdf' })).conduta;
     expect(c).toContain('ACABOU de enviar um arquivo NESTA mensagem');
-    expect(c).toContain('agradeça e confirme o recebimento');
-    expect(c).toContain('NUNCA pule etapas');
+    expect(c).toContain('Confirme que ele CHEGOU');
+    // Regressão da 4ª rodada: "ainda não chegou aqui do meu lado" dito a quem
+    // ACABARA de mandar o verso — negar recebimento é PROIBIDO.
+    expect(c).toContain('PROIBIDO dizer que não chegou');
     // Regressão da 3ª rodada: a guarda antiga mandava "mencionar o outro
     // documento" — e a AHRI saltava do RG-frente direto ao comprovante.
     expect(c).not.toContain('mencione apenas esse outro');
-    expect(c).toContain('se ele pedir o VERSO do RG, peça o verso');
-    expect(c).toContain('NÃO avance para um documento novo');
-    expect(c).toContain('FRENTE e do VERSO');
+    // Lista atualizada ⇒ pedir o próximo (incl. o verso do RG, que não é repetição).
+    expect(c).toContain('se for o VERSO do RG, peça');
+    // Registro pendente ⇒ NÃO pedir NADA (o arquivo pode ser o que faltava).
+    expect(c).toContain('NÃO peça NENHUM documento nesta resposta');
   });
 
   it('guarda + contabilidade com RG de 1 face ⇒ o "Solicite AGORA" pede o VERSO e a guarda o permite', () => {
@@ -203,7 +206,7 @@ describe('Decreto · JORNADA 1 — ONBOARDING_DOCUMENTAL', () => {
       },
     })).conduta;
     expect(c).toContain('Solicite AGORA, nesta resposta, APENAS o próximo: o VERSO do RG');
-    expect(c).toContain('é a OUTRA FACE do mesmo documento');
+    expect(c).toContain('é a outra face, não repetição');
   });
 
   it('sem arquivo no turno ⇒ a guarda não aparece', () => {

@@ -126,16 +126,16 @@ function condutaOnboarding(context: ConversationContextView): string {
         `Ainda faltam: ${ob.faltando.length > 0 ? ob.faltando.join('; ') : 'nenhum'}. ` +
         `${ob.proximo !== null ? `Solicite AGORA, nesta resposta, APENAS o próximo: ${ob.proximo}. ` : ''}`
       : 'A contabilidade ainda não registrou nenhum recebimento: comece pelo RG (frente e verso) ou CNH. ';
-  // Correção GO-LIVE (2 rodadas de teste real): quando o arquivo chega NESTE
-  // turno, a AHRI agradece — mas JAMAIS pula etapa. A instrução antiga
-  // ("mencione o outro documento") fazia ela saltar do RG-frente direto ao
-  // comprovante, ignorando o VERSO. Agora: segue o "Solicite AGORA" à risca
-  // (verso do RG É a outra face, não repetição) e, com registro em
-  // processamento, NÃO avança — reforça a regra frente E verso.
+  // Correção GO-LIVE (3 rodadas de teste real): no turno em que um arquivo
+  // chega, a AHRI (a) JAMAIS nega o recebimento ("ainda não chegou" foi dito a
+  // uma cliente que ACABARA de mandar o verso), (b) JAMAIS pula etapa e
+  // (c) com registro em processamento NÃO pede NADA — o arquivo recém-enviado
+  // pode ser exatamente o que faltava; o pedido certo sai no turno seguinte,
+  // com a contabilidade atualizada.
   const arquivoAgora = enviouArquivoNesteTurno(context)
-    ? 'ATENÇÃO — a pessoa ACABOU de enviar um arquivo NESTA mensagem: agradeça e confirme o recebimento com naturalidade, mas NUNCA pule etapas por causa disso. ' +
-      'Siga EXATAMENTE o "Solicite AGORA" acima — se ele pedir o VERSO do RG, peça o verso (é a OUTRA FACE do mesmo documento, não é repetição). ' +
-      'Se a lista acima ainda NÃO refletir este arquivo (registro em processamento), NÃO avance para um documento novo: diga que está registrando e lembre com leveza que, no caso de RG, você precisa da FRENTE e do VERSO (a CNH sozinha vale pela identidade). '
+    ? 'ATENÇÃO — a pessoa ACABOU de enviar um arquivo NESTA mensagem. Confirme que ele CHEGOU e agradeça — é PROIBIDO dizer que não chegou, que está esperando ou pedir para reenviar: ele chegou; o registro leva só alguns instantes. ' +
+      'Se a lista acima JÁ mostra esse documento entre os recebidos, siga o "Solicite AGORA" e peça o próximo (se for o VERSO do RG, peça: é a outra face, não repetição). ' +
+      'Se a lista AINDA NÃO o mostra (registro em processamento), diga que está registrando e que em instantes segue para o próximo passo — e NÃO peça NENHUM documento nesta resposta: o arquivo recém-enviado pode ser exatamente o que faltava. '
     : '';
   return (
     'ESTADO: ONBOARDING_DOCUMENTAL (Jornada 1 — triagem). Sua missão é levar o cliente até 100% da documentação inicial FIXA — ' +

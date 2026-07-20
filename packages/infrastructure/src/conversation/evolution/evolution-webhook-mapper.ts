@@ -217,10 +217,17 @@ export function mapEvolutionUpsert(payload: unknown): InboundEnvelope | null {
   const parsed = parseMessage(message);
   if (!parsed) return null;
 
+  // CAUSA RAIZ GO-LIVE (2026-07-20, achada pela instrumentação de missão): em
+  // chat DIRETO a Evolution envia participant como STRING VAZIA — e `'' ?? x`
+  // devolve ''. O envelope saía com from='' ⇒ R1 rejeitava a Pessoa
+  // ("Identidade civil ausente", DF-23) ⇒ nenhuma missão, nenhum evento,
+  // onboarding eternamente pedindo o HISCON. Vazio/ausente ⇒ o remetente é o
+  // próprio chat (o comportamento correto de conversa 1:1).
+  const participant = asString(key['participant']);
   return {
     messageId,
     chatId,
-    from: asString(key['participant']) ?? chatId,
+    from: participant !== null && participant !== '' ? participant : chatId,
     kind: parsed.kind,
     text: parsed.text,
     mediaUrl: parsed.mediaUrl,

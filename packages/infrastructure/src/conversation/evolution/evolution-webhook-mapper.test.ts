@@ -108,3 +108,31 @@ describe('mapEvolutionUpsert', () => {
     expect(mapEvolutionUpsert(upsert({ unknownMessage: {} }))).toBeNull();
   });
 });
+
+describe('Regressão GO-LIVE · from NUNCA vazio (a causa real do HISCON travado)', () => {
+  // Em chat DIRETO a Evolution envia participant como STRING VAZIA; `'' ?? x`
+  // devolve '' ⇒ from vazio ⇒ R1 rejeitava a Pessoa ("Identidade civil
+  // ausente", DF-23) ⇒ nenhum evento nascia em produção.
+  it("participant='' (chat direto) ⇒ from = chatId", () => {
+    const env = mapEvolutionUpsert(upsert({ conversation: 'oi' }, { participant: '' }));
+    expect(env?.from).toBe('5511999999999@s.whatsapp.net');
+  });
+  it('participant ausente ⇒ from = chatId', () => {
+    const env = mapEvolutionUpsert(upsert({ conversation: 'oi' }));
+    expect(env?.from).toBe('5511999999999@s.whatsapp.net');
+  });
+  it('participant REAL (grupo) ⇒ from = participant', () => {
+    const env = mapEvolutionUpsert(upsert({ conversation: 'oi' }, { participant: '5511888888888@s.whatsapp.net' }));
+    expect(env?.from).toBe('5511888888888@s.whatsapp.net');
+  });
+  it('o PDF do cenário real sai com from preenchido', () => {
+    const env = mapEvolutionUpsert(
+      upsert(
+        { documentMessage: { fileName: 'extrato_emprestimo_consignado_completo_030726.pdf', mimetype: 'application/pdf', url: 'enc://d' } },
+        { participant: '' },
+      ),
+    );
+    expect(env?.kind).toBe('pdf');
+    expect(env?.from).toBe('5511999999999@s.whatsapp.net');
+  });
+});

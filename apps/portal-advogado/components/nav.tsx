@@ -7,6 +7,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string }> = [
   { href: '/', label: 'Painel' },
   { href: '/processos', label: 'Meus Processos' },
   { href: '/pendencias', label: 'Pendências' },
+  { href: '/solicitacoes', label: 'Solicitações' },
   { href: '/agenda', label: 'Agenda' },
   { href: '/documentos', label: 'Documentos' },
   { href: '/protocolos', label: 'Protocolos' },

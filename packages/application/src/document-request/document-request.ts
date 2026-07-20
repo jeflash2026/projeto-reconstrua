@@ -20,6 +20,8 @@ export interface DocumentRequestStore {
   doCaso(caseId: string): Promise<readonly DocumentRequestState[]>;
   /** Solicitações ABERTAS do cliente (entrega/cobrança pela AHRI). */
   abertasDoCliente(clientId: string): Promise<readonly DocumentRequestState[]>;
+  /** 15C-2 — todas as solicitações do ADVOGADO (a lista do painel). */
+  doAdvogado(lawyerId: string): Promise<readonly DocumentRequestState[]>;
 }
 
 const ABERTOS = new Set(['PENDING', 'AWAITING_CONFIRMATION', 'REOPENED']);
@@ -38,6 +40,9 @@ export class InMemoryDocumentRequestStore implements DocumentRequestStore {
   }
   abertasDoCliente(clientId: string): Promise<readonly DocumentRequestState[]> {
     return Promise.resolve([...this.porIdMap.values()].filter((r) => r.clientId === clientId && ABERTOS.has(r.status)).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()));
+  }
+  doAdvogado(lawyerId: string): Promise<readonly DocumentRequestState[]> {
+    return Promise.resolve([...this.porIdMap.values()].filter((r) => r.lawyerId === lawyerId).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
   }
 }
 

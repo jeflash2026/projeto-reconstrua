@@ -104,3 +104,57 @@ export async function registerActivity(
     ...(dueAt !== null ? { dueAt } : {}),
   });
 }
+
+// ── 15C-2 · Solicitações Complementares — ações do advogado ────────────────────
+import { revalidatePath } from 'next/cache';
+import { advogadoId as advogadoIdAtual } from './api';
+import type { Solicitacao } from './api';
+
+export interface SolicitacaoActionResult {
+  ok: boolean;
+  error: string | null;
+  solicitacao: Solicitacao | null;
+}
+
+export async function solicitarDocumento(input: {
+  caseId: string;
+  clientId: string;
+  documentName: string;
+  optionalMessage?: string;
+  priority?: 'normal' | 'alta';
+  dueAt?: string;
+  reminderPolicy?: 'nenhum' | '24h' | '48h' | '72h' | 'semanal';
+}): Promise<SolicitacaoActionResult> {
+  const id = advogadoIdAtual();
+  if (!id) return { ok: false, error: 'sessão do advogado ausente', solicitacao: null };
+  const criada = await sendJson<Solicitacao>('POST', `/advogado/casos/${encodeURIComponent(input.caseId)}/document-requests`, {
+    documentName: input.documentName,
+    optionalMessage: input.optionalMessage,
+    clientId: input.clientId,
+    advogadoId: id,
+    requestedBy: id,
+    priority: input.priority,
+    dueAt: input.dueAt,
+    reminderPolicy: input.reminderPolicy,
+  });
+  revalidatePath('/solicitacoes');
+  return criada ? { ok: true, error: null, solicitacao: criada } : { ok: false, error: 'não consegui criar a solicitação (API)', solicitacao: null };
+}
+
+export async function cancelarSolicitacao(requestId: string, motivo: string): Promise<SolicitacaoActionResult> {
+  const id = advogadoIdAtual();
+  if (!id) return { ok: false, error: 'sessão do advogado ausente', solicitacao: null };
+  const r = await sendJson<Solicitacao>('POST', `/advogado/document-requests/${encodeURIComponent(requestId)}/cancelar`, { motivo, advogadoId: id });
+  revalidatePath('/solicitacoes');
+  revalidatePath(`/solicitacoes/${requestId}`);
+  return r ? { ok: true, error: null, solicitacao: r } : { ok: false, error: 'não consegui cancelar (a solicitação pode não estar aberta)', solicitacao: null };
+}
+
+export async function reabrirSolicitacao(requestId: string, motivo: string): Promise<SolicitacaoActionResult> {
+  const id = advogadoIdAtual();
+  if (!id) return { ok: false, error: 'sessão do advogado ausente', solicitacao: null };
+  const r = await sendJson<Solicitacao>('POST', `/advogado/document-requests/${encodeURIComponent(requestId)}/reabrir`, { motivo, advogadoId: id });
+  revalidatePath('/solicitacoes');
+  revalidatePath(`/solicitacoes/${requestId}`);
+  return r ? { ok: true, error: null, solicitacao: r } : { ok: false, error: 'não consegui reabrir (só documentos recebidos podem ser reabertos)', solicitacao: null };
+}

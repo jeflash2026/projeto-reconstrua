@@ -120,3 +120,35 @@ export interface Perfil {
   active: boolean;
   createdAt: string;
 }
+
+// ── 15C-2 · Solicitações Complementares de Documentos (Workflow 2) ─────────────
+export type SolicitacaoStatus = 'PENDING' | 'AWAITING_CONFIRMATION' | 'RECEIVED' | 'REOPENED' | 'CANCELLED';
+export interface SolicitacaoHistorico {
+  at: string;
+  por: string;
+  de: SolicitacaoStatus | null;
+  para: SolicitacaoStatus;
+  nota: string | null;
+}
+export interface Solicitacao {
+  requestId: string;
+  caseId: string;
+  clientId: string;
+  lawyerId: string;
+  documentName: string;
+  optionalMessage: string | null;
+  origin: string;
+  priority: 'normal' | 'alta';
+  requestedBy: string;
+  status: SolicitacaoStatus;
+  receivedAt: string | null;
+  fulfilledBy: string | null;
+  dueAt: string | null;
+  reminderPolicy: 'nenhum' | '24h' | '48h' | '72h' | 'semanal';
+  lastReminderAt: string | null;
+  lastMessagedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  history: SolicitacaoHistorico[];
+}

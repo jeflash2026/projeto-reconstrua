@@ -141,6 +141,23 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
     return { solicitacoes: await op.documentRequestStore.doCaso(caseId) };
   });
 
+  // 15C-2 — a LISTA do painel (todas as solicitações do advogado autenticado).
+  app.get('/advogado/document-requests', async (request, reply) => {
+    if (!op.documentRequestStore) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    const advogadoId = (request.headers['x-advogado-id'] as string | undefined)?.trim() ?? '';
+    if (advogadoId === '') return reply.code(400).send({ error: 'x-advogado-id é obrigatório' });
+    return { solicitacoes: await op.documentRequestStore.doAdvogado(advogadoId) };
+  });
+
+  // 15C-2 — o DETALHE de uma solicitação (cabeçalho + history completo).
+  app.get('/advogado/document-requests/:id', async (request, reply) => {
+    if (!op.documentRequestStore) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    const { id } = request.params as { id: string };
+    const solicitacao = await op.documentRequestStore.porId(id);
+    if (solicitacao === null) return reply.code(404).send({ error: 'solicitação não encontrada' });
+    return solicitacao;
+  });
+
   app.post('/advogado/document-requests/:id/cancelar', async (request, reply) => {
     if (!op.documentRequests) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
     const { id } = request.params as { id: string };

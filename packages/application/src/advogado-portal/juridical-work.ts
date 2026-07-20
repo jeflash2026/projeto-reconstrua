@@ -110,6 +110,12 @@ export class AdvogadoWorkRuntime {
     return this.assignments.byAdvogado(advogadoId);
   }
 
+  /** Decreto Tráfego Pago: quem representa esta missão? (null = ninguém ainda
+   *  — o cliente aparece em "Clientes prontos p/ Advogado" no painel admin). */
+  async assignedTo(missionId: string): Promise<CaseAssignment | null> {
+    return this.assignments.byMission(missionId);
+  }
+
   // ── Atividades do advogado ──────────────────────────────────────────────────
   async addEntry(input: NewEntryInput): Promise<JuridicalEntry> {
     if (!(await this.isAssigned(input.advogadoId, input.missionId))) {

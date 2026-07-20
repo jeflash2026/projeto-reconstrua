@@ -37,20 +37,37 @@ function normalizar(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+// Sinais da CNH separados dos do RG (correção do teste real: CNH sozinha
+// completa a identidade; RG exige FRENTE E VERSO — duas imagens).
+const SINAIS_CNH = { frases: ['carteira nacional de habilitacao', 'habilitacao'], tokens: ['cnh'] } as const;
+const SINAIS_RG = { frases: ['registro geral', 'carteira de identidade', 'documento de identidade', 'orgao emissor', 'orgao expedidor', 'filiacao'], tokens: ['rg'] } as const;
+
 const SINAIS: Readonly<Record<DocumentoInicial, { frases: readonly string[]; tokens: readonly string[] }>> = {
   CNIS: {
     frases: ['hiscon', 'historico de emprestimo', 'emprestimos consignados', 'emprestimo consignado', 'extrato de consignacoes', 'extrato previdenciario', 'consignad'],
     tokens: ['cnis'],
   },
   IDENTIDADE: {
-    frases: ['registro geral', 'carteira de identidade', 'carteira nacional de habilitacao', 'documento de identidade', 'orgao emissor', 'orgao expedidor', 'filiacao'],
-    tokens: ['rg', 'cnh'],
+    frases: [...SINAIS_RG.frases, ...SINAIS_CNH.frases],
+    tokens: [...SINAIS_RG.tokens, ...SINAIS_CNH.tokens],
   },
   COMPROVANTE_RESIDENCIA: {
     frases: ['comprovante de residencia', 'comprovante de endereco', 'conta de luz', 'conta de agua', 'conta de energia', 'energia eletrica', 'fatura de energia', 'saneamento', 'telefonica'],
     tokens: [],
   },
 };
+
+export type SubtipoIdentidade = 'rg' | 'cnh';
+
+/** CNH ou RG? (só faz sentido quando a classificação foi IDENTIDADE).
+ *  Ambíguo ⇒ 'rg' — o caminho seguro é pedir o verso; a CNH quase sempre
+ *  transcreve "habilitação". */
+export function detectarSubtipoIdentidade(fileName: string, texto: string): SubtipoIdentidade {
+  const corpo = normalizar(`${fileName} ${texto}`);
+  const tokens = new Set(corpo.split(' '));
+  const pontosCnh = SINAIS_CNH.frases.filter((f) => corpo.includes(f)).length + SINAIS_CNH.tokens.filter((t) => tokens.has(t)).length;
+  return pontosCnh > 0 ? 'cnh' : 'rg';
+}
 
 /**
  * Classifica um documento recebido em UM dos três obrigatórios — ou OUTRO.
@@ -79,6 +96,8 @@ export interface DocumentoInicialRecebido {
   readonly codigo: DocumentoInicial;
   readonly documentId: string;
   readonly em: Date;
+  /** Só para IDENTIDADE: RG (precisa de frente E verso) ou CNH (uma basta). */
+  readonly subtipo?: SubtipoIdentidade;
 }
 
 export interface OnboardingDocumentalState {
@@ -92,10 +111,21 @@ export function novoOnboarding(chatId: string, missionId: string | null, now: Da
   return { chatId, missionId, recebidos: [], atualizadoEm: now };
 }
 
+/** IDENTIDADE está completa? CNH (uma) OU RG com DUAS faces (frente e verso). */
+export function identidadeCompleta(state: OnboardingDocumentalState): boolean {
+  const ids = state.recebidos.filter((r) => r.codigo === 'IDENTIDADE');
+  if (ids.some((r) => r.subtipo === 'cnh')) return true;
+  return ids.length >= 2; // RG frente + verso (entradas antigas sem subtipo contam como RG)
+}
+
+function codigoCompleto(state: OnboardingDocumentalState, codigo: DocumentoInicial): boolean {
+  if (codigo === 'IDENTIDADE') return identidadeCompleta(state);
+  return state.recebidos.some((r) => r.codigo === codigo);
+}
+
 /** Os códigos que ainda faltam, NA ORDEM FIXA de solicitação. */
 export function faltando(state: OnboardingDocumentalState): readonly DocumentoInicial[] {
-  const tem = new Set(state.recebidos.map((r) => r.codigo));
-  return DOCUMENTACAO_INICIAL.filter((c) => !tem.has(c));
+  return DOCUMENTACAO_INICIAL.filter((c) => !codigoCompleto(state, c));
 }
 
 /** O PRÓXIMO documento obrigatório a solicitar (null = jornada completa). */
@@ -105,6 +135,15 @@ export function proximo(state: OnboardingDocumentalState): DocumentoInicial | nu
 
 export function completo(state: OnboardingDocumentalState): boolean {
   return faltando(state).length === 0;
+}
+
+/** Rótulo humano do que pedir AGORA — sabe pedir "o verso do RG". */
+export function rotuloDoPendente(state: OnboardingDocumentalState, codigo: DocumentoInicial): string {
+  if (codigo === 'IDENTIDADE') {
+    const rgs = state.recebidos.filter((r) => r.codigo === 'IDENTIDADE' && r.subtipo !== 'cnh');
+    if (rgs.length === 1) return 'o VERSO do RG (a parte de trás do documento)';
+  }
+  return ROTULO_INICIAL[codigo];
 }
 
 // ── Portas ────────────────────────────────────────────────────────────────────
@@ -170,14 +209,22 @@ export class OnboardingDocumentalRuntime {
       // Sem texto legível AINDA (o vínculo de mídia é assíncrono) ⇒ vale retentar.
       return { classificacao, jaRecebido: false, faltando: faltando(atual), classificacaoPendente: texto === null };
     }
-    if (atual.recebidos.some((r) => r.codigo === classificacao)) {
+    // Já completo para este código ⇒ reenvio não duplica. IDENTIDADE via RG
+    // aceita a SEGUNDA face (frente + verso) antes de fechar.
+    if (codigoCompleto(atual, classificacao)) {
       return { classificacao, jaRecebido: true, faltando: faltando(atual), classificacaoPendente: false };
     }
 
+    const recebido: DocumentoInicialRecebido = {
+      codigo: classificacao,
+      documentId,
+      em: now,
+      ...(classificacao === 'IDENTIDADE' ? { subtipo: detectarSubtipoIdentidade(fileName, texto ?? '') } : {}),
+    };
     const state: OnboardingDocumentalState = {
       ...atual,
       missionId: atual.missionId ?? missionId,
-      recebidos: [...atual.recebidos, { codigo: classificacao, documentId, em: now }],
+      recebidos: [...atual.recebidos, recebido],
       atualizadoEm: now,
     };
     await this.deps.store.save(state);
@@ -191,7 +238,8 @@ export class OnboardingDocumentalRuntime {
     return state !== null && completo(state);
   }
 
-  /** Visão para a CONVERSA (rótulos humanos; nunca códigos técnicos). */
+  /** Visão para a CONVERSA (rótulos humanos; nunca códigos técnicos).
+   *  Sabe pedir "o verso do RG" quando só a frente chegou. */
   async visao(chatId: string): Promise<{
     readonly recebidos: readonly string[];
     readonly faltando: readonly string[];
@@ -200,10 +248,12 @@ export class OnboardingDocumentalRuntime {
     const state = await this.deps.store.load(chatId);
     if (state === null) return null;
     const prox = proximo(state);
+    const rotuloRecebido = (r: DocumentoInicialRecebido): string =>
+      r.codigo === 'IDENTIDADE' ? (r.subtipo === 'cnh' ? 'CNH' : 'RG (uma das faces)') : ROTULO_INICIAL[r.codigo];
     return {
-      recebidos: state.recebidos.map((r) => ROTULO_INICIAL[r.codigo]),
-      faltando: faltando(state).map((c) => ROTULO_INICIAL[c]),
-      proximo: prox !== null ? ROTULO_INICIAL[prox] : null,
+      recebidos: state.recebidos.map(rotuloRecebido),
+      faltando: faltando(state).map((c) => rotuloDoPendente(state, c)),
+      proximo: prox !== null ? rotuloDoPendente(state, prox) : null,
     };
   }
 

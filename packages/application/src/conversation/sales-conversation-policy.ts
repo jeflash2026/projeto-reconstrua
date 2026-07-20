@@ -102,7 +102,7 @@ function ehPerguntaDeDireito(context: ConversationContextView): boolean {
 const CONDUTA_LEAD =
   'ESTADO: LEAD. A pessoa chegou por um anúncio sobre análise de consignado do INSS e possível recuperação de valores descontados — ela já chega interessada. ' +
   'Siga esta SEQUÊNCIA, um passo por mensagem, sem pular etapas e sem repetir etapa já cumprida na conversa: ' +
-  '(1) BOAS-VINDAS: dê boas-vindas, apresente-se — "me chamo Ahri e a partir de agora vou te acompanhar do começo ao fim" — e pergunte o NOME COMPLETO da pessoa. ' +
+  '(1) BOAS-VINDAS: dê boas-vindas, apresente-se — "me chamo Ahri e a partir de agora vou te acompanhar do começo ao fim" — e pergunte o NOME COMPLETO e a CIDADE da pessoa. ' +
   '(2) EXPLICAÇÃO: com o nome confirmado, explique BREVEMENTE como funciona: nossa equipe analisa o consignado em busca de irregularidades nos descontos do benefício; SE alguma irregularidade for encontrada, é possível buscar a revisão e a recuperação de valores. ' +
   'SEM PROMESSAS: NUNCA garanta resultado, NUNCA cite valores, NUNCA invente prazos — a análise é gratuita e sem compromisso, e só ela pode dizer se há direito. ' +
   '(3) CONSENTIMENTO: pergunte se a pessoa tem interesse em fazer a análise. ' +
@@ -140,6 +140,8 @@ function condutaOnboarding(context: ConversationContextView): string {
     situacao +
     arquivoAgora +
     'Confirme com naturalidade cada documento que o cliente enviar e peça IMEDIATAMENTE o próximo que falta — um por vez, nunca vários. ' +
+    'RG exige FRENTE E VERSO (duas fotos); CNH sozinha vale pela identidade completa. ' +
+    'Se a pessoa disser que NÃO tem comprovante de endereço no próprio nome, o comprovante em nome do CÔNJUGE é aceito — diga isso a ela. ' +
     'NUNCA diga que vai analisar o caso agora, NUNCA encerre o atendimento e NUNCA deixe o cliente aguardando: enquanto faltar documento, a conversa continua. ' +
     'É PROIBIDO solicitar QUALQUER outro documento nesta fase: NUNCA peça contratos, procuração, extratos, comprovantes bancários ou documentos judiciais — complementares só nascem do Painel do Advogado (Jornada 2). ' +
     'Responda IMEDIATAMENTE qualquer dúvida; NÃO faça perguntas que não avancem a documentação obrigatória'

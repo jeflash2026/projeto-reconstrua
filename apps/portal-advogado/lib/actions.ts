@@ -130,7 +130,7 @@ export async function solicitarDocumento(input: {
 }): Promise<SolicitacaoActionResult> {
   const id = advogadoIdAtual();
   if (!id) return { ok: false, error: 'sessão do advogado ausente', solicitacao: null };
-  const criada = await sendJson<Solicitacao>('POST', `/advogado/casos/${encodeURIComponent(input.caseId)}/document-requests`, {
+  const criada = await sendJson<Solicitacao & { anuncio?: { ok: boolean; erro: string | null } }>('POST', `/advogado/casos/${encodeURIComponent(input.caseId)}/document-requests`, {
     documentName: input.documentName,
     optionalMessage: input.optionalMessage,
     clientId: input.clientId,
@@ -142,7 +142,13 @@ export async function solicitarDocumento(input: {
     ...(input.anexo !== undefined ? { anexo: input.anexo } : {}),
   });
   revalidatePath('/solicitacoes');
-  return criada ? { ok: true, error: null, solicitacao: criada } : { ok: false, error: 'não consegui criar a solicitação (API)', solicitacao: null };
+  if (!criada) return { ok: false, error: 'não consegui criar a solicitação (API)', solicitacao: null };
+  // Correção do teste real: falha de ENVIO ao cliente ficava invisível ("disse
+  // enviado, não chegou"). Agora o advogado vê o erro literal do disparo.
+  if (criada.anuncio && !criada.anuncio.ok) {
+    return { ok: true, error: `Solicitação criada, mas o ENVIO ao cliente FALHOU: ${criada.anuncio.erro ?? 'erro desconhecido'}. Confira o WhatsApp do cliente e reenvie pela solicitação.`, solicitacao: criada };
+  }
+  return { ok: true, error: null, solicitacao: criada };
 }
 
 // ── Decreto Tráfego Pago · B2 — o número de WhatsApp do advogado ───────────────

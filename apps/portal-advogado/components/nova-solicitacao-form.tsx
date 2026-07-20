@@ -15,11 +15,23 @@ const CATEGORIAS: Readonly<Record<string, readonly string[]>> = {
   'Outros': [],
 };
 
-const NovaSolicitacaoForm = ({ casoInicial, clienteInicial, requestedBy }: { casoInicial: string; clienteInicial: string; requestedBy: string }): ReactElement => {
+export interface MeuCliente {
+  missionId: string;
+  chatId: string;
+  nome: string;
+}
+
+const NovaSolicitacaoForm = ({ casoInicial, clienteInicial, requestedBy, meusClientes = [] }: { casoInicial: string; clienteInicial: string; requestedBy: string; meusClientes?: MeuCliente[] }): ReactElement => {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
   const [caseId, setCaseId] = useState(casoInicial);
   const [clientId, setClientId] = useState(clienteInicial);
+  // Decreto Tráfego Pago: seleção do cliente PELO NOME (destinados a mim) —
+  // caso (missionId) e WhatsApp saem da seleção; digitação vira exceção.
+  const escolherCliente = (missionId: string): void => {
+    const c = meusClientes.find((m) => m.missionId === missionId);
+    if (c) { setCaseId(c.missionId); setClientId(c.chatId); }
+  };
   const [categoria, setCategoria] = useState<string>('Representação');
   const [documento, setDocumento] = useState('');
   const [prioridade, setPrioridade] = useState<'normal' | 'alta'>('normal');
@@ -64,6 +76,7 @@ const NovaSolicitacaoForm = ({ casoInicial, clienteInicial, requestedBy }: { cas
         ...(anexo !== null ? { anexo } : {}),
       });
       if (!r.ok || r.solicitacao === null) { setErro(r.error ?? 'falha ao criar'); return; }
+      if (r.error !== null) { setErro(r.error); return; } // criada, mas o envio falhou — mostrar antes de sair
       router.push(`/solicitacoes/${r.solicitacao.requestId}`);
     });
   };
@@ -71,12 +84,28 @@ const NovaSolicitacaoForm = ({ casoInicial, clienteInicial, requestedBy }: { cas
   return (
     <div className="sol-form-wrap">
       <div className="sol-form">
-        <label className="sol-label">Caso
-          <input className="sol-input mono" value={caseId} onChange={(e) => { setCaseId(e.target.value); }} placeholder="id do caso/missão" />
-        </label>
-        <label className="sol-label">Cliente (WhatsApp)
-          <input className="sol-input mono" value={clientId} onChange={(e) => { setClientId(e.target.value); }} placeholder="55…@s.whatsapp.net" />
-        </label>
+        {meusClientes.length > 0 ? (
+          <label className="sol-label">Cliente *
+            <select
+              className="sol-input"
+              value={meusClientes.find((m) => m.missionId === caseId) ? caseId : ''}
+              onChange={(e) => { escolherCliente(e.target.value); }}
+            >
+              <option value="" disabled>Selecione o cliente destinado a você…</option>
+              {meusClientes.map((c) => <option key={c.missionId} value={c.missionId}>{c.nome}</option>)}
+            </select>
+          </label>
+        ) : (
+          <>
+            <p className="sol-nota">Nenhum cliente destinado a você ainda — o escritório encaminha pelos painéis. Se precisar, informe manualmente:</p>
+            <label className="sol-label">Caso
+              <input className="sol-input mono" value={caseId} onChange={(e) => { setCaseId(e.target.value); }} placeholder="id do caso/missão" />
+            </label>
+            <label className="sol-label">Cliente (WhatsApp)
+              <input className="sol-input mono" value={clientId} onChange={(e) => { setClientId(e.target.value); }} placeholder="5541999999999@s.whatsapp.net" />
+            </label>
+          </>
+        )}
 
         <label className="sol-label">Categoria
           <select className="sol-input" value={categoria} onChange={(e) => { setCategoria(e.target.value); }}>

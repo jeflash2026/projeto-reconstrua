@@ -6,7 +6,7 @@
 // ponte automática Advogado→AHRI. Aditivo puro; nenhum congelado alterado.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock, DocumentRequestState, UuidGenerator } from '@reconstrua/domain';
-import type { AnexoStore, ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore, TraducaoClienteRuntime, DocumentRequestRuntime, DocumentRequestStore } from '@reconstrua/application';
+import type { AnexoStore, ClientesList, ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore, TraducaoClienteRuntime, DocumentRequestRuntime, DocumentRequestStore } from '@reconstrua/application';
 import {
   AdvogadoAhriBridge,
   AdvogadoAuthRuntime,
@@ -113,6 +113,9 @@ export interface AssembledAdvogadoOperation {
     canaisDe(lawyerId: string): Promise<readonly { tipo: string; endereco: string; preferido: boolean; verificadoEm: string | null }[]>;
     definir(lawyerId: string, canais: readonly { tipo: 'whatsapp' | 'email'; endereco: string; preferido: boolean; verificadoEm: string | null }[]): Promise<void>;
   };
+  // Decreto Tráfego Pago: a lista única de clientes (status derivado) — usada
+  // pelo painel admin "Clientes prontos p/ Advogado". Só produção.
+  readonly clientes?: ClientesList;
 }
 
 export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): AssembledAdvogadoOperation {

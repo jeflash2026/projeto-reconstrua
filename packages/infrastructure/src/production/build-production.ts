@@ -774,9 +774,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     documentRequests,
     documentRequestStore,
     documentRequestComunicador,
-    // Decreto Tráfego Pago: anexo p/ assinatura (B1) + canal do advogado (B2).
+    // Decreto Tráfego Pago: anexo p/ assinatura (B1) + canal do advogado (B2)
+    // + lista de clientes (painel admin "Clientes prontos p/ Advogado").
     documentRequestAnexos,
     notificationChannels,
+    clientes,
   };
 
   // ── Conexão WhatsApp (Portal Admin) — administração de instâncias Evolution ───

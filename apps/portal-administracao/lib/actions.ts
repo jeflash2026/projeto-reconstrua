@@ -314,6 +314,32 @@ export interface AssignmentResult {
   advogadoId: string;
   assignedBy: string;
   assignedAt: string;
+  /** Decreto Tráfego Pago: resultado do AVISO da AHRI ao advogado (canal dele). */
+  aviso?: 'enviado' | 'sem-canal' | 'falhou';
+}
+
+// ── Decreto Tráfego Pago — CLIENTES PRONTOS P/ ADVOGADO ───────────────────────
+export interface ClientePronto {
+  clienteId: string;
+  chatId: string;
+  missionId: string;
+  nome: string;
+  status: string;
+  pedidosConfirmadosEm: string | null;
+}
+
+export async function listarClientesProntos(): Promise<{ prontos: ClientePronto[]; advogados: { id: string; name: string }[] } | null> {
+  if (ADVOGADO_API_URL === '') return null;
+  try {
+    const res = await fetch(`${ADVOGADO_API_URL}/advogado-admin/clientes-prontos`, {
+      headers: { ...(ADVOGADO_API_TOKEN ? { authorization: `Bearer ${ADVOGADO_API_TOKEN}` } : {}) },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as { prontos: ClientePronto[]; advogados: { id: string; name: string }[] };
+  } catch {
+    return null;
+  }
 }
 
 // ── GO-LIVE-04: CONVITE do advogado — o link de criação de senha nasce do ATO

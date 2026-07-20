@@ -93,13 +93,88 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
     return { ok: true, advogadoId: result.advogadoId, nome: result.nome };
   });
 
+  // Nome humano do cliente a partir da Memória Viva (atributo 'nome'); fallback
+  // = prefixo numérico do chat. Decreto Tráfego Pago (painéis por NOME).
+  const nomeDoClientePorChat = async (chatId: string): Promise<string> => {
+    try {
+      const mem = await op.memoryStore.load(chatId);
+      const attr = mem?.attributes.find((a) => a.key === 'nome' && typeof a.value === 'string' && a.value.trim() !== '');
+      if (attr) return String(attr.value);
+    } catch {
+      /* memória indisponível ⇒ fallback */
+    }
+    return chatId.split('@')[0] ?? chatId;
+  };
+
   // ── ATRIBUIÇÃO (ato do Administrador — consumida pelo Admin Portal) ──────────
   app.post('/advogado-admin/assignments', async (request, reply) => {
     const body = request.body as { missionId?: string; advogadoId?: string; assignedBy?: string };
     if (!body.missionId || !body.advogadoId || !body.assignedBy) {
       return reply.code(400).send({ error: 'missionId, advogadoId e assignedBy são obrigatórios' });
     }
-    return op.work.assign(body.missionId, body.advogadoId, body.assignedBy);
+    const assignment = await op.work.assign(body.missionId, body.advogadoId, body.assignedBy);
+    // Decreto Tráfego Pago: a AHRI AVISA o advogado no número cadastrado por ele
+    // (best-effort: falta de canal/falha de envio nunca desfaz a atribuição).
+    let aviso: 'enviado' | 'sem-canal' | 'falhou' = 'sem-canal';
+    if (op.notificationChannels) {
+      try {
+        const canais = await op.notificationChannels.canaisDe(body.advogadoId);
+        const canal = canais.find((c) => c.tipo === 'whatsapp' && c.preferido) ?? canais.find((c) => c.tipo === 'whatsapp');
+        if (canal) {
+          await op.projector.refresh().catch(() => undefined);
+          const chatId = op.projector.missions().find((m) => m.missionId === body.missionId)?.chatId ?? null;
+          const nome = chatId !== null ? await nomeDoClientePorChat(chatId) : body.missionId;
+          await op.gateway.sendText(
+            canal.endereco,
+            `A AHRIOS encaminhou o cliente ${nome} para você representar. Ele já aparece no seu painel — o primeiro passo costuma ser enviar a procuração para assinatura.`,
+          );
+          aviso = 'enviado';
+        }
+      } catch {
+        aviso = 'falhou';
+      }
+    }
+    return { ...assignment, aviso };
+  });
+
+  // ── Decreto Tráfego Pago — CLIENTES PRONTOS P/ ADVOGADO (painel do admin) ────
+  // Prontos = prazo administrativo em curso/vencido (AGUARDANDO_10_DIAS /
+  // AGUARDANDO_SOCIO) e AINDA sem advogado atribuído.
+  app.get('/advogado-admin/clientes-prontos', async (_request, reply) => {
+    if (!op.clientes) return reply.code(503).send({ error: 'lista de clientes indisponível nesta montagem' });
+    const lista = await op.clientes.list(new Date());
+    const prontos = [];
+    for (const c of lista) {
+      if (c.status !== 'AGUARDANDO_10_DIAS' && c.status !== 'AGUARDANDO_SOCIO') continue;
+      if (c.missionId === null) continue;
+      if ((await op.work.assignedTo(c.missionId)) !== null) continue; // já tem advogado
+      prontos.push({
+        clienteId: c.clienteId,
+        chatId: c.chatId,
+        missionId: c.missionId,
+        nome: await nomeDoClientePorChat(c.chatId),
+        status: c.status,
+        pedidosConfirmadosEm: c.pedidosConfirmadosEm,
+      });
+    }
+    const advogados = (await op.staff.list('advogado')).filter((s) => s.active).map((s) => ({ id: s.id, name: s.name }));
+    return { prontos, advogados };
+  });
+
+  // ── Decreto Tráfego Pago — MEUS CLIENTES (o dropdown do painel do advogado) ──
+  app.get('/advogado/clientes', async (request, reply) => {
+    const advogadoId = (request.headers['x-advogado-id'] as string | undefined)?.trim() ?? '';
+    if (advogadoId === '') return reply.code(400).send({ error: 'x-advogado-id é obrigatório' });
+    await op.projector.refresh().catch(() => undefined);
+    const missoes = op.projector.missions();
+    const atribuicoes = await op.work.myMissions(advogadoId);
+    const clientes = [];
+    for (const a of atribuicoes) {
+      const chatId = missoes.find((m) => m.missionId === a.missionId)?.chatId ?? null;
+      if (chatId === null) continue;
+      clientes.push({ missionId: a.missionId, chatId, nome: await nomeDoClientePorChat(chatId) });
+    }
+    return { clientes };
   });
 
   // ── GO-LIVE 15C (Workflow 2) — SOLICITAÇÕES COMPLEMENTARES ───────────────────

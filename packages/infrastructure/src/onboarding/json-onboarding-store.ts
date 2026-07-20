@@ -11,7 +11,7 @@ const NS = 'onboarding-documental';
 interface Persisted {
   readonly chatId: string;
   readonly missionId: string | null;
-  readonly recebidos: readonly { codigo: string; documentId: string; em: string }[];
+  readonly recebidos: readonly { codigo: string; documentId: string; em: string; subtipo?: 'rg' | 'cnh' }[];
   readonly atualizadoEm: string;
 }
 
@@ -28,6 +28,8 @@ export class JsonOnboardingDocumentalStore implements OnboardingDocumentalStore 
         codigo: r.codigo as OnboardingDocumentalState['recebidos'][number]['codigo'],
         documentId: r.documentId,
         em: new Date(r.em),
+        // subtipo (rg/cnh) decide se a identidade fecha com 1 (CNH) ou 2 (RG f/v).
+        ...(r.subtipo !== undefined ? { subtipo: r.subtipo } : {}),
       })),
       atualizadoEm: new Date(raw.atualizadoEm),
     };
@@ -37,7 +39,7 @@ export class JsonOnboardingDocumentalStore implements OnboardingDocumentalStore 
     const persisted: Persisted = {
       chatId: state.chatId,
       missionId: state.missionId,
-      recebidos: state.recebidos.map((r) => ({ codigo: r.codigo, documentId: r.documentId, em: r.em.toISOString() })),
+      recebidos: state.recebidos.map((r) => ({ codigo: r.codigo, documentId: r.documentId, em: r.em.toISOString(), ...(r.subtipo !== undefined ? { subtipo: r.subtipo } : {}) })),
       atualizadoEm: state.atualizadoEm.toISOString(),
     };
     await this.json.put(NS, state.chatId, persisted);

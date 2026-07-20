@@ -77,15 +77,21 @@ describe('Decreto · runtime da jornada', () => {
     expect(visao?.proximo).toContain('RG');
   });
 
-  it('cada documento classificado atualiza a lista automaticamente até 100%', async () => {
-    const h = harness({ d1: 'registro geral órgão emissor', d2: 'fatura de energia elétrica', d3: 'histórico de empréstimo consignado' });
+  it('RG exige FRENTE E VERSO: a primeira face NÃO fecha a identidade; a AHRI pede o verso', async () => {
+    const h = harness({ f: 'registro geral órgão emissor', v: 'carteira de identidade filiação', d2: 'fatura de energia elétrica', d3: 'histórico de empréstimo consignado' });
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
 
-    const r1 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'IMG_1.jpg', NOW);
+    const r1 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'f', 'IMG_1.jpg', NOW);
     expect(r1.classificacao).toBe('IDENTIDADE');
-    expect((await h.runtime.visao(CHAT))?.proximo).toContain('comprovante de endereço'); // o próximo, imediatamente
+    // O defeito do teste real: com UMA face, ela seguia para o comprovante. Agora pede o VERSO.
+    expect((await h.runtime.visao(CHAT))?.proximo).toContain('VERSO do RG');
+    expect(h.pendenciasGravadas.at(-1)).toContain('IDENTIDADE'); // ainda pendente no ALIR
 
-    const r2 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd2', 'IMG_2.jpg', NOW);
+    const r1b = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'v', 'IMG_2.jpg', NOW);
+    expect(r1b.classificacao).toBe('IDENTIDADE');
+    expect((await h.runtime.visao(CHAT))?.proximo).toContain('comprovante de endereço'); // frente+verso ⇒ próximo
+
+    const r2 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd2', 'IMG_3.jpg', NOW);
     expect(r2.classificacao).toBe('COMPROVANTE_RESIDENCIA');
     expect((await h.runtime.visao(CHAT))?.proximo).toContain('HISCON');
 
@@ -94,7 +100,25 @@ describe('Decreto · runtime da jornada', () => {
     expect(r3.faltando).toHaveLength(0);
     expect(await h.runtime.estaCompleto(CHAT)).toBe(true); // ⇒ ANALISE_ADMINISTRATIVA
     expect(h.pendenciasGravadas.at(-1)).toEqual([]); // ALIR/Readiness: nada pendente
-    // Fora de ordem também funciona: a classificação é independente da ordem de pedido.
+  });
+
+  it('CNH sozinha COMPLETA a identidade (não pede verso)', async () => {
+    const h = harness({ c: 'carteira nacional de habilitação' });
+    await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
+    const r = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'c', 'IMG_1.jpg', NOW);
+    expect(r.classificacao).toBe('IDENTIDADE');
+    const visao = await h.runtime.visao(CHAT);
+    expect(visao?.recebidos).toContain('CNH');
+    expect(visao?.proximo).toContain('comprovante de endereço'); // nada de verso
+  });
+
+  it('TERCEIRA imagem de RG não duplica (identidade já completa)', async () => {
+    const h = harness({ f: 'registro geral', v: 'carteira de identidade', x: 'registro geral' });
+    await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
+    await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'f', 'a.jpg', NOW);
+    await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'v', 'b.jpg', NOW);
+    const r = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'x', 'c.jpg', NOW);
+    expect(r.jaRecebido).toBe(true);
   });
 
   it('documento do MESMO tipo reenviado não duplica a contabilidade', async () => {
@@ -124,7 +148,7 @@ describe('Decreto · runtime da jornada', () => {
   });
 
   it('jornada completa ⇒ documento novo NÃO pertence à Jornada 1 (é acervo/Jornada 2)', async () => {
-    const h = harness({ d1: 'hiscon', d2: 'registro geral', d3: 'conta de luz', d4: 'procuração assinada' });
+    const h = harness({ d1: 'hiscon', d2: 'carteira nacional de habilitação', d3: 'conta de luz', d4: 'procuração assinada' });
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
     await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'a.pdf', NOW);
     await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd2', 'b.jpg', NOW);

@@ -238,8 +238,15 @@ class LlmExpression implements LlmExpressionPort {
     } catch {
       this.track('expression', this.clock.now().getTime() - t0, false);
     }
-    // Degrade explícito NEUTRO (GO-LIVE 9B): nunca afirma "acompanhando" nem
-    // caso/processo — isso é privilégio de fatos da Truth Layer, não do fallback.
+    // Degrade explícito (GO-LIVE 9B + correção do teste real de 2026-07-20):
+    // o fallback antigo ("volto a falar em breve") criava um BECO SEM SAÍDA no
+    // meio da triagem. Se a contabilidade da Jornada 1 conhece o PRÓXIMO
+    // documento, o fallback CONTINUA a coleta — determinístico e autorado.
+    // Nunca afirma "acompanhando" nem caso/processo (privilégio da Truth Layer).
+    const proximoDoc = request.context.onboardingDocumental?.proximo ?? null;
+    if (proximoDoc !== null) {
+      return `Recebido! 👍 Agora me manda o próximo documento: ${proximoDoc}, por favor.`;
+    }
     return 'Recebi sua mensagem e volto a falar com você em breve.';
   }
 }

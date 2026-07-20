@@ -19,6 +19,12 @@ export type { MissaoDaConversa };
 /** Todo novo contato, sem sinal de domínio, é um LEAD. */
 export const MISSAO_PADRAO: MissaoDaConversa = 'LEAD';
 
+const ESTADOS_VALIDOS: ReadonlySet<string> = new Set(['LEAD', 'EM_ANALISE', 'CLIENTE', 'POS_ATENDIMENTO']);
+/** Fallback SEGURO: só as 4 missões conhecidas passam; qualquer outra ⇒ LEAD. */
+export function ehMissaoValida(v: unknown): v is MissaoDaConversa {
+  return typeof v === 'string' && ESTADOS_VALIDOS.has(v);
+}
+
 /** Resposta CANÔNICA para a pergunta de elegibilidade ("tenho direito?"). */
 export const RESPOSTA_ELEGIBILIDADE =
   'É possível, mas somente conseguimos afirmar após analisar gratuitamente o HISCON e os contratos do benefício.';
@@ -98,7 +104,8 @@ const REFORCO_POS =
 
 /** Avalia a política do turno pelo ESTADO da missão. Determinística. */
 export function politicaDaMissao(context: ConversationContextView): PoliticaDaMissao {
-  const missao: MissaoDaConversa = context.missaoDaConversa ?? MISSAO_PADRAO;
+  // Item 15A-review Q4: estado ausente, desconhecido OU inválido ⇒ LEAD (seguro).
+  const missao: MissaoDaConversa = ehMissaoValida(context.missaoDaConversa) ? context.missaoDaConversa : MISSAO_PADRAO;
   const objetivo = OBJETIVO_DA_MISSAO[missao];
   const perguntaDireta = ehPerguntaDireta(context);
   const podeResponderElegibilidade = missao === 'LEAD' || missao === 'EM_ANALISE';

@@ -63,6 +63,14 @@ describe('15A · a política por ESTADO da missão', () => {
     expect(politicaDaMissao(contexto({})).missao).toBe('LEAD');
   });
 
+  it('Q4 — estado INVÁLIDO/desconhecido ⇒ fallback seguro para LEAD', () => {
+    const ruim = { ...contexto({}), missaoDaConversa: 'ESTADO_INEXISTENTE' } as unknown as ConversationContextView;
+    const p = politicaDaMissao(ruim);
+    expect(p.missao).toBe('LEAD');
+    expect(p.objetivo).toBe('Converter Lead');
+    expect(p.substituiCuriosidade).toBe(true); // nunca undefined — nunca quebra o PromptBuilder
+  });
+
   it('LEAD ⇒ conduta comercial substitui a curiosidade; converge p/ conversão + coleta', () => {
     const p = politicaDaMissao(contexto({ missao: 'LEAD' }));
     expect(p.substituiCuriosidade).toBe(true);

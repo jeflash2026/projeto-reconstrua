@@ -57,43 +57,44 @@ describe('Decreto · classificação DETERMINÍSTICA dos 3 obrigatórios', () =>
   });
 });
 
-describe('Decreto · ordem FIXA e contabilidade', () => {
-  it('a ordem é HISCON → RG/CNH → comprovante de endereço. Sempre.', () => {
-    expect(DOCUMENTACAO_INICIAL).toEqual(['CNIS', 'IDENTIDADE', 'COMPROVANTE_RESIDENCIA']);
+describe('Decreto Tráfego Pago · ordem FIXA e contabilidade', () => {
+  it('a ordem é RG/CNH → comprovante de endereço → HISCON. Sempre.', () => {
+    expect(DOCUMENTACAO_INICIAL).toEqual(['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS']);
     const s = novoOnboarding(CHAT, 'M-1', NOW);
-    expect(proximo(s)).toBe('CNIS'); // HISCON primeiro (15B)
+    expect(proximo(s)).toBe('IDENTIDADE'); // RG/CNH primeiro (decreto revoga o HISCON-first do 15B)
     expect(faltando(s)).toHaveLength(3);
     expect(completo(s)).toBe(false);
   });
 });
 
 describe('Decreto · runtime da jornada', () => {
-  it('semeia na criação da missão: os TRÊS pendentes sincronizados', async () => {
+  it('semeia na criação da missão: os TRÊS pendentes sincronizados (RG primeiro)', async () => {
     const h = harness();
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
     expect(await h.runtime.estaCompleto(CHAT)).toBe(false);
-    expect(h.pendenciasGravadas.at(-1)).toEqual(['CNIS', 'IDENTIDADE', 'COMPROVANTE_RESIDENCIA']);
+    expect(h.pendenciasGravadas.at(-1)).toEqual(['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS']);
     const visao = await h.runtime.visao(CHAT);
-    expect(visao?.proximo).toContain('HISCON');
+    expect(visao?.proximo).toContain('RG');
   });
 
   it('cada documento classificado atualiza a lista automaticamente até 100%', async () => {
-    const h = harness({ d1: 'histórico de empréstimo consignado', d2: 'registro geral órgão emissor', d3: 'fatura de energia elétrica' });
+    const h = harness({ d1: 'registro geral órgão emissor', d2: 'fatura de energia elétrica', d3: 'histórico de empréstimo consignado' });
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
 
-    const r1 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'doc.pdf', NOW);
-    expect(r1.classificacao).toBe('CNIS');
-    expect((await h.runtime.visao(CHAT))?.proximo).toContain('RG ou CNH'); // o próximo, imediatamente
+    const r1 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'IMG_1.jpg', NOW);
+    expect(r1.classificacao).toBe('IDENTIDADE');
+    expect((await h.runtime.visao(CHAT))?.proximo).toContain('comprovante de endereço'); // o próximo, imediatamente
 
-    const r2 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd2', 'IMG_1.jpg', NOW);
-    expect(r2.classificacao).toBe('IDENTIDADE');
-    expect((await h.runtime.visao(CHAT))?.proximo).toContain('comprovante de endereço');
+    const r2 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd2', 'IMG_2.jpg', NOW);
+    expect(r2.classificacao).toBe('COMPROVANTE_RESIDENCIA');
+    expect((await h.runtime.visao(CHAT))?.proximo).toContain('HISCON');
 
-    const r3 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd3', 'IMG_2.jpg', NOW);
-    expect(r3.classificacao).toBe('COMPROVANTE_RESIDENCIA');
+    const r3 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd3', 'doc.pdf', NOW);
+    expect(r3.classificacao).toBe('CNIS');
     expect(r3.faltando).toHaveLength(0);
     expect(await h.runtime.estaCompleto(CHAT)).toBe(true); // ⇒ ANALISE_ADMINISTRATIVA
     expect(h.pendenciasGravadas.at(-1)).toEqual([]); // ALIR/Readiness: nada pendente
+    // Fora de ordem também funciona: a classificação é independente da ordem de pedido.
   });
 
   it('documento do MESMO tipo reenviado não duplica a contabilidade', async () => {

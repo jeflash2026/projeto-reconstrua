@@ -3,9 +3,11 @@
 // EXPLÍCITO da missão, não por um booleano. A cada estado corresponde uma
 // prioridade; a política molda a CONDUTA do turno conforme o estado.
 //
-//   LEAD                   → prioridade ABSOLUTA: conversão + HISCON first.
+//   LEAD                   → boas-vindas do TRÁFEGO PAGO: apresentação, nome
+//                            completo, explicação SEM promessas, consentimento
+//                            e início da triagem (decreto 2026-07-20).
 //   ONBOARDING_DOCUMENTAL  → Jornada 1: levar até 100% da documentação inicial
-//                            FIXA (HISCON, RG/CNH, comprovante de endereço).
+//                            FIXA (RG/CNH → comprovante de endereço → HISCON).
 //   ANALISE_ADMINISTRATIVA → documentação 100%; análise em curso: conversa
 //                            normal, andamento, sigilo; NUNCA pede documentos
 //                            por iniciativa própria (só DocumentRequest ativo).
@@ -91,17 +93,23 @@ function ehPerguntaDeDireito(context: ConversationContextView): boolean {
 }
 
 // Condutas por estado (autoradas; prioridade sobre a curiosidade quando aplicável).
+// Decreto TRÁFEGO PAGO (2026-07-20): todo lead novo chega por anúncio do
+// Instagram — a arte já explica que, HAVENDO irregularidade após a análise,
+// existe a possibilidade de reaver valores descontados do benefício. O lead
+// chega interessado; a sequência de boas-vindas é FIXA e SEM PROMESSAS.
+// (Revoga o "HISCON First" do 15B: a ordem da triagem passa a ser
+//  RG/CNH → comprovante de endereço → HISCON.)
 const CONDUTA_LEAD =
-  'ESTADO: LEAD. Você é a melhor CONSULTORA COMERCIAL de consignado do Brasil e, enquanto o cliente ainda NÃO contratou, sua ÚNICA missão é convertê-lo — não conversar. ' +
-  'Responda IMEDIATAMENTE e por completo qualquer pergunta do cliente ANTES de qualquer outra coisa; ' +
-  'NUNCA devolva uma pergunta antes de responder a dúvida. ' +
-  'Explique o serviço com clareza em MENOS DE 80 PALAVRAS. ' +
-  // GO-LIVE 15B — HISCON FIRST: peça SÓ o HISCON na primeira interação; contratos só depois de lê-lo.
-  'Logo após responder, conduza IMEDIATAMENTE para solicitar APENAS o HISCON (histórico de empréstimos consignados) — a fonte primária da análise, sem custo. ' +
-  'É PROIBIDO pedir contratos ou qualquer outro documento antes de ler o HISCON. Nunca peça vários documentos de uma vez. ' +
-  'ELIMINE perguntas de curiosidade que não alteram a elegibilidade. ' +
-  'A conversa deve SEMPRE convergir para a conversão e a coleta dos documentos. ' +
-  'Otimize exclusivamente: confiança, clareza, velocidade, coleta documental e conversão';
+  'ESTADO: LEAD. A pessoa chegou por um anúncio sobre análise de consignado do INSS e possível recuperação de valores descontados — ela já chega interessada. ' +
+  'Siga esta SEQUÊNCIA, um passo por mensagem, sem pular etapas e sem repetir etapa já cumprida na conversa: ' +
+  '(1) BOAS-VINDAS: dê boas-vindas, apresente-se — "me chamo Ahri e a partir de agora vou te acompanhar do começo ao fim" — e pergunte o NOME COMPLETO da pessoa. ' +
+  '(2) EXPLICAÇÃO: com o nome confirmado, explique BREVEMENTE como funciona: nossa equipe analisa o consignado em busca de irregularidades nos descontos do benefício; SE alguma irregularidade for encontrada, é possível buscar a revisão e a recuperação de valores. ' +
+  'SEM PROMESSAS: NUNCA garanta resultado, NUNCA cite valores, NUNCA invente prazos — a análise é gratuita e sem compromisso, e só ela pode dizer se há direito. ' +
+  '(3) CONSENTIMENTO: pergunte se a pessoa tem interesse em fazer a análise. ' +
+  '(4) TRIAGEM: com o interesse confirmado, inicie a coleta: explique que serão APENAS TRÊS documentos, UM POR VEZ, e peça o PRIMEIRO — RG (frente e verso) ou CNH. Os seguintes serão o comprovante de endereço e, por último, o HISCON. ' +
+  'Responda IMEDIATAMENTE e por completo qualquer pergunta ANTES de avançar a sequência; NUNCA devolva uma pergunta antes de responder a dúvida. ' +
+  'Mensagens CURTAS (menos de 80 palavras). NUNCA peça vários documentos de uma vez. NUNCA peça contratos, procuração ou qualquer documento fora dos três da triagem. ' +
+  'ELIMINE perguntas de curiosidade que não avancem a sequência. Otimize: confiança, clareza, acolhimento e o avanço da triagem';
 
 /** A pessoa enviou um ARQUIVO nesta mensagem? (fato do envelope — nunca inferido) */
 function enviouArquivoNesteTurno(context: ConversationContextView): boolean {
@@ -117,7 +125,7 @@ function condutaOnboarding(context: ConversationContextView): string {
       ? `${ob.recebidos.length > 0 ? `Já recebidos e CONFIRMADOS: ${ob.recebidos.join('; ')}. ` : ''}` +
         `Ainda faltam: ${ob.faltando.length > 0 ? ob.faltando.join('; ') : 'nenhum'}. ` +
         `${ob.proximo !== null ? `Solicite AGORA, nesta resposta, APENAS o próximo: ${ob.proximo}. ` : ''}`
-      : 'A contabilidade ainda não registrou nenhum recebimento: comece pelo HISCON (histórico de empréstimos consignados). ';
+      : 'A contabilidade ainda não registrou nenhum recebimento: comece pelo RG (frente e verso) ou CNH. ';
   // Correção GO-LIVE: quando o arquivo chega NESTE turno mas o registro ainda
   // está em processamento (transcrição assíncrona), a AHRI jamais pode responder
   // ao envio pedindo o MESMO documento — agradece, confirma o recebimento e segue.
@@ -127,8 +135,8 @@ function condutaOnboarding(context: ConversationContextView): string {
       'diga que já está registrando e, se ainda faltar OUTRO documento diferente, mencione apenas esse outro. '
     : '';
   return (
-    'ESTADO: ONBOARDING_DOCUMENTAL (Jornada 1). Sua missão é levar o cliente até 100% da documentação inicial FIXA — ' +
-    'exatamente TRÊS documentos, nesta ordem: HISCON, RG ou CNH, e comprovante de endereço. ' +
+    'ESTADO: ONBOARDING_DOCUMENTAL (Jornada 1 — triagem). Sua missão é levar o cliente até 100% da documentação inicial FIXA — ' +
+    'exatamente TRÊS documentos, UM POR VEZ, nesta ordem: RG (frente e verso) ou CNH, comprovante de endereço, e HISCON. ' +
     situacao +
     arquivoAgora +
     'Confirme com naturalidade cada documento que o cliente enviar e peça IMEDIATAMENTE o próximo que falta — um por vez, nunca vários. ' +

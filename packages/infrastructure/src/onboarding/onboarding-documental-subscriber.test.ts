@@ -51,11 +51,11 @@ describe('Decreto · a jornada alimentada pelos eventos reais', () => {
   it('mission.created semeia (3 pendentes) e cada documento leva até 100%', async () => {
     const h = harness({ d1: 'histórico de empréstimo consignado INSS', d2: 'carteira nacional de habilitação', d3: 'fatura de energia elétrica' });
     await h.subscriber.handle(missaoCriada);
-    expect(h.pendencias.at(-1)).toEqual(['CNIS', 'IDENTIDADE', 'COMPROVANTE_RESIDENCIA']);
+    expect(h.pendencias.at(-1)).toEqual(['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS']);
     expect(await h.runtime.estaCompleto(CHAT)).toBe(false); // ⇒ ONBOARDING_DOCUMENTAL
 
     await h.subscriber.handle(docReconhecido('d1', 'doc.pdf'));
-    expect((await h.runtime.visao(CHAT))?.proximo).toContain('RG ou CNH');
+    expect((await h.runtime.visao(CHAT))?.proximo).toContain('RG'); // HISCON chegou fora de ordem; o próximo é o RG
     await h.subscriber.handle(docReconhecido('d2', 'IMG_1.jpg'));
     await h.subscriber.handle(docReconhecido('d3', 'IMG_2.jpg'));
 
@@ -71,7 +71,7 @@ describe('Decreto · a jornada alimentada pelos eventos reais', () => {
     // A transcrição ficou pronta ⇒ a reentrega classifica.
     textos['dX'] = 'REGISTRO GERAL — órgão emissor SSP';
     await h.subscriber.handle(docReconhecido('dX', 'IMG_5555.jpg'));
-    expect((await h.runtime.visao(CHAT))?.recebidos.some((r) => r.includes('RG ou CNH'))).toBe(true);
+    expect((await h.runtime.visao(CHAT))?.recebidos.some((r) => r.includes('RG'))).toBe(true);
   });
 
   it('chat da missão irresolúvel ⇒ LANÇA (a projeção pode estar um ciclo atrás)', async () => {

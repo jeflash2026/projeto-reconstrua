@@ -1,15 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// JORNADA 1 — DOCUMENTAÇÃO INICIAL (Decreto "Jornada Documental Inicial").
+// JORNADA 1 — DOCUMENTAÇÃO INICIAL (Decreto "Jornada Documental Inicial";
+// ordem revisada pelo decreto do Tráfego Pago de 2026-07-20, que REVOGA o
+// "HISCON First" do 15B).
 //
 // A documentação inicial é FIXA. Sempre. Nunca depende do advogado:
-//   1. HISCON (código canônico CNIS — extrato de consignações)
-//   2. RG ou CNH (IDENTIDADE)
-//   3. Comprovante de endereço (COMPROVANTE_RESIDENCIA)
+//   1. RG (frente e verso) ou CNH (código canônico IDENTIDADE)
+//   2. Comprovante de endereço (COMPROVANTE_RESIDENCIA)
+//   3. HISCON (código canônico CNIS — extrato de consignações)
 //
 // Este módulo é a CONTABILIDADE CANÔNICA da jornada: qual documento obrigatório
 // já chegou (classificação determinística sobre o TEXTO transcrito pelo Reader
 // — a IA apenas transcreve; a decisão vem de regras explícitas) e qual é o
-// PRÓXIMO a solicitar (ordem fixa — HISCON primeiro, 15B).
+// PRÓXIMO a solicitar (ordem fixa acima — um documento por vez).
 //
 // Enquanto faltar QUALQUER um dos três ⇒ missão da conversa ONBOARDING_DOCUMENTAL.
 // Com os três completos ⇒ ANALISE_ADMINISTRATIVA (a AHRI muda automaticamente).
@@ -17,15 +19,16 @@
 // DocumentRequest, exclusivo do Painel do Advogado).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Os TRÊS documentos obrigatórios, na ORDEM FIXA de solicitação (HISCON 1º). */
-export const DOCUMENTACAO_INICIAL = ['CNIS', 'IDENTIDADE', 'COMPROVANTE_RESIDENCIA'] as const;
+/** Os TRÊS documentos obrigatórios, na ORDEM FIXA de solicitação
+ *  (decreto Tráfego Pago: RG/CNH → comprovante de endereço → HISCON). */
+export const DOCUMENTACAO_INICIAL = ['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS'] as const;
 export type DocumentoInicial = (typeof DOCUMENTACAO_INICIAL)[number];
 export type ClassificacaoInicial = DocumentoInicial | 'OUTRO';
 
 /** Rótulos que a AHRI usa com o cliente (nunca o código técnico). */
 export const ROTULO_INICIAL: Readonly<Record<DocumentoInicial, string>> = {
   CNIS: 'HISCON (histórico de empréstimos consignados do INSS)',
-  IDENTIDADE: 'RG ou CNH (documento de identidade com foto)',
+  IDENTIDADE: 'RG (frente e verso) ou CNH',
   COMPROVANTE_RESIDENCIA: 'comprovante de endereço',
 };
 

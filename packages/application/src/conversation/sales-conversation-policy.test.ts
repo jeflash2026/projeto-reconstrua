@@ -92,17 +92,20 @@ describe('15A · a política por ESTADO da missão', () => {
     }
   });
 
-  it('LEAD ⇒ conduta comercial substitui a curiosidade; converge p/ conversão + coleta', () => {
+  it('LEAD (Tráfego Pago) ⇒ sequência fixa: boas-vindas → nome → explicação → consentimento → triagem', () => {
     const p = politicaDaMissao(contexto({ missao: 'LEAD' }));
     expect(p.substituiCuriosidade).toBe(true);
-    expect(p.conduta).toContain('ÚNICA missão é convertê-lo');
+    expect(p.conduta).toContain('vou te acompanhar do começo ao fim');
+    expect(p.conduta).toContain('NOME COMPLETO');
+    expect(p.conduta).toContain('SEM PROMESSAS');
+    expect(p.conduta).toContain('NUNCA garanta resultado');
+    expect(p.conduta).toContain('interesse em fazer a análise');
+    expect(p.conduta).toContain('APENAS TRÊS documentos, UM POR VEZ');
+    expect(p.conduta).toContain('RG (frente e verso) ou CNH');
     expect(p.conduta).toContain('Responda IMEDIATAMENTE');
     expect(p.conduta).toContain('NUNCA devolva uma pergunta antes de responder');
-    expect(p.conduta).toContain('MENOS DE 80 PALAVRAS');
-    // GO-LIVE 15B — HISCON FIRST: pede SÓ o HISCON e proíbe contratos antes.
-    expect(p.conduta).toContain('solicitar APENAS o HISCON');
-    expect(p.conduta).toContain('PROIBIDO pedir contratos');
-    expect(p.conduta).toContain('SEMPRE convergir para a conversão');
+    expect(p.conduta).toContain('menos de 80 palavras');
+    expect(p.conduta).toContain('NUNCA peça contratos, procuração');
   });
 
   it('CLIENTE ⇒ NÃO substitui (conversa livre 9E) + reforço leve sem perder a missão', () => {
@@ -134,11 +137,11 @@ describe('15A · a política por ESTADO da missão', () => {
 });
 
 describe('Decreto · JORNADA 1 — ONBOARDING_DOCUMENTAL', () => {
-  it('substitui a curiosidade; documentação FIXA de TRÊS, na ordem, um por vez', () => {
+  it('substitui a curiosidade; documentação FIXA de TRÊS, na ordem do decreto, um por vez', () => {
     const p = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL' }));
     expect(p.substituiCuriosidade).toBe(true);
     expect(p.conduta).toContain('100% da documentação inicial FIXA');
-    expect(p.conduta).toContain('TRÊS documentos, nesta ordem: HISCON, RG ou CNH, e comprovante de endereço');
+    expect(p.conduta).toContain('nesta ordem: RG (frente e verso) ou CNH, comprovante de endereço, e HISCON');
     expect(p.conduta).toContain('um por vez, nunca vários');
   });
 
@@ -156,9 +159,9 @@ describe('Decreto · JORNADA 1 — ONBOARDING_DOCUMENTAL', () => {
     expect(p.conduta).toContain('Solicite AGORA, nesta resposta, APENAS o próximo: RG ou CNH');
   });
 
-  it('sem contabilidade semeada ⇒ começa pelo HISCON (15B — HISCON first)', () => {
+  it('sem contabilidade semeada ⇒ começa pelo RG/CNH (ordem do decreto)', () => {
     const p = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL', onboarding: null }));
-    expect(p.conduta).toContain('comece pelo HISCON');
+    expect(p.conduta).toContain('comece pelo RG (frente e verso) ou CNH');
   });
 
   it('nunca encerra, nunca "vou analisar", nunca deixa aguardando', () => {
@@ -209,29 +212,35 @@ describe('Decreto · ANALISE_ADMINISTRATIVA — conversa normal, zero pedido esp
   });
 });
 
-describe('15B · HISCON First Policy — o HISCON é sempre o primeiro documento', () => {
-  it('LEAD pede APENAS o HISCON e PROÍBE contratos antes de lê-lo', () => {
+describe('Decreto Tráfego Pago — a triagem REVOGA o HISCON-first do 15B', () => {
+  it('a ordem da triagem é RG/CNH → comprovante → HISCON (um por vez)', () => {
     const c = politicaDaMissao(contexto({ missao: 'LEAD' })).conduta;
-    expect(c).toContain('solicitar APENAS o HISCON');
-    expect(c).toContain('PROIBIDO pedir contratos ou qualquer outro documento antes de ler o HISCON');
-    expect(c).toContain('Nunca peça vários documentos de uma vez');
+    expect(c).toContain('RG (frente e verso) ou CNH');
+    expect(c).toContain('comprovante de endereço e, por último, o HISCON');
+    expect(c).toContain('NUNCA peça vários documentos de uma vez');
   });
-  it('a resposta canônica de elegibilidade cita SÓ o HISCON (fonte primária)', () => {
+  it('a resposta canônica de elegibilidade continua citando SÓ o HISCON (fonte da análise)', () => {
     expect(RESPOSTA_ELEGIBILIDADE).toContain('HISCON');
     expect(RESPOSTA_ELEGIBILIDADE).not.toMatch(/contratos/i);
   });
-  it('ONBOARDING mantém a ordem fixa com o HISCON em primeiro', () => {
+  it('ONBOARDING segue a MESMA ordem do decreto', () => {
     const c = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL' })).conduta;
-    expect(c).toContain('nesta ordem: HISCON');
+    expect(c).toContain('nesta ordem: RG (frente e verso) ou CNH');
+  });
+  it('SEM PROMESSAS: nunca garantir resultado, valores ou prazos', () => {
+    const c = politicaDaMissao(contexto({ missao: 'LEAD' })).conduta;
+    expect(c).toContain('NUNCA garanta resultado');
+    expect(c).toContain('NUNCA cite valores');
+    expect(c).toContain('NUNCA invente prazos');
   });
 });
 
 describe('15A · integração no PromptBuilder — o estado guia o styleGuidance', () => {
   const builder = new PromptBuilderRuntime(8);
 
-  it('LEAD: styleGuidance COMERCIAL (substitui a curiosidade 9E)', () => {
+  it('LEAD: styleGuidance da sequência de boas-vindas (substitui a curiosidade 9E)', () => {
     const req = builder.build(intent(), contexto({ missao: 'LEAD', purpose: 'greeting' }));
-    expect(req.styleGuidance).toContain('ÚNICA missão é convertê-lo');
+    expect(req.styleGuidance).toContain('vou te acompanhar do começo ao fim');
     expect(req.styleGuidance).not.toContain('retribua o cumprimento'); // conduta 9D suprimida
   });
 
@@ -251,13 +260,13 @@ describe('15A · integração no PromptBuilder — o estado guia o styleGuidance
 
   it('ANALISE_ADMINISTRATIVA: conversa livre 9E + reforço (zero pedido espontâneo)', () => {
     const req = builder.build(intent(), contexto({ missao: 'ANALISE_ADMINISTRATIVA', purpose: 'question' }));
-    expect(req.styleGuidance).not.toContain('ÚNICA missão é convertê-lo');
+    expect(req.styleGuidance).not.toContain('vou te acompanhar do começo ao fim');
     expect(req.styleGuidance).toContain('NUNCA solicite documentos por iniciativa própria');
   });
 
   it('CLIENTE: volta a curiosidade 9E + reforço (não comercial)', () => {
     const req = builder.build(intent(), contexto({ missao: 'CLIENTE', purpose: 'question' }));
-    expect(req.styleGuidance).not.toContain('ÚNICA missão é convertê-lo');
+    expect(req.styleGuidance).not.toContain('vou te acompanhar do começo ao fim');
     expect(req.styleGuidance).toContain('MENOR resposta verdadeira'); // 9E (informativo)
     expect(req.styleGuidance).toContain('nunca perca a missão'); // reforço 15A
   });

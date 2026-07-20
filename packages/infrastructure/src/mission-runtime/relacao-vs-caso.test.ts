@@ -113,7 +113,30 @@ describe('Ausência declarada + fallback neutro', () => {
       avoidPhrases: [],
       styleGuidance: 'neutro',
     });
-    expect(texto).toBe('Recebi sua mensagem e volto a falar com você em breve.');
+    // Correção GO-LIVE (teste real): o fallback pede a repetição (mantém a
+    // conversa viva) — e continua NEUTRO: nada de acompanhamento/caso/processo.
+    expect(texto).toContain('instabilidade');
+    expect(texto).toContain('mandar sua última mensagem de novo');
     expect(texto).not.toMatch(/acompanhand|processo|caso/i);
+  });
+
+  it('degrade DENTRO da triagem: o fallback CONTINUA a coleta (pede o próximo documento)', async () => {
+    const config = {
+      ...DEFAULT_PRODUCTION_CONFIG,
+      llm: { ...DEFAULT_PRODUCTION_CONFIG.llm, provider: 'anthropic' as const, anthropicApiKey: 'sk-ant-teste' },
+    };
+    const bundle = createLlmBundle({
+      config,
+      http: { postJson: () => Promise.reject(new Error('rede fora')) },
+      observability: new ObservabilityRuntime(() => undefined),
+      clock: { now: () => new Date('2026-07-19T12:00:00.000Z') },
+    });
+    const texto = await bundle.expression.phrase({
+      intent: { id: 'i1', chatId: 'c1', directive: 'speak', speechAct: 'explain', topic: 'documentos', references: [], urgency: 'normal', operationalRuleRef: 'RO-2D-DOC-ACK', fundamento: 'x', timingHintMs: null, formedAt: new Date() },
+      context: { lastPercept: null, casoFatos: null, recentOutboundTexts: [], onboardingDocumental: { recebidos: [], faltando: ['RG (frente e verso) ou CNH'], proximo: 'RG (frente e verso) ou CNH' } } as never,
+      avoidPhrases: [],
+      styleGuidance: 'neutro',
+    });
+    expect(texto).toContain('me manda o próximo documento: RG (frente e verso) ou CNH');
   });
 });

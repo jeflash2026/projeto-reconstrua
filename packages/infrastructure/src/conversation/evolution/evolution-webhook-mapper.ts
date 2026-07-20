@@ -79,7 +79,12 @@ function parseMessage(message: Record<string, unknown>): Parsed | null {
       const edited =
         asString(dig(protocol, ['editedMessage', 'conversation'])) ??
         asString(dig(protocol, ['editedMessage', 'extendedTextMessage', 'text']));
-      return { ...base, kind: 'edit', editedText: edited };
+      // Correção GO-LIVE (teste real 2026-07-20): mensagem EDITADA ficava MUDA —
+      // nenhuma regra de nenhum catálogo atende kind 'edit', então o Brain
+      // silenciava (a cliente editou o nome e a AHRI a ignorou). A edição É a
+      // mensagem da pessoa, corrigida ⇒ entra como TEXT (editedText preservado
+      // como proveniência).
+      return { ...base, kind: 'text', text: edited, editedText: edited };
     }
   }
 
@@ -91,7 +96,8 @@ function parseMessage(message: Record<string, unknown>): Parsed | null {
       asString(inner['conversation']) ??
       asString(dig(inner, ['extendedTextMessage', 'text'])) ??
       asString(dig(inner, ['protocolMessage', 'editedMessage', 'conversation']));
-    return { ...base, kind: 'edit', editedText: edited };
+    // Mesma correção: edição fala como TEXT (nunca mais silêncio).
+    return { ...base, kind: 'text', text: edited, editedText: edited };
   }
 
   // Imagem

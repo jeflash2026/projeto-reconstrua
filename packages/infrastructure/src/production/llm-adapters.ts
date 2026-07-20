@@ -167,7 +167,7 @@ class LlmPerception implements LlmPerceptionPort {
   constructor(
     private readonly llm: LlmCompletion,
     private readonly config: ProductionConfig,
-    private readonly track: (op: string, ms: number, ok: boolean) => void,
+    private readonly track: (op: string, ms: number, ok: boolean, detalhe?: string) => void,
     private readonly clock: Clock,
   ) {}
   async understand(envelope: InboundEnvelope, context: PerceptionContext): Promise<PerceptEnrichment> {
@@ -177,10 +177,10 @@ class LlmPerception implements LlmPerceptionPort {
     try {
       const raw = (await this.llm.complete(system, user)).text;
       const parsed = parseEnrichment(raw);
-      this.track('perception', this.clock.now().getTime() - t0, parsed !== null);
+      this.track('perception', this.clock.now().getTime() - t0, parsed !== null, parsed === null ? `parse falhou; resposta="${raw.slice(0, 200)}"` : undefined);
       if (parsed) return parsed;
-    } catch {
-      this.track('perception', this.clock.now().getTime() - t0, false);
+    } catch (e) {
+      this.track('perception', this.clock.now().getTime() - t0, false, e instanceof Error ? e.message : String(e));
     }
     // Degrade explícito: percepção neutra factual (nunca inventa). GO-LIVE 9C:
     // purpose 'unknown' = FAIL-SAFE — sem entendimento, nenhum onboarding nasce.
@@ -200,7 +200,7 @@ class LlmExpression implements LlmExpressionPort {
   constructor(
     private readonly llm: LlmCompletion,
     private readonly config: ProductionConfig,
-    private readonly track: (op: string, ms: number, ok: boolean) => void,
+    private readonly track: (op: string, ms: number, ok: boolean, detalhe?: string) => void,
     private readonly clock: Clock,
   ) {}
   async phrase(request: PhrasingRequest): Promise<string> {
@@ -233,10 +233,10 @@ class LlmExpression implements LlmExpressionPort {
     ].join('\n');
     try {
       const raw = (await this.llm.complete(system, user)).text.trim();
-      this.track('expression', this.clock.now().getTime() - t0, raw !== '');
+      this.track('expression', this.clock.now().getTime() - t0, raw !== '', raw === '' ? 'resposta vazia do modelo' : undefined);
       if (raw !== '') return raw;
-    } catch {
-      this.track('expression', this.clock.now().getTime() - t0, false);
+    } catch (e) {
+      this.track('expression', this.clock.now().getTime() - t0, false, e instanceof Error ? e.message : String(e));
     }
     // Degrade explícito (GO-LIVE 9B + correção do teste real de 2026-07-20):
     // o fallback antigo ("volto a falar em breve") criava um BECO SEM SAÍDA no
@@ -247,7 +247,9 @@ class LlmExpression implements LlmExpressionPort {
     if (proximoDoc !== null) {
       return `Recebido! 👍 Agora me manda o próximo documento: ${proximoDoc}, por favor.`;
     }
-    return 'Recebi sua mensagem e volto a falar com você em breve.';
+    // Fora da triagem: pedir a repetição mantém a CONVERSA viva (o antigo
+    // "volto a falar em breve" era uma promessa que ninguém cumpria).
+    return 'Opa, tive uma instabilidade rapidinha aqui 😅 Pode me mandar sua última mensagem de novo, por favor? Já sigo com você.';
   }
 }
 
@@ -255,7 +257,7 @@ class LlmNarration implements AdminNarrationPort {
   constructor(
     private readonly llm: LlmCompletion,
     private readonly config: ProductionConfig,
-    private readonly track: (op: string, ms: number, ok: boolean) => void,
+    private readonly track: (op: string, ms: number, ok: boolean, detalhe?: string) => void,
     private readonly clock: Clock,
   ) {}
   async narrate(input: NarrationInput): Promise<string> {
@@ -284,7 +286,7 @@ class LlmExtractor implements MemoryAttributeExtractorPort {
   constructor(
     private readonly llm: LlmCompletion,
     private readonly config: ProductionConfig,
-    private readonly track: (op: string, ms: number, ok: boolean) => void,
+    private readonly track: (op: string, ms: number, ok: boolean, detalhe?: string) => void,
     private readonly clock: Clock,
   ) {}
   async extract(text: string): Promise<readonly ProposedAttribute[]> {
@@ -324,9 +326,12 @@ export interface LlmFactoryDeps {
 /** Seleciona o provedor configurado; 'offline' usa os doubles determinísticos. */
 export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
   const { config, http, observability, clock } = deps;
-  const track = (op: string, ms: number, ok: boolean): void => {
+  // Correção GO-LIVE (teste real 2026-07-20): 'falha/degrade' sem CAUSA deixou o
+  // diagnóstico cego — agora cada degrade loga o MOTIVO literal (exceção, parse
+  // ou resposta vazia, com excerto do que o modelo devolveu).
+  const track = (op: string, ms: number, ok: boolean, detalhe?: string): void => {
     observability.latency('llm', op, ms, clock.now());
-    if (!ok) observability.error('llm', op, clock.now(), 'falha/degrade');
+    if (!ok) observability.error('llm', op, clock.now(), detalhe !== undefined && detalhe !== '' ? `falha/degrade: ${detalhe}` : 'falha/degrade');
   };
 
   let completion: LlmCompletion | null = null;

@@ -89,13 +89,16 @@ describe('mapEvolutionUpsert', () => {
     expect(env?.deletedMessageId).toBe('MSG0');
   });
 
-  it('edição (protocolMessage MESSAGE_EDIT)', () => {
+  it('edição (protocolMessage MESSAGE_EDIT) ⇒ entra como TEXT (regressão GO-LIVE: editada ficava MUDA)', () => {
     const env = mapEvolutionUpsert(
       upsert({
         protocolMessage: { type: 'MESSAGE_EDIT', key: { id: 'MSG0' }, editedMessage: { conversation: 'texto corrigido' } },
       }),
     );
-    expect(env?.kind).toBe('edit');
+    // A cliente editou o nome e a AHRI silenciou: nenhuma regra atende 'edit'.
+    // A edição É a mensagem da pessoa ⇒ TEXT, com a proveniência preservada.
+    expect(env?.kind).toBe('text');
+    expect(env?.text).toBe('texto corrigido');
     expect(env?.editedText).toBe('texto corrigido');
   });
 

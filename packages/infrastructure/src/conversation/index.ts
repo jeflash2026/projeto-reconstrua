@@ -12,6 +12,7 @@ export * from './in-memory-session-store.js';
 export * from './in-memory-message-queue-store.js';
 export * from './in-memory-conversation-gateway.js';
 export * from './system-sleeper.js';
+export * from './mission-provider.js';
 export * from './fake-llm.js';
 export * from './deterministic-executive-brain.js';
 export * from './build-conversation-runtime.js';

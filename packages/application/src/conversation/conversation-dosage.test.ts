@@ -28,6 +28,8 @@ function contexto(purpose: PerceivedPurpose | null, casoFatos: string | null = F
     lastPercept: purpose === null ? null : ({ enrichment: { perceivedPurpose: purpose } } as never),
     recentOutboundTexts: [],
     casoFatos,
+    // 15A: a conversa por curiosidade (9D/9E) é comportamento PÓS-conversão.
+    missaoDaConversa: 'CLIENTE',
   } as unknown as ConversationContextView;
 }
 

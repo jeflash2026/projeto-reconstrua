@@ -9,6 +9,7 @@
 import type { ConversationIntent, SpeechAct } from './intent.js';
 import type { ConversationContextView, PhrasingRequest } from './ports.js';
 import { conduzirTurno } from './conversation-intelligence.js';
+import { politicaDaMissao, styleGuidanceDaMissao } from './sales-conversation-policy.js';
 
 function toneFor(intent: ConversationIntent, context: ConversationContextView): string {
   const sentiment = context.lastPercept?.enrichment?.sentiment ?? 'unknown';
@@ -54,6 +55,15 @@ export class PromptBuilderRuntime {
       ...conduta.perguntasJaFeitas,
       ...context.recentOutboundTexts.slice(0, this.antiRepetitionWindow),
     ].slice(0, this.antiRepetitionWindow + conduta.perguntasJaFeitas.length);
+    // GO-LIVE 15A — CONVERSATION MISSION POLICY (guiada pelo ESTADO da missão):
+    // LEAD/EM_ANALISE ⇒ a conduta da missão SUBSTITUI a curiosidade (9E);
+    // CLIENTE/POS_ATENDIMENTO ⇒ a conversa livre (9E) segue, com um reforço leve.
+    const politica = politicaDaMissao(context);
+    const nucleo = politica.substituiCuriosidade
+      ? styleGuidanceDaMissao(politica)
+      : `${conduta.conduta}${politica.reforco ? `; ${politica.reforco}` : ''}`;
+    // A conversa SEMPRE segue a missão atual (derivada da missão ativa do Runtime).
+    const condutaFinal = `MISSÃO ATUAL — ${politica.objetivo}: ${nucleo}`;
     return {
       intent,
       // GO-LIVE 9F/9G: o FIO e o CONHECIMENTO da conversa ativa viajam no contexto —
@@ -65,7 +75,7 @@ export class PromptBuilderRuntime {
         conhecimentoDaConversa: conduta.conhecimentoResumo,
       },
       avoidPhrases,
-      styleGuidance: `${toneFor(intent, context)}; ${conduta.conduta}`,
+      styleGuidance: `${toneFor(intent, context)}; ${condutaFinal}`,
     };
   }
 }

@@ -137,6 +137,9 @@ export interface Sleeper {
   sleep(ms: number): Promise<void>;
 }
 
+// ── GO-LIVE 15A — ESTADO da missão da conversa (definido aqui p/ evitar ciclo) ─
+export type MissaoDaConversa = 'LEAD' | 'EM_ANALISE' | 'CLIENTE' | 'POS_ATENDIMENTO';
+
 // ── CONTEXTO montado (lido pela expressão e — conceitualmente — pelo Brain) ────
 export interface ConversationContextView {
   readonly chatId: string;
@@ -154,4 +157,8 @@ export interface ConversationContextView {
   /** GO-LIVE 9G — o CONHECIMENTO aprendido na conversa ativa (resumo compacto
    *  "factKey=valor; …"), derivado por turno. null/ausente = nada aprendido. */
   readonly conhecimentoDaConversa?: string | null;
+  /** GO-LIVE 15A — o ESTADO da missão da conversa (derivado do domínio/Truth
+   *  Layer). Guia a política: LEAD/EM_ANALISE têm prioridade comercial; CLIENTE/
+   *  POS_ATENDIMENTO liberam a conversa livre (9E/9F). Ausente ⇒ LEAD. */
+  readonly missaoDaConversa?: MissaoDaConversa;
 }

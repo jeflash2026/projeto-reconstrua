@@ -94,6 +94,7 @@ import {
   SystemSleeper,
   FetchHttpClient,
   EvolutionGateway,
+  criarMissaoProvider,
 } from '../conversation/index.js';
 import { assembleExecutiveBrain } from '../executive-brain/build-executive-brain.js';
 // RFC-0035-G: fronteira de decisão como Read Model Projection (Alternativa B).
@@ -448,11 +449,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(PRODUCTION_RULE_CATALOG) });
   const missionAssembly = assembleMissionRuntime({ eventStore, hasher, uuid, clock, identityMap });
 
+  // RFC-0035-G: a fronteira respaldada pela projeção (Mission Runtime). GO-LIVE 15A:
+  // a MESMA fonte alimenta o estado da missão na conversa (sem duplicar consulta).
+  const missionSnapshots = new ProjectionBackedMissionSnapshotAdapter(decisionState, identityMap);
+
   const fullLoop = new FullLoopBrainAdapter({
     brain: brainAssembly.brain,
     rules: brainAssembly.rules,
-    // RFC-0035-G: a fronteira agora é respaldada pela projeção (não mais o store vazio).
-    snapshots: new ProjectionBackedMissionSnapshotAdapter(decisionState, identityMap),
+    snapshots: missionSnapshots,
     mission: missionAssembly.runtime,
     outbox,
     notification,
@@ -476,7 +480,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const sessions = new SessionRuntime(sessionStore);
   const convMemory = new ConversationMemoryRuntime(conversationStore, clock, uuid);
   // PC-R4: o contexto de conversa carrega o pacote de FATOS do caso (best-effort).
-  const context = new ConversationContextRuntime(sessions, convMemory, {}, casoFatos);
+  // GO-LIVE 15A: e o ESTADO da missão, derivado da MISSÃO ATIVA (Mission Runtime),
+  // com o status do cliente como um dos sinais.
+  const context = new ConversationContextRuntime(sessions, convMemory, {}, casoFatos, criarMissaoProvider(missionSnapshots, clientes, clock));
   const promptBuilder = new PromptBuilderRuntime(policy.antiRepetitionWindow);
   const timing = new HumanLikeTimingRuntime(policy, Math.random);
   const delay = new DelayRuntime(sleeper);

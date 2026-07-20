@@ -6,9 +6,10 @@
 // conversa: sessão, janela recente, últimas falas da AHRI, último percept, silêncio.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Percept } from './percept.js';
-import type { ConversationContextView, Session } from './ports.js';
+import type { ConversationContextView, MissaoDaConversa, Session } from './ports.js';
 import type { SessionRuntime } from './session-runtime.js';
 import type { ConversationMemoryRuntime } from './conversation-memory-runtime.js';
+import { MISSAO_PADRAO } from './sales-conversation-policy.js';
 
 export interface ContextOptions {
   readonly memoryWindow: number;
@@ -24,6 +25,10 @@ export const DEFAULT_CONTEXT_OPTIONS: ContextOptions = {
  *  Opcional e best-effort: falha ⇒ null; a conversa NUNCA quebra por causa dele. */
 export type CasoFatosProvider = (chatId: string) => Promise<string | null>;
 
+/** GO-LIVE 15A — fornece o ESTADO da missão (derivado do domínio). Opcional e
+ *  best-effort: ausente/falha ⇒ LEAD (todo novo contato é um lead). */
+export type MissaoProvider = (chatId: string) => Promise<MissaoDaConversa | null>;
+
 export class ConversationContextRuntime {
   private readonly options: ContextOptions;
 
@@ -32,6 +37,7 @@ export class ConversationContextRuntime {
     private readonly memory: ConversationMemoryRuntime,
     options: Partial<ContextOptions> = {},
     private readonly casoFatos?: CasoFatosProvider,
+    private readonly missao?: MissaoProvider,
   ) {
     this.options = { ...DEFAULT_CONTEXT_OPTIONS, ...options };
   }
@@ -43,10 +49,11 @@ export class ConversationContextRuntime {
     silenceMs: number | null = null,
   ): Promise<ConversationContextView> {
     const session: Session = await this.sessions.getOrOpen(chatId, now);
-    const [recentEntries, recentOutboundTexts, casoFatos] = await Promise.all([
+    const [recentEntries, recentOutboundTexts, casoFatos, missao] = await Promise.all([
       this.memory.recent(chatId, this.options.memoryWindow),
       this.memory.recentOutboundTexts(chatId, this.options.outboundWindow),
       this.casoFatos !== undefined ? this.casoFatos(chatId).catch(() => null) : Promise.resolve(null),
+      this.missao !== undefined ? this.missao(chatId).catch(() => null) : Promise.resolve(null),
     ]);
     return {
       chatId,
@@ -56,6 +63,8 @@ export class ConversationContextRuntime {
       lastPercept,
       silenceMs,
       casoFatos,
+      // GO-LIVE 15A — estado EXPLÍCITO da missão no contexto (default LEAD).
+      missaoDaConversa: missao ?? MISSAO_PADRAO,
     };
   }
 }

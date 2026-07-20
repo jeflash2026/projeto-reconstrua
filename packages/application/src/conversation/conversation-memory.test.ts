@@ -39,6 +39,8 @@ function contexto(entries: MemoryEntry[], inboundAtual: string, sinal: string | 
       enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: sinal },
     } as never,
     silenceMs: null,
+    // 15A: a continuidade por curiosidade (9F) é comportamento PÓS-conversão.
+    missaoDaConversa: 'CLIENTE',
   } as unknown as ConversationContextView;
 }
 

@@ -28,6 +28,8 @@ function contexto(purpose: PerceivedPurpose, outbounds: string[] = [], casoFatos
     lastPercept: { enrichment: { perceivedPurpose: purpose } } as never,
     recentOutboundTexts: outbounds,
     casoFatos,
+    // 15A: a condução por curiosidade (9E) é comportamento PÓS-conversão.
+    missaoDaConversa: 'CLIENTE',
   } as unknown as ConversationContextView;
 }
 

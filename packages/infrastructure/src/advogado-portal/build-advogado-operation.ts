@@ -6,7 +6,7 @@
 // ponte automática Advogado→AHRI. Aditivo puro; nenhum congelado alterado.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock, UuidGenerator } from '@reconstrua/domain';
-import type { ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore, TraducaoClienteRuntime } from '@reconstrua/application';
+import type { ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore, TraducaoClienteRuntime, DocumentRequestRuntime, DocumentRequestStore } from '@reconstrua/application';
 import {
   AdvogadoAhriBridge,
   AdvogadoAuthRuntime,
@@ -98,6 +98,10 @@ export interface AssembledAdvogadoOperation {
   readonly traducao?: TraducaoClienteRuntime;
   // GO-LIVE-04: Auth Runtime compartilhado — provider do advogado (convite→senha→login).
   readonly auth?: AdvogadoAuthRuntime;
+  // GO-LIVE 15C (Workflow 2): solicitações complementares — o advogado administra
+  // pela API/painel; a AHRI apenas executa. Opcional (composição de produção).
+  readonly documentRequests?: DocumentRequestRuntime;
+  readonly documentRequestStore?: DocumentRequestStore;
 }
 
 export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): AssembledAdvogadoOperation {

@@ -8,6 +8,7 @@
 // Identificação por header é o transporte provisório até a autenticação da
 // Governança (DF-12); o isolamento em si é imposto no runtime (AdvogadoWorkRuntime).
 // ─────────────────────────────────────────────────────────────────────────────
+import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import type { AssembledAdvogadoOperation } from '@reconstrua/infrastructure';
 import { NotAssignedError, type JuridicalEntryKind } from '@reconstrua/application';
@@ -99,6 +100,65 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
       return reply.code(400).send({ error: 'missionId, advogadoId e assignedBy são obrigatórios' });
     }
     return op.work.assign(body.missionId, body.advogadoId, body.assignedBy);
+  });
+
+  // ── GO-LIVE 15C (Workflow 2) — SOLICITAÇÕES COMPLEMENTARES ───────────────────
+  // O advogado ADMINISTRA a entidade (criar/listar/cancelar/reabrir); a AHRI
+  // apenas executa. caseId é a identidade funcional (Decisão 5). O disparo da
+  // mensagem ao cliente é do 15C-3 (a criação registra a necessidade).
+  app.post('/advogado/casos/:caseId/document-requests', async (request, reply) => {
+    if (!op.documentRequests) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    const { caseId } = request.params as { caseId: string };
+    const body = request.body as {
+      documentName?: string; optionalMessage?: string; clientId?: string; advogadoId?: string;
+      requestedBy?: string; priority?: 'normal' | 'alta'; dueAt?: string;
+      reminderPolicy?: 'nenhum' | '24h' | '48h' | '72h' | 'semanal';
+    };
+    if (!body.documentName?.trim()) return reply.code(400).send({ error: 'documentName é obrigatório' });
+    if (!body.clientId?.trim()) return reply.code(400).send({ error: 'clientId é obrigatório (canal do cliente)' });
+    if (!body.advogadoId?.trim()) return reply.code(400).send({ error: 'advogadoId é obrigatório' });
+
+    const criado = await op.documentRequests.criar({
+      requestId: randomUUID(),
+      caseId,
+      clientId: body.clientId,
+      lawyerId: body.advogadoId,
+      documentName: body.documentName,
+      ...(body.optionalMessage !== undefined ? { optionalMessage: body.optionalMessage } : {}),
+      ...(body.priority !== undefined ? { priority: body.priority } : {}),
+      ...(body.reminderPolicy !== undefined ? { reminderPolicy: body.reminderPolicy } : {}),
+      ...(body.dueAt !== undefined ? { dueAt: new Date(body.dueAt) } : {}),
+      requestedBy: body.requestedBy?.trim() ? body.requestedBy : body.advogadoId,
+      createdAt: new Date(),
+    });
+    if (criado.isErr()) return reply.code(400).send({ error: criado.unwrapErr().message });
+    return reply.code(201).send(criado.unwrap());
+  });
+
+  app.get('/advogado/casos/:caseId/document-requests', async (request, reply) => {
+    if (!op.documentRequestStore) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    const { caseId } = request.params as { caseId: string };
+    return { solicitacoes: await op.documentRequestStore.doCaso(caseId) };
+  });
+
+  app.post('/advogado/document-requests/:id/cancelar', async (request, reply) => {
+    if (!op.documentRequests) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    const { id } = request.params as { id: string };
+    const body = request.body as { motivo?: string; advogadoId?: string };
+    if (!body.advogadoId?.trim()) return reply.code(400).send({ error: 'advogadoId é obrigatório' });
+    const r = await op.documentRequests.cancelar(id, body.motivo?.trim() ? body.motivo : 'cancelada pelo advogado', body.advogadoId, new Date());
+    if (r.isErr()) return reply.code(409).send({ error: r.unwrapErr().message });
+    return r.unwrap();
+  });
+
+  app.post('/advogado/document-requests/:id/reabrir', async (request, reply) => {
+    if (!op.documentRequests) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    const { id } = request.params as { id: string };
+    const body = request.body as { motivo?: string; advogadoId?: string };
+    if (!body.advogadoId?.trim()) return reply.code(400).send({ error: 'advogadoId é obrigatório' });
+    const r = await op.documentRequests.reabrir(id, body.motivo?.trim() ? body.motivo : 'documento incorreto', body.advogadoId, new Date());
+    if (r.isErr()) return reply.code(409).send({ error: r.unwrapErr().message });
+    return r.unwrap();
   });
 
   // ── PAINEL ───────────────────────────────────────────────────────────────────

@@ -30,6 +30,7 @@ import {
   DocumentRequestCancelled,
   DocumentRequestConfirmationAsked,
   DocumentRequestCreated,
+  DocumentRequestMessaged,
   DocumentRequestReceived,
   DocumentRequestReminded,
   DocumentRequestReopened,
@@ -66,6 +67,8 @@ export interface DocumentRequestState {
   readonly dueAt: Date | null;
   readonly reminderPolicy: ReminderPolicy;
   readonly lastReminderAt: Date | null;
+  /** Correção 1 — a AHRI já iniciou a comunicação desta solicitação? (por abertura) */
+  readonly lastMessagedAt: Date | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly createdBy: string;
@@ -88,6 +91,8 @@ export interface CriarDocumentRequestInput {
 }
 
 const ABERTOS: readonly DocumentRequestStatus[] = ['PENDING', 'AWAITING_CONFIRMATION', 'REOPENED'];
+const STATUS_VALIDOS: ReadonlySet<string> = new Set(['PENDING', 'AWAITING_CONFIRMATION', 'RECEIVED', 'REOPENED', 'CANCELLED']);
+const POLITICAS_VALIDAS: ReadonlySet<string> = new Set(['nenhum', '24h', '48h', '72h', 'semanal']);
 
 /** Heurística de segurança da Decisão 6: refs com cara de caminho/upload são rejeitadas. */
 function pareceCaminhoDeArquivo(ref: string): boolean {
@@ -124,6 +129,7 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
       dueAt: input.dueAt ?? null,
       reminderPolicy: input.reminderPolicy ?? 'nenhum',
       lastReminderAt: null,
+      lastMessagedAt: null,
       createdAt: input.createdAt,
       updatedAt: input.createdAt,
       createdBy: input.lawyerId,
@@ -134,12 +140,56 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
     return Result.ok(agg);
   }
 
-  /** Reidrata do read model (sem eventos). */
-  static fromState(state: DocumentRequestState): DocumentRequestAggregate {
-    return new DocumentRequestAggregate({ ...state, history: [...state.history] });
+  /**
+   * Correção 2 — REIDRATAÇÃO SEGURA: valida as invariantes mínimas antes de
+   * materializar. JSON corrompido/estado incoerente ⇒ erro EXPLÍCITO para a
+   * camada superior; nunca um aggregate inválido em memória.
+   */
+  static fromState(state: DocumentRequestState): Result<DocumentRequestAggregate, Error> {
+    const invalido = (msg: string): Result<DocumentRequestAggregate, Error> =>
+      Result.err(new Error(`reidratação inválida (${state.requestId || 'sem id'}): ${msg}`));
+
+    if (!state.caseId?.trim()) return invalido('caseId obrigatório');
+    if (!state.clientId?.trim()) return invalido('clientId obrigatório');
+    if (!state.documentName?.trim()) return invalido('documentName obrigatório');
+    if (!STATUS_VALIDOS.has(state.status)) return invalido(`status desconhecido: ${String(state.status)}`);
+    if (!POLITICAS_VALIDAS.has(state.reminderPolicy)) return invalido(`reminderPolicy desconhecida: ${String(state.reminderPolicy)}`);
+    if (state.dueAt !== null && Number.isNaN(state.dueAt.getTime())) return invalido('dueAt inválida');
+    // fulfilledBy coerente com o estado: RECEIVED ⇔ cumprida por DocumentId.
+    if (state.status === 'RECEIVED' && (state.fulfilledBy === null || state.receivedAt === null)) {
+      return invalido('RECEIVED sem fulfilledBy/receivedAt');
+    }
+    if (state.status !== 'RECEIVED' && state.fulfilledBy !== null) {
+      return invalido(`fulfilledBy presente em status ${state.status}`);
+    }
+    if (state.fulfilledBy !== null && pareceCaminhoDeArquivo(state.fulfilledBy)) {
+      return invalido('fulfilledBy parece caminho de arquivo (Decisão 6)');
+    }
+    return Result.ok(new DocumentRequestAggregate({ ...state, history: [...state.history] }));
   }
 
   // ── Transições ──────────────────────────────────────────────────────────────
+
+  /**
+   * Correção 1 — a AHRI iniciou a comunicação com o cliente sobre ESTA
+   * solicitação. Mudança OBSERVÁVEL do domínio (não evento técnico): emite
+   * DocumentRequestMessaged, atualiza updatedAt e o history. Duplicidade
+   * desnecessária é impedida: uma mensagem inicial por ABERTURA (a reabertura
+   * zera e permite mensagear de novo).
+   */
+  registrarMensagemEnviada(now: Date): Result<void, Error> {
+    if (!ABERTOS.includes(this.props.status)) {
+      return Result.err(new Error(`mensagem só para solicitações abertas (status=${this.props.status})`));
+    }
+    if (this.props.lastMessagedAt !== null) {
+      return Result.err(new Error('mensagem inicial já registrada para esta abertura — duplicidade desnecessária'));
+    }
+    this.props.lastMessagedAt = now;
+    this.props.updatedAt = now;
+    this.props.history = [...this.props.history, { at: now, por: 'ahri', de: this.props.status, para: this.props.status, nota: 'mensagem enviada ao cliente' }];
+    this.addDomainEvent(new DocumentRequestMessaged(this.props.requestId, now));
+    return Result.ok(undefined);
+  }
 
   /** Múltiplas pendências + dúvida ⇒ aguarda a confirmação do cliente. */
   aguardarConfirmacao(now: Date): Result<void, Error> {
@@ -186,6 +236,7 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
     this.props.fulfilledBy = null; // o vínculo anterior fica preservado no history
     this.props.receivedAt = null;
     this.props.lastReminderAt = null; // SLA reinicia
+    this.props.lastMessagedAt = null; // a AHRI volta a mensagear nesta abertura (Correção 1)
     this.transicionar('REOPENED', por, now, `reaberta: ${motivo}${anterior ? ` (anterior: DocumentId=${anterior})` : ''}`);
     this.addDomainEvent(new DocumentRequestReopened(this.props.requestId, now));
     return Result.ok(undefined);

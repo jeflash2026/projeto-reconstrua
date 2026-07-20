@@ -97,6 +97,64 @@ describe('15C · reabertura (Decisão 7: nunca apagar, nunca recriar)', () => {
   });
 });
 
+describe('15C · Correção 1 — registrarMensagemEnviada (mudança observável do domínio)', () => {
+  it('emite messaged, atualiza updatedAt e history; duplicidade é impedida', () => {
+    const agg = criar().unwrap();
+    agg.pullDomainEvents();
+    expect(agg.registrarMensagemEnviada(T1).isOk()).toBe(true);
+    const s = agg.toState();
+    expect(s.lastMessagedAt).toEqual(T1);
+    expect(s.updatedAt).toEqual(T1);
+    expect(s.history.at(-1)?.nota).toBe('mensagem enviada ao cliente');
+    expect(agg.pullDomainEvents().map((e) => e.eventName)).toEqual(['document-request.messaged']);
+    // duplicidade desnecessária:
+    expect(agg.registrarMensagemEnviada(T2).isErr()).toBe(true);
+  });
+
+  it('reabertura zera lastMessagedAt — a AHRI mensageia de novo na nova abertura', () => {
+    const agg = criar().unwrap();
+    agg.registrarMensagemEnviada(T1);
+    agg.associar('doc-1', 'unica', T1);
+    agg.reabrir('incorreto', 'ADV-1', T2);
+    expect(agg.toState().lastMessagedAt).toBeNull();
+    expect(agg.registrarMensagemEnviada(T2).isOk()).toBe(true);
+  });
+
+  it('mensagem só para solicitações abertas', () => {
+    const agg = criar().unwrap();
+    agg.cancelar('x', 'ADV-1', T1);
+    expect(agg.registrarMensagemEnviada(T2).isErr()).toBe(true);
+  });
+});
+
+describe('15C · Correção 2 — reidratação SEGURA (fromState valida invariantes)', () => {
+  const base = () => criar().unwrap().toState();
+
+  it('estado válido reidrata; estado corrompido retorna ERRO explícito', () => {
+    expect(DocumentRequestAggregate.fromState(base()).isOk()).toBe(true);
+    expect(DocumentRequestAggregate.fromState({ ...base(), caseId: ' ' }).isErr()).toBe(true);
+    expect(DocumentRequestAggregate.fromState({ ...base(), clientId: '' }).isErr()).toBe(true);
+    expect(DocumentRequestAggregate.fromState({ ...base(), documentName: '' }).isErr()).toBe(true);
+    expect(DocumentRequestAggregate.fromState({ ...base(), status: 'QUALQUER' as never }).isErr()).toBe(true);
+    expect(DocumentRequestAggregate.fromState({ ...base(), reminderPolicy: '96h' as never }).isErr()).toBe(true);
+    expect(DocumentRequestAggregate.fromState({ ...base(), dueAt: new Date('invalida') }).isErr()).toBe(true);
+  });
+
+  it('fulfilledBy coerente com o estado: RECEIVED exige; abertas proíbem; caminho rejeitado', () => {
+    expect(DocumentRequestAggregate.fromState({ ...base(), status: 'RECEIVED' }).isErr()).toBe(true); // sem fulfilledBy
+    expect(DocumentRequestAggregate.fromState({ ...base(), fulfilledBy: 'doc-1' }).isErr()).toBe(true); // PENDING com fulfilledBy
+    expect(DocumentRequestAggregate.fromState({ ...base(), status: 'RECEIVED', fulfilledBy: '/tmp/a.pdf', receivedAt: T1 }).isErr()).toBe(true);
+    expect(DocumentRequestAggregate.fromState({ ...base(), status: 'RECEIVED', fulfilledBy: 'doc-1', receivedAt: T1 }).isOk()).toBe(true);
+  });
+
+  it('a mensagem de erro identifica a solicitação e a causa', () => {
+    const r = DocumentRequestAggregate.fromState({ ...base(), caseId: '' });
+    expect(r.isErr()).toBe(true);
+    expect(r.unwrapErr().message).toContain('reidratação inválida');
+    expect(r.unwrapErr().message).toContain('caseId obrigatório');
+  });
+});
+
 describe('15C · cancelamento e SLA', () => {
   it('cancela qualquer aberta (PENDING/AWAITING/REOPENED); CANCELLED é terminal', () => {
     const agg = criar().unwrap();

@@ -74,9 +74,13 @@ import {
   DEFAULT_PRODUCTION_CONFIG,
   InMemoryAtendimentoStore,
   ProductionFeedbackLoop,
+  DocumentRequestRuntime,
+  ANY_VERSION,
 } from '@reconstrua/application';
 import type { BootableComponent } from '@reconstrua/application';
 import { MissionClosureFeedbackSubscriber, defaultEncerramentoResolver } from '../pipeline/mission-closure-feedback-subscriber.js';
+import { JsonDocumentRequestStore } from '../document-request/json-document-request-store.js';
+import { DocumentRequestsAwareSnapshotAdapter } from '../document-request/document-requests-snapshot-adapter.js';
 import { online } from '@reconstrua/application';
 import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
 import { InMemorySnapshotStore } from '../event-store/in-memory-snapshot-store.js';
@@ -449,9 +453,44 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(PRODUCTION_RULE_CATALOG) });
   const missionAssembly = assembleMissionRuntime({ eventStore, hasher, uuid, clock, identityMap });
 
+  // GO-LIVE 15C-1 (Workflow 2): read model persistente + runtime das solicitações
+  // complementares. Eventos de domínio publicados no Event Store (auditoria).
+  const documentRequestStore = new JsonDocumentRequestStore(json);
+  const documentRequests = new DocumentRequestRuntime(documentRequestStore, {
+    publicar: async (requestId, events, estado) => {
+      await eventStore.append(
+        'document-request',
+        requestId,
+        ANY_VERSION,
+        events.map((e) => ({
+          eventType: e.eventName,
+          isRelevant: true,
+          payload: {
+            requestId,
+            caseId: estado.caseId,
+            clientId: estado.clientId,
+            lawyerId: estado.lawyerId,
+            documentName: estado.documentName,
+            status: estado.status,
+            priority: estado.priority,
+            fulfilledBy: estado.fulfilledBy,
+          },
+          occurredAt: e.occurredAt,
+          provenance: { actor: estado.requestedBy, decisionType: 'Solicitação Complementar (advogado)', fundamento: 'GO-LIVE 15C — Workflow 2', operationalRuleRef: 'DR-15C' },
+        })),
+        { actor: estado.requestedBy },
+      );
+    },
+  });
+
   // RFC-0035-G: a fronteira respaldada pela projeção (Mission Runtime). GO-LIVE 15A:
   // a MESMA fonte alimenta o estado da missão na conversa (sem duplicar consulta).
-  const missionSnapshots = new ProjectionBackedMissionSnapshotAdapter(decisionState, identityMap);
+  // GO-LIVE 15C (Decisão B): o snapshot é enriquecido com as solicitações
+  // complementares — a conversa lê SÓ o snapshot (Single Source of Truth).
+  const missionSnapshots = new DocumentRequestsAwareSnapshotAdapter(
+    new ProjectionBackedMissionSnapshotAdapter(decisionState, identityMap),
+    documentRequestStore,
+  );
 
   const fullLoop = new FullLoopBrainAdapter({
     brain: brainAssembly.brain,
@@ -629,6 +668,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       credenciais: new JsonCredenciaisAdvogadoStore(json),
       secret: env['ADVOGADO_ACCESS_SECRET'] ?? '',
     }),
+    // GO-LIVE 15C (Workflow 2): o advogado administra as solicitações pela API.
+    documentRequests,
+    documentRequestStore,
   };
 
   // ── Conexão WhatsApp (Portal Admin) — administração de instâncias Evolution ───

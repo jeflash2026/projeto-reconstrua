@@ -152,8 +152,25 @@ export class FullLoopBrainAdapter implements ExecutiveBrainPort {
 
     // 2) MISSION executa as intenções use_case (Event Store; append→outbox).
     const missionIntents = toMissionUseCaseIntents(outcome.intents);
+    // INSTRUMENTAÇÃO GO-LIVE (2026-07-20): este era o ÚNICO trecho sem rastro —
+    // use cases falhando viravam failedOutcome silencioso e o diagnóstico em
+    // produção ficou cego. (a) documento SEM nenhuma use_case emitida é anômalo
+    // e loga as regras escolhidas; (b) TODO outcome falho loga o erro literal.
+    if (missionIntents.length === 0 && ['pdf', 'document', 'image'].includes(input.percept.envelope.kind)) {
+      d.observability.error(
+        'full-loop',
+        'documento-sem-use-case',
+        now,
+        `kind=${input.percept.envelope.kind} chat=${chatId} escolhidas=[${outcome.record.chosenRefs.join(',')}] impedidas=[${outcome.record.impeded.map((i) => `${i.ref}:${i.cause}`).join(',')}]`,
+      );
+    }
     const missionResult =
       missionIntents.length > 0 ? await d.mission.execute(toMissionFacts(input.percept), missionIntents) : null;
+    for (const o of missionResult?.outcomes ?? []) {
+      if (!o.ok && !o.skipped) {
+        d.observability.error('mission', o.useCase, now, `chat=${chatId} stream=${o.streamType} erro=${o.error ?? 'sem detalhe'}`);
+      }
+    }
 
     // 3) DISPATCHER drena: eventos → Read Models / Workflow / projeções.
     await d.outbox.drainToIdle();

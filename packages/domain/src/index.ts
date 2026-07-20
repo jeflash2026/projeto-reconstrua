@@ -19,6 +19,7 @@ export * from './case/index.js';
 export * from './process/index.js';
 export * from './operational-truth/index.js';
 export * from './operational-state/index.js';
+export * from './document-request/index.js';
 export * from './operational-stage/index.js';
 export * from './projection/index.js';
 export * from './operation/index.js';

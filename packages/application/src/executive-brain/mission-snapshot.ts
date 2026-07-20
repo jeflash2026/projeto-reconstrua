@@ -38,6 +38,23 @@ export interface MissionSnapshot {
    * (emptySnapshot de um contato sem caso).
    */
   readonly caseExists?: boolean;
+  /**
+   * GO-LIVE 15C (Decisão B — Single Source of Truth): resumo das SOLICITAÇÕES
+   * COMPLEMENTARES de documentos do caso (Workflow 2), projetado pelo Mission
+   * Runtime a partir da entidade de domínio. A conversa lê SÓ isto — nunca o
+   * banco. Aditivo: ausente = nenhuma solicitação conhecida.
+   */
+  readonly documentRequests?: {
+    readonly totalPendentes: number;
+    readonly prioridadeMaisAlta: 'alta' | 'normal' | null;
+    readonly aguardandoConfirmacao: number;
+    readonly ultimaSolicitacao: {
+      readonly requestId: string;
+      readonly documentName: string;
+      readonly requestedBy: string;
+      readonly dueAt: Date | null;
+    } | null;
+  };
 }
 
 /** O objetivo operacional corrente, derivado por GoalSelector de Etapa/Estado/Verdade. */

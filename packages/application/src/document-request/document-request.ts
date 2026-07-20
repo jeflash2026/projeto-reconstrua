@@ -1,149 +1,105 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// DOCUMENT REQUEST (GO-LIVE 15C · WORKFLOW 2) — Solicitação COMPLEMENTAR do
-// ADVOGADO. Este fluxo NÃO é automático: só existe quando o advogado, pelo
-// painel, cria formalmente uma solicitação. A AHRI NUNCA decide quais documentos
-// complementares pedir — ela apenas EXECUTA solicitações do advogado:
-// conversa com o cliente, coleta, associa o arquivo, atualiza o status
-// (PENDING → RECEIVED) e notifica o advogado.
+// DOCUMENT REQUEST — camada de APLICAÇÃO (GO-LIVE 15C · Sprint 15C-1).
 //
-// Independente do Workflow 1 (documentação obrigatória: HISCON + RG/CNH +
-// comprovante de endereço), que vale para 100% dos clientes.
-// Rastreabilidade completa: toda solicitação é uma entidade própria, com autor,
-// caso, cliente, documento, mensagem opcional e trilha de datas.
+// A ENTIDADE vive no domínio jurídico (DocumentRequestAggregate — Decisão A/5/6/7).
+// Aqui ficam apenas: o READ MODEL (store por CASO), o fragmento do
+// MissionSnapshot (Single Source of Truth da conversa — Decisão B) e as
+// MENSAGENS autoradas que a AHRI entrega (nunca inventa).
+//
+// A associação inteligente (única/IA/confirmação — Decisão 1) é executada no
+// pipeline (15C-3) usando as TRANSIÇÕES do aggregate; não existe mais associação
+// "por ordem" como regra.
 // ─────────────────────────────────────────────────────────────────────────────
+import type { DocumentRequestState } from '@reconstrua/domain';
 
-export type DocumentRequestStatus = 'PENDING' | 'RECEIVED';
-
-export interface DocumentRequest {
-  readonly requestId: string;
-  readonly caseId: string;
-  readonly clientId: string; // chatId do cliente (canal AHRI)
-  readonly lawyerId: string;
-  readonly documentName: string; // texto livre do advogado (ex.: 'Procuração')
-  readonly optionalMessage: string | null;
-  readonly createdAt: Date;
-  readonly requestedBy: string; // nome do advogado (exibição/mensagem)
-  readonly status: DocumentRequestStatus;
-  /** Preenchidos no recebimento (PENDING → RECEIVED). */
-  readonly receivedAt: Date | null;
-  readonly receivedDocumentRef: string | null; // referência do arquivo associado
+// ── READ MODEL (porta) — consultas por CASO (Decisão 5) + entrega por cliente ─
+export interface DocumentRequestStore {
+  salvar(state: DocumentRequestState): Promise<void>;
+  porId(requestId: string): Promise<DocumentRequestState | null>;
+  /** Todas as solicitações do CASO (identidade funcional — painel/auditoria). */
+  doCaso(caseId: string): Promise<readonly DocumentRequestState[]>;
+  /** Solicitações ABERTAS do cliente (entrega/cobrança pela AHRI). */
+  abertasDoCliente(clientId: string): Promise<readonly DocumentRequestState[]>;
 }
 
-export interface NovaSolicitacao {
-  readonly requestId: string;
-  readonly caseId: string;
-  readonly clientId: string;
-  readonly lawyerId: string;
-  readonly documentName: string;
-  readonly optionalMessage?: string;
-  readonly requestedBy: string;
+const ABERTOS = new Set(['PENDING', 'AWAITING_CONFIRMATION', 'REOPENED']);
+
+export class InMemoryDocumentRequestStore implements DocumentRequestStore {
+  private readonly porIdMap = new Map<string, DocumentRequestState>();
+  salvar(state: DocumentRequestState): Promise<void> {
+    this.porIdMap.set(state.requestId, state);
+    return Promise.resolve();
+  }
+  porId(requestId: string): Promise<DocumentRequestState | null> {
+    return Promise.resolve(this.porIdMap.get(requestId) ?? null);
+  }
+  doCaso(caseId: string): Promise<readonly DocumentRequestState[]> {
+    return Promise.resolve([...this.porIdMap.values()].filter((r) => r.caseId === caseId).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()));
+  }
+  abertasDoCliente(clientId: string): Promise<readonly DocumentRequestState[]> {
+    return Promise.resolve([...this.porIdMap.values()].filter((r) => r.clientId === clientId && ABERTOS.has(r.status)).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()));
+  }
 }
 
-/** Cria a solicitação (status=PENDING). Nome do documento é obrigatório. */
-export function criarSolicitacao(input: NovaSolicitacao, now: Date): DocumentRequest {
-  const documentName = input.documentName.trim();
-  if (documentName === '') throw new Error('documentName é obrigatório');
+// ── SNAPSHOT (Decisão B) — o resumo que o Mission Runtime projeta ─────────────
+export interface DocumentRequestsResumo {
+  readonly totalPendentes: number; // abertas (PENDING + AWAITING + REOPENED)
+  readonly prioridadeMaisAlta: 'alta' | 'normal' | null;
+  readonly aguardandoConfirmacao: number;
+  readonly ultimaSolicitacao: {
+    readonly requestId: string;
+    readonly documentName: string;
+    readonly requestedBy: string;
+    readonly dueAt: Date | null;
+  } | null;
+}
+
+/** Resume as solicitações de um cliente/caso para o MissionSnapshot. Puro. */
+export function resumoDocumentRequests(states: readonly DocumentRequestState[]): DocumentRequestsResumo {
+  const abertas = states.filter((s) => ABERTOS.has(s.status));
+  const maisRecente = [...abertas].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
   return {
-    requestId: input.requestId,
-    caseId: input.caseId,
-    clientId: input.clientId,
-    lawyerId: input.lawyerId,
-    documentName,
-    optionalMessage: input.optionalMessage?.trim() ? input.optionalMessage.trim() : null,
-    createdAt: now,
-    requestedBy: input.requestedBy,
-    status: 'PENDING',
-    receivedAt: null,
-    receivedDocumentRef: null,
+    totalPendentes: abertas.length,
+    prioridadeMaisAlta: abertas.length === 0 ? null : abertas.some((s) => s.priority === 'alta') ? 'alta' : 'normal',
+    aguardandoConfirmacao: abertas.filter((s) => s.status === 'AWAITING_CONFIRMATION').length,
+    ultimaSolicitacao: maisRecente
+      ? { requestId: maisRecente.requestId, documentName: maisRecente.documentName, requestedBy: maisRecente.requestedBy, dueAt: maisRecente.dueAt }
+      : null,
   };
 }
 
-/** PENDING → RECEIVED: associa o arquivo e sela o recebimento. Idempotente-safe:
- *  receber duas vezes é erro (o chamador decide como tratar). */
-export function registrarRecebimento(request: DocumentRequest, documentRef: string, now: Date): DocumentRequest {
-  if (request.status !== 'PENDING') throw new Error(`solicitação ${request.requestId} não está PENDING (status=${request.status})`);
-  return { ...request, status: 'RECEIVED', receivedAt: now, receivedDocumentRef: documentRef };
-}
+// ── MENSAGENS autoradas (a AHRI entrega — nunca inventa) ──────────────────────
 
-// ── Store (porta) + adapter de referência em memória ──────────────────────────
-export interface DocumentRequestStore {
-  salvar(request: DocumentRequest): Promise<void>;
-  /** Atualiza (mesmo requestId). */
-  atualizar(request: DocumentRequest): Promise<void>;
-  porId(requestId: string): Promise<DocumentRequest | null>;
-  /** Solicitações PENDENTES de um cliente (para associar um arquivo que chega). */
-  pendentesDoCliente(clientId: string): Promise<readonly DocumentRequest[]>;
-  /** Todas as solicitações de um caso (painel do advogado). */
-  doCaso(caseId: string): Promise<readonly DocumentRequest[]>;
-}
-
-export class InMemoryDocumentRequestStore implements DocumentRequestStore {
-  private readonly porIdMap = new Map<string, DocumentRequest>();
-  salvar(request: DocumentRequest): Promise<void> {
-    this.porIdMap.set(request.requestId, request);
-    return Promise.resolve();
-  }
-  atualizar(request: DocumentRequest): Promise<void> {
-    this.porIdMap.set(request.requestId, request);
-    return Promise.resolve();
-  }
-  porId(requestId: string): Promise<DocumentRequest | null> {
-    return Promise.resolve(this.porIdMap.get(requestId) ?? null);
-  }
-  pendentesDoCliente(clientId: string): Promise<readonly DocumentRequest[]> {
-    return Promise.resolve([...this.porIdMap.values()].filter((r) => r.clientId === clientId && r.status === 'PENDING').sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()));
-  }
-  doCaso(caseId: string): Promise<readonly DocumentRequest[]> {
-    return Promise.resolve([...this.porIdMap.values()].filter((r) => r.caseId === caseId).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()));
-  }
-}
-
-// ── Mensagens (autoradas; a AHRI entrega — nunca inventa) ─────────────────────
-
-/** A mensagem que a AHRI envia ao CLIENTE ao receber um DocumentRequest. */
-export function mensagemAoCliente(request: DocumentRequest, clienteNome: string): string {
-  const extra = request.optionalMessage ? `\n\n${request.optionalMessage}` : '';
+/** Mensagem inicial ao CLIENTE ao criar a solicitação. */
+export function mensagemAoCliente(state: DocumentRequestState, clienteNome: string): string {
+  const extra = state.optionalMessage ? `\n\n${state.optionalMessage}` : '';
   return (
     `Olá, ${clienteNome}.\n\n` +
-    `${request.requestedBy}, responsável pelo seu processo, solicitou um documento complementar para dar continuidade ao andamento da ação.\n\n` +
-    `Documento solicitado:\n${request.documentName}${extra}\n\n` +
+    `${state.requestedBy}, responsável pelo seu processo, solicitou um documento complementar para dar continuidade ao andamento da ação.\n\n` +
+    `Documento solicitado:\n${state.documentName}${extra}\n\n` +
     `Assim que possível, envie por aqui.`
   );
 }
 
-/** A notificação ao ADVOGADO após o recebimento e associação do documento. */
-export function notificacaoAoAdvogado(request: DocumentRequest, clienteNome: string): string {
+/** Pergunta de confirmação (Decisão 1) quando há múltiplas pendências e dúvida. */
+export function perguntaDeConfirmacao(candidatas: readonly DocumentRequestState[]): string {
+  const nomes = candidatas.map((c) => c.documentName);
+  return `Recebi seu arquivo! Só confirmando: ele é ${nomes.map((n) => `**${n}**`).join(' ou ')}?`;
+}
+
+/** Lembrete de SLA (Decisão D) — enviado automaticamente pela cadência da entidade. */
+export function mensagemDeLembrete(state: DocumentRequestState, clienteNome: string): string {
   return (
-    `O cliente ${clienteNome} acabou de enviar o documento solicitado:\n\n` +
-    `${request.documentName}.\n\n` +
-    `O documento já está disponível para análise no painel.`
+    `Oi, ${clienteNome}! Passando para lembrar: ${state.requestedBy} aguarda a ${state.documentName} ` +
+    `para dar andamento ao seu processo. Pode enviar por aqui quando conseguir.`
   );
 }
 
-// ── Coleta: associar um arquivo que chega à solicitação pendente ──────────────
-
-export interface ResultadoDaColeta {
-  readonly request: DocumentRequest; // já RECEIVED
-  readonly notificarAdvogado: string; // a mensagem pronta para o WhatsApp do advogado
-}
-
-/**
- * Quando o cliente envia um documento: identifica a solicitação pendente MAIS
- * ANTIGA do cliente, associa o arquivo, atualiza PENDING→RECEIVED e produz a
- * notificação ao advogado. null = não há solicitação pendente (o documento
- * segue o fluxo normal do Workflow 1 — nada é inventado).
- */
-export async function coletarDocumento(
-  store: DocumentRequestStore,
-  clientId: string,
-  clienteNome: string,
-  documentRef: string,
-  now: Date,
-): Promise<ResultadoDaColeta | null> {
-  const pendentes = await store.pendentesDoCliente(clientId);
-  const alvo = pendentes[0];
-  if (alvo === undefined) return null;
-  const recebida = registrarRecebimento(alvo, documentRef, now);
-  await store.atualizar(recebida);
-  return { request: recebida, notificarAdvogado: notificacaoAoAdvogado(recebida, clienteNome) };
+/** Notificação ao ADVOGADO após RECEIVED (canal de notificação — Decisão 3). */
+export function notificacaoAoAdvogado(state: DocumentRequestState, clienteNome: string): string {
+  return (
+    `O cliente ${clienteNome} acabou de enviar o documento solicitado:\n\n` +
+    `${state.documentName}.\n\n` +
+    `O documento já está disponível para análise no painel.`
+  );
 }

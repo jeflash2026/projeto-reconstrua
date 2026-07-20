@@ -78,15 +78,19 @@ describe('15A · a política por ESTADO da missão', () => {
     expect(p.conduta).toContain('Responda IMEDIATAMENTE');
     expect(p.conduta).toContain('NUNCA devolva uma pergunta antes de responder');
     expect(p.conduta).toContain('MENOS DE 80 PALAVRAS');
-    expect(p.conduta).toContain('HISCON e contratos');
+    // GO-LIVE 15B — HISCON FIRST: pede SÓ o HISCON e proíbe contratos antes.
+    expect(p.conduta).toContain('solicitar APENAS o HISCON');
+    expect(p.conduta).toContain('PROIBIDO pedir contratos');
+    expect(p.conduta).not.toContain('HISCON e contratos'); // nunca pedir os dois juntos
     expect(p.conduta).toContain('SEMPRE convergir para a conversão');
   });
 
-  it('EM_ANALISE ⇒ substitui, prioridade = coleta documental e concluir o dossiê', () => {
+  it('EM_ANALISE ⇒ substitui; pede SOMENTE o que falta (HISCON já lido, nada redundante)', () => {
     const p = politicaDaMissao(contexto({ missao: 'EM_ANALISE' }));
     expect(p.substituiCuriosidade).toBe(true);
-    expect(p.conduta).toContain('COLETA DOCUMENTAL');
-    expect(p.conduta).toContain('concluir o dossiê');
+    expect(p.conduta).toContain('HISCON já foi recebido e lido');
+    expect(p.conduta).toContain('SOMENTE os documentos que AINDA faltam');
+    expect(p.conduta).toContain('NUNCA peça contratos ou documentos que o HISCON já trouxe');
     expect(p.conduta).toContain('Responda IMEDIATAMENTE');
   });
 
@@ -117,6 +121,27 @@ describe('15A · a política por ESTADO da missão', () => {
   });
 });
 
+describe('15B · HISCON First Policy — o HISCON é sempre o primeiro documento', () => {
+  it('LEAD pede APENAS o HISCON e PROÍBE contratos antes de lê-lo', () => {
+    const c = politicaDaMissao(contexto({ missao: 'LEAD' })).conduta;
+    expect(c).toContain('solicitar APENAS o HISCON');
+    expect(c).toContain('PROIBIDO pedir contratos ou qualquer outro documento antes de ler o HISCON');
+    expect(c).toContain('Nunca peça vários documentos de uma vez');
+    expect(c).not.toContain('HISCON e contratos');
+  });
+  it('a resposta canônica de elegibilidade cita SÓ o HISCON (fonte primária)', () => {
+    expect(RESPOSTA_ELEGIBILIDADE).toContain('HISCON');
+    expect(RESPOSTA_ELEGIBILIDADE).not.toMatch(/contratos/i);
+  });
+  it('EM_ANALISE assume o HISCON como fonte de descoberta e pede só o que falta', () => {
+    const c = politicaDaMissao(contexto({ missao: 'EM_ANALISE' })).conduta;
+    expect(c).toContain('HISCON já foi recebido e lido');
+    expect(c).toContain('identificados os contratos existentes');
+    expect(c).toContain('SOMENTE os documentos que AINDA faltam');
+    expect(c).toContain('nada redundante');
+  });
+});
+
 describe('15A · integração no PromptBuilder — o estado guia o styleGuidance', () => {
   const builder = new PromptBuilderRuntime(8);
 
@@ -131,9 +156,10 @@ describe('15A · integração no PromptBuilder — o estado guia o styleGuidance
     expect(req.styleGuidance).toContain(RESPOSTA_ELEGIBILIDADE);
   });
 
-  it('EM_ANALISE: styleGuidance foca em coleta documental', () => {
+  it('EM_ANALISE: styleGuidance pede SOMENTE o que falta (HISCON já lido)', () => {
     const req = builder.build(intent(), contexto({ missao: 'EM_ANALISE', purpose: 'service_request' }));
-    expect(req.styleGuidance).toContain('COLETA DOCUMENTAL');
+    expect(req.styleGuidance).toContain('SOMENTE os documentos que AINDA faltam');
+    expect(req.styleGuidance).not.toContain('HISCON e contratos');
   });
 
   it('CLIENTE: volta a curiosidade 9E + reforço (não comercial)', () => {

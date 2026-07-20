@@ -4,3 +4,4 @@
 // ─────────────────────────────────────────────────────────────────────────────
 export * from './document-request.js';
 export * from './document-request-runtime.js';
+export * from './assinatura.js';

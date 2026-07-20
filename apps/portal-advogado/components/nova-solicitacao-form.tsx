@@ -27,8 +27,26 @@ const NovaSolicitacaoForm = ({ casoInicial, clienteInicial, requestedBy }: { cas
   const [lembrete, setLembrete] = useState<'nenhum' | '24h' | '48h' | '72h' | 'semanal'>('nenhum');
   const [mensagem, setMensagem] = useState('');
   const [erro, setErro] = useState<string | null>(null);
+  // Decreto Tráfego Pago · B1: documento PARA ASSINATURA (procuração/contrato de
+  // honorários) — o advogado anexa; a AHRI envia o arquivo ao cliente assinar.
+  const [anexo, setAnexo] = useState<{ fileName: string; mimeType: string; base64: string } | null>(null);
+  const ehAssinatura = /procura[çc][ãa]o|honor[áa]rios/i.test(documento);
 
   const preview = useMemo(() => previewMensagemAhri(documento, mensagem, requestedBy), [documento, mensagem, requestedBy]);
+
+  const aoEscolherArquivo = (file: File | null): void => {
+    if (file === null) { setAnexo(null); return; }
+    if (file.size > 8 * 1024 * 1024) { setErro('Arquivo muito grande (máx. 8 MB).'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      // readAsDataURL sempre produz string; ArrayBuffer nunca ocorre neste modo.
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+      setAnexo({ fileName: file.name, mimeType: file.type || 'application/pdf', base64 });
+      setErro(null);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const enviar = (): void => {
     if (documento.trim() === '') { setErro('Informe o documento que você precisa.'); return; }
@@ -43,6 +61,7 @@ const NovaSolicitacaoForm = ({ casoInicial, clienteInicial, requestedBy }: { cas
         priority: prioridade,
         ...(prazo !== '' ? { dueAt: new Date(`${prazo}T23:59:59`).toISOString() } : {}),
         reminderPolicy: lembrete,
+        ...(anexo !== null ? { anexo } : {}),
       });
       if (!r.ok || r.solicitacao === null) { setErro(r.error ?? 'falha ao criar'); return; }
       router.push(`/solicitacoes/${r.solicitacao.requestId}`);
@@ -100,6 +119,21 @@ const NovaSolicitacaoForm = ({ casoInicial, clienteInicial, requestedBy }: { cas
         <label className="sol-label">Mensagem opcional ao cliente
           <textarea className="sol-input" rows={2} value={mensagem} onChange={(e) => { setMensagem(e.target.value); }} placeholder="ex.: Precisamos deste documento para distribuição da ação." />
         </label>
+
+        <label className="sol-label">
+          Anexar documento para assinatura {ehAssinatura ? '(recomendado para procuração/honorários)' : '(opcional)'}
+          <input
+            className="sol-input"
+            type="file"
+            accept="application/pdf,image/jpeg,image/png"
+            onChange={(e) => { aoEscolherArquivo(e.target.files?.[0] ?? null); }}
+          />
+        </label>
+        {anexo !== null ? (
+          <p className="sol-nota">📎 {anexo.fileName} — a AHRI enviará este arquivo ao cliente para assinar e devolver.</p>
+        ) : ehAssinatura ? (
+          <p className="sol-nota">Sem anexo, a AHRI apenas pedirá o documento — para assinatura, anexe o arquivo.</p>
+        ) : null}
 
         {erro ? <p className="sol-erro">{erro}</p> : null}
         <button className="sol-btn sol-btn-primario sol-btn-grande" onClick={enviar} disabled={pendente}>

@@ -57,6 +57,25 @@ export class EvolutionGateway implements ConversationGateway {
     return { providerMessageId, sentAt: this.clock.now() };
   }
 
+  /** Decreto Tráfego Pago · B1 — envia um DOCUMENTO (base64) ao cliente.
+   *  Método ADITIVO (satisfaz EnviadorDeDocumento por estrutura; o port
+   *  ConversationGateway congelado permanece intocado).
+   *  Evolution v2: POST /message/sendMedia/{instance}. */
+  async sendDocument(
+    chatId: string,
+    anexo: { readonly fileName: string; readonly mimeType: string; readonly base64: string },
+    caption: string,
+  ): Promise<void> {
+    await this.http.postJson(this.url('/message/sendMedia'), this.headers(), {
+      number: toNumber(chatId),
+      mediatype: 'document',
+      mimetype: anexo.mimeType,
+      media: anexo.base64,
+      fileName: anexo.fileName,
+      caption,
+    });
+  }
+
   async setPresence(chatId: string, state: PresenceState): Promise<void> {
     await this.http.postJson(this.url('/chat/sendPresence'), this.headers(), {
       number: toNumber(chatId),

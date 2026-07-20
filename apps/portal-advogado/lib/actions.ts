@@ -124,6 +124,9 @@ export async function solicitarDocumento(input: {
   priority?: 'normal' | 'alta';
   dueAt?: string;
   reminderPolicy?: 'nenhum' | '24h' | '48h' | '72h' | 'semanal';
+  /** Decreto Tráfego Pago · B1: documento para ASSINATURA (procuração/contrato
+   *  de honorários) — a AHRI envia o arquivo anexado ao cliente. */
+  anexo?: { fileName: string; mimeType: string; base64: string };
 }): Promise<SolicitacaoActionResult> {
   const id = advogadoIdAtual();
   if (!id) return { ok: false, error: 'sessão do advogado ausente', solicitacao: null };
@@ -136,9 +139,22 @@ export async function solicitarDocumento(input: {
     priority: input.priority,
     dueAt: input.dueAt,
     reminderPolicy: input.reminderPolicy,
+    ...(input.anexo !== undefined ? { anexo: input.anexo } : {}),
   });
   revalidatePath('/solicitacoes');
   return criada ? { ok: true, error: null, solicitacao: criada } : { ok: false, error: 'não consegui criar a solicitação (API)', solicitacao: null };
+}
+
+// ── Decreto Tráfego Pago · B2 — o número de WhatsApp do advogado ───────────────
+export async function meuCanalWhatsApp(): Promise<string | null> {
+  const r = await sendJson<{ whatsapp: string | null }>('GET', '/advogado/perfil/canal', undefined);
+  return r?.whatsapp ?? null;
+}
+
+export async function definirCanalWhatsApp(whatsapp: string): Promise<{ ok: boolean; error: string | null }> {
+  const r = await sendJson<{ ok: boolean }>('PUT', '/advogado/perfil/canal', { whatsapp });
+  revalidatePath('/perfil');
+  return r ? { ok: true, error: null } : { ok: false, error: 'não consegui salvar o número (verifique DDI+DDD+número)' };
 }
 
 export async function cancelarSolicitacao(requestId: string, motivo: string): Promise<SolicitacaoActionResult> {

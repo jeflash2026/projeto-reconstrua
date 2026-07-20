@@ -113,10 +113,19 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
       documentName?: string; optionalMessage?: string; clientId?: string; advogadoId?: string;
       requestedBy?: string; priority?: 'normal' | 'alta'; dueAt?: string;
       reminderPolicy?: 'nenhum' | '24h' | '48h' | '72h' | 'semanal';
+      // Decreto Tráfego Pago · B1: documento ANEXADO pelo advogado para ASSINATURA
+      // (procuração/contrato de honorários) — a AHRI envia o arquivo ao cliente.
+      anexo?: { fileName?: string; mimeType?: string; base64?: string };
     };
     if (!body.documentName?.trim()) return reply.code(400).send({ error: 'documentName é obrigatório' });
     if (!body.clientId?.trim()) return reply.code(400).send({ error: 'clientId é obrigatório (canal do cliente)' });
     if (!body.advogadoId?.trim()) return reply.code(400).send({ error: 'advogadoId é obrigatório' });
+    if (body.anexo !== undefined) {
+      if (!body.anexo.fileName?.trim() || !body.anexo.mimeType?.trim() || !body.anexo.base64?.trim()) {
+        return reply.code(400).send({ error: 'anexo incompleto: fileName, mimeType e base64 são obrigatórios' });
+      }
+      if (!op.documentRequestAnexos) return reply.code(503).send({ error: 'anexos indisponíveis nesta montagem' });
+    }
 
     const criado = await op.documentRequests.criar({
       requestId: randomUUID(),
@@ -132,11 +141,44 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
       createdAt: new Date(),
     });
     if (criado.isErr()) return reply.code(400).send({ error: criado.unwrapErr().message });
+    const estado = criado.unwrap();
+    // B1: o anexo é gravado ANTES do anúncio — o comunicador o encontra e troca a
+    // mensagem para "assinar", enviando o arquivo junto.
+    if (body.anexo !== undefined && op.documentRequestAnexos) {
+      await op.documentRequestAnexos.salvar(estado.requestId, {
+        fileName: body.anexo.fileName ?? '',
+        mimeType: body.anexo.mimeType ?? '',
+        base64: body.anexo.base64 ?? '',
+      });
+    }
     // 15C-3 · Parte 3 — DISPARO PROATIVO: a AHRI anuncia ao cliente (best-effort;
     // a criação já está persistida — falha de envio nunca desfaz a solicitação).
-    const estado = criado.unwrap();
     const anuncio = op.documentRequestComunicador ? await op.documentRequestComunicador.anunciar(estado) : { ok: false, erro: 'comunicador indisponível nesta montagem' };
     return reply.code(201).send({ ...estado, anuncio });
+  });
+
+  // Decreto Tráfego Pago · B2 — o NÚMERO do advogado (canal de notificação):
+  // a AHRI avisa documentos recebidos pelo WhatsApp cadastrado aqui.
+  app.get('/advogado/perfil/canal', async (request, reply) => {
+    if (!op.notificationChannels) return reply.code(503).send({ error: 'canais indisponíveis nesta montagem' });
+    const advogadoId = (request.headers['x-advogado-id'] as string | undefined)?.trim() ?? '';
+    if (advogadoId === '') return reply.code(400).send({ error: 'x-advogado-id é obrigatório' });
+    const canais = await op.notificationChannels.canaisDe(advogadoId);
+    const whatsapp = canais.find((c) => c.tipo === 'whatsapp');
+    return { whatsapp: whatsapp ? whatsapp.endereco.split('@')[0] : null };
+  });
+
+  app.put('/advogado/perfil/canal', async (request, reply) => {
+    if (!op.notificationChannels) return reply.code(503).send({ error: 'canais indisponíveis nesta montagem' });
+    const advogadoId = (request.headers['x-advogado-id'] as string | undefined)?.trim() ?? '';
+    if (advogadoId === '') return reply.code(400).send({ error: 'x-advogado-id é obrigatório' });
+    const body = request.body as { whatsapp?: string };
+    const digitos = (body.whatsapp ?? '').replace(/\D/g, '');
+    if (digitos.length < 10) return reply.code(400).send({ error: 'whatsapp inválido: informe DDI+DDD+número (só dígitos)' });
+    await op.notificationChannels.definir(advogadoId, [
+      { tipo: 'whatsapp', endereco: `${digitos}@s.whatsapp.net`, preferido: true, verificadoEm: null },
+    ]);
+    return { ok: true, whatsapp: digitos };
   });
 
   app.get('/advogado/casos/:caseId/document-requests', async (request, reply) => {

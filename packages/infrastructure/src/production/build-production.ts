@@ -79,6 +79,7 @@ import {
   type PendenciaDocumentalProvider,
   OnboardingDocumentalRuntime,
   type OnboardingDocumentalProvider,
+  type EnviadorDeDocumento,
 } from '@reconstrua/application';
 import type { BootableComponent } from '@reconstrua/application';
 import { MissionClosureFeedbackSubscriber, defaultEncerramentoResolver } from '../pipeline/mission-closure-feedback-subscriber.js';
@@ -88,6 +89,7 @@ import { DocumentArrivalSubscriber } from '../document-request/document-arrival-
 import { DocumentRequestComunicador } from '../document-request/document-request-comunicador.js';
 import { DocumentRequestAutonomia } from '../document-request/autonomia.js';
 import { JsonNotificationChannelStore, LawyerNotifierSubscriber } from '../document-request/lawyer-notifier.js';
+import { JsonAnexoStore } from '../document-request/json-anexo-store.js';
 import { JsonOnboardingDocumentalStore } from '../onboarding/json-onboarding-store.js';
 import { OnboardingDocumentalSubscriber, criarResolverDeChat } from '../onboarding/onboarding-documental-subscriber.js';
 import { online } from '@reconstrua/application';
@@ -585,6 +587,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     clock.now(),
   );
   const nomeDoCliente = async (chatId: string): Promise<string | null> => (await living.relationship.context(chatId)).knownName;
+  // Decreto Tráfego Pago · B1 — anexo do advogado (procuração/contrato de
+  // honorários) enviado ao cliente PARA ASSINAR. O enviador de documento é o
+  // próprio gateway quando ele sabe enviar mídia (Evolution); in-memory ⇒ null
+  // (anúncio segue só em texto, com observabilidade).
+  const documentRequestAnexos = new JsonAnexoStore(json);
+  const enviadorDeDocumento =
+    typeof (gateway as Partial<EnviadorDeDocumento>).sendDocument === 'function' ? (gateway as unknown as EnviadorDeDocumento) : null;
   // GO-LIVE 15C-3 · Parte 3 — DISPARO PROATIVO: created → messaged → gateway.
   const documentRequestComunicador = new DocumentRequestComunicador({
     gateway,
@@ -593,6 +602,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     nomeDoCliente,
     observability,
     clock,
+    anexos: documentRequestAnexos,
+    documentos: enviadorDeDocumento,
   });
   // GO-LIVE 15C-4 · Partes 1 e 2 — AUTONOMIA: resolução da confirmação (no
   // inbound, mesma fila) + varredura de SLA (no tick temporal existente).
@@ -763,6 +774,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     documentRequests,
     documentRequestStore,
     documentRequestComunicador,
+    // Decreto Tráfego Pago: anexo p/ assinatura (B1) + canal do advogado (B2).
+    documentRequestAnexos,
+    notificationChannels,
   };
 
   // ── Conexão WhatsApp (Portal Admin) — administração de instâncias Evolution ───

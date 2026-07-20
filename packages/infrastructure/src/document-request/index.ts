@@ -8,3 +8,4 @@ export * from './document-arrival-subscriber.js';
 export * from './document-request-comunicador.js';
 export * from './autonomia.js';
 export * from './lawyer-notifier.js';
+export * from './json-anexo-store.js';

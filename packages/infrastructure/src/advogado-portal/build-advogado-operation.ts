@@ -6,7 +6,7 @@
 // ponte automática Advogado→AHRI. Aditivo puro; nenhum congelado alterado.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock, DocumentRequestState, UuidGenerator } from '@reconstrua/domain';
-import type { ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore, TraducaoClienteRuntime, DocumentRequestRuntime, DocumentRequestStore } from '@reconstrua/application';
+import type { AnexoStore, ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore, TraducaoClienteRuntime, DocumentRequestRuntime, DocumentRequestStore } from '@reconstrua/application';
 import {
   AdvogadoAhriBridge,
   AdvogadoAuthRuntime,
@@ -104,6 +104,15 @@ export interface AssembledAdvogadoOperation {
   readonly documentRequestStore?: DocumentRequestStore;
   // 15C-3: disparo proativo (created → messaged → WhatsApp) — só na produção.
   readonly documentRequestComunicador?: { anunciar(state: DocumentRequestState): Promise<{ ok: boolean; erro: string | null }> };
+  // Decreto Tráfego Pago · B1: anexo do advogado p/ ASSINATURA (procuração/
+  // contrato de honorários) — a AHRI envia o arquivo ao cliente. Só produção.
+  readonly documentRequestAnexos?: AnexoStore;
+  // Decreto Tráfego Pago · B2: canal de notificação do advogado (número de
+  // WhatsApp cadastrado por ele no painel). Só produção.
+  readonly notificationChannels?: {
+    canaisDe(lawyerId: string): Promise<readonly { tipo: string; endereco: string; preferido: boolean; verificadoEm: string | null }[]>;
+    definir(lawyerId: string, canais: readonly { tipo: 'whatsapp' | 'email'; endereco: string; preferido: boolean; verificadoEm: string | null }[]): Promise<void>;
+  };
 }
 
 export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): AssembledAdvogadoOperation {

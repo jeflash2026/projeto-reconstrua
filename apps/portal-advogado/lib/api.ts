@@ -37,7 +37,7 @@ export async function getJson<T>(path: string): Promise<T | null> {
   }
 }
 
-export async function sendJson<T>(method: 'POST' | 'PATCH', path: string, body: unknown): Promise<T | null> {
+export async function sendJson<T>(method: 'POST' | 'PATCH' | 'PUT' | 'GET', path: string, body?: unknown): Promise<T | null> {
   const id = advogadoId();
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (ADVOGADO_TOKEN) headers['authorization'] = `Bearer ${ADVOGADO_TOKEN}`;
@@ -46,7 +46,7 @@ export async function sendJson<T>(method: 'POST' | 'PATCH', path: string, body: 
     const res = await fetch(`${API_BASE}${path}`, {
       method,
       headers,
-      body: JSON.stringify(body),
+      ...(method === 'GET' || body === undefined ? {} : { body: JSON.stringify(body) }),
       cache: 'no-store',
     });
     if (!res.ok) return null;

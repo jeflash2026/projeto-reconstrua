@@ -4,9 +4,12 @@
 import type { ReactElement } from 'react';
 import { getJson, advogadoId, type Perfil } from '../../../lib/api';
 import { formatDate } from '../../../lib/format';
+import { meuCanalWhatsApp } from '../../../lib/actions';
+import CanalWhatsAppForm from '../../../components/canal-whatsapp-form';
 
 const PerfilPage = async (): Promise<ReactElement> => {
   const perfil = advogadoId() !== null ? await getJson<Perfil>('/advogado/perfil') : null;
+  const canal = perfil !== null ? await meuCanalWhatsApp() : null;
   return (
     <>
       <h1 className="page-title">Perfil</h1>
@@ -31,6 +34,9 @@ const PerfilPage = async (): Promise<ReactElement> => {
             <dd className="mono">{perfil.id}</dd>
           </dl>
         </div>
+      ) : null}
+      {perfil ? (
+        <CanalWhatsAppForm atual={canal} />
       ) : (
         <div className="card empty">Sessão sem identidade válida — clique em Sair e entre novamente.</div>
       )}

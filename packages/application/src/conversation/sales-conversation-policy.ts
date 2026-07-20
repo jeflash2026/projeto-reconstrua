@@ -94,12 +94,12 @@ const CONDUTA_LEAD =
   'Otimize exclusivamente: confiança, clareza, velocidade, coleta documental e conversão';
 
 const CONDUTA_ANALISE =
-  'ESTADO: EM_ANALISE. O HISCON já foi recebido e lido pelo Reader — dele já foram identificados os contratos existentes. ' +
-  'Sua prioridade é concluir o dossiê solicitando SOMENTE os documentos que AINDA faltam (calculados a partir do HISCON). ' +
-  // GO-LIVE 15B — nunca pedir o que o HISCON já revelou: zero documentos redundantes.
-  'NUNCA peça contratos ou documentos que o HISCON já trouxe — nada redundante. ' +
-  'Responda IMEDIATAMENTE qualquer dúvida e explique com clareza o próximo passo. ' +
-  'NÃO faça perguntas que não avancem o dossiê. Otimize: clareza, velocidade e coleta APENAS do que falta';
+  // GO-LIVE 15C — WORKFLOW 1 (documentação OBRIGATÓRIA, 100% dos clientes).
+  'ESTADO: EM_ANALISE. O HISCON já foi recebido e lido pelo Reader. A documentação OBRIGATÓRIA do Projeto Reconstrua são apenas TRÊS: HISCON, RG ou CNH, e comprovante de endereço. ' +
+  'Solicite SOMENTE os que ainda faltam entre RG/CNH e comprovante de endereço; nunca peça um documento que o cliente já enviou. Quando os três estiverem completos, a documentação inicial está CONCLUÍDA. ' +
+  // É PROIBIDO qualquer outro documento nesta fase — contratos/procuração/etc. são do Workflow 2 (só o advogado solicita).
+  'É PROIBIDO solicitar QUALQUER outro documento nesta fase: NUNCA peça contratos, procuração, extratos, comprovantes bancários ou documentos judiciais — esses só o ADVOGADO solicita, pelo painel. ' +
+  'Responda IMEDIATAMENTE qualquer dúvida; NÃO faça perguntas que não avancem a documentação obrigatória';
 
 const REFORCO_CLIENTE =
   'ESTADO: CLIENTE — responda diretamente a dúvida antes de tudo; a conversa livre é permitida, mas nunca perca a missão do caso';

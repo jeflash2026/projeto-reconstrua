@@ -85,12 +85,12 @@ describe('15A · a política por ESTADO da missão', () => {
     expect(p.conduta).toContain('SEMPRE convergir para a conversão');
   });
 
-  it('EM_ANALISE ⇒ substitui; pede SOMENTE o que falta (HISCON já lido, nada redundante)', () => {
+  it('EM_ANALISE ⇒ substitui; Workflow 1: só os 3 obrigatórios, nada além (15C)', () => {
     const p = politicaDaMissao(contexto({ missao: 'EM_ANALISE' }));
     expect(p.substituiCuriosidade).toBe(true);
     expect(p.conduta).toContain('HISCON já foi recebido e lido');
-    expect(p.conduta).toContain('SOMENTE os documentos que AINDA faltam');
-    expect(p.conduta).toContain('NUNCA peça contratos ou documentos que o HISCON já trouxe');
+    expect(p.conduta).toContain('HISCON, RG ou CNH, e comprovante de endereço');
+    expect(p.conduta).toContain('SOMENTE os que ainda faltam');
     expect(p.conduta).toContain('Responda IMEDIATAMENTE');
   });
 
@@ -133,12 +133,24 @@ describe('15B · HISCON First Policy — o HISCON é sempre o primeiro documento
     expect(RESPOSTA_ELEGIBILIDADE).toContain('HISCON');
     expect(RESPOSTA_ELEGIBILIDADE).not.toMatch(/contratos/i);
   });
-  it('EM_ANALISE assume o HISCON como fonte de descoberta e pede só o que falta', () => {
+  it('EM_ANALISE assume o HISCON lido e pede só o que falta dos OBRIGATÓRIOS', () => {
     const c = politicaDaMissao(contexto({ missao: 'EM_ANALISE' })).conduta;
     expect(c).toContain('HISCON já foi recebido e lido');
-    expect(c).toContain('identificados os contratos existentes');
-    expect(c).toContain('SOMENTE os documentos que AINDA faltam');
-    expect(c).toContain('nada redundante');
+    expect(c).toContain('SOMENTE os que ainda faltam');
+    expect(c).toContain('nunca peça um documento que o cliente já enviou');
+  });
+});
+
+describe('15C · Workflow 1 — documentação OBRIGATÓRIA (100% dos clientes)', () => {
+  const c = politicaDaMissao(contexto({ missao: 'EM_ANALISE' })).conduta;
+  it('os únicos obrigatórios são HISCON + RG/CNH + comprovante de endereço', () => {
+    expect(c).toContain('apenas TRÊS: HISCON, RG ou CNH, e comprovante de endereço');
+    expect(c).toContain('a documentação inicial está CONCLUÍDA');
+  });
+  it('PROIBIDO qualquer documento do Workflow 2 nesta fase (só o advogado solicita)', () => {
+    expect(c).toContain('É PROIBIDO solicitar QUALQUER outro documento nesta fase');
+    expect(c).toContain('NUNCA peça contratos, procuração, extratos, comprovantes bancários ou documentos judiciais');
+    expect(c).toContain('só o ADVOGADO solicita');
   });
 });
 
@@ -158,7 +170,7 @@ describe('15A · integração no PromptBuilder — o estado guia o styleGuidance
 
   it('EM_ANALISE: styleGuidance pede SOMENTE o que falta (HISCON já lido)', () => {
     const req = builder.build(intent(), contexto({ missao: 'EM_ANALISE', purpose: 'service_request' }));
-    expect(req.styleGuidance).toContain('SOMENTE os documentos que AINDA faltam');
+    expect(req.styleGuidance).toContain('SOMENTE os que ainda faltam');
     expect(req.styleGuidance).not.toContain('HISCON e contratos');
   });
 

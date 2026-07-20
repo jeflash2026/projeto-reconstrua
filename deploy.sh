@@ -167,7 +167,15 @@ main() {
 
   STEP="5/8 · rebuild SEM cache (elimina cache incorreto no COPY do fonte)"
   dc build --no-cache api || die "docker compose build falhou"
-  ok "imagem reconstruída"
+  # CAUSA REAL (GO-LIVE 2026-07-20): buildar SÓ a api deixava a imagem do
+  # `migrate` VELHA — migrations novas (ex.: 06-fact-ref-text.sql) jamais
+  # chegavam ao banco, e o `up api` não re-executa um migrate já concluído.
+  # O build do migrate reusa o cache recém-aquecido (custo ~zero) e o
+  # `run --rm` aplica forward-only ANTES de recriar a api (MIG-01: exit ≠ 0
+  # bloqueia o deploy — nunca sobe api com schema defasado).
+  dc build migrate || die "docker compose build (migrate) falhou"
+  dc run --rm migrate || die "migrations falharam — deploy abortado (api antiga permanece no ar)"
+  ok "imagem reconstruída + migrations aplicadas"
 
   STEP="6/8 · subir apenas a api (força recriar do novo build)"
   dc up -d --force-recreate api || die "docker compose up falhou"

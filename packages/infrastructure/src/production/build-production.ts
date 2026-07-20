@@ -77,6 +77,8 @@ import {
   DocumentRequestRuntime,
   ANY_VERSION,
   type PendenciaDocumentalProvider,
+  OnboardingDocumentalRuntime,
+  type OnboardingDocumentalProvider,
 } from '@reconstrua/application';
 import type { BootableComponent } from '@reconstrua/application';
 import { MissionClosureFeedbackSubscriber, defaultEncerramentoResolver } from '../pipeline/mission-closure-feedback-subscriber.js';
@@ -86,6 +88,8 @@ import { DocumentArrivalSubscriber } from '../document-request/document-arrival-
 import { DocumentRequestComunicador } from '../document-request/document-request-comunicador.js';
 import { DocumentRequestAutonomia } from '../document-request/autonomia.js';
 import { JsonNotificationChannelStore, LawyerNotifierSubscriber } from '../document-request/lawyer-notifier.js';
+import { JsonOnboardingDocumentalStore } from '../onboarding/json-onboarding-store.js';
+import { OnboardingDocumentalSubscriber } from '../onboarding/onboarding-documental-subscriber.js';
 import { online } from '@reconstrua/application';
 import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
 import { InMemorySnapshotStore } from '../event-store/in-memory-snapshot-store.js';
@@ -534,12 +538,43 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     if (!dr || dr.totalPendentes === 0 || dr.ultimaSolicitacao === null) return null;
     return { total: dr.totalPendentes, documentName: dr.ultimaSolicitacao.documentName, requestedBy: dr.ultimaSolicitacao.requestedBy, prioridade: dr.prioridadeMaisAlta ?? 'normal' };
   };
-  const context = new ConversationContextRuntime(sessions, convMemory, {}, casoFatos, criarMissaoProvider(missionSnapshots, clientes, clock), pendenciaDocumental);
+  // Decreto "Jornada Documental Inicial" — a contabilidade canônica da Jornada 1:
+  // classificação determinística sobre o texto TRANSCRITO pelo Reader; pendências
+  // sincronizadas no ALIR (Readiness e nascimento enxergam a MESMA verdade).
+  const onboardingDocumental = new OnboardingDocumentalRuntime({
+    store: new JsonOnboardingDocumentalStore(json),
+    leitor: { texto: (documentId) => documentReader.readById(documentId) },
+    pendencias: { setPendingDocuments: (chatId, labels) => living.memory.setPendingDocuments(chatId, labels) },
+  });
+  const onboardingProvider: OnboardingDocumentalProvider = (chatId) => onboardingDocumental.visao(chatId);
+  const context = new ConversationContextRuntime(
+    sessions,
+    convMemory,
+    {},
+    casoFatos,
+    criarMissaoProvider(missionSnapshots, clientes, clock, onboardingDocumental),
+    pendenciaDocumental,
+    onboardingProvider,
+  );
 
   // GO-LIVE 15C-3 · Parte 2 — ASSOCIAÇÃO INTELIGENTE: documento reconhecido no
   // caso ⇒ associa à solicitação (única/IA) ou pede confirmação ao cliente.
   registry.register(
     new DocumentArrivalSubscriber({ store: documentRequestStore, runtime: documentRequests, gateway, confirmacoes: json, observability, clock }),
+    1,
+    clock.now(),
+  );
+  // Decreto "Jornada Documental Inicial" — o subscriber que ALIMENTA a jornada:
+  // mission.created semeia; document.recognized classifica (retry 2A.2 quando a
+  // transcrição/vínculo ainda não está pronto). O chat da missão vem da MESMA
+  // projeção usada pelo ingress (closure — avaliada só no momento do evento).
+  registry.register(
+    new OnboardingDocumentalSubscriber({
+      runtime: onboardingDocumental,
+      chatDaMissao: (missionId) => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
+      observability,
+      clock,
+    }),
     1,
     clock.now(),
   );

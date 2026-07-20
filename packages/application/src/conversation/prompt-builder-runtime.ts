@@ -56,8 +56,8 @@ export class PromptBuilderRuntime {
       ...context.recentOutboundTexts.slice(0, this.antiRepetitionWindow),
     ].slice(0, this.antiRepetitionWindow + conduta.perguntasJaFeitas.length);
     // GO-LIVE 15A — CONVERSATION MISSION POLICY (guiada pelo ESTADO da missão):
-    // LEAD/EM_ANALISE ⇒ a conduta da missão SUBSTITUI a curiosidade (9E);
-    // CLIENTE/POS_ATENDIMENTO ⇒ a conversa livre (9E) segue, com um reforço leve.
+    // LEAD/ONBOARDING_DOCUMENTAL ⇒ a conduta da missão SUBSTITUI a curiosidade;
+    // ANALISE_ADMINISTRATIVA/CLIENTE/POS ⇒ conversa livre (9E) + reforço leve.
     const politica = politicaDaMissao(context);
     const nucleo = politica.substituiCuriosidade
       ? styleGuidanceDaMissao(politica)

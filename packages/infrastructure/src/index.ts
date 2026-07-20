@@ -20,6 +20,7 @@ export * from './executive-brain/index.js';
 export * from './mission-runtime/index.js';
 export * from './pipeline/index.js';
 export * from './document-request/index.js';
+export * from './onboarding/index.js';
 export * from './living-memory/index.js';
 export * from './administration/index.js';
 export * from './go-live/index.js';

@@ -126,7 +126,9 @@ export const REQUIREMENTS: Readonly<Record<QualificationCaseType, CaseRequiremen
   },
   GENERICO: {
     caseType: 'GENERICO',
-    requiredDocuments: ['IDENTIDADE', 'COMPROVANTE_RESIDENCIA'],
+    // Decreto "Jornada Documental Inicial": a documentação inicial é FIXA —
+    // HISCON (CNIS) + RG/CNH (IDENTIDADE) + comprovante de endereço. Sempre.
+    requiredDocuments: ['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS'],
     optionalDocuments: ['PROCURACAO'],
     requiredInfo: BASE_INFO,
     blockingConditions: BASE_BLOCKING,

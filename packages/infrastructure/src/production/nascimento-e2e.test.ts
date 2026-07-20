@@ -57,7 +57,8 @@ describe('Nascimento e2e (Json stores reais)', () => {
       pedidos: new JsonPedidosAdministrativosStore(json),
     });
 
-    // Cliente RECONHECIDO, PRONTO (verdade + sem pendências) com 2 documentos REAIS.
+    // Cliente RECONHECIDO, PRONTO (verdade + sem pendências) com os 3 documentos
+    // REAIS do decreto "Jornada Documental Inicial" (HISCON + RG/CNH + endereço).
     await identityMap.save({
       chatId: 'c1', personId: 'p1', clienteId: 'cli-1', missionId: 'm1', caseId: null,
       processId: null, latestTruthId: null, latestStateId: null, latestStageId: null,
@@ -69,6 +70,7 @@ describe('Nascimento e2e (Json stores reais)', () => {
       documentsSent: [
         { ref: 'd1', label: 'Documento de identidade', source: { kind: 'domain_event', ref: 'e1', at: NOW } },
         { ref: 'd2', label: 'Comprovante de residência', source: { kind: 'domain_event', ref: 'e2', at: NOW } },
+        { ref: 'd3', label: 'HISCON', source: { kind: 'domain_event', ref: 'e3', at: NOW } },
       ],
       lastContactAt: NOW,
     });

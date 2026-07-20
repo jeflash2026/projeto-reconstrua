@@ -138,7 +138,10 @@ export interface Sleeper {
 }
 
 // ── GO-LIVE 15A — ESTADO da missão da conversa (definido aqui p/ evitar ciclo) ─
-export type MissaoDaConversa = 'LEAD' | 'EM_ANALISE' | 'CLIENTE' | 'POS_ATENDIMENTO';
+// Decreto "Jornada Documental Inicial": EM_ANALISE foi separado em DUAS fases —
+// ONBOARDING_DOCUMENTAL (Jornada 1: coletar os 3 obrigatórios) e
+// ANALISE_ADMINISTRATIVA (100% da documentação inicial; análise em curso).
+export type MissaoDaConversa = 'LEAD' | 'ONBOARDING_DOCUMENTAL' | 'ANALISE_ADMINISTRATIVA' | 'CLIENTE' | 'POS_ATENDIMENTO';
 
 // ── CONTEXTO montado (lido pela expressão e — conceitualmente — pelo Brain) ────
 export interface ConversationContextView {
@@ -158,9 +161,18 @@ export interface ConversationContextView {
    *  "factKey=valor; …"), derivado por turno. null/ausente = nada aprendido. */
   readonly conhecimentoDaConversa?: string | null;
   /** GO-LIVE 15A — o ESTADO da missão da conversa (derivado do domínio/Truth
-   *  Layer). Guia a política: LEAD/EM_ANALISE têm prioridade comercial; CLIENTE/
-   *  POS_ATENDIMENTO liberam a conversa livre (9E/9F). Ausente ⇒ LEAD. */
+   *  Layer). Guia a política: LEAD/ONBOARDING_DOCUMENTAL têm prioridade
+   *  comercial-documental; ANALISE_ADMINISTRATIVA/CLIENTE/POS_ATENDIMENTO
+   *  liberam a conversa livre (9E/9F). Ausente ⇒ LEAD. */
   readonly missaoDaConversa?: MissaoDaConversa;
+  /** Decreto "Jornada Documental Inicial" — a CONTABILIDADE da Jornada 1 para a
+   *  conversa (rótulos humanos): o que já chegou, o que falta e o PRÓXIMO a
+   *  solicitar. null/ausente = jornada não semeada (trate como tudo pendente). */
+  readonly onboardingDocumental?: {
+    readonly recebidos: readonly string[];
+    readonly faltando: readonly string[];
+    readonly proximo: string | null;
+  } | null;
   /** GO-LIVE 15C-3 — PENDÊNCIA DOCUMENTAL viva no Mission Snapshot (Workflow 2).
    *  Derivada EXCLUSIVAMENTE de snapshot.documentRequests (nunca banco/read
    *  model). Presente ⇒ a missão operacional inclui "obter documento pendente";

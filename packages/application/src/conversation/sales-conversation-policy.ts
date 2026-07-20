@@ -3,10 +3,14 @@
 // EXPLÍCITO da missão, não por um booleano. A cada estado corresponde uma
 // prioridade; a política molda a CONDUTA do turno conforme o estado.
 //
-//   LEAD           → prioridade ABSOLUTA: conversão + coleta documental.
-//   EM_ANALISE     → prioridade: coleta documental e conclusão do dossiê.
-//   CLIENTE        → conversa livre permitida, sem perder a missão do caso.
-//   POS_ATENDIMENTO→ suporte e acompanhamento.
+//   LEAD                   → prioridade ABSOLUTA: conversão + HISCON first.
+//   ONBOARDING_DOCUMENTAL  → Jornada 1: levar até 100% da documentação inicial
+//                            FIXA (HISCON, RG/CNH, comprovante de endereço).
+//   ANALISE_ADMINISTRATIVA → documentação 100%; análise em curso: conversa
+//                            normal, andamento, sigilo; NUNCA pede documentos
+//                            por iniciativa própria (só DocumentRequest ativo).
+//   CLIENTE                → conversa livre permitida, sem perder a missão.
+//   POS_ATENDIMENTO        → suporte e acompanhamento.
 //
 // View-model PURO (como a dosagem 9D / intelligence 9E): não decide nem altera
 // fatos. O estado vem do DOMÍNIO (Truth Layer) via `context.missaoDaConversa` —
@@ -19,7 +23,7 @@ export type { MissaoDaConversa };
 /** Todo novo contato, sem sinal de domínio, é um LEAD. */
 export const MISSAO_PADRAO: MissaoDaConversa = 'LEAD';
 
-const ESTADOS_VALIDOS: ReadonlySet<string> = new Set(['LEAD', 'EM_ANALISE', 'CLIENTE', 'POS_ATENDIMENTO']);
+const ESTADOS_VALIDOS: ReadonlySet<string> = new Set(['LEAD', 'ONBOARDING_DOCUMENTAL', 'ANALISE_ADMINISTRATIVA', 'CLIENTE', 'POS_ATENDIMENTO']);
 /** Fallback SEGURO: só as 4 missões conhecidas passam; qualquer outra ⇒ LEAD. */
 export function ehMissaoValida(v: unknown): v is MissaoDaConversa {
   return typeof v === 'string' && ESTADOS_VALIDOS.has(v);
@@ -32,7 +36,8 @@ export const RESPOSTA_ELEGIBILIDADE =
 // ── Objetivo da missão por estado (a conversa SEMPRE segue a missão atual) ─────
 export const OBJETIVO_DA_MISSAO: Readonly<Record<MissaoDaConversa, string>> = {
   LEAD: 'Converter Lead',
-  EM_ANALISE: 'Completar Documentação',
+  ONBOARDING_DOCUMENTAL: 'Completar a Documentação Inicial',
+  ANALISE_ADMINISTRATIVA: 'Acompanhar a Análise Administrativa',
   CLIENTE: 'Acompanhar Processo',
   POS_ATENDIMENTO: 'Suporte',
 };
@@ -43,6 +48,9 @@ export interface SinaisDaMissao {
   readonly missaoAtiva: boolean; // há missão ATIVA no Mission Runtime (primário)
   readonly processoEncerrado: boolean; // estado terminal da missão (ENCERRADA)
   readonly vendaRegistrada: boolean; // sinal do STATUS do cliente (VENDIDO)
+  /** Decreto "Jornada Documental Inicial": os 3 obrigatórios estão 100%?
+   *  (contabilidade canônica da Jornada 1 — nunca inferido da conversa) */
+  readonly documentacaoInicialCompleta: boolean;
 }
 
 /** Deriva o estado a partir da missão ativa. Pura; o provider a usa. */
@@ -50,7 +58,9 @@ export function derivarMissaoDaConversa(s: SinaisDaMissao): MissaoDaConversa {
   if (!s.missaoAtiva) return 'LEAD'; // sem missão ativa ⇒ converter o lead
   if (s.processoEncerrado) return 'POS_ATENDIMENTO'; // missão encerrada ⇒ suporte
   if (s.vendaRegistrada) return 'CLIENTE'; // vendido ⇒ acompanhar o processo
-  return 'EM_ANALISE'; // missão ativa, ainda não vendida ⇒ completar documentação
+  // Jornada 1: enquanto QUALQUER obrigatório estiver pendente ⇒ onboarding;
+  // com 100% ⇒ análise administrativa (a mudança é AUTOMÁTICA — decreto).
+  return s.documentacaoInicialCompleta ? 'ANALISE_ADMINISTRATIVA' : 'ONBOARDING_DOCUMENTAL';
 }
 
 export interface PoliticaDaMissao {
@@ -93,13 +103,31 @@ const CONDUTA_LEAD =
   'A conversa deve SEMPRE convergir para a conversão e a coleta dos documentos. ' +
   'Otimize exclusivamente: confiança, clareza, velocidade, coleta documental e conversão';
 
-const CONDUTA_ANALISE =
-  // GO-LIVE 15C — WORKFLOW 1 (documentação OBRIGATÓRIA, 100% dos clientes).
-  'ESTADO: EM_ANALISE. O HISCON já foi recebido e lido pelo Reader. A documentação OBRIGATÓRIA do Projeto Reconstrua são apenas TRÊS: HISCON, RG ou CNH, e comprovante de endereço. ' +
-  'Solicite SOMENTE os que ainda faltam entre RG/CNH e comprovante de endereço; nunca peça um documento que o cliente já enviou. Quando os três estiverem completos, a documentação inicial está CONCLUÍDA. ' +
-  // É PROIBIDO qualquer outro documento nesta fase — contratos/procuração/etc. são do Workflow 2 (só o advogado solicita).
-  'É PROIBIDO solicitar QUALQUER outro documento nesta fase: NUNCA peça contratos, procuração, extratos, comprovantes bancários ou documentos judiciais — esses só o ADVOGADO solicita, pelo painel. ' +
-  'Responda IMEDIATAMENTE qualquer dúvida; NÃO faça perguntas que não avancem a documentação obrigatória';
+/** Jornada 1 — conduta DINÂMICA: nasce da contabilidade real (o que chegou/falta). */
+function condutaOnboarding(context: ConversationContextView): string {
+  const ob = context.onboardingDocumental;
+  const situacao =
+    ob !== null && ob !== undefined
+      ? `${ob.recebidos.length > 0 ? `Já recebidos e CONFIRMADOS: ${ob.recebidos.join('; ')}. ` : ''}` +
+        `Ainda faltam: ${ob.faltando.length > 0 ? ob.faltando.join('; ') : 'nenhum'}. ` +
+        `${ob.proximo !== null ? `Solicite AGORA, nesta resposta, APENAS o próximo: ${ob.proximo}. ` : ''}`
+      : 'A contabilidade ainda não registrou nenhum recebimento: comece pelo HISCON (histórico de empréstimos consignados). ';
+  return (
+    'ESTADO: ONBOARDING_DOCUMENTAL (Jornada 1). Sua missão é levar o cliente até 100% da documentação inicial FIXA — ' +
+    'exatamente TRÊS documentos, nesta ordem: HISCON, RG ou CNH, e comprovante de endereço. ' +
+    situacao +
+    'Confirme com naturalidade cada documento que o cliente enviar e peça IMEDIATAMENTE o próximo que falta — um por vez, nunca vários. ' +
+    'NUNCA diga que vai analisar o caso agora, NUNCA encerre o atendimento e NUNCA deixe o cliente aguardando: enquanto faltar documento, a conversa continua. ' +
+    'É PROIBIDO solicitar QUALQUER outro documento nesta fase: NUNCA peça contratos, procuração, extratos, comprovantes bancários ou documentos judiciais — complementares só nascem do Painel do Advogado (Jornada 2). ' +
+    'Responda IMEDIATAMENTE qualquer dúvida; NÃO faça perguntas que não avancem a documentação obrigatória'
+  );
+}
+
+const REFORCO_ANALISE_ADMINISTRATIVA =
+  'ESTADO: ANALISE_ADMINISTRATIVA — a documentação inicial está 100% completa e o cadastro está em análise administrativa. ' +
+  'Responda dúvidas, converse normalmente e informe o andamento do caso quando perguntarem. ' +
+  'Preserve o sigilo da empresa, NUNCA revele dados de terceiros e NUNCA invente prazos. ' +
+  'NUNCA solicite documentos por iniciativa própria: documento complementar só é pedido quando existir uma solicitação ATIVA do advogado (ela aparece como MISSÃO OPERACIONAL); sem ela, nenhum pedido de documento';
 
 const REFORCO_CLIENTE =
   'ESTADO: CLIENTE — responda diretamente a dúvida antes de tudo; a conversa livre é permitida, mas nunca perca a missão do caso';
@@ -113,14 +141,16 @@ export function politicaDaMissao(context: ConversationContextView): PoliticaDaMi
   const missao: MissaoDaConversa = ehMissaoValida(context.missaoDaConversa) ? context.missaoDaConversa : MISSAO_PADRAO;
   const objetivo = OBJETIVO_DA_MISSAO[missao];
   const perguntaDireta = ehPerguntaDireta(context);
-  const podeResponderElegibilidade = missao === 'LEAD' || missao === 'EM_ANALISE';
+  const podeResponderElegibilidade = missao === 'LEAD' || missao === 'ONBOARDING_DOCUMENTAL';
   const respostaCanonica = podeResponderElegibilidade && perguntaDireta && ehPerguntaDeDireito(context) ? RESPOSTA_ELEGIBILIDADE : null;
 
   switch (missao) {
     case 'LEAD':
       return { missao, objetivo, substituiCuriosidade: true, perguntaDireta, respostaCanonica, conduta: CONDUTA_LEAD, reforco: '' };
-    case 'EM_ANALISE':
-      return { missao, objetivo, substituiCuriosidade: true, perguntaDireta, respostaCanonica, conduta: CONDUTA_ANALISE, reforco: '' };
+    case 'ONBOARDING_DOCUMENTAL':
+      return { missao, objetivo, substituiCuriosidade: true, perguntaDireta, respostaCanonica, conduta: condutaOnboarding(context), reforco: '' };
+    case 'ANALISE_ADMINISTRATIVA':
+      return { missao, objetivo, substituiCuriosidade: false, perguntaDireta, respostaCanonica: null, conduta: '', reforco: REFORCO_ANALISE_ADMINISTRATIVA };
     case 'CLIENTE':
       return { missao, objetivo, substituiCuriosidade: false, perguntaDireta, respostaCanonica: null, conduta: '', reforco: REFORCO_CLIENTE };
     case 'POS_ATENDIMENTO':

@@ -34,3 +34,4 @@ export * from './command-center/index.js';
 export * from './dossie/index.js';
 export * from './inteligencia/index.js';
 export * from './document-request/index.js';
+export * from './onboarding/index.js';

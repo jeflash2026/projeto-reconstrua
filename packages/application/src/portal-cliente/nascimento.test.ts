@@ -85,7 +85,7 @@ function runtime(
 
 describe('Nascimento · o momento acontece (sem clique humano)', () => {
   it('cliente PRONTO com evidência real → fato + mensagem homologada com link válido', async () => {
-    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 2);
+    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 3);
     const r = await nascimento.verificar(NOW);
 
     expect(r.nascidos).toEqual(['cli-1']);
@@ -104,7 +104,7 @@ describe('Nascimento · o momento acontece (sem clique humano)', () => {
   });
 
   it('ENVIO ÚNICO / IDEMPOTÊNCIA: segunda varredura é no-op', async () => {
-    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 2);
+    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 3);
     await nascimento.verificar(NOW);
     await nascimento.verificar(new Date(NOW.getTime() + 60_000));
     expect(liberacao.salvos).toHaveLength(1);
@@ -127,7 +127,7 @@ describe('Nascimento · NUNCA prematuro', () => {
   });
 
   it('sem evidência REAL de recebimento (docs < obrigatórios) → silêncio, mesmo PRONTO', async () => {
-    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 1); // GENERICO exige 2
+    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 1); // decreto: 3 obrigatórios
     const r = await nascimento.verificar(NOW);
     expect(r.nascidos).toEqual([]);
     expect(liberacao.salvos).toEqual([]);
@@ -135,7 +135,7 @@ describe('Nascimento · NUNCA prematuro', () => {
   });
 
   it('FAIL-CLOSED: sem segredo do link, o nascimento não acontece', async () => {
-    const { nascimento, liberacao } = runtime([resumo({})], 2, { secret: '' });
+    const { nascimento, liberacao } = runtime([resumo({})], 3, { secret: '' });
     const r = await nascimento.verificar(NOW);
     expect(r.verificados).toBe(0);
     expect(liberacao.salvos).toEqual([]);
@@ -144,7 +144,7 @@ describe('Nascimento · NUNCA prematuro', () => {
 
 describe('Nascimento · Lei 8 (fato ANTES da mensagem)', () => {
   it('se a entrega falhar, o fato PERMANECE e não há re-tentativa automática (link renasce em conversa)', async () => {
-    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 2, { aceita: false });
+    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 3, { aceita: false });
     const r = await nascimento.verificar(NOW);
     expect(r.nascidos).toEqual([]); // não entregue…
     expect(liberacao.salvos).toHaveLength(1); // …mas a DECISÃO está registrada

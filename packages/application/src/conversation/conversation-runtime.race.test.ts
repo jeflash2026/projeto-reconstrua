@@ -161,5 +161,5 @@ it('classificação AINDA pendente (contabilidade não mudou) ⇒ agradece e NÃ
   await runtime.receive(envelope({}));
   const sg = styleGuidances[0] ?? '';
   expect(sg).toContain('ACABOU de enviar um arquivo NESTA mensagem');
-  expect(sg).toContain('NÃO peça novamente o documento que ela acabou de mandar');
+  expect(sg).toContain('NÃO avance para um documento novo'); // registrando ⇒ nunca pular etapa
 });

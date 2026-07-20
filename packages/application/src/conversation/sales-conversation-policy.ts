@@ -126,13 +126,16 @@ function condutaOnboarding(context: ConversationContextView): string {
         `Ainda faltam: ${ob.faltando.length > 0 ? ob.faltando.join('; ') : 'nenhum'}. ` +
         `${ob.proximo !== null ? `Solicite AGORA, nesta resposta, APENAS o próximo: ${ob.proximo}. ` : ''}`
       : 'A contabilidade ainda não registrou nenhum recebimento: comece pelo RG (frente e verso) ou CNH. ';
-  // Correção GO-LIVE: quando o arquivo chega NESTE turno mas o registro ainda
-  // está em processamento (transcrição assíncrona), a AHRI jamais pode responder
-  // ao envio pedindo o MESMO documento — agradece, confirma o recebimento e segue.
+  // Correção GO-LIVE (2 rodadas de teste real): quando o arquivo chega NESTE
+  // turno, a AHRI agradece — mas JAMAIS pula etapa. A instrução antiga
+  // ("mencione o outro documento") fazia ela saltar do RG-frente direto ao
+  // comprovante, ignorando o VERSO. Agora: segue o "Solicite AGORA" à risca
+  // (verso do RG É a outra face, não repetição) e, com registro em
+  // processamento, NÃO avança — reforça a regra frente E verso.
   const arquivoAgora = enviouArquivoNesteTurno(context)
-    ? 'ATENÇÃO — a pessoa ACABOU de enviar um arquivo NESTA mensagem: agradeça e confirme o recebimento com naturalidade. ' +
-      'Se a lista acima ainda não refletir esse arquivo (registro em processamento), NÃO peça novamente o documento que ela acabou de mandar — ' +
-      'diga que já está registrando e, se ainda faltar OUTRO documento diferente, mencione apenas esse outro. '
+    ? 'ATENÇÃO — a pessoa ACABOU de enviar um arquivo NESTA mensagem: agradeça e confirme o recebimento com naturalidade, mas NUNCA pule etapas por causa disso. ' +
+      'Siga EXATAMENTE o "Solicite AGORA" acima — se ele pedir o VERSO do RG, peça o verso (é a OUTRA FACE do mesmo documento, não é repetição). ' +
+      'Se a lista acima ainda NÃO refletir este arquivo (registro em processamento), NÃO avance para um documento novo: diga que está registrando e lembre com leveza que, no caso de RG, você precisa da FRENTE e do VERSO (a CNH sozinha vale pela identidade). '
     : '';
   return (
     'ESTADO: ONBOARDING_DOCUMENTAL (Jornada 1 — triagem). Sua missão é levar o cliente até 100% da documentação inicial FIXA — ' +

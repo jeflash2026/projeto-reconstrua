@@ -103,6 +103,12 @@ const CONDUTA_LEAD =
   'A conversa deve SEMPRE convergir para a conversão e a coleta dos documentos. ' +
   'Otimize exclusivamente: confiança, clareza, velocidade, coleta documental e conversão';
 
+/** A pessoa enviou um ARQUIVO nesta mensagem? (fato do envelope — nunca inferido) */
+function enviouArquivoNesteTurno(context: ConversationContextView): boolean {
+  const e = context.lastPercept?.envelope;
+  return e != null && (e.fileName != null || e.mediaUrl != null);
+}
+
 /** Jornada 1 — conduta DINÂMICA: nasce da contabilidade real (o que chegou/falta). */
 function condutaOnboarding(context: ConversationContextView): string {
   const ob = context.onboardingDocumental;
@@ -112,10 +118,19 @@ function condutaOnboarding(context: ConversationContextView): string {
         `Ainda faltam: ${ob.faltando.length > 0 ? ob.faltando.join('; ') : 'nenhum'}. ` +
         `${ob.proximo !== null ? `Solicite AGORA, nesta resposta, APENAS o próximo: ${ob.proximo}. ` : ''}`
       : 'A contabilidade ainda não registrou nenhum recebimento: comece pelo HISCON (histórico de empréstimos consignados). ';
+  // Correção GO-LIVE: quando o arquivo chega NESTE turno mas o registro ainda
+  // está em processamento (transcrição assíncrona), a AHRI jamais pode responder
+  // ao envio pedindo o MESMO documento — agradece, confirma o recebimento e segue.
+  const arquivoAgora = enviouArquivoNesteTurno(context)
+    ? 'ATENÇÃO — a pessoa ACABOU de enviar um arquivo NESTA mensagem: agradeça e confirme o recebimento com naturalidade. ' +
+      'Se a lista acima ainda não refletir esse arquivo (registro em processamento), NÃO peça novamente o documento que ela acabou de mandar — ' +
+      'diga que já está registrando e, se ainda faltar OUTRO documento diferente, mencione apenas esse outro. '
+    : '';
   return (
     'ESTADO: ONBOARDING_DOCUMENTAL (Jornada 1). Sua missão é levar o cliente até 100% da documentação inicial FIXA — ' +
     'exatamente TRÊS documentos, nesta ordem: HISCON, RG ou CNH, e comprovante de endereço. ' +
     situacao +
+    arquivoAgora +
     'Confirme com naturalidade cada documento que o cliente enviar e peça IMEDIATAMENTE o próximo que falta — um por vez, nunca vários. ' +
     'NUNCA diga que vai analisar o caso agora, NUNCA encerre o atendimento e NUNCA deixe o cliente aguardando: enquanto faltar documento, a conversa continua. ' +
     'É PROIBIDO solicitar QUALQUER outro documento nesta fase: NUNCA peça contratos, procuração, extratos, comprovantes bancários ou documentos judiciais — complementares só nascem do Painel do Advogado (Jornada 2). ' +

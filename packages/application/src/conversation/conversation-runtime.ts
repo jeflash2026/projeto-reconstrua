@@ -133,14 +133,23 @@ export class ConversationRuntime {
     // 3) EXECUTIVE BRAIN — a ÚNICA fonte de decisão. A Conversa não cria intenções.
     const intents = await brain.decide({ percept, context: view });
 
+    // 3b) CONTEXTO PÓS-DECISÃO (correção GO-LIVE · Jornada Documental Inicial):
+    // o pipeline do Brain EXECUTA a missão e drena o dispatcher DENTRO do turno
+    // (documento reconhecido → classificação da Jornada 1 → snapshot/pendências
+    // atualizados). A FALA precisa enxergar o mundo DEPOIS disso — sem esta
+    // reconstrução, a AHRI responde a um documento recém-enviado pedindo o MESMO
+    // documento (visão pré-turno). O Brain decidiu com a visão da chegada
+    // (correto); a expressão fala com a visão atual (correto).
+    const viewParaFala = await context.build(envelope.chatId, percept, now, silenceMs);
+
     // 4) EXECUTA cada intenção (fala com anti-repetição, ou silencia).
     const turnPhrases: string[] = [];
     for (const intent of intents) {
-      await this.executeIntent(intent, view, now, turnPhrases);
+      await this.executeIntent(intent, viewParaFala, now, turnPhrases);
     }
 
     // 5) ENTREGA humana da fila (ordenada, nunca instantânea, nunca sobreposta).
-    const delivered = await this.deps.delivery.drain(view);
+    const delivered = await this.deps.delivery.drain(viewParaFala);
 
     return { chatId: envelope.chatId, percept, intents, delivered, skipped: false };
   }

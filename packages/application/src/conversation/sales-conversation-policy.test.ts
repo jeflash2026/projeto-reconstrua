@@ -32,6 +32,7 @@ function contexto(
     missao?: MissaoDaConversa;
     purpose?: PerceivedPurpose;
     texto?: string | null;
+    arquivo?: string;
     onboarding?: { recebidos: string[]; faltando: string[]; proximo: string | null } | null;
   } = {},
 ): ConversationContextView {
@@ -40,7 +41,10 @@ function contexto(
     session: { chatId: 'c1', turns: 2, lastInboundAt: null, lastOutboundAt: null },
     recentEntries: [],
     recentOutboundTexts: [],
-    lastPercept: { envelope: { text: over.texto ?? null }, enrichment: { perceivedPurpose: over.purpose ?? 'unknown', detectedIntentSignal: null } } as never,
+    lastPercept: {
+      envelope: { text: over.texto ?? null, fileName: over.arquivo ?? null, mediaUrl: over.arquivo !== undefined ? 'https://wa/m1' : null },
+      enrichment: { perceivedPurpose: over.purpose ?? 'unknown', detectedIntentSignal: null },
+    } as never,
     silenceMs: null,
     casoFatos: null,
     ...(over.missao !== undefined ? { missaoDaConversa: over.missao } : {}),
@@ -170,6 +174,18 @@ describe('Decreto · JORNADA 1 — ONBOARDING_DOCUMENTAL', () => {
     expect(c).toContain('É PROIBIDO solicitar QUALQUER outro documento nesta fase');
     expect(c).toContain('NUNCA peça contratos, procuração, extratos, comprovantes bancários ou documentos judiciais');
     expect(c).toContain('Painel do Advogado (Jornada 2)');
+  });
+
+  it('GUARDA GO-LIVE: arquivo enviado NESTE turno ⇒ agradece o recebimento e não re-pede', () => {
+    const c = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL', arquivo: 'hiscon.pdf' })).conduta;
+    expect(c).toContain('ACABOU de enviar um arquivo NESTA mensagem');
+    expect(c).toContain('agradeça e confirme o recebimento');
+    expect(c).toContain('NÃO peça novamente o documento que ela acabou de mandar');
+  });
+
+  it('sem arquivo no turno ⇒ a guarda não aparece', () => {
+    const c = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL', texto: 'oi' })).conduta;
+    expect(c).not.toContain('ACABOU de enviar um arquivo');
   });
 });
 

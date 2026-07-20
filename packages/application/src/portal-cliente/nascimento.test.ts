@@ -93,10 +93,10 @@ describe('Nascimento · o momento acontece (sem clique humano)', () => {
     expect(liberacao.salvos).toHaveLength(1);
     expect(liberacao.salvos[0]).toMatchObject({ clienteId: 'cli-1', chatId: 'c1', estimativaDiasInformada: 12 });
 
-    // A MENSAGEM (D2 — conteúdo homologado):
+    // A MENSAGEM (D2 revisado — conteúdo homologado):
     const msg = comunicador.mensagens[0];
-    expect(msg?.texto).toContain('seu cadastro foi concluído');
-    expect(msg?.texto).toContain('aproximadamente 12 dias');
+    expect(msg?.texto).toContain('Recebi toda a sua documentação inicial');
+    expect(msg?.texto).toContain('até 12 dias úteis');
     expect(msg?.texto).toContain('estarei aqui.'); // a frase final OBRIGATÓRIA
     // O LINK verbatim, com token VÁLIDO do cliente certo:
     const token = /\?t=([^\s]+)/.exec(msg?.texto ?? '')?.[1] ?? '';
@@ -154,15 +154,27 @@ describe('Nascimento · Lei 8 (fato ANTES da mensagem)', () => {
   });
 });
 
-describe('mensagemNascimento (D2)', () => {
-  it('contém todos os elementos homologados, na ordem', () => {
-    const m = mensagemNascimento(15, 'https://x/portal?t=abc');
+describe('mensagemNascimento (D2 — revisado pelo decreto "Jornada Documental Inicial")', () => {
+  it('contém os 6 elementos do decreto, na ordem', () => {
+    const m = mensagemNascimento(10, 'https://x/portal?t=abc');
     for (const trecho of [
-      'cadastro foi concluído',
-      'análise técnica',
-      'aproximadamente 15 dias',
+      // 1. Recebemos toda a documentação inicial (os 3 nomeados):
+      'Recebi toda a sua documentação inicial: HISCON, RG ou CNH e comprovante de endereço',
+      // (sentimento: terminou a primeira etapa; nada mais a enviar espontaneamente)
+      'Essa primeira etapa está concluída',
+      'você não precisa enviar mais nada por enquanto',
+      // 2. Entrou na análise administrativa:
+      'etapa de análise administrativa',
+      // 3. Prazo esperado:
+      'até 10 dias úteis',
+      // 4. Complementares só quando a equipe solicitar por este atendimento:
+      'documento complementar for necessário durante a análise, nossa equipe solicitará diretamente por este atendimento',
+      // 5. Portal para acompanhamento (link verbatim):
+      'acompanhar as informações do seu processo pelo Portal do Cliente',
       'https://x/portal?t=abc',
-      'avisarei você por aqui',
+      // 6. Contato automático quando houver novidade:
+      'Sempre que houver alguma novidade, eu entrarei em contato automaticamente',
+      // Invariante PC-R3: o relacionamento nunca termina.
       'estarei aqui.',
     ]) {
       expect(m).toContain(trecho);

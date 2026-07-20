@@ -49,15 +49,19 @@ export interface NascimentoResumo {
   readonly nascidos: readonly string[]; // clienteIds comunicados nesta varredura
 }
 
-/** O texto HOMOLOGADO (Decisão 2) — conteúdo do Fundador; slots determinísticos. */
+/** O texto HOMOLOGADO (Decisão 2, revisado pelo decreto "Jornada Documental
+ *  Inicial") — conteúdo do Fundador; slots determinísticos. É a ÚNICA mensagem
+ *  oficial que encerra o ONBOARDING_DOCUMENTAL e marca a transição para a
+ *  ANALISE_ADMINISTRATIVA. Toda a plataforma usa exclusivamente o D2. */
 export function mensagemNascimento(dias: number, link: string): string {
   return (
-    'Recebi toda a documentação necessária e seu cadastro foi concluído. ' +
-    'Agora seu caso entra na etapa de análise técnica da nossa equipe. ' +
-    `Essa fase costuma levar aproximadamente ${String(dias)} dias. ` +
-    'Enquanto isso você já pode acompanhar toda a evolução pelo seu Portal do Cliente: ' +
+    'Recebi toda a sua documentação inicial: HISCON, RG ou CNH e comprovante de endereço. ' +
+    'Essa primeira etapa está concluída — você não precisa enviar mais nada por enquanto. ' +
+    `Seu cadastro entrou agora na etapa de análise administrativa, que pode levar até ${String(dias)} dias úteis. ` +
+    'Se algum documento complementar for necessário durante a análise, nossa equipe solicitará diretamente por este atendimento. ' +
+    'Enquanto isso, você pode acompanhar as informações do seu processo pelo Portal do Cliente: ' +
     `${link} ` +
-    'Sempre que houver alguma movimentação importante eu também avisarei você por aqui. ' +
+    'Sempre que houver alguma novidade, eu entrarei em contato automaticamente por aqui. ' +
     'Se precisar conversar comigo durante esse período, estarei aqui.'
   );
 }

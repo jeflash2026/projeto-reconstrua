@@ -40,5 +40,13 @@ export function toMissionUseCaseIntents(
       ...(origin === undefined ? {} : { strategicDecision: origin }),
     });
   }
-  return result;
+  // Correção GO-LIVE (defeito real do primeiro HISCON): quando OnboardClient e
+  // IngestDocument saem no MESMO turno (cliente novo cuja PRIMEIRA ação é enviar
+  // o documento), a ordem por prioridade executava R3 ANTES da missão existir —
+  // "pré-condição ausente: Missão (INV-D08)" — e o documento perdia a vez.
+  // OnboardClient roda SEMPRE primeiro: é a ordem que o próprio INV-D08 impõe
+  // (a missão precede o documento). Sort estável: o resto preserva a ordem.
+  return [...result].sort((a, b) =>
+    a.useCase === 'OnboardClient' && b.useCase !== 'OnboardClient' ? -1 : b.useCase === 'OnboardClient' && a.useCase !== 'OnboardClient' ? 1 : 0,
+  );
 }

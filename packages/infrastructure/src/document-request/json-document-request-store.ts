@@ -66,6 +66,10 @@ export class JsonDocumentRequestStore implements DocumentRequestStore {
     return (await this.todos()).filter((s) => s.lawyerId === lawyerId).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }
 
+  async abertas(): Promise<readonly DocumentRequestState[]> {
+    return (await this.todos()).filter((s) => ABERTOS.has(s.status));
+  }
+
   private async todos(): Promise<readonly DocumentRequestState[]> {
     const raws = await this.json.list(NAMESPACE);
     return raws.map(reviver).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());

@@ -49,6 +49,13 @@ export class ProductionIngress {
     /** B4.2: recorrência CONTROLADA — reagenda o próximo acompanhamento quando este
      *  disparo produziu acompanhamento ao cliente (RO-4C-*). Opcional (ausente = one-shot). */
     private readonly recurrence?: FollowUpRecurrenceRuntime,
+    /** 15C-4: autonomia do DocumentRequest — resolve confirmação pendente ANTES do
+     *  turno (mesma fila, sem corrida) e roda a varredura de SLA no tick.
+     *  Best-effort: jamais derruba conversa ou tick. Opcional. */
+    private readonly autonomia?: {
+      aoReceberTexto(chatId: string, texto: string, now: Date): Promise<void>;
+      varredura(now: Date): Promise<void>;
+    },
   ) {}
 
   /** Enfileira uma operação na cadeia da conversa (estritamente sequencial por chat). */
@@ -61,7 +68,14 @@ export class ProductionIngress {
 
   /** ENTRADA ÚNICA de mensagens do cliente (webhook) — serializada por conversa. */
   receive(envelope: InboundEnvelope): Promise<TurnResult> {
-    return this.enqueue(envelope.chatId, () => this.conversation.receive(envelope));
+    return this.enqueue(envelope.chatId, async () => {
+      // 15C-4 · Parte 1: resposta de texto pode RESOLVER uma confirmação pendente
+      // — roda ANTES do turno (o snapshot já chega limpo à conversa). Best-effort.
+      if (this.autonomia && envelope.kind === 'text' && envelope.text !== null && envelope.text !== '') {
+        await this.autonomia.aoReceberTexto(envelope.chatId, envelope.text, envelope.timestamp).catch(() => undefined);
+      }
+      return this.conversation.receive(envelope);
+    });
   }
 
   /** ENTRADA ÚNICA de sinais temporais — mesma fila da conversa (sem corrida com inbound). */
@@ -87,6 +101,9 @@ export class ProductionIngress {
       // (bounded, cadência mínima). Encerrado/escalação/espera não recorrem.
       if (this.recurrence) await this.recurrence.onFollowUpFired(routed, result, now);
     }
+    // 15C-4 · Parte 2: varredura de SLA dos DocumentRequests no MESMO motor
+    // temporal (nenhum timer paralelo). Best-effort: nunca derruba o tick.
+    if (this.autonomia) await this.autonomia.varredura(now).catch(() => undefined);
     return results;
   }
 }

@@ -84,6 +84,8 @@ import { JsonDocumentRequestStore } from '../document-request/json-document-requ
 import { DocumentRequestsAwareSnapshotAdapter } from '../document-request/document-requests-snapshot-adapter.js';
 import { DocumentArrivalSubscriber } from '../document-request/document-arrival-subscriber.js';
 import { DocumentRequestComunicador } from '../document-request/document-request-comunicador.js';
+import { DocumentRequestAutonomia } from '../document-request/autonomia.js';
+import { JsonNotificationChannelStore, LawyerNotifierSubscriber } from '../document-request/lawyer-notifier.js';
 import { online } from '@reconstrua/application';
 import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
 import { InMemorySnapshotStore } from '../event-store/in-memory-snapshot-store.js';
@@ -537,19 +539,39 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // GO-LIVE 15C-3 · Parte 2 — ASSOCIAÇÃO INTELIGENTE: documento reconhecido no
   // caso ⇒ associa à solicitação (única/IA) ou pede confirmação ao cliente.
   registry.register(
-    new DocumentArrivalSubscriber({ store: documentRequestStore, runtime: documentRequests, gateway, observability, clock }),
+    new DocumentArrivalSubscriber({ store: documentRequestStore, runtime: documentRequests, gateway, confirmacoes: json, observability, clock }),
     1,
     clock.now(),
   );
+  const nomeDoCliente = async (chatId: string): Promise<string | null> => (await living.relationship.context(chatId)).knownName;
   // GO-LIVE 15C-3 · Parte 3 — DISPARO PROATIVO: created → messaged → gateway.
   const documentRequestComunicador = new DocumentRequestComunicador({
     gateway,
     memory: convMemory,
     runtime: documentRequests,
-    nomeDoCliente: async (chatId) => (await living.relationship.context(chatId)).knownName,
+    nomeDoCliente,
     observability,
     clock,
   });
+  // GO-LIVE 15C-4 · Partes 1 e 2 — AUTONOMIA: resolução da confirmação (no
+  // inbound, mesma fila) + varredura de SLA (no tick temporal existente).
+  const documentRequestAutonomia = new DocumentRequestAutonomia({
+    store: documentRequestStore,
+    runtime: documentRequests,
+    gateway,
+    confirmacoes: json,
+    nomeDoCliente,
+    observability,
+    clock,
+  });
+  // GO-LIVE 15C-4 · Parte 3 — ENTREGA ao advogado (received → canal → WhatsApp),
+  // com dedup por evento e registro entregue/falhou/sem-canal.
+  const notificationChannels = new JsonNotificationChannelStore(json);
+  registry.register(
+    new LawyerNotifierSubscriber({ store: documentRequestStore, canais: notificationChannels, gateway, entregas: json, nomeDoCliente, observability, clock }),
+    1,
+    clock.now(),
+  );
   const promptBuilder = new PromptBuilderRuntime(policy.antiRepetitionWindow);
   const timing = new HumanLikeTimingRuntime(policy, Math.random);
   const delay = new DelayRuntime(sleeper);
@@ -835,6 +857,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     (missionId) => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
     // B4.2: recorrência CONTROLADA sobre o MESMO scheduler (sem novo scheduler/persistência).
     new FollowUpRecurrenceRuntime(scheduler),
+    // 15C-4: autonomia do DocumentRequest (confirmação no inbound + SLA no tick).
+    documentRequestAutonomia,
   );
   const shadow = new ShadowRecorder(
     plainIngress,

@@ -22,8 +22,13 @@ import type {
   StoredEvent,
 } from '@reconstrua/application';
 import { perguntaDeConfirmacao } from '@reconstrua/application';
+import type { JsonStore } from '../production/json-store.js';
 
 const ABERTAS = new Set(['PENDING', 'REOPENED']);
+
+/** 15C-4 · Parte 1 — contexto da confirmação pendente (infra, efêmero): qual
+ *  DocumentId aguarda a resposta do cliente. Nunca é verdade de domínio. */
+export const NS_CONFIRMACOES = 'dr-confirmacoes';
 
 /** Normaliza para comparação: minúsculas, sem acento, só letras/números. */
 function normalizar(s: string): string {
@@ -42,6 +47,8 @@ export interface ArrivalDeps {
   readonly store: DocumentRequestStore;
   readonly runtime: DocumentRequestRuntime;
   readonly gateway: ConversationGateway | null; // pergunta de confirmação (best-effort)
+  /** 15C-4: guarda o DocumentId que aguarda confirmação (p/ o resolver). */
+  readonly confirmacoes?: JsonStore | null;
   readonly observability: ObservabilityRuntime;
   readonly clock: Clock;
 }
@@ -83,8 +90,10 @@ export class DocumentArrivalSubscriber implements EventSubscriber {
 
       // DÚVIDA ⇒ AWAITING_CONFIRMATION + pergunta ao cliente (received só depois).
       for (const c of candidatas) await d.runtime.aguardarConfirmacao(c.requestId, now);
+      const clientId = (candidatas[0] as DocumentRequestState).clientId;
+      // 15C-4: registra QUAL documento aguarda a resposta (contexto do resolver).
+      if (d.confirmacoes) await d.confirmacoes.put(NS_CONFIRMACOES, clientId, { documentId, askedAt: now.toISOString() }).catch(() => undefined);
       if (d.gateway !== null) {
-        const clientId = (candidatas[0] as DocumentRequestState).clientId;
         await d.gateway.sendText(clientId, perguntaDeConfirmacao(candidatas)).catch(() => undefined);
       }
       d.observability.event('document-request', `confirmacao-pedida doc=${documentId} candidatas=${candidatas.length}`, now);

@@ -22,6 +22,8 @@ export interface DocumentRequestStore {
   abertasDoCliente(clientId: string): Promise<readonly DocumentRequestState[]>;
   /** 15C-2 — todas as solicitações do ADVOGADO (a lista do painel). */
   doAdvogado(lawyerId: string): Promise<readonly DocumentRequestState[]>;
+  /** 15C-4 — todas as ABERTAS do sistema (varredura de SLA). */
+  abertas(): Promise<readonly DocumentRequestState[]>;
 }
 
 const ABERTOS = new Set(['PENDING', 'AWAITING_CONFIRMATION', 'REOPENED']);
@@ -43,6 +45,9 @@ export class InMemoryDocumentRequestStore implements DocumentRequestStore {
   }
   doAdvogado(lawyerId: string): Promise<readonly DocumentRequestState[]> {
     return Promise.resolve([...this.porIdMap.values()].filter((r) => r.lawyerId === lawyerId).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+  }
+  abertas(): Promise<readonly DocumentRequestState[]> {
+    return Promise.resolve([...this.porIdMap.values()].filter((r) => ABERTOS.has(r.status)).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()));
   }
 }
 
@@ -95,8 +100,9 @@ export function perguntaDeConfirmacao(candidatas: readonly DocumentRequestState[
 
 /** Lembrete de SLA (Decisão D) — enviado automaticamente pela cadência da entidade. */
 export function mensagemDeLembrete(state: DocumentRequestState, clienteNome: string): string {
+  const saudacao = clienteNome.trim() !== '' ? `Oi, ${clienteNome}!` : 'Oi!';
   return (
-    `Oi, ${clienteNome}! Passando para lembrar: ${state.requestedBy} aguarda a ${state.documentName} ` +
+    `${saudacao} Passando para lembrar: ${state.requestedBy} aguarda a ${state.documentName} ` +
     `para dar andamento ao seu processo. Pode enviar por aqui quando conseguir.`
   );
 }

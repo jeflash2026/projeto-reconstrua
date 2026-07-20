@@ -11,7 +11,7 @@ import type { StoredEvent } from '@reconstrua/application';
 import { ObservabilityRuntime, OnboardingDocumentalRuntime } from '@reconstrua/application';
 import { InMemoryJsonStore } from '../production/json-store.js';
 import { JsonOnboardingDocumentalStore } from './json-onboarding-store.js';
-import { OnboardingDocumentalSubscriber } from './onboarding-documental-subscriber.js';
+import { OnboardingDocumentalSubscriber, criarResolverDeChat } from './onboarding-documental-subscriber.js';
 
 const NOW = new Date('2026-07-20T10:00:00.000Z');
 const CHAT = '5517996332346@s.whatsapp.net';
@@ -40,7 +40,7 @@ function harness(textos: Record<string, string | null>, chatResolvivel = true) {
   });
   const subscriber = new OnboardingDocumentalSubscriber({
     runtime,
-    chatDaMissao: () => (chatResolvivel ? CHAT : null),
+    chatDaMissao: () => Promise.resolve(chatResolvivel ? CHAT : null),
     observability: new ObservabilityRuntime(),
     clock: new TestClock(),
   });
@@ -84,5 +84,39 @@ describe('Decreto · a jornada alimentada pelos eventos reais', () => {
     await h.subscriber.handle(evento('person', 'p1', 'person.recognized', {}));
     await h.subscriber.handle(evento('mission', MISSAO, 'mission.closed', {}));
     expect(await h.runtime.visao(CHAT)).toBeNull();
+  });
+});
+
+describe('Regressão GO-LIVE · resolver AUTO-ATUALIZÁVEL (projector vazio pós-restart)', () => {
+  it('projector VAZIO (recém-restartado) ⇒ refresh incremental resolve o chat', async () => {
+    // O cenário exato da produção: container recriado, projeção em memória zerada.
+    let projetado: { missionId: string; chatId: string }[] = [];
+    let refreshes = 0;
+    const resolver = criarResolverDeChat({
+      missions: () => projetado,
+      refresh: () => { refreshes += 1; projetado = [{ missionId: MISSAO, chatId: CHAT }]; return Promise.resolve(); },
+    });
+    expect(await resolver(MISSAO)).toBe(CHAT); // resolveu SEM depender do painel admin
+    expect(refreshes).toBe(1);
+  });
+
+  it('já projetado ⇒ nenhum refresh extra (caminho quente barato)', async () => {
+    let refreshes = 0;
+    const resolver = criarResolverDeChat({
+      missions: () => [{ missionId: MISSAO, chatId: CHAT }],
+      refresh: () => { refreshes += 1; return Promise.resolve(); },
+    });
+    expect(await resolver(MISSAO)).toBe(CHAT);
+    expect(refreshes).toBe(0);
+  });
+
+  it('missão realmente inexistente ⇒ null mesmo após refresh (retry do dispatcher decide)', async () => {
+    const resolver = criarResolverDeChat({ missions: () => [], refresh: () => Promise.resolve() });
+    expect(await resolver('M-inexistente')).toBeNull();
+  });
+
+  it('refresh falhando (banco fora) ⇒ null sem exceção', async () => {
+    const resolver = criarResolverDeChat({ missions: () => [], refresh: () => Promise.reject(new Error('pg down')) });
+    await expect(resolver(MISSAO)).resolves.toBeNull();
   });
 });

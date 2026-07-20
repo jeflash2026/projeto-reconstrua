@@ -89,7 +89,7 @@ import { DocumentRequestComunicador } from '../document-request/document-request
 import { DocumentRequestAutonomia } from '../document-request/autonomia.js';
 import { JsonNotificationChannelStore, LawyerNotifierSubscriber } from '../document-request/lawyer-notifier.js';
 import { JsonOnboardingDocumentalStore } from '../onboarding/json-onboarding-store.js';
-import { OnboardingDocumentalSubscriber } from '../onboarding/onboarding-documental-subscriber.js';
+import { OnboardingDocumentalSubscriber, criarResolverDeChat } from '../onboarding/onboarding-documental-subscriber.js';
 import { online } from '@reconstrua/application';
 import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
 import { InMemorySnapshotStore } from '../event-store/in-memory-snapshot-store.js';
@@ -566,12 +566,18 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   );
   // Decreto "Jornada Documental Inicial" — o subscriber que ALIMENTA a jornada:
   // mission.created semeia; document.recognized classifica (retry 2A.2 quando a
-  // transcrição/vínculo ainda não está pronto). O chat da missão vem da MESMA
-  // projeção usada pelo ingress (closure — avaliada só no momento do evento).
+  // transcrição/vínculo ainda não está pronto). DEFEITO REAL de produção
+  // corrigido aqui: o projector em memória nasce VAZIO a cada restart do
+  // container e só era atualizado pelas rotas do painel — o primeiro HISCON
+  // pós-deploy caía em "chat não resolvível" → 5 retries → DLQ → cliente
+  // cobrado para sempre. O resolver agora se AUTO-ATUALIZA (refresh incremental
+  // por globalSeq, barato) antes de desistir.
   registry.register(
     new OnboardingDocumentalSubscriber({
       runtime: onboardingDocumental,
-      chatDaMissao: (missionId) => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
+      // Lazy: o projector é declarado adiante nesta montagem; o resolver só o
+      // toca no momento do EVENTO (o registro do subscriber acontece antes).
+      chatDaMissao: (missionId) => criarResolverDeChat(projector)(missionId),
       observability,
       clock,
     }),

@@ -18,10 +18,40 @@
 import type { Clock } from '@reconstrua/domain';
 import type { EventSubscriber, ObservabilityRuntime, OnboardingDocumentalRuntime, StoredEvent } from '@reconstrua/application';
 
+/** A projeção mínima de que o resolver precisa (o TimelineProjector real satisfaz). */
+export interface ProjecaoDeMissoes {
+  missions(): readonly { readonly missionId: string; readonly chatId: string | null }[];
+  refresh(): Promise<void>;
+}
+
+/**
+ * Resolver AUTO-ATUALIZÁVEL do chat da missão — correção do defeito real de
+ * produção: o projector em memória nasce VAZIO a cada restart do container e só
+ * era atualizado pelas rotas do painel; sem isto, o primeiro documento
+ * pós-deploy caía em "chat não resolvível" → retries → DLQ → classificação
+ * perdida. Tenta; se não achar, faz refresh incremental (globalSeq) e tenta de
+ * novo. Falha do refresh é tolerada (devolve null ⇒ retry do dispatcher).
+ */
+export function criarResolverDeChat(projector: ProjecaoDeMissoes): (missionId: string) => Promise<string | null> {
+  return async (missionId) => {
+    const achar = (): string | null => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null;
+    let chat = achar();
+    if (chat === null) {
+      await projector.refresh().catch(() => undefined);
+      chat = achar();
+    }
+    return chat;
+  };
+}
+
 export interface OnboardingSubscriberDeps {
   readonly runtime: OnboardingDocumentalRuntime;
-  /** Resolve o chatId REAL de uma missão (projeção do vínculo chat↔missão). */
-  readonly chatDaMissao: (missionId: string) => string | null;
+  /** Resolve o chatId REAL de uma missão (projeção do vínculo chat↔missão).
+   *  ASSÍNCRONO por decreto do defeito real de produção: o projector em memória
+   *  nasce VAZIO a cada restart do container e só era atualizado pelas rotas do
+   *  painel — o resolver precisa poder se AUTO-ATUALIZAR (refresh incremental)
+   *  antes de desistir. */
+  readonly chatDaMissao: (missionId: string) => Promise<string | null>;
   readonly observability: ObservabilityRuntime;
   readonly clock: Clock;
 }
@@ -37,7 +67,7 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
     const now = d.clock.now();
 
     if (event.streamType === 'mission' && event.eventType === 'mission.created') {
-      const chatId = d.chatDaMissao(event.streamId);
+      const chatId = await d.chatDaMissao(event.streamId);
       if (chatId === null) {
         // A projeção do vínculo pode estar um ciclo atrás ⇒ reentrega resolve.
         throw new Error(`onboarding: chat da missão ${event.streamId} ainda não resolvível`);
@@ -50,7 +80,7 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
     if (event.streamType === 'document' && event.eventType === 'document.recognized') {
       const missionId = typeof event.payload['missionId'] === 'string' ? event.payload['missionId'] : null;
       if (missionId === null) return;
-      const chatId = d.chatDaMissao(missionId);
+      const chatId = await d.chatDaMissao(missionId);
       if (chatId === null) {
         throw new Error(`onboarding: chat da missão ${missionId} ainda não resolvível (documento ${event.streamId})`);
       }

@@ -75,11 +75,12 @@ export function resumoDocumentRequests(states: readonly DocumentRequestState[]):
 
 // ── MENSAGENS autoradas (a AHRI entrega — nunca inventa) ──────────────────────
 
-/** Mensagem inicial ao CLIENTE ao criar a solicitação. */
+/** Mensagem inicial ao CLIENTE ao criar a solicitação. Nome desconhecido ⇒ "Olá!". */
 export function mensagemAoCliente(state: DocumentRequestState, clienteNome: string): string {
   const extra = state.optionalMessage ? `\n\n${state.optionalMessage}` : '';
+  const saudacao = clienteNome.trim() !== '' ? `Olá, ${clienteNome}.` : 'Olá!';
   return (
-    `Olá, ${clienteNome}.\n\n` +
+    `${saudacao}\n\n` +
     `${state.requestedBy}, responsável pelo seu processo, solicitou um documento complementar para dar continuidade ao andamento da ação.\n\n` +
     `Documento solicitado:\n${state.documentName}${extra}\n\n` +
     `Assim que possível, envie por aqui.`

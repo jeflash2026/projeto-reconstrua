@@ -128,6 +128,24 @@ export function politicaDaMissao(context: ConversationContextView): PoliticaDaMi
   }
 }
 
+/**
+ * GO-LIVE 15C-3 — MISSÃO OPERACIONAL: "obter documento pendente". Deriva
+ * EXCLUSIVAMENTE do contexto (que nasce do Mission Snapshot). Convive com a
+ * conversa: responder normalmente e, ao final, lembrar GENTILMENTE — nunca
+ * interromper, nunca soar robótico. Some sozinha quando o snapshot esvazia.
+ */
+export function condutaDePendencia(context: ConversationContextView): string {
+  const p = context.pendenciaDocumental;
+  if (p === null || p === undefined) return '';
+  const urgencia = p.prioridade === 'alta' ? ' (é prioritário para o andamento)' : '';
+  const outros = p.total > 1 ? ` — e há outros ${String(p.total - 1)} documento(s) pendente(s) além deste` : '';
+  return (
+    `; MISSÃO OPERACIONAL — obter documento pendente: ${p.requestedBy} aguarda a pessoa enviar «${p.documentName}»${urgencia}${outros}. ` +
+    'Responda NORMALMENTE ao que a pessoa disse e, só ao final, lembre com GENTILEZA e leveza desse documento em UMA frase — ' +
+    'jamais interrompa o assunto dela, jamais repita o lembrete de forma idêntica, jamais soe como roteiro ou cobrança fria'
+  );
+}
+
 /** styleGuidance da missão quando a conduta SUBSTITUI a curiosidade (LEAD/EM_ANALISE). */
 export function styleGuidanceDaMissao(politica: PoliticaDaMissao): string {
   if (!politica.substituiCuriosidade) return '';

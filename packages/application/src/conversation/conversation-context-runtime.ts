@@ -29,6 +29,10 @@ export type CasoFatosProvider = (chatId: string) => Promise<string | null>;
  *  best-effort: ausente/falha ⇒ LEAD (todo novo contato é um lead). */
 export type MissaoProvider = (chatId: string) => Promise<MissaoDaConversa | null>;
 
+/** GO-LIVE 15C-3 — fornece a PENDÊNCIA documental (derivada do Mission
+ *  Snapshot). Opcional e best-effort: ausente/falha ⇒ nada pendente. */
+export type PendenciaDocumentalProvider = (chatId: string) => Promise<NonNullable<ConversationContextView['pendenciaDocumental']> | null>;
+
 export class ConversationContextRuntime {
   private readonly options: ContextOptions;
 
@@ -38,6 +42,7 @@ export class ConversationContextRuntime {
     options: Partial<ContextOptions> = {},
     private readonly casoFatos?: CasoFatosProvider,
     private readonly missao?: MissaoProvider,
+    private readonly pendencia?: PendenciaDocumentalProvider,
   ) {
     this.options = { ...DEFAULT_CONTEXT_OPTIONS, ...options };
   }
@@ -49,11 +54,12 @@ export class ConversationContextRuntime {
     silenceMs: number | null = null,
   ): Promise<ConversationContextView> {
     const session: Session = await this.sessions.getOrOpen(chatId, now);
-    const [recentEntries, recentOutboundTexts, casoFatos, missao] = await Promise.all([
+    const [recentEntries, recentOutboundTexts, casoFatos, missao, pendencia] = await Promise.all([
       this.memory.recent(chatId, this.options.memoryWindow),
       this.memory.recentOutboundTexts(chatId, this.options.outboundWindow),
       this.casoFatos !== undefined ? this.casoFatos(chatId).catch(() => null) : Promise.resolve(null),
       this.missao !== undefined ? this.missao(chatId).catch(() => null) : Promise.resolve(null),
+      this.pendencia !== undefined ? this.pendencia(chatId).catch(() => null) : Promise.resolve(null),
     ]);
     return {
       chatId,
@@ -65,6 +71,8 @@ export class ConversationContextRuntime {
       casoFatos,
       // GO-LIVE 15A — estado EXPLÍCITO da missão no contexto (default LEAD).
       missaoDaConversa: missao ?? MISSAO_PADRAO,
+      // GO-LIVE 15C-3 — a pendência documental viva (do Mission Snapshot).
+      pendenciaDocumental: pendencia,
     };
   }
 }

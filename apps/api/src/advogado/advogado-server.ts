@@ -132,7 +132,11 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
       createdAt: new Date(),
     });
     if (criado.isErr()) return reply.code(400).send({ error: criado.unwrapErr().message });
-    return reply.code(201).send(criado.unwrap());
+    // 15C-3 · Parte 3 — DISPARO PROATIVO: a AHRI anuncia ao cliente (best-effort;
+    // a criação já está persistida — falha de envio nunca desfaz a solicitação).
+    const estado = criado.unwrap();
+    const anuncio = op.documentRequestComunicador ? await op.documentRequestComunicador.anunciar(estado) : { ok: false, erro: 'comunicador indisponível nesta montagem' };
+    return reply.code(201).send({ ...estado, anuncio });
   });
 
   app.get('/advogado/casos/:caseId/document-requests', async (request, reply) => {

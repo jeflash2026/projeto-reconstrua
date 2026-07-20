@@ -9,7 +9,7 @@
 import type { ConversationIntent, SpeechAct } from './intent.js';
 import type { ConversationContextView, PhrasingRequest } from './ports.js';
 import { conduzirTurno } from './conversation-intelligence.js';
-import { politicaDaMissao, styleGuidanceDaMissao } from './sales-conversation-policy.js';
+import { condutaDePendencia, politicaDaMissao, styleGuidanceDaMissao } from './sales-conversation-policy.js';
 
 function toneFor(intent: ConversationIntent, context: ConversationContextView): string {
   const sentiment = context.lastPercept?.enrichment?.sentiment ?? 'unknown';
@@ -63,7 +63,9 @@ export class PromptBuilderRuntime {
       ? styleGuidanceDaMissao(politica)
       : `${conduta.conduta}${politica.reforco ? `; ${politica.reforco}` : ''}`;
     // A conversa SEMPRE segue a missão atual (derivada da missão ativa do Runtime).
-    const condutaFinal = `MISSÃO ATUAL — ${politica.objetivo}: ${nucleo}`;
+    // GO-LIVE 15C-3: a PENDÊNCIA documental (do snapshot) convive com qualquer
+    // estado — a AHRI lembra gentilmente até received/cancelled esvaziarem.
+    const condutaFinal = `MISSÃO ATUAL — ${politica.objetivo}: ${nucleo}${condutaDePendencia(context)}`;
     return {
       intent,
       // GO-LIVE 9F/9G: o FIO e o CONHECIMENTO da conversa ativa viajam no contexto —

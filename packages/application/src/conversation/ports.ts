@@ -161,4 +161,14 @@ export interface ConversationContextView {
    *  Layer). Guia a política: LEAD/EM_ANALISE têm prioridade comercial; CLIENTE/
    *  POS_ATENDIMENTO liberam a conversa livre (9E/9F). Ausente ⇒ LEAD. */
   readonly missaoDaConversa?: MissaoDaConversa;
+  /** GO-LIVE 15C-3 — PENDÊNCIA DOCUMENTAL viva no Mission Snapshot (Workflow 2).
+   *  Derivada EXCLUSIVAMENTE de snapshot.documentRequests (nunca banco/read
+   *  model). Presente ⇒ a missão operacional inclui "obter documento pendente";
+   *  ausente/null ⇒ nada pendente (received/cancelled esvaziam sozinhos). */
+  readonly pendenciaDocumental?: {
+    readonly total: number;
+    readonly documentName: string;
+    readonly requestedBy: string;
+    readonly prioridade: 'alta' | 'normal';
+  } | null;
 }

@@ -76,11 +76,14 @@ import {
   ProductionFeedbackLoop,
   DocumentRequestRuntime,
   ANY_VERSION,
+  type PendenciaDocumentalProvider,
 } from '@reconstrua/application';
 import type { BootableComponent } from '@reconstrua/application';
 import { MissionClosureFeedbackSubscriber, defaultEncerramentoResolver } from '../pipeline/mission-closure-feedback-subscriber.js';
 import { JsonDocumentRequestStore } from '../document-request/json-document-request-store.js';
 import { DocumentRequestsAwareSnapshotAdapter } from '../document-request/document-requests-snapshot-adapter.js';
+import { DocumentArrivalSubscriber } from '../document-request/document-arrival-subscriber.js';
+import { DocumentRequestComunicador } from '../document-request/document-request-comunicador.js';
 import { online } from '@reconstrua/application';
 import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
 import { InMemorySnapshotStore } from '../event-store/in-memory-snapshot-store.js';
@@ -521,7 +524,32 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // PC-R4: o contexto de conversa carrega o pacote de FATOS do caso (best-effort).
   // GO-LIVE 15A: e o ESTADO da missão, derivado da MISSÃO ATIVA (Mission Runtime),
   // com o status do cliente como um dos sinais.
-  const context = new ConversationContextRuntime(sessions, convMemory, {}, casoFatos, criarMissaoProvider(missionSnapshots, clientes, clock));
+  // GO-LIVE 15C-3: e a PENDÊNCIA documental — derivada EXCLUSIVAMENTE do Mission
+  // Snapshot (a conversa nunca consulta banco/read model).
+  const pendenciaDocumental: PendenciaDocumentalProvider = async (chatId) => {
+    const s = await missionSnapshots.load(chatId);
+    const dr = s?.documentRequests;
+    if (!dr || dr.totalPendentes === 0 || dr.ultimaSolicitacao === null) return null;
+    return { total: dr.totalPendentes, documentName: dr.ultimaSolicitacao.documentName, requestedBy: dr.ultimaSolicitacao.requestedBy, prioridade: dr.prioridadeMaisAlta ?? 'normal' };
+  };
+  const context = new ConversationContextRuntime(sessions, convMemory, {}, casoFatos, criarMissaoProvider(missionSnapshots, clientes, clock), pendenciaDocumental);
+
+  // GO-LIVE 15C-3 · Parte 2 — ASSOCIAÇÃO INTELIGENTE: documento reconhecido no
+  // caso ⇒ associa à solicitação (única/IA) ou pede confirmação ao cliente.
+  registry.register(
+    new DocumentArrivalSubscriber({ store: documentRequestStore, runtime: documentRequests, gateway, observability, clock }),
+    1,
+    clock.now(),
+  );
+  // GO-LIVE 15C-3 · Parte 3 — DISPARO PROATIVO: created → messaged → gateway.
+  const documentRequestComunicador = new DocumentRequestComunicador({
+    gateway,
+    memory: convMemory,
+    runtime: documentRequests,
+    nomeDoCliente: async (chatId) => (await living.relationship.context(chatId)).knownName,
+    observability,
+    clock,
+  });
   const promptBuilder = new PromptBuilderRuntime(policy.antiRepetitionWindow);
   const timing = new HumanLikeTimingRuntime(policy, Math.random);
   const delay = new DelayRuntime(sleeper);
@@ -671,6 +699,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // GO-LIVE 15C (Workflow 2): o advogado administra as solicitações pela API.
     documentRequests,
     documentRequestStore,
+    documentRequestComunicador,
   };
 
   // ── Conexão WhatsApp (Portal Admin) — administração de instâncias Evolution ───

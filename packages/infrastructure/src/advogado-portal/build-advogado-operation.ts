@@ -5,7 +5,7 @@
 // da ponte usa) e ADICIONA: atribuições, trabalho jurídico, catálogo RO-3B e a
 // ponte automática Advogado→AHRI. Aditivo puro; nenhum congelado alterado.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { Clock, UuidGenerator } from '@reconstrua/domain';
+import type { Clock, DocumentRequestState, UuidGenerator } from '@reconstrua/domain';
 import type { ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore, TraducaoClienteRuntime, DocumentRequestRuntime, DocumentRequestStore } from '@reconstrua/application';
 import {
   AdvogadoAhriBridge,
@@ -102,6 +102,8 @@ export interface AssembledAdvogadoOperation {
   // pela API/painel; a AHRI apenas executa. Opcional (composição de produção).
   readonly documentRequests?: DocumentRequestRuntime;
   readonly documentRequestStore?: DocumentRequestStore;
+  // 15C-3: disparo proativo (created → messaged → WhatsApp) — só na produção.
+  readonly documentRequestComunicador?: { anunciar(state: DocumentRequestState): Promise<{ ok: boolean; erro: string | null }> };
 }
 
 export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): AssembledAdvogadoOperation {

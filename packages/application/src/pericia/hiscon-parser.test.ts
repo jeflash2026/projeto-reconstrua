@@ -13,6 +13,7 @@ import {
   dataCurta,
   dinheiro,
   indiciosDeEstrategias,
+  mapaDeMigracoes,
   parseHisconDetalhado,
 } from './hiscon-parser.js';
 
@@ -99,6 +100,15 @@ TAXA JUROS ANUAL: 21,70
 VALOR PAGO**: R$0,01
 DATA PRIMEIRO DESCONTO: 10/06/25
 
+CONTRATO: 0123998106IMC
+BANCO: 329 - QI SOCIEDADE DE CREDITO DIRETO S A
+SITUAÇÃO: Ativo
+ORIGEM DA AVERBAÇÃO: Averbação nova
+DATA INCLUSÃO: 27/01/25
+QTDE PARCELAS: 84
+VALOR PARCELA: R$37,10
+TAXA JUROS MENSAL: 1,79
+
 CONTRATO: 575062747
 BANCO: 389 - BANCO MERCANTIL DO BRASIL S A
 SITUAÇÃO: Ativo
@@ -127,8 +137,8 @@ describe('parseHisconDetalhado · o documento REAL da produção', () => {
     expect(extraido.margens.extrapolada).toBeCloseTo(0);
   });
 
-  it('extrai os 4 contratos com banco, valores, taxas e datas', () => {
-    expect(extraido.contratos).toHaveLength(4);
+  it('extrai os 5 contratos com banco, valores, taxas e datas', () => {
+    expect(extraido.contratos).toHaveLength(5);
     const bradesco = extraido.contratos.find((c) => c.contrato === '0123528811531');
     expect(bradesco).toMatchObject({
       bancoCodigo: '237',
@@ -143,16 +153,31 @@ describe('parseHisconDetalhado · o documento REAL da produção', () => {
     expect(bradesco?.dataInclusao?.toISOString().slice(0, 10)).toBe('2025-04-15');
   });
 
-  it('MIGRADO: detectado pela ORIGEM DA AVERBAÇÃO, com o contrato de origem', () => {
+  it('MIGRADO: detectado pela ORIGEM DA AVERBAÇÃO, com o contrato de origem e o CBC', () => {
     const migrado = extraido.contratos.find((c) => c.contrato === '0328380631IMC');
     expect(migrado?.migrado).toBe(true);
     expect(migrado?.migradoDoContrato).toBe('0328380631IMC');
+    expect(migrado?.migradoDoCbc).toBe('329');
     expect(contratosMigrados(extraido.contratos).map((c) => c.contrato)).toEqual(['0328380631IMC']);
+  });
+
+  it('MAPA da migração: DE contrato@banco de origem (CBC resolvido pelo documento) → PARA o atual', () => {
+    const mapa = mapaDeMigracoes(extraido.contratos);
+    expect(mapa).toHaveLength(1);
+    expect(mapa[0]).toMatchObject({
+      deContrato: '0328380631IMC',
+      deBancoCodigo: '329',
+      // 329 aparece no próprio HISCON como QI SOCIEDADE DE CREDITO DIRETO S A.
+      deBancoNome: 'QI SOCIEDADE DE CREDITO DIRETO S A',
+      paraContrato: '0328380631IMC',
+      paraBancoCodigo: '753',
+      paraBancoNome: 'NOVO BANCO CONTINENTAL S A',
+    });
   });
 
   it('fila do PERITO = não migrados (pedido administrativo)', () => {
     const fila = contratosParaPedidoAdministrativo(extraido.contratos);
-    expect(fila).toHaveLength(3);
+    expect(fila).toHaveLength(4);
     expect(fila.every((c) => !c.migrado)).toBe(true);
   });
 
@@ -163,12 +188,13 @@ describe('parseHisconDetalhado · o documento REAL da produção', () => {
       'BANCO INBURSA SA',
       'BANCO MERCANTIL DO BRASIL S A',
       'NOVO BANCO CONTINENTAL S A',
+      'QI SOCIEDADE DE CREDITO DIRETO S A',
     ]);
   });
 
   it('janela de 5 anos: contrato de 2024 dentro; VALOR PAGO vazio ⇒ null', () => {
     const hoje = new Date('2026-07-21T00:00:00Z');
-    expect(contratosDaJanela(extraido.contratos, hoje, 5)).toHaveLength(4);
+    expect(contratosDaJanela(extraido.contratos, hoje, 5)).toHaveLength(5);
     // Janela de 1 ano (corte 21/07/2025): só o contrato de 02/2026 permanece.
     expect(contratosDaJanela(extraido.contratos, hoje, 1)).toHaveLength(1);
     const semPago = extraido.contratos.find((c) => c.contrato === '0123528811531');

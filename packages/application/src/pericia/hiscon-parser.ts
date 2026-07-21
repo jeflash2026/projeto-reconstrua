@@ -20,6 +20,8 @@ export interface ContratoHiscon {
   /** ORIGEM DA AVERBAÇÃO contém "Migrado" ⇒ sem pedido administrativo. */
   readonly migrado: boolean;
   readonly migradoDoContrato: string | null;
+  /** "… CBC: 329" — o código do BANCO DE ORIGEM da migração. */
+  readonly migradoDoCbc: string | null;
   readonly modalidade: ModalidadeContrato;
   readonly dataInclusao: Date | null;
   readonly competenciaInicio: string | null;
@@ -153,6 +155,7 @@ export function parseHisconDetalhado(texto: string): HisconExtraido {
 
     const origem = campo(bloco, 'ORIGEM DA AVERBA[ÇC][ÃA]O');
     const migradoDe = origem !== null ? /Migrado do contrato\s+(\S+)/i.exec(origem) : null;
+    const cbcDe = origem !== null ? /CBC:\s*(\d+)/i.exec(origem) : null;
     const b = banco(campo(bloco, 'BANCO'));
     contratos.push({
       contrato: atual.contrato,
@@ -162,6 +165,7 @@ export function parseHisconDetalhado(texto: string): HisconExtraido {
       origemAverbacao: origem,
       migrado: origem !== null && /\bmigrado\b/i.test(origem),
       migradoDoContrato: migradoDe?.[1] ?? null,
+      migradoDoCbc: cbcDe?.[1] ?? null,
       modalidade: modalidadeDaSecao(secao),
       dataInclusao: dataCurta(campo(bloco, 'DATA INCLUS[ÃA]O')),
       competenciaInicio: campo(bloco, 'COMPET[ÊE]NCIA IN[ÍI]CIO DE DESCONTO'),
@@ -240,6 +244,41 @@ export function agruparPorBanco(
 /** Contratos MIGRADOS: sem pedido administrativo — destinação DIRETA (manual). */
 export function contratosMigrados(contratos: readonly ContratoHiscon[]): readonly ContratoHiscon[] {
   return contratos.filter((c) => c.migrado);
+}
+
+/** O MAPA de uma migração: DE contrato X @ banco de origem → PARA contrato Y @
+ *  banco atual. O nome do banco de origem é resolvido pelo CÓDIGO (CBC) quando
+ *  algum contrato do próprio documento pertence a ele — nunca inventado. */
+export interface MigracaoDeContrato {
+  readonly deContrato: string | null;
+  readonly deBancoCodigo: string | null;
+  readonly deBancoNome: string | null;
+  readonly paraContrato: string;
+  readonly paraBancoCodigo: string | null;
+  readonly paraBancoNome: string | null;
+  readonly dataInclusao: Date | null;
+}
+
+export function mapaDeMigracoes(
+  contratos: readonly ContratoHiscon[],
+  todosParaResolucao: readonly ContratoHiscon[] = contratos,
+): readonly MigracaoDeContrato[] {
+  const nomePorCodigo = new Map<string, string>();
+  for (const c of todosParaResolucao) {
+    if (c.bancoCodigo !== null && c.bancoNome !== null)
+      nomePorCodigo.set(c.bancoCodigo, c.bancoNome);
+  }
+  return contratos
+    .filter((c) => c.migrado)
+    .map((c) => ({
+      deContrato: c.migradoDoContrato,
+      deBancoCodigo: c.migradoDoCbc,
+      deBancoNome: c.migradoDoCbc !== null ? (nomePorCodigo.get(c.migradoDoCbc) ?? null) : null,
+      paraContrato: c.contrato,
+      paraBancoCodigo: c.bancoCodigo,
+      paraBancoNome: c.bancoNome,
+      dataInclusao: c.dataInclusao,
+    }));
 }
 
 /** Contratos que exigem PEDIDO ADMINISTRATIVO (fila do perito): consignado/RMC/RCC não migrados. */

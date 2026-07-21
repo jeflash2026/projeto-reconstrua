@@ -33,6 +33,23 @@ const MigradosPage = async (): Promise<ReactElement> => {
               </Link>{' '}
               — {cliente.totalMigrados} contrato(s) migrado(s)
             </h3>
+            {/* O MAPA: DE contrato/banco de origem → PARA contrato/banco atual. */}
+            <ul style={{ marginTop: 0 }}>
+              {cliente.migracoes.map((m) => (
+                <li key={m.paraContrato}>
+                  Migrou de <span className="mono">{m.deContrato ?? '(origem não informada)'}</span>
+                  {m.deBancoCodigo ? (
+                    <span>
+                      {' '}
+                      @ {m.deBancoNome ?? 'banco'} <span className="mono">({m.deBancoCodigo})</span>
+                    </span>
+                  ) : null}{' '}
+                  para <span className="mono">{m.paraContrato}</span> @{' '}
+                  {m.paraBancoNome ?? 'banco atual'}{' '}
+                  {m.paraBancoCodigo ? <span className="mono">({m.paraBancoCodigo})</span> : null}
+                </li>
+              ))}
+            </ul>
             {cliente.porBanco.map((banco) => (
               <div key={banco.bancoNome} style={{ marginTop: 8 }}>
                 <h4 style={{ marginBottom: 4 }}>

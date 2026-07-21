@@ -105,6 +105,23 @@ const PericiaHiscon = async ({ chatId }: { chatId: string }): Promise<ReactEleme
             Contratos MIGRADOS — sem pedido administrativo (destinação direta a advogado, decisão do
             admin)
           </h4>
+          {/* O MAPA da migração: DE contrato/banco de origem → PARA o atual. */}
+          <ul style={{ marginTop: 0 }}>
+            {dossie.migracoes.map((m) => (
+              <li key={m.paraContrato}>
+                <span className="mono">{m.deContrato ?? 'contrato de origem não informado'}</span>
+                {m.deBancoCodigo ? (
+                  <span>
+                    {' '}
+                    @ {m.deBancoNome ?? 'banco'} <span className="mono">({m.deBancoCodigo})</span>
+                  </span>
+                ) : null}{' '}
+                → <span className="mono">{m.paraContrato}</span> @{' '}
+                {m.paraBancoNome ?? 'banco atual'}{' '}
+                {m.paraBancoCodigo ? <span className="mono">({m.paraBancoCodigo})</span> : null}
+              </li>
+            ))}
+          </ul>
           <TabelaContratos contratos={dossie.migrados} />
         </>
       ) : null}

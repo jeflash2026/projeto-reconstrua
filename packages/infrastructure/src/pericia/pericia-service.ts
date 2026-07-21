@@ -12,11 +12,13 @@ import {
   contratosMigrados,
   contratosParaPedidoAdministrativo,
   indiciosDeEstrategias,
+  mapaDeMigracoes,
   parseHisconDetalhado,
   type BancoComContratos,
   type ContratoHiscon,
   type HisconExtraido,
   type IndicioDeEstrategia,
+  type MigracaoDeContrato,
 } from '@reconstrua/application';
 import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
@@ -43,6 +45,8 @@ export interface DossiePericial {
   readonly janelaAnos: number;
   readonly porBanco: readonly BancoComContratos[];
   readonly migrados: readonly ContratoHiscon[];
+  /** O MAPA das migrações: DE contrato/banco de origem → PARA contrato/banco atual. */
+  readonly migracoes: readonly MigracaoDeContrato[];
   readonly filaPedidoAdministrativo: readonly ContratoHiscon[];
   readonly indicios: readonly IndicioDeEstrategia[];
   readonly totalContratos: number;
@@ -52,6 +56,7 @@ export interface MigradosDoCliente {
   readonly chatId: string;
   readonly nomeCliente: string | null;
   readonly porBanco: readonly BancoComContratos[];
+  readonly migracoes: readonly MigracaoDeContrato[];
   readonly totalMigrados: number;
 }
 
@@ -127,6 +132,7 @@ export class PericiaService {
       janelaAnos: JANELA_ANOS,
       porBanco: agruparPorBanco(janela),
       migrados: contratosMigrados(janela),
+      migracoes: mapaDeMigracoes(janela, extraido.contratos),
       filaPedidoAdministrativo: contratosParaPedidoAdministrativo(janela),
       indicios: indiciosDeEstrategias(extraido, {
         tetoJurosMensal: this.deps.tetoJurosMensal ?? null,
@@ -150,6 +156,8 @@ export class PericiaService {
         chatId,
         nomeCliente: await this.nomeDoCliente(chatId),
         porBanco: agruparPorBanco(migrados),
+        // O mapa resolve o banco de ORIGEM pelo documento inteiro (janela toda).
+        migracoes: mapaDeMigracoes(janela, extraido.contratos),
         totalMigrados: migrados.length,
       });
     }

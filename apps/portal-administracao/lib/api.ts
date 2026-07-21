@@ -367,6 +367,17 @@ export interface BancoComContratosView {
   contratos: ContratoHisconView[];
 }
 
+/** Mapa de migração: DE contrato/banco de origem → PARA contrato/banco atual. */
+export interface MigracaoView {
+  deContrato: string | null;
+  deBancoCodigo: string | null;
+  deBancoNome: string | null;
+  paraContrato: string;
+  paraBancoCodigo: string | null;
+  paraBancoNome: string | null;
+  dataInclusao: string | null;
+}
+
 export interface DossiePericialView {
   chatId: string;
   nomeCliente: string | null;
@@ -384,6 +395,7 @@ export interface DossiePericialView {
   janelaAnos: number;
   porBanco: BancoComContratosView[];
   migrados: ContratoHisconView[];
+  migracoes: MigracaoView[];
   filaPedidoAdministrativo: ContratoHisconView[];
   indicios: Array<{
     estrategiaRef: string;
@@ -398,6 +410,7 @@ export interface MigradosDoClienteView {
   chatId: string;
   nomeCliente: string | null;
   porBanco: BancoComContratosView[];
+  migracoes: MigracaoView[];
   totalMigrados: number;
 }
 

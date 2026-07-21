@@ -9,10 +9,12 @@
 import type { Clock } from '@reconstrua/domain';
 import type { ObservabilityRuntime, OnboardingDocumentalRuntime } from '@reconstrua/application';
 import {
+  MENSAGENS_JORNADA,
   capturarIdentificacao,
   derivarEtapa,
   interpretarInteresse,
   novaJornada,
+  registroDoTurnoConcluido,
   responderTurno,
   type EntradaDoTurno,
   type EtapaJornada,
@@ -30,6 +32,7 @@ interface Persisted {
   readonly consentiu: boolean;
   readonly recusou: boolean;
   readonly ultimaCaptura: JornadaRecord['ultimaCaptura'];
+  readonly aguardandoProgressao?: boolean;
   readonly atualizadoEm: string;
 }
 
@@ -46,7 +49,7 @@ export class JornadaComercialRuntime {
   private async carregar(chatId: string): Promise<JornadaRecord> {
     const raw = (await this.deps.json.get(NS, chatId)) as Persisted | null;
     if (raw === null) return novaJornada(chatId, this.deps.clock.now());
-    return { ...raw, atualizadoEm: new Date(raw.atualizadoEm) };
+    return { ...raw, aguardandoProgressao: raw.aguardandoProgressao === true, atualizadoEm: new Date(raw.atualizadoEm) };
   }
 
   private async salvar(r: JornadaRecord): Promise<void> {
@@ -62,6 +65,8 @@ export class JornadaComercialRuntime {
       docsRecebidos: visao?.recebidos.length ?? 0,
       docsCompletos: visao !== null && visao.faltando.length === 0 && visao.recebidos.length > 0,
       proximoDocumento: visao?.proximo ?? 'RG (frente e verso) ou CNH',
+      ultimoRegistrado: visao?.ultimoRegistrado ?? null,
+      ultimoRegistroEm: visao?.ultimoRegistroEm ?? null,
     };
   }
 
@@ -124,7 +129,27 @@ export class JornadaComercialRuntime {
   /** A RESPOSTA AUTORADA do turno — '' quando a jornada NÃO governa (CONCLUIDA). */
   async responder(chatId: string, entrada: EntradaDoTurno): Promise<string> {
     const fatos = await this.fatos(chatId);
-    if (derivarEtapa(fatos) === 'CONCLUIDA') return '';
-    return responderTurno(fatos, entrada);
+    const concluidaAgora = entrada.tipo === 'documento' && registroDoTurnoConcluido(fatos, entrada) && fatos.docsCompletos;
+    // CONCLUIDA delega ao LLM — EXCETO o turno do ÚLTIMO documento, cuja
+    // resposta ("documentação completa") é a despedida da própria jornada.
+    if (derivarEtapa(fatos) === 'CONCLUIDA' && !concluidaAgora) return '';
+    const resposta = responderTurno(fatos, entrada);
+    // Ack emitido com o registro AINDA processando ⇒ marca: a classificação
+    // tardia deve FALAR a progressão sozinha (o subscriber checa o marcador).
+    if (entrada.tipo === 'documento' && resposta === MENSAGENS_JORNADA.ackDocumento && !fatos.registro.aguardandoProgressao) {
+      await this.salvar({ ...fatos.registro, aguardandoProgressao: true, atualizadoEm: this.deps.clock.now() }).catch(() => undefined);
+    }
+    return resposta;
+  }
+
+  /** O turno respondeu só o ack e a progressão ainda não foi falada? */
+  async estaAguardandoProgressao(chatId: string): Promise<boolean> {
+    return (await this.carregar(chatId)).aguardandoProgressao;
+  }
+
+  /** A progressão foi falada (pelo subscriber tardio ou pelo próprio turno). */
+  async concluirProgressao(chatId: string): Promise<void> {
+    const r = await this.carregar(chatId);
+    if (r.aguardandoProgressao) await this.salvar({ ...r, aguardandoProgressao: false, atualizadoEm: this.deps.clock.now() });
   }
 }

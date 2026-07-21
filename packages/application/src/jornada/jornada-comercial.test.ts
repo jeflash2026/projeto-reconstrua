@@ -25,11 +25,13 @@ function fatos(over: Partial<JornadaRecord> = {}, docs: Partial<Omit<FatosDaJorn
     docsRecebidos: docs.docsRecebidos ?? 0,
     docsCompletos: docs.docsCompletos ?? false,
     proximoDocumento: docs.proximoDocumento ?? 'RG (frente e verso) ou CNH',
+    ultimoRegistrado: docs.ultimoRegistrado ?? null,
+    ultimoRegistroEm: docs.ultimoRegistroEm ?? null,
   };
 }
 
-const texto = (t: string, primeiro = false) => ({ tipo: 'texto' as const, texto: t, primeiroContato: primeiro });
-const documento = { tipo: 'documento' as const, texto: '', primeiroContato: false };
+const texto = (t: string, primeiro = false) => ({ tipo: 'texto' as const, texto: t, primeiroContato: primeiro, timestamp: NOW });
+const documento = { tipo: 'documento' as const, texto: '', primeiroContato: false, timestamp: NOW };
 
 describe('derivação PURA da etapa (nunca armazenada, nunca dessincroniza)', () => {
   it('sem nome/cidade ⇒ IDENTIFICACAO; com ambos sem consentimento ⇒ CONSENTIMENTO; consentiu ⇒ TRIAGEM; docs completos ⇒ CONCLUIDA', () => {
@@ -106,9 +108,42 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
     );
     expect(r).toContain('Estou aguardando: o VERSO do RG');
   });
-  it('TRIAGEM: documento ⇒ SEMPRE o ack (a progressão automática pede o próximo)', () => {
+  it('DOCUMENTO com registro AINDA processando ⇒ ack (a progressão tardia fala depois)', () => {
     const r = responderTurno(fatos({ nome: 'Isabel', cidade: 'X', consentiu: true }), documento);
     expect(r).toBe(MENSAGENS_JORNADA.ackDocumento);
+  });
+
+  it('DECRETO DE DIAGNÓSTICO: registro do turno JÁ concluído ⇒ a resposta fala o FATO — "Recebi a frente do RG. Agora envie o verso."', () => {
+    const f = fatos(
+      { nome: 'Isabel', cidade: 'X', consentiu: true },
+      {
+        docsRecebidos: 1,
+        proximoDocumento: 'o VERSO do RG (a parte de trás do documento)',
+        ultimoRegistrado: 'a primeira face do RG',
+        ultimoRegistroEm: new Date(NOW.getTime() + 5000), // registrou DEPOIS do envio ⇒ fresco
+      },
+    );
+    const r = responderTurno(f, documento);
+    expect(r).toContain('✅ Registrado: a primeira face do RG');
+    expect(r).toContain('Agora me manda, por favor: o VERSO do RG');
+  });
+
+  it('registro do turno concluído + documentação COMPLETA ⇒ despedida da jornada', () => {
+    const f = fatos(
+      { nome: 'Isabel', cidade: 'X', consentiu: true },
+      { docsCompletos: true, ultimoRegistrado: 'HISCON', ultimoRegistroEm: new Date(NOW.getTime() + 5000) },
+    );
+    const r = responderTurno(f, documento);
+    expect(r).toContain('✅ Registrado: HISCON');
+    expect(r).toContain('documentação inicial está completa');
+  });
+
+  it('registro ANTIGO (de outro turno) não conta como fresco ⇒ ack', () => {
+    const f = fatos(
+      { nome: 'Isabel', cidade: 'X', consentiu: true },
+      { docsRecebidos: 1, ultimoRegistrado: 'a primeira face do RG', ultimoRegistroEm: new Date(NOW.getTime() - 60000) },
+    );
+    expect(responderTurno(f, documento)).toBe(MENSAGENS_JORNADA.ackDocumento);
   });
   it('comprovante em nome do CÔNJUGE oferecido quando a pessoa diz que não tem no nome', () => {
     const r = responderTurno(

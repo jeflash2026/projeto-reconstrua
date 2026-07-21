@@ -27,6 +27,7 @@ export class JourneyGovernedExpression implements LlmExpressionPort {
         tipo: envelope !== null && (envelope.fileName != null || envelope.mediaUrl != null) ? 'documento' : 'texto',
         texto: envelope?.text ?? '',
         primeiroContato: request.context.session.turns <= 1,
+        timestamp: envelope?.timestamp ?? null,
       };
       const autorada = await this.jornada.responder(chatId, entrada);
       if (autorada !== '') return autorada; // a jornada GOVERNA: resposta determinística

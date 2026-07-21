@@ -26,11 +26,14 @@ export interface JornadaRecord {
   readonly recusou: boolean;
   /** O que o ÚLTIMO turno capturou (nuance de fraseado: "Prazer, X!"). */
   readonly ultimaCaptura: 'nome' | 'cidade' | 'nome-cidade' | 'consentimento' | null;
+  /** O turno respondeu só o ACK (registro processando) e a PROGRESSÃO ainda
+   *  não foi falada — a classificação tardia deve enviá-la sozinha. */
+  readonly aguardandoProgressao: boolean;
   readonly atualizadoEm: Date;
 }
 
 export function novaJornada(chatId: string, now: Date): JornadaRecord {
-  return { chatId, nome: null, cidade: null, consentiu: false, recusou: false, ultimaCaptura: null, atualizadoEm: now };
+  return { chatId, nome: null, cidade: null, consentiu: false, recusou: false, ultimaCaptura: null, aguardandoProgressao: false, atualizadoEm: now };
 }
 
 /** Os FATOS de que a derivação precisa (jornada + contabilidade documental). */
@@ -40,6 +43,11 @@ export interface FatosDaJornada {
   readonly docsCompletos: boolean;
   /** Rótulo humano do próximo documento (contabilidade) — null se completa. */
   readonly proximoDocumento: string | null;
+  /** O ÚLTIMO registro documental (rótulo + quando) — decide se a resposta do
+   *  turno de documento fala o FATO ("recebi a frente, manda o verso") ou o
+   *  ack ("registrando"). */
+  readonly ultimoRegistrado: string | null;
+  readonly ultimoRegistroEm: Date | null;
 }
 
 /** DERIVAÇÃO PURA da etapa — a etapa nunca é armazenada, nunca dessincroniza. */
@@ -131,6 +139,10 @@ export const MENSAGENS_JORNADA = {
     `Estou aguardando: ${proximo}. Pode mandar foto ou print por aqui mesmo, no seu tempo. 😊`,
   ackDocumento:
     'Recebi aqui! 📄 Só um instante que já estou registrando — assim que concluir, te confirmo o próximo passo.',
+  documentoRegistrado: (registrado: string, proximo: string): string =>
+    `Recebi! ✅ Registrado: ${registrado}. Agora me manda, por favor: ${proximo}.`,
+  documentoRegistradoCompleto: (registrado: string): string =>
+    `Recebi! ✅ Registrado: ${registrado}. Com isso sua documentação inicial está completa — já te mando os próximos passos. 🎉`,
   comprovanteConjuge:
     'Se você não tiver um comprovante de endereço no seu nome, o do seu cônjuge também vale, viu? 😊',
 } as const;
@@ -140,6 +152,18 @@ export interface EntradaDoTurno {
   readonly tipo: 'texto' | 'documento';
   readonly texto: string;
   readonly primeiroContato: boolean;
+  /** Quando a mensagem foi enviada (percept) — compara com ultimoRegistroEm. */
+  readonly timestamp: Date | null;
+}
+
+/** O documento DESTE turno já está registrado na contabilidade? (fato puro) */
+export function registroDoTurnoConcluido(f: FatosDaJornada, entrada: EntradaDoTurno): boolean {
+  return (
+    entrada.tipo === 'documento' &&
+    f.ultimoRegistroEm !== null &&
+    entrada.timestamp !== null &&
+    f.ultimoRegistroEm.getTime() >= entrada.timestamp.getTime()
+  );
 }
 
 /**
@@ -150,9 +174,18 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
   const etapa = derivarEtapa(f);
   const r = f.registro;
 
-  // Documento enviado: SEMPRE o ack — a progressão automática ("✅ Registrado…")
-  // chega em mensagem própria assim que o registro conclui.
-  if (entrada.tipo === 'documento') return MENSAGENS_JORNADA.ackDocumento;
+  // Documento enviado — a correção do decreto de diagnóstico: a resposta
+  // CONSULTA o estado. Registro deste turno JÁ concluído (a espera in-turn
+  // aterrissou a classificação antes da expressão) ⇒ fala o FATO:
+  // "Recebi a frente do RG. Agora envie o verso." Ainda processando ⇒ ack
+  // (e a progressão tardia fala sozinha — marcador aguardandoProgressao).
+  if (entrada.tipo === 'documento') {
+    if (registroDoTurnoConcluido(f, entrada) && f.ultimoRegistrado !== null) {
+      if (f.docsCompletos) return MENSAGENS_JORNADA.documentoRegistradoCompleto(f.ultimoRegistrado);
+      return MENSAGENS_JORNADA.documentoRegistrado(f.ultimoRegistrado, f.proximoDocumento ?? 'o documento pendente');
+    }
+    return MENSAGENS_JORNADA.ackDocumento;
+  }
 
   // Pergunta de direito/elegibilidade tem resposta canônica, em qualquer etapa.
   const prefixoDireito = ehPerguntaDeDireito(entrada.texto)

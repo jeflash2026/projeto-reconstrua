@@ -265,21 +265,28 @@ export class OnboardingDocumentalRuntime {
   }
 
   /** Visão para a CONVERSA (rótulos humanos; nunca códigos técnicos).
-   *  Sabe pedir "o verso do RG" quando só a frente chegou. */
+   *  Sabe pedir "o verso do RG" quando só a frente chegou. Expõe também o
+   *  ÚLTIMO registro (rótulo + quando) — o Journey Runtime compara com o
+   *  timestamp do turno para saber se o estado JÁ reflete o documento enviado. */
   async visao(chatId: string): Promise<{
     readonly recebidos: readonly string[];
     readonly faltando: readonly string[];
     readonly proximo: string | null;
+    readonly ultimoRegistrado: string | null;
+    readonly ultimoRegistroEm: Date | null;
   } | null> {
     const state = await this.deps.store.load(chatId);
     if (state === null) return null;
     const prox = proximo(state);
     const rotuloRecebido = (r: DocumentoInicialRecebido): string =>
       r.codigo === 'IDENTIDADE' ? (r.subtipo === 'cnh' ? 'CNH' : 'RG (uma das faces)') : ROTULO_INICIAL[r.codigo];
+    const ultimo = state.recebidos[state.recebidos.length - 1] ?? null;
     return {
       recebidos: state.recebidos.map(rotuloRecebido),
       faltando: faltando(state).map((c) => rotuloDoPendente(state, c)),
       proximo: prox !== null ? rotuloDoPendente(state, prox) : null,
+      ultimoRegistrado: ultimo !== null ? rotuloDoRegistrado(ultimo, state) : null,
+      ultimoRegistroEm: ultimo !== null ? ultimo.em : null,
     };
   }
 

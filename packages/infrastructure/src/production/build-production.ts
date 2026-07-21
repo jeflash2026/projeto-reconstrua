@@ -605,6 +605,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           await convMemory.recordOutbound(chatId, texto, receipt.providerMessageId);
         },
       },
+      // 7ª rodada: registro DENTRO do turno ⇒ a resposta da jornada fala o
+      // fato; o subscriber só envia a progressão TARDIA (marcador ativo).
+      jornada: jornadaComercial,
     }),
     1,
     clock.now(),

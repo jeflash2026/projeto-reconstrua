@@ -65,6 +65,14 @@ export interface OnboardingSubscriberDeps {
    *  determinística, sem LLM, no turno OU segundos depois (retry). A conversa
    *  do turno só dá o ack ("recebi, registrando"); quem progride é esta. */
   readonly comunicador?: { enviar(chatId: string, texto: string): Promise<void> } | null;
+  /** Decreto de diagnóstico (7ª rodada): quando o registro conclui DENTRO do
+   *  turno, a PRÓPRIA resposta da jornada fala o fato ("Recebi a frente do RG.
+   *  Agora envie o verso.") — o subscriber então só envia a progressão TARDIA
+   *  (marcador aguardandoProgressao ativo = o turno respondeu só o ack). */
+  readonly jornada?: {
+    estaAguardandoProgressao(chatId: string): Promise<boolean>;
+    concluirProgressao(chatId: string): Promise<void>;
+  } | null;
 }
 
 /** Espera local pela transcrição: N tentativas com intervalo — dentro do turno. */
@@ -118,10 +126,17 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
       // PROGRESSÃO AUTOMÁTICA: registro novo ⇒ a AHRI avisa e pede o próximo,
       // sozinha (best-effort: falha de envio nunca desfaz o registro; a cliente
       // ainda pode perguntar e a conversa, com a contabilidade certa, responde).
+      // 7ª rodada: registro DENTRO do turno ⇒ a resposta da jornada fala o fato
+      // — aqui só a progressão TARDIA (marcador ativo). Sem jornada ligada
+      // (testes/legado) ⇒ comportamento anterior (sempre envia).
       if (resultado.progresso !== null && d.comunicador) {
-        await d.comunicador.enviar(chatId, resultado.progresso).catch((e: unknown) => {
-          d.observability.error('onboarding', 'progresso-envio', now, e instanceof Error ? e.message : String(e));
-        });
+        const tardio = d.jornada ? await d.jornada.estaAguardandoProgressao(chatId).catch(() => true) : true;
+        if (tardio) {
+          await d.comunicador.enviar(chatId, resultado.progresso).catch((e: unknown) => {
+            d.observability.error('onboarding', 'progresso-envio', now, e instanceof Error ? e.message : String(e));
+          });
+          if (d.jornada) await d.jornada.concluirProgressao(chatId).catch(() => undefined);
+        }
       }
       d.observability.event(
         'onboarding',

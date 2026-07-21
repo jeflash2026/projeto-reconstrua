@@ -127,6 +127,50 @@ describe('Decreto · a jornada alimentada pelos eventos reais', () => {
   });
 });
 
+describe('7ª rodada · progressão TARDIA só com o marcador (sem duplicar a fala do turno)', () => {
+  it('marcador INATIVO (registro aterrissou no turno; a resposta da jornada fala o fato) ⇒ subscriber NÃO envia', async () => {
+    const progressos: string[] = [];
+    const runtime = new OnboardingDocumentalRuntime({
+      store: new JsonOnboardingDocumentalStore(new InMemoryJsonStore()),
+      leitor: { texto: () => Promise.resolve('carteira nacional de habilitação') },
+      pendencias: null,
+    });
+    const subscriber = new OnboardingDocumentalSubscriber({
+      runtime,
+      chatDaMissao: () => Promise.resolve(CHAT),
+      observability: new ObservabilityRuntime(),
+      clock: new TestClock(),
+      comunicador: { enviar: (_c, t) => { progressos.push(t); return Promise.resolve(); } },
+      jornada: { estaAguardandoProgressao: () => Promise.resolve(false), concluirProgressao: () => Promise.resolve() },
+    });
+    await subscriber.handle(missaoCriada);
+    await subscriber.handle(docReconhecido('dZ', 'IMG_1.jpg'));
+    expect(progressos).toHaveLength(0); // a resposta do turno já falou o fato
+  });
+
+  it('marcador ATIVO (o turno respondeu só o ack) ⇒ subscriber envia e conclui o marcador', async () => {
+    const progressos: string[] = [];
+    let concluiu = 0;
+    const runtime = new OnboardingDocumentalRuntime({
+      store: new JsonOnboardingDocumentalStore(new InMemoryJsonStore()),
+      leitor: { texto: () => Promise.resolve('carteira nacional de habilitação') },
+      pendencias: null,
+    });
+    const subscriber = new OnboardingDocumentalSubscriber({
+      runtime,
+      chatDaMissao: () => Promise.resolve(CHAT),
+      observability: new ObservabilityRuntime(),
+      clock: new TestClock(),
+      comunicador: { enviar: (_c, t) => { progressos.push(t); return Promise.resolve(); } },
+      jornada: { estaAguardandoProgressao: () => Promise.resolve(true), concluirProgressao: () => { concluiu += 1; return Promise.resolve(); } },
+    });
+    await subscriber.handle(missaoCriada);
+    await subscriber.handle(docReconhecido('dZ', 'IMG_1.jpg'));
+    expect(progressos[0]).toContain('✅ Registrado: CNH');
+    expect(concluiu).toBe(1);
+  });
+});
+
 describe('Regressão GO-LIVE · resolver AUTO-ATUALIZÁVEL (projector vazio pós-restart)', () => {
   it('projector VAZIO (recém-restartado) ⇒ refresh incremental resolve o chat', async () => {
     // O cenário exato da produção: container recriado, projeção em memória zerada.

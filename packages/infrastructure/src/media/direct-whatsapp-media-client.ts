@@ -12,13 +12,9 @@ import { decryptWhatsAppMedia, type WhatsAppMediaType } from './whatsapp-media-d
 export type MediaDownloader = (url: string) => Promise<Uint8Array | null>;
 
 const defaultDownload: MediaDownloader = async (url) => {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    return new Uint8Array(await response.arrayBuffer());
-  } catch {
-    return null;
-  }
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
+  return new Uint8Array(await response.arrayBuffer());
 };
 
 interface Candidato {
@@ -40,7 +36,10 @@ function candidato(message: Record<string, unknown>): Candidato | null {
 }
 
 export class DirectWhatsAppMediaClient implements MediaGatewayPort {
-  constructor(private readonly download: MediaDownloader = defaultDownload) {}
+  constructor(
+    private readonly download: MediaDownloader = defaultDownload,
+    private readonly log: (message: string) => void = () => undefined,
+  ) {}
 
   async fetch(rawMessage: unknown): Promise<FetchedMedia | null> {
     const root = asRecord(rawMessage);
@@ -51,11 +50,27 @@ export class DirectWhatsAppMediaClient implements MediaGatewayPort {
     if (alvo === null) return null;
     const url = asString(alvo.media['url']);
     const mediaKey = asString(alvo.media['mediaKey']);
-    if (url === null || url === '' || mediaKey === null || mediaKey === '') return null;
-    const encrypted = await this.download(url);
-    if (encrypted === null) return null;
+    if (url === null || url === '' || mediaKey === null || mediaKey === '') {
+      this.log(`direct: sem url/mediaKey no ${alvo.tipo} (chaves=[${Object.keys(alvo.media).join(',')}])`);
+      return null;
+    }
+    let encrypted: Uint8Array | null = null;
+    try {
+      encrypted = await this.download(url);
+    } catch (erro) {
+      this.log(`direct: download do CDN falhou: ${erro instanceof Error ? erro.message : String(erro)}`);
+      return null;
+    }
+    if (encrypted === null) {
+      this.log(`direct: download do CDN vazio (${url.slice(0, 60)}…)`);
+      return null;
+    }
     const bytes = decryptWhatsAppMedia(encrypted, mediaKey, alvo.tipo);
-    if (bytes === null) return null;
+    if (bytes === null) {
+      this.log(`direct: descriptografia/MAC falhou (${String(encrypted.length)} bytes baixados)`);
+      return null;
+    }
+    this.log(`direct: midia decifrada (${String(bytes.length)} bytes, ${asString(alvo.media['mimetype']) ?? '?'})`);
     return {
       base64: Buffer.from(bytes).toString('base64'),
       mime: asString(alvo.media['mimetype']) ?? 'application/octet-stream',

@@ -392,7 +392,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // CDN do WhatsApp com descriptografia local (independe da Evolution persistir).
     gateway: new ChainedMediaGateway([
       new EvolutionMediaClient(resilientHttp, config.evolution),
-      new DirectWhatsAppMediaClient(),
+      new DirectWhatsAppMediaClient(undefined, (message) =>
+        observability.error('media', 'direct', clock.now(), message),
+      ),
     ]),
     store: mediaStore,
     references: mediaReferences,

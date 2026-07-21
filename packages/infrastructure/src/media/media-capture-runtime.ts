@@ -90,14 +90,18 @@ export class MediaCaptureRuntime {
   }
 }
 
-/** Nomes de chave de data e data.message (2 níveis) — nunca valores. */
+/** Nomes de chave de data, data.message e do *Message interno — nunca valores. */
 function payloadShape(rawMessage: unknown): string {
   const root = asRecord(rawMessage);
   const data = root ? asRecord(root['data']) : null;
   const message = data ? asRecord(data['message']) : null;
   const dataKeys = data ? Object.keys(data).join(',') : '-';
   const messageKeys = message ? Object.keys(message).join(',') : '-';
-  return `data=[${dataKeys}] message=[${messageKeys}]`;
+  const image = message ? asRecord(message['imageMessage']) : null;
+  const doc = message ? asRecord(message['documentMessage']) : null;
+  const inner = image ?? doc;
+  const innerKeys = inner ? ` ${image ? 'image' : 'document'}=[${Object.keys(inner).join(',')}]` : '';
+  return `data=[${dataKeys}] message=[${messageKeys}]${innerKeys}`;
 }
 
 function decodeBase64(base64: string): Uint8Array | null {

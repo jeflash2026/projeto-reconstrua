@@ -167,6 +167,8 @@ import { ProductionIngress } from './production-ingress.js';
 import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
 import { JsonShadowStore, ShadowRecorder, type ShadowStore, type TurnIngress } from './shadow.js';
 import {
+  ChainedMediaGateway,
+  DirectWhatsAppMediaClient,
   DocumentContentService,
   DocumentLinkSubscriber,
   EvolutionMediaClient,
@@ -386,7 +388,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     log: (message) => observability.error('reading', 'document', clock.now(), message),
   });
   const mediaCapture = new MediaCaptureRuntime({
-    gateway: new EvolutionMediaClient(resilientHttp, config.evolution),
+    // Cadeia: base64 embutido no evento / API da Evolution → download direto do
+    // CDN do WhatsApp com descriptografia local (independe da Evolution persistir).
+    gateway: new ChainedMediaGateway([
+      new EvolutionMediaClient(resilientHttp, config.evolution),
+      new DirectWhatsAppMediaClient(),
+    ]),
     store: mediaStore,
     references: mediaReferences,
     log: (message) => observability.error('media', 'capture', clock.now(), message),

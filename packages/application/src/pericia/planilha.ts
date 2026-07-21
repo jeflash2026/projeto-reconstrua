@@ -78,6 +78,80 @@ function linhaDeContrato(
   ];
 }
 
+// ── Planilha DETALHADA (Decreto Dossiê Pericial) — do parser de blocos real ──
+import { agruparPorBanco, contratosDaJanela, type HisconExtraido } from './hiscon-parser.js';
+
+export const COLUNAS_CONTRATOS_DETALHADA: readonly string[] = [
+  'Banco',
+  'Código banco',
+  'Contrato',
+  'Modalidade',
+  'Situação',
+  'Origem da averbação',
+  'Migrado',
+  'Migrado do contrato',
+  'Banco de origem (CBC)',
+  'Data inclusão',
+  'Competência início',
+  'Competência fim',
+  'Qtde parcelas',
+  'Valor parcela (R$)',
+  'Valor emprestado (R$)',
+  'Valor liberado (R$)',
+  'IOF (R$)',
+  'CET mensal (%)',
+  'CET anual (%)',
+  'Juros mensal (%)',
+  'Juros anual (%)',
+  'Valor pago (R$)',
+  'Janela',
+];
+
+/** Planilha do PERITO no formato do documento original: organizada POR BANCO
+ *  (alfabético) e por contrato, com TODOS os campos e a marcação da janela de
+ *  5 anos. Contratos fora da janela também entram, declarados (Lei 9). */
+export function planilhaDeContratosDetalhada(
+  nome: string,
+  extraido: HisconExtraido,
+  referencia: Date,
+  anos = 5,
+): Planilha {
+  const naJanela = new Set(
+    contratosDaJanela(extraido.contratos, referencia, anos).map((c) => c.contrato),
+  );
+  const linhas: ReadonlyArray<string | number | null>[] = [];
+  for (const banco of agruparPorBanco(extraido.contratos)) {
+    for (const c of banco.contratos) {
+      linhas.push([
+        banco.bancoNome,
+        c.bancoCodigo,
+        c.contrato,
+        c.modalidade,
+        c.situacao,
+        c.origemAverbacao,
+        c.migrado ? 'SIM' : 'NÃO',
+        c.migradoDoContrato,
+        c.migradoDoCbc,
+        formatDateBr(c.dataInclusao),
+        c.competenciaInicio,
+        c.competenciaFim,
+        c.qtdeParcelas,
+        c.valorParcela,
+        c.valorEmprestado,
+        c.valorLiberado,
+        c.iof,
+        c.cetMensal,
+        c.cetAnual,
+        c.taxaJurosMensal,
+        c.taxaJurosAnual,
+        c.valorPago,
+        naJanela.has(c.contrato) ? 'DENTRO_5_ANOS' : 'FORA_5_ANOS',
+      ]);
+    }
+  }
+  return { nome, colunas: COLUNAS_CONTRATOS_DETALHADA, linhas };
+}
+
 /** Monta a planilha de um cliente a partir do parse — inclui TUDO (Lei 9). */
 export function planilhaDeContratos(nome: string, parse: HisconParse): Planilha {
   const linhas: ReadonlyArray<string | number | null>[] = [

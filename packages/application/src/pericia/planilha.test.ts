@@ -61,3 +61,56 @@ describe('CsvPlanilhaExporter · Excel pt-BR', () => {
     expect(csv).toContain('1234,50');
   });
 });
+
+// ── Decreto Dossiê Pericial: a planilha DETALHADA (formato real em blocos) ───
+import { planilhaDeContratosDetalhada, COLUNAS_CONTRATOS_DETALHADA } from './planilha.js';
+import { parseHisconDetalhado } from './hiscon-parser.js';
+
+describe('planilhaDeContratosDetalhada · o CSV que vinha VAZIO em produção', () => {
+  const HISCON = [
+    'EMPRÉSTIMOS BANCÁRIOS',
+    '',
+    'CONTRATO: 0328380631IMC',
+    'BANCO: 753 - NOVO BANCO CONTINENTAL S A',
+    'SITUAÇÃO: Ativo',
+    'ORIGEM DA AVERBAÇÃO: Migrado do contrato 0328380631IMC CBC: 329',
+    'DATA INCLUSÃO: 27/02/26',
+    'QTDE PARCELAS: 96',
+    'VALOR PARCELA: R$36,05',
+    '',
+    'CONTRATO: 0123528811531',
+    'BANCO: 237 - BANCO BRADESCO S A',
+    'SITUAÇÃO: Ativo',
+    'ORIGEM DA AVERBAÇÃO: Averbação nova',
+    'DATA INCLUSÃO: 15/04/25',
+    'VALOR PARCELA: R$89,57',
+  ].join('\n');
+
+  it('organizada POR BANCO, com migração e janela marcadas', () => {
+    const extraido = parseHisconDetalhado(HISCON);
+    const plan = planilhaDeContratosDetalhada(
+      'Contratos — Isabel',
+      extraido,
+      new Date('2026-07-21T00:00:00Z'),
+    );
+    expect(plan.colunas).toEqual(COLUNAS_CONTRATOS_DETALHADA);
+    expect(plan.linhas).toHaveLength(2);
+    // Ordem alfabética por banco: Bradesco antes do Novo Banco Continental.
+    expect(plan.linhas[0]?.[0]).toBe('BANCO BRADESCO S A');
+    expect(plan.linhas[1]?.[0]).toBe('NOVO BANCO CONTINENTAL S A');
+    const migrado = plan.linhas[1];
+    expect(migrado?.[6]).toBe('SIM'); // Migrado
+    expect(migrado?.[7]).toBe('0328380631IMC'); // Migrado do contrato
+    expect(migrado?.[8]).toBe('329'); // Banco de origem (CBC)
+    expect(migrado?.[22]).toBe('DENTRO_5_ANOS');
+  });
+
+  it('CSV gerado tem cabeçalho completo e valores em pt-BR', () => {
+    const extraido = parseHisconDetalhado(HISCON);
+    const plan = planilhaDeContratosDetalhada('X', extraido, new Date('2026-07-21T00:00:00Z'));
+    const csv = new CsvPlanilhaExporter().gerar(plan);
+    expect(csv).toContain('Origem da averba');
+    expect(csv).toContain('36,05');
+    expect(csv).toContain('Migrado do contrato 0328380631IMC CBC: 329');
+  });
+});

@@ -11,7 +11,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { ClientesList, ClienteResumo } from '../clientes/clientes-list.js';
 import { parseHiscon, type HisconParse } from './hiscon.js';
-import { planilhaDeContratos, type PlanilhaExporter } from './planilha.js';
+import { parseHisconDetalhado, type HisconExtraido } from './hiscon-parser.js';
+import {
+  planilhaDeContratos,
+  planilhaDeContratosDetalhada,
+  type PlanilhaExporter,
+} from './planilha.js';
 
 export interface PeritoDeps {
   readonly clientes: ClientesList;
@@ -27,6 +32,10 @@ export interface ContratosDoCliente {
   readonly chatId: string;
   readonly quem: string;
   readonly parse: HisconParse;
+  /** Decreto Dossiê Pericial: o parse DETALHADO do formato real em blocos
+   *  (CONTRATO:/BANCO:/ORIGEM DA AVERBAÇÃO…) — a fonte da planilha quando
+   *  encontra contratos; o heurístico acima segue como fallback. */
+  readonly detalhado: HisconExtraido;
   /** Transparência (Lei 9): quantos documentos foram lidos e quantos não têm texto. */
   readonly documentosLidos: number;
   readonly documentosSemTexto: number;
@@ -67,12 +76,15 @@ export class PeritoView {
 
     // Merge por concatenação: o parser é por linha e ignora o que não é candidato —
     // documentos que não são HISCON contribuem com nada (e nada é inventado).
-    const parse = parseHiscon(textos.join('\n'), now ?? new Date());
+    const textoCompleto = textos.join('\n');
+    const parse = parseHiscon(textoCompleto, now ?? new Date());
+    const detalhado = parseHisconDetalhado(textoCompleto);
     return {
       clienteId: cliente.clienteId,
       chatId: cliente.chatId,
       quem: cliente.quem,
       parse,
+      detalhado,
       documentosLidos: textos.length,
       documentosSemTexto: semTexto,
     };
@@ -82,7 +94,13 @@ export class PeritoView {
   async planilha(clienteId: string, now?: Date): Promise<PlanilhaGerada | null> {
     const c = await this.contratos(clienteId, now);
     if (c === null) return null;
-    const plan = planilhaDeContratos(`Contratos — ${c.quem}`, c.parse);
+    // A planilha vinha VAZIA em produção: o HISCON real é em BLOCOS (o parser
+    // heurístico por linha não o reconhece). Detalhado achou contratos ⇒ é a
+    // fonte, no formato do documento original (por banco, todos os campos).
+    const plan =
+      c.detalhado.contratos.length > 0
+        ? planilhaDeContratosDetalhada(`Contratos — ${c.quem}`, c.detalhado, now ?? new Date())
+        : planilhaDeContratos(`Contratos — ${c.quem}`, c.parse);
     return {
       clienteId: c.clienteId,
       quem: c.quem,

@@ -79,6 +79,18 @@ export function buildAdminServer(
       contagemDocumentosRegistrados?(): Promise<number>;
       /** Medidor de Custo: documentId → chatId (dono de cada leitura). */
       mapaDocumentoParaChat?(): Promise<Record<string, string>>;
+      /** Decreto 2026-07-21 (Financeiro): potencial de recuperação (o JÁ
+       *  descontado até hoje) por cliente + total. */
+      potencialDeTodos?(): Promise<{
+        total: number;
+        porCliente: ReadonlyArray<{
+          readonly chatId: string;
+          readonly nomeCliente: string | null;
+          readonly valor: number;
+          readonly contratos: number;
+          readonly contratosSemValor: number;
+        }>;
+      }>;
     };
     /** Medidor de Custo (2026-07-21): registros de gasto de IA (conversa +
      *  leitura de documentos) para o painel "Custos de IA". */
@@ -243,6 +255,12 @@ export function buildAdminServer(
       gargalo: bottlenecks.available ? bottlenecks.fact : null,
     });
 
+    // Decreto 2026-07-21: "Valor potencial recuperável" = o JÁ descontado até
+    // hoje nos HISCONs (mesma fonte da aba Financeiro) — nunca métrica projetada.
+    const potencialCC = opts.pericia?.potencialDeTodos
+      ? await opts.pericia.potencialDeTodos().catch(() => null)
+      : null;
+
     const indicadores = indicadoresExecutivos({
       clientesAtivos: metrics?.clientCount ?? 0,
       novosClientesHoje,
@@ -254,7 +272,10 @@ export function buildAdminServer(
       precisaoDecisoes: temFeedback ? painel.taxaAcerto : null,
       confiancaMediaIA: temFeedback ? painel.confiancaMedia : null,
       documentosProcessados: metrics?.documentCount ?? 0,
-      valorRecuperavel: metrics?.financialUnderAdministration ?? null,
+      valorRecuperavel:
+        potencialCC !== null && potencialCC.porCliente.length > 0
+          ? potencialCC.total
+          : (metrics?.financialUnderAdministration ?? null),
       receitaPrevista: null,
     });
 
@@ -1253,10 +1274,17 @@ export function buildAdminServer(
 
   app.get('/admin/finance', async () => {
     const metrics = await op.metricsStore.load();
+    // Decreto 2026-07-21: POTENCIAL DE RECUPERAÇÃO = o JÁ descontado até hoje
+    // nos contratos do HISCON (parcelas decorridas × valor da parcela), por
+    // cliente e total — direto do documento, nunca inventado.
+    const potencial = opts.pericia?.potencialDeTodos
+      ? await opts.pericia.potencialDeTodos().catch(() => null)
+      : null;
     return {
       financialUnderAdministration: metrics?.financialUnderAdministration ?? null,
       expectedFees: null,
       available: (metrics?.financialUnderAdministration ?? null) !== null,
+      potencialRecuperacao: potencial,
     };
   });
 

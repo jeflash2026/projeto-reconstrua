@@ -14,11 +14,13 @@ import {
   indiciosDeEstrategias,
   mapaDeMigracoes,
   parseHisconDetalhado,
+  potencialDeRecuperacao,
   type BancoComContratos,
   type ContratoHiscon,
   type HisconExtraido,
   type IndicioDeEstrategia,
   type MigracaoDeContrato,
+  type PotencialDeRecuperacao,
 } from '@reconstrua/application';
 import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
@@ -50,6 +52,16 @@ export interface DossiePericial {
   readonly filaPedidoAdministrativo: readonly ContratoHiscon[];
   readonly indicios: readonly IndicioDeEstrategia[];
   readonly totalContratos: number;
+  /** Decreto 2026-07-21 (Financeiro): o JÁ descontado até hoje — benefício inteiro. */
+  readonly potencial: PotencialDeRecuperacao;
+}
+
+export interface PotencialDoCliente {
+  readonly chatId: string;
+  readonly nomeCliente: string | null;
+  readonly valor: number;
+  readonly contratos: number;
+  readonly contratosSemValor: number;
 }
 
 export interface MigradosDoCliente {
@@ -168,7 +180,36 @@ export class PericiaService {
         tetoJurosMensal: this.deps.tetoJurosMensal ?? null,
       }),
       totalContratos: janela.length,
+      // Decreto: o potencial olha o BENEFÍCIO INTEIRO (todos os contratos do
+      // documento), não só a janela de 5 anos.
+      potencial: potencialDeRecuperacao(extraido.contratos, this.deps.clock.now()),
     };
+  }
+
+  /** FINANCEIRO/Centro de Comando: potencial de recuperação (o JÁ descontado
+   *  até hoje) por cliente com HISCON legível + total geral. */
+  async potencialDeTodos(): Promise<{
+    total: number;
+    porCliente: readonly PotencialDoCliente[];
+  }> {
+    const chats = await this.deps.json.keys(NS_ONBOARDING);
+    const porCliente: PotencialDoCliente[] = [];
+    let total = 0;
+    for (const chatId of chats) {
+      const extraido = await this.extrairHiscon(chatId).catch(() => null);
+      if (extraido === null || extraido.contratos.length === 0) continue;
+      const potencial = potencialDeRecuperacao(extraido.contratos, this.deps.clock.now());
+      total += potencial.total;
+      porCliente.push({
+        chatId,
+        nomeCliente: await this.nomeDoCliente(chatId),
+        valor: potencial.total,
+        contratos: extraido.contratos.length,
+        contratosSemValor: potencial.contratosSemValor,
+      });
+    }
+    porCliente.sort((a, b) => b.valor - a.valor);
+    return { total, porCliente };
   }
 
   /** ABA "Contratos Migrados": todos os clientes com HISCON, só os migrados,

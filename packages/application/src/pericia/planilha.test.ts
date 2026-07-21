@@ -46,7 +46,11 @@ describe('CsvPlanilhaExporter · Excel pt-BR', () => {
   });
 
   it('escapa campos com ";" e aspas', () => {
-    const csv = exporter.gerar({ nome: 'x', colunas: ['A'], linhas: [['a;b'], ['diz "oi"'], [null]] });
+    const csv = exporter.gerar({
+      nome: 'x',
+      colunas: ['A'],
+      linhas: [['a;b'], ['diz "oi"'], [null]],
+    });
     expect(csv).toContain('"a;b"');
     expect(csv).toContain('"diz ""oi"""');
     expect(csv.endsWith('\r\n')).toBe(true);

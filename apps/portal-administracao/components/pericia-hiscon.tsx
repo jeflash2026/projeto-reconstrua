@@ -9,7 +9,9 @@ const Contrato = ({ c }: { c: ContratoHisconView }): ReactElement => (
   <tr>
     <td className="mono">{c.contrato}</td>
     <td>
-      <span className={`badge ${c.migrado ? 'warn' : 'dim'}`}>{c.migrado ? 'MIGRADO' : c.modalidade}</span>
+      <span className={`badge ${c.migrado ? 'warn' : 'dim'}`}>
+        {c.migrado ? 'MIGRADO' : c.modalidade}
+      </span>
     </td>
     <td>{c.situacao ?? '—'}</td>
     <td className="mono">{formatDate(c.dataInclusao)}</td>
@@ -68,24 +70,29 @@ const PericiaHiscon = async ({ chatId }: { chatId: string }): Promise<ReactEleme
         <dd>{dossie.beneficio.bancoPagamento ?? '—'}</dd>
         <dt>Comprometido / máximo</dt>
         <dd>
-          {formatMoney(dossie.margens.totalComprometido)} / {formatMoney(dossie.margens.maximoComprometimento)}
+          {formatMoney(dossie.margens.totalComprometido)} /{' '}
+          {formatMoney(dossie.margens.maximoComprometimento)}
         </dd>
         <dt>Contratos na janela</dt>
         <dd>
-          {dossie.totalContratos} — {dossie.filaPedidoAdministrativo.length} p/ pedido administrativo,{' '}
-          {dossie.migrados.length} migrado(s)
+          {dossie.totalContratos} — {dossie.filaPedidoAdministrativo.length} p/ pedido
+          administrativo, {dossie.migrados.length} migrado(s)
         </dd>
       </dl>
 
       {dossie.indicios.length > 0 ? (
         <>
-          <h4 style={{ marginBottom: 4 }}>Indícios de estratégia (sinal para o perito — nunca conclusão)</h4>
+          <h4 style={{ marginBottom: 4 }}>
+            Indícios de estratégia (sinal para o perito — nunca conclusão)
+          </h4>
           <ul style={{ marginTop: 0 }}>
             {dossie.indicios.map((i) => (
               <li key={i.estrategiaRef}>
                 <span className="mono">{i.estrategiaRef}</span> — {i.titulo}
                 <span style={{ color: 'var(--text-dim)' }}> · {i.fundamentoFactual}</span>
-                {i.contratos.length > 0 ? <span className="mono"> · contratos: {i.contratos.join(', ')}</span> : null}
+                {i.contratos.length > 0 ? (
+                  <span className="mono"> · contratos: {i.contratos.join(', ')}</span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -95,7 +102,8 @@ const PericiaHiscon = async ({ chatId }: { chatId: string }): Promise<ReactEleme
       {dossie.migrados.length > 0 ? (
         <>
           <h4 style={{ marginBottom: 4 }}>
-            Contratos MIGRADOS — sem pedido administrativo (destinação direta a advogado, decisão do admin)
+            Contratos MIGRADOS — sem pedido administrativo (destinação direta a advogado, decisão do
+            admin)
           </h4>
           <TabelaContratos contratos={dossie.migrados} />
         </>

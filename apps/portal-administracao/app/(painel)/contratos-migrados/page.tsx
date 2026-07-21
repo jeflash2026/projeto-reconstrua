@@ -16,8 +16,8 @@ const MigradosPage = async (): Promise<ReactElement> => {
       <AutoRefresh seconds={30} />
       <h1 className="page-title">Contratos Migrados</h1>
       <p className="page-sub">
-        Sem pedido administrativo — prontos para você destinar diretamente a um advogado (a decisão é sempre sua; a
-        atribuição continua em «Prontos p/ Advogado»).
+        Sem pedido administrativo — prontos para você destinar diretamente a um advogado (a decisão
+        é sempre sua; a atribuição continua em «Prontos p/ Advogado»).
       </p>
       {clientes.length === 0 ? (
         <div className="empty">Nenhum contrato migrado encontrado nos HISCONs recebidos.</div>
@@ -25,7 +25,10 @@ const MigradosPage = async (): Promise<ReactElement> => {
         clientes.map((cliente) => (
           <div className="card" key={cliente.chatId} style={{ marginBottom: 16 }}>
             <h3>
-              <Link href={`/clientes/${encodeURIComponent(cliente.chatId)}`} style={{ color: 'var(--accent)' }}>
+              <Link
+                href={`/clientes/${encodeURIComponent(cliente.chatId)}`}
+                style={{ color: 'var(--accent)' }}
+              >
                 {cliente.nomeCliente ?? cliente.chatId}
               </Link>{' '}
               — {cliente.totalMigrados} contrato(s) migrado(s)
@@ -33,7 +36,8 @@ const MigradosPage = async (): Promise<ReactElement> => {
             {cliente.porBanco.map((banco) => (
               <div key={banco.bancoNome} style={{ marginTop: 8 }}>
                 <h4 style={{ marginBottom: 4 }}>
-                  {banco.bancoNome} {banco.bancoCodigo ? <span className="mono">({banco.bancoCodigo})</span> : null}
+                  {banco.bancoNome}{' '}
+                  {banco.bancoCodigo ? <span className="mono">({banco.bancoCodigo})</span> : null}
                 </h4>
                 <div className="table-wrap">
                   <table>
@@ -55,7 +59,9 @@ const MigradosPage = async (): Promise<ReactElement> => {
                           <td className="mono">{formatDate(c.dataInclusao)}</td>
                           <td>{formatMoney(c.valorParcela)}</td>
                           <td>{formatMoney(c.valorEmprestado)}</td>
-                          <td style={{ whiteSpace: 'normal', fontSize: 12 }}>{c.origemAverbacao ?? '—'}</td>
+                          <td style={{ whiteSpace: 'normal', fontSize: 12 }}>
+                            {c.origemAverbacao ?? '—'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

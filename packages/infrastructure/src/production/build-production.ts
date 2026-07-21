@@ -82,18 +82,27 @@ import {
   type EnviadorDeDocumento,
 } from '@reconstrua/application';
 import type { BootableComponent } from '@reconstrua/application';
-import { MissionClosureFeedbackSubscriber, defaultEncerramentoResolver } from '../pipeline/mission-closure-feedback-subscriber.js';
+import {
+  MissionClosureFeedbackSubscriber,
+  defaultEncerramentoResolver,
+} from '../pipeline/mission-closure-feedback-subscriber.js';
 import { JsonDocumentRequestStore } from '../document-request/json-document-request-store.js';
 import { DocumentRequestsAwareSnapshotAdapter } from '../document-request/document-requests-snapshot-adapter.js';
 import { DocumentArrivalSubscriber } from '../document-request/document-arrival-subscriber.js';
 import { DocumentRequestComunicador } from '../document-request/document-request-comunicador.js';
 import { DocumentRequestAutonomia } from '../document-request/autonomia.js';
-import { JsonNotificationChannelStore, LawyerNotifierSubscriber } from '../document-request/lawyer-notifier.js';
+import {
+  JsonNotificationChannelStore,
+  LawyerNotifierSubscriber,
+} from '../document-request/lawyer-notifier.js';
 import { JsonAnexoStore } from '../document-request/json-anexo-store.js';
 import { JsonOnboardingDocumentalStore } from '../onboarding/json-onboarding-store.js';
 import { JornadaComercialRuntime } from '../jornada/jornada-runtime.js';
 import { JourneyGovernedExpression } from '../jornada/journey-governed-expression.js';
-import { OnboardingDocumentalSubscriber, criarResolverDeChat } from '../onboarding/onboarding-documental-subscriber.js';
+import {
+  OnboardingDocumentalSubscriber,
+  criarResolverDeChat,
+} from '../onboarding/onboarding-documental-subscriber.js';
 import { online } from '@reconstrua/application';
 import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
 import { InMemorySnapshotStore } from '../event-store/in-memory-snapshot-store.js';
@@ -179,9 +188,17 @@ import {
   PgMediaStore,
   type MediaStorePort,
 } from '../media/index.js';
-import { AnthropicVisionClient, DocumentReaderService, JsonDocumentTextCache } from '../reading/index.js';
+import {
+  AnthropicVisionClient,
+  DocumentReaderService,
+  JsonDocumentTextCache,
+} from '../reading/index.js';
 import { PericiaService } from '../pericia/index.js';
-import { EvolutionInstanceClient, FetchEvoHttp, WhatsAppConnectionRuntime } from '../whatsapp-connection/index.js';
+import {
+  EvolutionInstanceClient,
+  FetchEvoHttp,
+  WhatsAppConnectionRuntime,
+} from '../whatsapp-connection/index.js';
 
 export interface ProductionWiring {
   readonly clock: Clock;
@@ -201,7 +218,11 @@ export interface AssembledProduction {
   readonly shadow: ShadowRecorder;
   readonly shadowStore: ShadowStore;
   readonly shadowMode: boolean;
-  readonly mode: { readonly storage: 'postgres' | 'memory'; readonly gateway: 'evolution' | 'memory'; readonly llm: string };
+  readonly mode: {
+    readonly storage: 'postgres' | 'memory';
+    readonly gateway: 'evolution' | 'memory';
+    readonly llm: string;
+  };
   readonly config: ProductionConfig;
   readonly configStore: ConfigStore;
   readonly conversation: ConversationRuntime;
@@ -381,7 +402,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   };
 
   // ── LLM real (4 ports) e HTTP resiliente ─────────────────────────────────────
-  const resilientHttp = new ResilientHttpClient(new FetchHttpClient(), sleeper, observability, clock, 'http');
+  const resilientHttp = new ResilientHttpClient(
+    new FetchHttpClient(),
+    sleeper,
+    observability,
+    clock,
+    'http',
+  );
   const llm = createLlmBundle({ config, http: resilientHttp, observability, clock });
 
   // ── CAT-02A: captura dos bytes reais de documentos (assíncrona, best-effort) ──
@@ -396,7 +423,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const documentReader = new DocumentReaderService({
     links: documentLinks,
     store: mediaStore,
-    reader: new AnthropicVisionClient(resilientHttp, config.llm.anthropicApiKey, config.llm.anthropicModel),
+    reader: new AnthropicVisionClient(
+      resilientHttp,
+      config.llm.anthropicApiKey,
+      config.llm.anthropicModel,
+    ),
     cache: new JsonDocumentTextCache(json),
     model: config.llm.anthropicModel,
     clock,
@@ -438,7 +469,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     deliveries,
     idempotency,
     registry,
-    retryPolicy: new ExponentialBackoffRetryPolicy({ baseMs: 1000, factor: 2, maxMs: 60_000, maxAttempts: 5, jitter: 0 }),
+    retryPolicy: new ExponentialBackoffRetryPolicy({
+      baseMs: 1000,
+      factor: 2,
+      maxMs: 60_000,
+      maxAttempts: 5,
+      jitter: 0,
+    }),
     clock,
   });
 
@@ -460,7 +497,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // trabalho jurídico). Closures avaliadas por chamada (staff/work definidos
     // adiante nesta composição; invocados só em request-time).
     sources: {
-      clientes: async () => (await clientes.list(clock.now())).map((c) => ({ status: c.status, quem: c.quem })),
+      clientes: async () =>
+        (await clientes.list(clock.now())).map((c) => ({ status: c.status, quem: c.quem })),
       porAdvogado: async () => {
         const advogados = await staff.list('advogado');
         const out: Array<{ nome: string; casos: number; ultimaAtividadeAt: Date | null }> = [];
@@ -481,14 +519,29 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // ── 2F ───────────────────────────────────────────────────────────────────────
   const scheduler = new SchedulerRuntime(schedulerStore);
   const workflow = new WorkflowRuntime(progressStore, scheduler, undefined, observability);
-  const notification = new NotificationRuntime(new RecordingNotificationChannel(), DEFAULT_NOTIFICATION_POLICY);
+  const notification = new NotificationRuntime(
+    new RecordingNotificationChannel(),
+    DEFAULT_NOTIFICATION_POLICY,
+  );
   const handoff = new HumanHandoffRuntime(handoffStore);
-  registry.register(new SerializedSubscriber(new AdminProjectionSubscriber(metricsStore)), 1, clock.now());
+  registry.register(
+    new SerializedSubscriber(new AdminProjectionSubscriber(metricsStore)),
+    1,
+    clock.now(),
+  );
   registry.register(new SerializedSubscriber(workflow), 1, clock.now());
   // CAT-02B: liga o vínculo definitivo ao reconhecer o documento (observa o evento).
-  registry.register(new SerializedSubscriber(new DocumentLinkSubscriber(mediaReferences, documentLinks)), 1, clock.now());
+  registry.register(
+    new SerializedSubscriber(new DocumentLinkSubscriber(mediaReferences, documentLinks)),
+    1,
+    clock.now(),
+  );
   // RFC-0035-G: projeta o Estado de Decisão (hoje: truthEstablished) para o Brain.
-  registry.register(new SerializedSubscriber(new DecisionStateProjectionSubscriber(decisionState)), 1, clock.now());
+  registry.register(
+    new SerializedSubscriber(new DecisionStateProjectionSubscriber(decisionState)),
+    1,
+    clock.now(),
+  );
 
   // GO-LIVE 13A/11D: liga o encerramento real de missão ao feedback loop (11C). O
   // store alimenta o Command Center (insights cognitivos) e o painel do arquiteto.
@@ -496,13 +549,23 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const atendimentoStore = new InMemoryAtendimentoStore();
   const feedbackLoop = new ProductionFeedbackLoop(atendimentoStore);
   registry.register(
-    new MissionClosureFeedbackSubscriber({ loop: feedbackLoop, resolver: defaultEncerramentoResolver, observability, uuid, clock }),
+    new MissionClosureFeedbackSubscriber({
+      loop: feedbackLoop,
+      resolver: defaultEncerramentoResolver,
+      observability,
+      uuid,
+      clock,
+    }),
     1,
     clock.now(),
   );
 
   // ── 2C + 2D (catálogo de PRODUÇÃO = 2D + reengajamento 4C) ───────────────────
-  const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(PRODUCTION_RULE_CATALOG) });
+  const brainAssembly = assembleExecutiveBrain({
+    clock,
+    uuid,
+    rules: new InMemoryRuleCatalog(PRODUCTION_RULE_CATALOG),
+  });
   const missionAssembly = assembleMissionRuntime({ eventStore, hasher, uuid, clock, identityMap });
 
   // GO-LIVE 15C-1 (Workflow 2): read model persistente + runtime das solicitações
@@ -528,7 +591,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
             fulfilledBy: estado.fulfilledBy,
           },
           occurredAt: e.occurredAt,
-          provenance: { actor: estado.requestedBy, decisionType: 'Solicitação Complementar (advogado)', fundamento: 'GO-LIVE 15C — Workflow 2', operationalRuleRef: 'DR-15C' },
+          provenance: {
+            actor: estado.requestedBy,
+            decisionType: 'Solicitação Complementar (advogado)',
+            fundamento: 'GO-LIVE 15C — Workflow 2',
+            operationalRuleRef: 'DR-15C',
+          },
         })),
         { actor: estado.requestedBy },
       );
@@ -560,7 +628,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
 
   // ── Gateway REAL (Evolution) ou in-memory ────────────────────────────────────
   const evolutionConfigured =
-    config.evolution.baseUrl !== '' && config.evolution.instance !== '' && config.evolution.apiKey !== '';
+    config.evolution.baseUrl !== '' &&
+    config.evolution.instance !== '' &&
+    config.evolution.apiKey !== '';
   const gateway =
     wiring.gateway ??
     (evolutionConfigured
@@ -568,7 +638,15 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         // ResilientHttpClient reenviava mensagens que a Evolution JÁ tinha
         // aceitado (resposta lenta/5xx pós-envio) ⇒ cliente recebia 2×. Envio
         // não é idempotente; leituras (getBase64) continuam com o resiliente.
-        new EvolutionGateway(new FetchHttpClient(), { baseUrl: config.evolution.baseUrl, instance: config.evolution.instance, apiKey: config.evolution.apiKey }, clock)
+        new EvolutionGateway(
+          new FetchHttpClient(),
+          {
+            baseUrl: config.evolution.baseUrl,
+            instance: config.evolution.instance,
+            apiKey: config.evolution.apiKey,
+          },
+          clock,
+        )
       : new InMemoryConversationGateway(clock));
 
   // ── 2B: Conversa (peças públicas; handles retidos para a ponte 3B) ───────────
@@ -583,7 +661,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     const s = await missionSnapshots.load(chatId);
     const dr = s?.documentRequests;
     if (!dr || dr.totalPendentes === 0 || dr.ultimaSolicitacao === null) return null;
-    return { total: dr.totalPendentes, documentName: dr.ultimaSolicitacao.documentName, requestedBy: dr.ultimaSolicitacao.requestedBy, prioridade: dr.prioridadeMaisAlta ?? 'normal' };
+    return {
+      total: dr.totalPendentes,
+      documentName: dr.ultimaSolicitacao.documentName,
+      requestedBy: dr.ultimaSolicitacao.requestedBy,
+      prioridade: dr.prioridadeMaisAlta ?? 'normal',
+    };
   };
   // Decreto "Jornada Documental Inicial" — a contabilidade canônica da Jornada 1:
   // classificação determinística sobre o texto TRANSCRITO pelo Reader; pendências
@@ -591,9 +674,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const onboardingDocumental = new OnboardingDocumentalRuntime({
     store: new JsonOnboardingDocumentalStore(json),
     leitor: { texto: (documentId) => documentReader.readById(documentId) },
-    pendencias: { setPendingDocuments: (chatId, labels) => living.memory.setPendingDocuments(chatId, labels) },
+    pendencias: {
+      setPendingDocuments: (chatId, labels) => living.memory.setPendingDocuments(chatId, labels),
+    },
   });
-  const onboardingProvider: OnboardingDocumentalProvider = (chatId) => onboardingDocumental.visao(chatId);
+  const onboardingProvider: OnboardingDocumentalProvider = (chatId) =>
+    onboardingDocumental.visao(chatId);
   // JORNADA COMERCIAL (decreto 2026-07-20): a máquina de estados determinística
   // que governa o funil — fonte única da verdade (registro ns 'jornada' +
   // contabilidade documental). A LLM não decide nenhum passo do funil.
@@ -616,7 +702,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // GO-LIVE 15C-3 · Parte 2 — ASSOCIAÇÃO INTELIGENTE: documento reconhecido no
   // caso ⇒ associa à solicitação (única/IA) ou pede confirmação ao cliente.
   registry.register(
-    new DocumentArrivalSubscriber({ store: documentRequestStore, runtime: documentRequests, gateway, confirmacoes: json, observability, clock }),
+    new DocumentArrivalSubscriber({
+      store: documentRequestStore,
+      runtime: documentRequests,
+      gateway,
+      confirmacoes: json,
+      observability,
+      clock,
+    }),
     1,
     clock.now(),
   );
@@ -655,14 +748,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     1,
     clock.now(),
   );
-  const nomeDoCliente = async (chatId: string): Promise<string | null> => (await living.relationship.context(chatId)).knownName;
+  const nomeDoCliente = async (chatId: string): Promise<string | null> =>
+    (await living.relationship.context(chatId)).knownName;
   // Decreto Tráfego Pago · B1 — anexo do advogado (procuração/contrato de
   // honorários) enviado ao cliente PARA ASSINAR. O enviador de documento é o
   // próprio gateway quando ele sabe enviar mídia (Evolution); in-memory ⇒ null
   // (anúncio segue só em texto, com observabilidade).
   const documentRequestAnexos = new JsonAnexoStore(json);
   const enviadorDeDocumento =
-    typeof (gateway as Partial<EnviadorDeDocumento>).sendDocument === 'function' ? (gateway as unknown as EnviadorDeDocumento) : null;
+    typeof (gateway as Partial<EnviadorDeDocumento>).sendDocument === 'function'
+      ? (gateway as unknown as EnviadorDeDocumento)
+      : null;
   // GO-LIVE 15C-3 · Parte 3 — DISPARO PROATIVO: created → messaged → gateway.
   const documentRequestComunicador = new DocumentRequestComunicador({
     gateway,
@@ -689,7 +785,15 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // com dedup por evento e registro entregue/falhou/sem-canal.
   const notificationChannels = new JsonNotificationChannelStore(json);
   registry.register(
-    new LawyerNotifierSubscriber({ store: documentRequestStore, canais: notificationChannels, gateway, entregas: json, nomeDoCliente, observability, clock }),
+    new LawyerNotifierSubscriber({
+      store: documentRequestStore,
+      canais: notificationChannels,
+      gateway,
+      entregas: json,
+      nomeDoCliente,
+      observability,
+      clock,
+    }),
     1,
     clock.now(),
   );
@@ -699,7 +803,18 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const presence = new PresenceRuntime(gateway, sessions);
   const typing = new TypingRuntime(presence, delay);
   const queue = new MessageQueueRuntime(new InMemoryMessageQueueStore(), clock, uuid);
-  const delivery = new DeliveryRuntime({ gateway, timing, typing, delay, presence, queue, sessions, memory: convMemory, clock, policy });
+  const delivery = new DeliveryRuntime({
+    gateway,
+    timing,
+    typing,
+    delay,
+    presence,
+    queue,
+    sessions,
+    memory: convMemory,
+    clock,
+    policy,
+  });
   const conversation = new ConversationRuntimeClass({
     perception: llm.perception,
     // Decreto 2026-07-20: enquanto a Jornada Comercial está ativa, a resposta é
@@ -737,7 +852,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       clock,
     }),
     clock,
-    chatOf: (missionId) => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
+    chatOf: (missionId) =>
+      projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
   });
 
   const auditor = new EventStoreIntegrityAuditor(eventStore, hasher);
@@ -749,7 +865,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     clientes,
     documentosDaMissao: async (missionId) => {
       await projector.refresh();
-      return projector.allDocuments().filter((d) => d.missionId === missionId).map((d) => d.documentId);
+      return projector
+        .allDocuments()
+        .filter((d) => d.missionId === missionId)
+        .map((d) => d.documentId);
     },
     textoDoDocumento: (documentId) => documentReader.readById(documentId),
     exporter: new CsvPlanilhaExporter(),
@@ -805,7 +924,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     juridicalStore,
     llmCompletion === null
       ? null
-      : { traduzir: async (original: string) => (await llmCompletion.complete(PROMPT_TRADUCAO_CLIENTE, original)).text },
+      : {
+          traduzir: async (original: string) =>
+            (await llmCompletion.complete(PROMPT_TRADUCAO_CLIENTE, original)).text,
+        },
     async () =>
       (await clientes.list(clock.now()))
         .map((c) => c.missionId)
@@ -879,7 +1001,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // configStore) e filas (outbox). Best-effort; nunca alteram estado.
     diagnostics: {
       baseUrl: config.evolution.baseUrl,
-      db: async () => { await configStore.load(); },
+      db: async () => {
+        await configStore.load();
+      },
       queue: async () => (await deliveries.countByStatus()).pending,
     },
   });
@@ -941,7 +1065,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   };
 
   // ── Boot components (produção) ───────────────────────────────────────────────
-  const component = (name: string, dependsOn: readonly string[], probe: () => Promise<void>): BootableComponent => ({
+  const component = (
+    name: string,
+    dependsOn: readonly string[],
+    probe: () => Promise<void>,
+  ): BootableComponent => ({
     name,
     dependsOn,
     start: probe,
@@ -955,7 +1083,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       await eventStore.streamVersion('probe', '00000000-0000-4000-8000-0000000000ff');
     }),
     component('dispatcher', ['event-store'], () =>
-      registry.all().length >= 2 ? Promise.resolve() : Promise.reject(new Error('subscribers ausentes')),
+      registry.all().length >= 2
+        ? Promise.resolve()
+        : Promise.reject(new Error('subscribers ausentes')),
     ),
     component('brain', [], async () => {
       if ((await brainAssembly.rules.all()).length === 0) throw new Error('catálogo vazio');
@@ -1006,7 +1136,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       timelineCounts: (missionId) => {
         const t = projector.missionTimeline(missionId);
         const count = (type: string): number => t.filter((e) => e.streamType === type).length;
-        return { truth: count('operational-truth'), state: count('operational-state'), stage: count('operational-stage') };
+        return {
+          truth: count('operational-truth'),
+          state: count('operational-state'),
+          stage: count('operational-stage'),
+        };
       },
       workflowSteps: async (missionId) => (await progressStore.load(missionId))?.steps ?? [],
       turnCount: async (chatId) => (await memoryStore.load(chatId))?.messageCount ?? null,

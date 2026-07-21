@@ -63,7 +63,10 @@ export const COLUNAS_CONTRATOS: readonly string[] = [
   'Linha original',
 ];
 
-function linhaDeContrato(c: HisconContrato, classificacao: string): ReadonlyArray<string | number | null> {
+function linhaDeContrato(
+  c: HisconContrato,
+  classificacao: string,
+): ReadonlyArray<string | number | null> {
   return [
     c.banco,
     c.contrato,
@@ -80,7 +83,9 @@ export function planilhaDeContratos(nome: string, parse: HisconParse): Planilha 
   const linhas: ReadonlyArray<string | number | null>[] = [
     ...parse.contratos.map((c) => linhaDeContrato(c, 'DENTRO_5_ANOS')),
     ...parse.foraDaJanela.map((c) => linhaDeContrato(c, 'FORA_5_ANOS')),
-    ...parse.naoReconhecidas.map((linha) => [null, null, '', null, '', 'NAO_RECONHECIDA', linha] as const),
+    ...parse.naoReconhecidas.map(
+      (linha) => [null, null, '', null, '', 'NAO_RECONHECIDA', linha] as const,
+    ),
   ];
   return { nome, colunas: COLUNAS_CONTRATOS, linhas };
 }

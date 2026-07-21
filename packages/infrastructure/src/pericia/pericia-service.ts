@@ -67,12 +67,17 @@ export class PericiaService {
   constructor(private readonly deps: PericiaServiceDeps) {}
 
   private async nomeDoCliente(chatId: string): Promise<string | null> {
-    const jornada = (await this.deps.json.get(NS_JORNADA, chatId)) as { nome?: string | null } | null;
+    const jornada = (await this.deps.json.get(NS_JORNADA, chatId)) as {
+      nome?: string | null;
+    } | null;
     return jornada?.nome ?? null;
   }
 
   private async extrairHiscon(chatId: string): Promise<HisconExtraido | null> {
-    const onboarding = (await this.deps.json.get(NS_ONBOARDING, chatId)) as OnboardingPersisted | null;
+    const onboarding = (await this.deps.json.get(
+      NS_ONBOARDING,
+      chatId,
+    )) as OnboardingPersisted | null;
     const cnis = onboarding?.recebidos?.find((r) => r.codigo === 'CNIS') ?? null;
     if (cnis === null) return null;
     const texto = await this.deps.reader.readById(cnis.documentId);
@@ -98,7 +103,9 @@ export class PericiaService {
       porBanco: agruparPorBanco(janela),
       migrados: contratosMigrados(janela),
       filaPedidoAdministrativo: contratosParaPedidoAdministrativo(janela),
-      indicios: indiciosDeEstrategias(extraido, { tetoJurosMensal: this.deps.tetoJurosMensal ?? null }),
+      indicios: indiciosDeEstrategias(extraido, {
+        tetoJurosMensal: this.deps.tetoJurosMensal ?? null,
+      }),
       totalContratos: janela.length,
     };
   }

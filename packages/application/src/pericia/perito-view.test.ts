@@ -11,17 +11,32 @@ const NOW = new Date('2026-07-18T12:00:00.000Z');
 
 function resumo(over: Partial<ClienteResumo>): ClienteResumo {
   return {
-    clienteId: 'cli-1', chatId: 'c1', missionId: 'm1', quem: 'Maria',
-    status: 'PRONTO_AGUARDANDO_PERICIA', modalidade: 'SOCIEDADE', pronto: true,
-    faltando: [], saude: 'GREEN', ultimoContatoAt: NOW, pedidosConfirmadosEm: null,
+    clienteId: 'cli-1',
+    chatId: 'c1',
+    missionId: 'm1',
+    quem: 'Maria',
+    status: 'PRONTO_AGUARDANDO_PERICIA',
+    modalidade: 'SOCIEDADE',
+    pronto: true,
+    faltando: [],
+    saude: 'GREEN',
+    ultimoContatoAt: NOW,
+    pedidosConfirmadosEm: null,
     ...over,
   };
 }
 
-const HISCON = ['BANCO BMG S/A', 'Contrato 000111222333 Inclusão 05/03/2024 Parcela R$ 45,30 ATIVO'].join('\n');
+const HISCON = [
+  'BANCO BMG S/A',
+  'Contrato 000111222333 Inclusão 05/03/2024 Parcela R$ 45,30 ATIVO',
+].join('\n');
 const OUTRO_DOC = 'Comprovante de residência — Rua X, 123, Curitiba/PR';
 
-function perito(clientes: readonly ClienteResumo[], textos: Record<string, string | null>, docsPorMissao: Record<string, string[]>) {
+function perito(
+  clientes: readonly ClienteResumo[],
+  textos: Record<string, string | null>,
+  docsPorMissao: Record<string, string[]>,
+) {
   const fakeList = { list: () => Promise.resolve(clientes) } as unknown as ClientesList;
   return new PeritoView({
     clientes: fakeList,
@@ -34,7 +49,11 @@ function perito(clientes: readonly ClienteResumo[], textos: Record<string, strin
 describe('PeritoView · fila e contratos', () => {
   it('fila = apenas PRONTO_AGUARDANDO_PERICIA (derivada, sem estado próprio)', async () => {
     const view = perito(
-      [resumo({}), resumo({ clienteId: 'cli-2', status: 'PRONTO_AGUARDANDO_VENDA' }), resumo({ clienteId: 'cli-3', status: 'ATENDIMENTO' })],
+      [
+        resumo({}),
+        resumo({ clienteId: 'cli-2', status: 'PRONTO_AGUARDANDO_VENDA' }),
+        resumo({ clienteId: 'cli-3', status: 'ATENDIMENTO' }),
+      ],
       {},
       {},
     );

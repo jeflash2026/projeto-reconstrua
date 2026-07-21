@@ -24,14 +24,24 @@ async function main(): Promise<void> {
     process.stdout.write(`  [${r.passed ? 'OK ' : 'FAIL'}] ${r.item}: ${r.detail}\n`);
   }
   if (!report.ready && !allowDegraded) {
-    process.stdout.write('Produção BLOQUEADA. Corrija os itens acima (ou ALLOW_DEGRADED=true apenas para homologação).\n');
+    process.stdout.write(
+      'Produção BLOQUEADA. Corrija os itens acima (ou ALLOW_DEGRADED=true apenas para homologação).\n',
+    );
     process.exitCode = 1;
     return;
   }
   // B5.3 — DEGRADAÇÃO relevante: subir apesar de itens vermelhos fica registrado (durável).
   if (!report.ready && allowDegraded) {
-    const red = report.results.filter((r) => !r.passed).map((r) => r.item).join(', ');
-    prod.observability.degraded('go-live', 'degraded-start', clock.now(), `iniciado em modo degradado (ALLOW_DEGRADED); itens vermelhos: ${red}`);
+    const red = report.results
+      .filter((r) => !r.passed)
+      .map((r) => r.item)
+      .join(', ');
+    prod.observability.degraded(
+      'go-live',
+      'degraded-start',
+      clock.now(),
+      `iniciado em modo degradado (ALLOW_DEGRADED); itens vermelhos: ${red}`,
+    );
   }
 
   // GO-LIVE-06.1 (BUG 1) — SEED do primeiro administrador: ROBUSTO, VISÍVEL e
@@ -52,14 +62,20 @@ async function main(): Promise<void> {
       const created = await prod.adminView.staff.ensureBootstrapped(adminName);
       // VERIFICAÇÃO por releitura: prova que gravou de fato (não confia na escrita).
       if (await prod.adminView.staff.isBootstrapped()) {
-        process.stdout.write(`ADMIN: primeiro administrador provisionado e verificado ("${created?.name ?? adminName}").\n`);
+        process.stdout.write(
+          `ADMIN: primeiro administrador provisionado e verificado ("${created?.name ?? adminName}").\n`,
+        );
         adminReady = true;
         break;
       }
-      process.stderr.write(`ADMIN: gravação não confirmada na releitura (tentativa ${String(attempt)}/5) — repetindo.\n`);
+      process.stderr.write(
+        `ADMIN: gravação não confirmada na releitura (tentativa ${String(attempt)}/5) — repetindo.\n`,
+      );
     } catch (error) {
       const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
-      process.stderr.write(`ADMIN: falha ao provisionar o administrador (tentativa ${String(attempt)}/5): ${detail}\n`);
+      process.stderr.write(
+        `ADMIN: falha ao provisionar o administrador (tentativa ${String(attempt)}/5): ${detail}\n`,
+      );
       prod.observability.error('bootstrap', 'seed-admin', clock.now(), detail);
     }
     await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
@@ -80,7 +96,9 @@ async function main(): Promise<void> {
     // Decreto Dossiê Pericial: HISCON parseado (contratos/migrados/indícios).
     pericia: prod.pericia,
   });
-  const advogado = buildAdvogadoServer(prod.advogadoView, { accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '' });
+  const advogado = buildAdvogadoServer(prod.advogadoView, {
+    accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',
+  });
   const lx = buildLawyerExperienceServer(prod.lxView, {
     advogadoSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',
     adminSecret: env['ADMIN_ACCESS_SECRET'] ?? '',
@@ -90,29 +108,51 @@ async function main(): Promise<void> {
   await admin.listen({ port: port + 1, host: '0.0.0.0' });
   await advogado.listen({ port: port + 2, host: '0.0.0.0' });
   await lx.listen({ port: port + 3, host: '0.0.0.0' });
-  process.stdout.write(`AHRIOS em produção: main:${String(port)} admin:${String(port + 1)} advogado:${String(port + 2)} lx:${String(port + 3)}\n`);
+  process.stdout.write(
+    `AHRIOS em produção: main:${String(port)} admin:${String(port + 1)} advogado:${String(port + 2)} lx:${String(port + 3)}\n`,
+  );
 
   // Loop temporal pela ENTRADA ÚNICA serializada (A2/4C) + preparação noturna às 03h.
   // B5.3 — exceções antes ABSORVIDAS silenciosamente agora são registradas (memória +
   // stderr durável), sem alterar o comportamento do loop (continua tolerante a falhas).
   setInterval(() => {
     void prod.ingress.tick(clock.now()).catch((error: unknown) => {
-      prod.observability.error('temporal', 'tick', clock.now(), error instanceof Error ? error.message : 'falha no tick temporal');
+      prod.observability.error(
+        'temporal',
+        'tick',
+        clock.now(),
+        error instanceof Error ? error.message : 'falha no tick temporal',
+      );
     });
     // PC-R3 — a varredura do NASCIMENTO do Portal (sem clique humano): quando a
     // AHRI reconhece que recebeu tudo, o fato nasce e a mensagem é entregue.
     void prod.nascimento.verificar(clock.now()).catch((error: unknown) => {
-      prod.observability.error('nascimento', 'verificar', clock.now(), error instanceof Error ? error.message : 'falha na varredura do nascimento');
+      prod.observability.error(
+        'nascimento',
+        'verificar',
+        clock.now(),
+        error instanceof Error ? error.message : 'falha na varredura do nascimento',
+      );
     });
     // GO-LIVE-02 — a varredura da DESPEDIDA (Modelo A): a relação se encerra
     // como começou — conversando. Fato antes da mensagem; envio único.
     void prod.despedida.verificar(clock.now()).catch((error: unknown) => {
-      prod.observability.error('despedida', 'verificar', clock.now(), error instanceof Error ? error.message : 'falha na varredura da despedida');
+      prod.observability.error(
+        'despedida',
+        'verificar',
+        clock.now(),
+        error instanceof Error ? error.message : 'falha na varredura da despedida',
+      );
     });
     // GO-LIVE-02 — traduções pendentes (fail-closed): nenhum balão nasce cru;
     // o que falhou na escrita é traduzido aqui assim que o LLM responder.
     void prod.traducao.reprocessarPendentes().catch((error: unknown) => {
-      prod.observability.error('traducao', 'reprocessar', clock.now(), error instanceof Error ? error.message : 'falha no reprocesso de traduções');
+      prod.observability.error(
+        'traducao',
+        'reprocessar',
+        clock.now(),
+        error instanceof Error ? error.message : 'falha no reprocesso de traduções',
+      );
     });
   }, 60_000);
   // 14ª rodada — BOMBA DE RETENTATIVAS: entregas pendentes (ex.: classificação
@@ -122,14 +162,24 @@ async function main(): Promise<void> {
   // claim das entregas é atômico (locked_by) — seguro ao lado do drain do turno.
   setInterval(() => {
     void prod.outbox.drainToIdle().catch((error: unknown) => {
-      prod.observability.error('outbox', 'pump', clock.now(), error instanceof Error ? error.message : 'falha no pump do outbox');
+      prod.observability.error(
+        'outbox',
+        'pump',
+        clock.now(),
+        error instanceof Error ? error.message : 'falha no pump do outbox',
+      );
     });
   }, 10_000);
   setInterval(() => {
     const now = clock.now();
     if (now.getHours() === 3 && now.getMinutes() === 0) {
       void prod.lxView.nightShift.run(now).catch((error: unknown) => {
-        prod.observability.error('night-shift', 'run', now, error instanceof Error ? error.message : 'falha na preparação noturna');
+        prod.observability.error(
+          'night-shift',
+          'run',
+          now,
+          error instanceof Error ? error.message : 'falha na preparação noturna',
+        );
       });
     }
   }, 60_000);

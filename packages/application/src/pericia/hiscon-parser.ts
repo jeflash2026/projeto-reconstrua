@@ -145,7 +145,10 @@ export function parseHisconDetalhado(texto: string): HisconExtraido {
     const bloco = texto.slice(atual.indice, fim);
     // Cabeçalho de seção: último título de bloco ANTES deste contrato.
     const antes = texto.slice(0, atual.indice);
-    const secoes = antes.match(/^(EMPR[ÉE]STIMOS BANC[ÁA]RIOS|CART[ÃA]O DE CR[ÉE]DITO[^\n]*|.*\bRMC\b[^\n]*|.*\bRCC\b[^\n]*)$/gim) ?? [];
+    const secoes =
+      antes.match(
+        /^(EMPR[ÉE]STIMOS BANC[ÁA]RIOS|CART[ÃA]O DE CR[ÉE]DITO[^\n]*|.*\bRMC\b[^\n]*|.*\bRCC\b[^\n]*)$/gim,
+      ) ?? [];
     const secao = secoes[secoes.length - 1] ?? 'EMPRÉSTIMOS BANCÁRIOS';
 
     const origem = campo(bloco, 'ORIGEM DA AVERBA[ÇC][ÃA]O');
@@ -196,9 +199,17 @@ function extrairEspecie(texto: string): string | null {
 // ── visões para o PERITO e para o ADMIN ──────────────────────────────────────
 
 /** Contratos incluídos nos últimos N anos (5 = janela pericial padrão). */
-export function contratosDaJanela(contratos: readonly ContratoHiscon[], hoje: Date, anos = 5): readonly ContratoHiscon[] {
-  const corte = new Date(Date.UTC(hoje.getUTCFullYear() - anos, hoje.getUTCMonth(), hoje.getUTCDate()));
-  return contratos.filter((c) => c.dataInclusao === null || c.dataInclusao.getTime() >= corte.getTime());
+export function contratosDaJanela(
+  contratos: readonly ContratoHiscon[],
+  hoje: Date,
+  anos = 5,
+): readonly ContratoHiscon[] {
+  const corte = new Date(
+    Date.UTC(hoje.getUTCFullYear() - anos, hoje.getUTCMonth(), hoje.getUTCDate()),
+  );
+  return contratos.filter(
+    (c) => c.dataInclusao === null || c.dataInclusao.getTime() >= corte.getTime(),
+  );
 }
 
 export interface BancoComContratos {
@@ -207,7 +218,9 @@ export interface BancoComContratos {
   readonly contratos: readonly ContratoHiscon[];
 }
 
-export function agruparPorBanco(contratos: readonly ContratoHiscon[]): readonly BancoComContratos[] {
+export function agruparPorBanco(
+  contratos: readonly ContratoHiscon[],
+): readonly BancoComContratos[] {
   const porBanco = new Map<string, ContratoHiscon[]>();
   for (const c of contratos) {
     const chave = c.bancoNome ?? 'BANCO NÃO IDENTIFICADO';
@@ -216,7 +229,11 @@ export function agruparPorBanco(contratos: readonly ContratoHiscon[]): readonly 
     porBanco.set(chave, lista);
   }
   return [...porBanco.entries()]
-    .map(([nome, lista]) => ({ bancoCodigo: lista[0]?.bancoCodigo ?? null, bancoNome: nome, contratos: lista }))
+    .map(([nome, lista]) => ({
+      bancoCodigo: lista[0]?.bancoCodigo ?? null,
+      bancoNome: nome,
+      contratos: lista,
+    }))
     .sort((a, z) => a.bancoNome.localeCompare(z.bancoNome));
 }
 
@@ -226,7 +243,9 @@ export function contratosMigrados(contratos: readonly ContratoHiscon[]): readonl
 }
 
 /** Contratos que exigem PEDIDO ADMINISTRATIVO (fila do perito): consignado/RMC/RCC não migrados. */
-export function contratosParaPedidoAdministrativo(contratos: readonly ContratoHiscon[]): readonly ContratoHiscon[] {
+export function contratosParaPedidoAdministrativo(
+  contratos: readonly ContratoHiscon[],
+): readonly ContratoHiscon[] {
   return contratos.filter((c) => !c.migrado);
 }
 
@@ -258,7 +277,9 @@ export function indiciosDeEstrategias(
     });
   }
 
-  const refin = c.filter((x) => x.origemAverbacao !== null && /refinanciamento|portabilidade/i.test(x.origemAverbacao));
+  const refin = c.filter(
+    (x) => x.origemAverbacao !== null && /refinanciamento|portabilidade/i.test(x.origemAverbacao),
+  );
   if (refin.length > 0) {
     out.push({
       estrategiaRef: 'EST-CONSIG-PORTABILIDADE-001',
@@ -278,7 +299,12 @@ export function indiciosDeEstrategias(
   }
 
   const { totalComprometido, maximoComprometimento } = extraido.margens;
-  if (totalComprometido !== null && maximoComprometimento !== null && totalComprometido >= maximoComprometimento && maximoComprometimento > 0) {
+  if (
+    totalComprometido !== null &&
+    maximoComprometimento !== null &&
+    totalComprometido >= maximoComprometimento &&
+    maximoComprometimento > 0
+  ) {
     out.push({
       estrategiaRef: 'EST-CONSIG-SUPERENDIVIDAMENTO-001',
       titulo: 'Comprometimento no teto — indício de superendividamento',

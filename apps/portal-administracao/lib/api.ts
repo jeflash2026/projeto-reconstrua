@@ -27,7 +27,11 @@ export async function getJson<T>(path: string): Promise<T | null> {
   }
 }
 
-export async function sendJson<T>(method: 'POST' | 'PATCH', path: string, body: unknown): Promise<T | null> {
+export async function sendJson<T>(
+  method: 'POST' | 'PATCH',
+  path: string,
+  body: unknown,
+): Promise<T | null> {
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       method,
@@ -157,29 +161,76 @@ export interface TimelineCognitivaData {
 
 // ── INTELIGÊNCIA (13A) — auditoria de como a AHRI pensa ────────────────────────
 export interface EstrategiaCard {
-  ref: string; descricao: string; problemaJuridico: string;
-  requisitosMinimos: string[]; fatosReforcadores: string[]; criteriosDeExclusao: string[];
-  criterioDePrioridade: number; documentosEsperados: string[]; documentosOpcionais: string[];
-  riscos: string[]; proximaAcao: string; fundamento: string;
-  usos: number; casos: string[]; confiancaMedia: number | null; taxaAcerto: number | null; ultimaUtilizacao: string | null;
+  ref: string;
+  descricao: string;
+  problemaJuridico: string;
+  requisitosMinimos: string[];
+  fatosReforcadores: string[];
+  criteriosDeExclusao: string[];
+  criterioDePrioridade: number;
+  documentosEsperados: string[];
+  documentosOpcionais: string[];
+  riscos: string[];
+  proximaAcao: string;
+  fundamento: string;
+  usos: number;
+  casos: string[];
+  confiancaMedia: number | null;
+  taxaAcerto: number | null;
+  ultimaUtilizacao: string | null;
 }
 export interface HipoteseView {
-  clienteId: string; clienteNome: string; hipotese: string; estrategiaRef: string;
-  confianca: 'alta' | 'media' | 'baixa'; prioridade: number; posicao: number;
-  decisaoFinal: string | null; status: 'vencedora' | 'avaliada';
-  fatosSustentam: string[]; fatosAusentes: string[]; documentosUtilizados: string[]; quando: string;
+  clienteId: string;
+  clienteNome: string;
+  hipotese: string;
+  estrategiaRef: string;
+  confianca: 'alta' | 'media' | 'baixa';
+  prioridade: number;
+  posicao: number;
+  decisaoFinal: string | null;
+  status: 'vencedora' | 'avaliada';
+  fatosSustentam: string[];
+  fatosAusentes: string[];
+  documentosUtilizados: string[];
+  quando: string;
   explicacao: DossieExplicacao;
 }
-export interface FatoConhecimento { clienteId: string; clienteNome: string; factKey: string; valor: string; origem: string; confianca: string; fonte: string; }
-export interface CategoriaConhecimento { categoria: string; factKey: string; itens: FatoConhecimento[]; }
+export interface FatoConhecimento {
+  clienteId: string;
+  clienteNome: string;
+  factKey: string;
+  valor: string;
+  origem: string;
+  confianca: string;
+  fonte: string;
+}
+export interface CategoriaConhecimento {
+  categoria: string;
+  factKey: string;
+  itens: FatoConhecimento[];
+}
 export interface EvolucaoData {
-  taxaAcerto: number; confiancaMedia: number; tempoMedioAteDecisaoMs: number; totalAtendimentos: number;
+  taxaAcerto: number;
+  confiancaMedia: number;
+  tempoMedioAteDecisaoMs: number;
+  totalAtendimentos: number;
   estrategiasMaisUtilizadas: { chave: string; ocorrencias: number }[];
   estrategiasNuncaUtilizadas: string[];
-  estrategiasMaisCorrigidas: { ref: string; correcoes: number; usos: number; taxaCorrecao: number }[];
+  estrategiasMaisCorrigidas: {
+    ref: string;
+    correcoes: number;
+    usos: number;
+    taxaCorrecao: number;
+  }[];
   documentosMaisFaltantes: { chave: string; ocorrencias: number }[];
   fatosDificeis: { chave: string; ocorrencias: number }[];
-  historicoMensal: { mes: string; total: number; taxaAcerto: number; confiancaMedia: number; tempoMedioAteDecisaoMs: number }[];
+  historicoMensal: {
+    mes: string;
+    total: number;
+    taxaAcerto: number;
+    confiancaMedia: number;
+    tempoMedioAteDecisaoMs: number;
+  }[];
 }
 
 // ── PAINEL DO ADVOGADO (13A · seção 1) — cada card é um CASO ────────────────────
@@ -245,10 +296,25 @@ export interface ClientDetail {
     // Formato REAL da memória viva (2E): fonte estruturada {kind, ref, at}.
     // O formato antigo (sourceMessageId/observedAt/reference) derrubava o SSR
     // com TypeError em shortId(undefined) — o erro do clique no cliente.
-    attributes: Array<{ key: string; value: string; source: { kind: string; ref: string; at: string }; confidence: number }>;
-    rememberedEvents: Array<{ description: string; source: { kind: string; ref: string; at: string } }>;
-    emotionsObserved: Array<{ sentiment: string; source: { kind: string; ref: string; at: string } }>;
-    documentsSent: Array<{ ref: string; label: string; source: { kind: string; ref: string; at: string } }>;
+    attributes: Array<{
+      key: string;
+      value: string;
+      source: { kind: string; ref: string; at: string };
+      confidence: number;
+    }>;
+    rememberedEvents: Array<{
+      description: string;
+      source: { kind: string; ref: string; at: string };
+    }>;
+    emotionsObserved: Array<{
+      sentiment: string;
+      source: { kind: string; ref: string; at: string };
+    }>;
+    documentsSent: Array<{
+      ref: string;
+      label: string;
+      source: { kind: string; ref: string; at: string };
+    }>;
     documentsPending: string[];
     stagesCompleted: Array<{ stageRef: string; source: { kind: string; ref: string; at: string } }>;
     conversationStyle: string | null;
@@ -257,8 +323,19 @@ export interface ClientDetail {
     firstContactAt: string | null;
     lastContactAt: string | null;
   };
-  relationship: { summary: string; pendingDocuments: string[]; knownName: string | null; startedAt: string | null };
-  conversation: Array<{ kind: string; text: string | null; at: string; intentDirective: string | null; operationalRuleRef: string | null }>;
+  relationship: {
+    summary: string;
+    pendingDocuments: string[];
+    knownName: string | null;
+    startedAt: string | null;
+  };
+  conversation: Array<{
+    kind: string;
+    text: string | null;
+    at: string;
+    intentDirective: string | null;
+    operationalRuleRef: string | null;
+  }>;
   missions: Array<{ missionId: string; progress: { steps: string[] } | null }>;
 }
 
@@ -293,13 +370,27 @@ export interface BancoComContratosView {
 export interface DossiePericialView {
   chatId: string;
   nomeCliente: string | null;
-  beneficio: { beneficiario: string | null; numeroBeneficio: string | null; bancoPagamento: string | null };
-  margens: { baseCalculo: number | null; maximoComprometimento: number | null; totalComprometido: number | null; extrapolada: number | null };
+  beneficio: {
+    beneficiario: string | null;
+    numeroBeneficio: string | null;
+    bancoPagamento: string | null;
+  };
+  margens: {
+    baseCalculo: number | null;
+    maximoComprometimento: number | null;
+    totalComprometido: number | null;
+    extrapolada: number | null;
+  };
   janelaAnos: number;
   porBanco: BancoComContratosView[];
   migrados: ContratoHisconView[];
   filaPedidoAdministrativo: ContratoHisconView[];
-  indicios: Array<{ estrategiaRef: string; titulo: string; contratos: string[]; fundamentoFactual: string }>;
+  indicios: Array<{
+    estrategiaRef: string;
+    titulo: string;
+    contratos: string[];
+    fundamentoFactual: string;
+  }>;
   totalContratos: number;
 }
 
@@ -345,7 +436,14 @@ export interface MissionDetail {
 }
 
 export interface DocumentsData {
-  recognized: Array<{ documentId: string; missionId: string | null; contentReference: string | null; mimeType: string | null; recognizedAt: string; status: string }>;
+  recognized: Array<{
+    documentId: string;
+    missionId: string | null;
+    contentReference: string | null;
+    mimeType: string | null;
+    recognizedAt: string;
+    status: string;
+  }>;
   pending: Array<{ chatId: string; document: string }>;
 }
 
@@ -361,7 +459,13 @@ export interface StaffMember {
 
 export interface StaffData {
   members: StaffMember[];
-  workload: { role: string; activeMembers: number; inactiveMembers: number; openHandoffs: number; avgQueuePerMember: number | null };
+  workload: {
+    role: string;
+    activeMembers: number;
+    inactiveMembers: number;
+    openHandoffs: number;
+    avgQueuePerMember: number | null;
+  };
 }
 
 export interface FounderBriefing {
@@ -384,7 +488,14 @@ export interface FounderAnswer {
 
 export interface LogsData {
   events: TimelineEntry[];
-  observations: Array<{ kind: string; component: string; name: string; value: number | null; detail: string | null; at: string }>;
+  observations: Array<{
+    kind: string;
+    component: string;
+    name: string;
+    value: number | null;
+    detail: string | null;
+    at: string;
+  }>;
 }
 
 export interface HealthData {

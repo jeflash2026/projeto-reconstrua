@@ -42,7 +42,8 @@ export interface HisconParse {
 const DATE_RE = /(\d{2})\/(\d{2})\/(\d{4})/g;
 const MONEY_RE = /R?\$?\s?(\d{1,3}(?:\.\d{3})*,\d{2})\b/g;
 /** Cabeçalho de banco: linha que nomeia a instituição (sem data/valor de contrato). */
-const BANK_HEADER_RE = /\b(BANCO|BCO\.?|FINANCEIRA|FINANC\.?|CAIXA ECONOMICA|CAIXA ECONÔMICA|COOPERATIVA)\b/i;
+const BANK_HEADER_RE =
+  /\b(BANCO|BCO\.?|FINANCEIRA|FINANC\.?|CAIXA ECONOMICA|CAIXA ECONÔMICA|COOPERATIVA)\b/i;
 const SITUACAO_RE = /\b(ATIVO|QUITADO|EXCLUIDO|EXCLUÍDO|SUSPENSO|CANCELADO|LIQUIDADO)\b/i;
 const CONTRACT_ID_RE = /\d{6,20}/g;
 
@@ -59,7 +60,9 @@ function parseDateBr(dd: string, mm: string, yyyy: string): Date | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   const d = new Date(Date.UTC(year, month - 1, day));
   // Rejeita datas impossíveis (ex.: 31/02) — o Date "rola" o mês silenciosamente.
-  return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day ? d : null;
+  return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day
+    ? d
+    : null;
 }
 
 function parseMoneyBr(raw: string): number {
@@ -102,7 +105,10 @@ function parseLine(line: string, bancoContexto: string | null): HisconContrato |
 
   DATE_RE.lastIndex = 0;
   const firstDate = DATE_RE.exec(normalized);
-  const dataInicio = firstDate !== null ? parseDateBr(firstDate[1] ?? '', firstDate[2] ?? '', firstDate[3] ?? '') : null;
+  const dataInicio =
+    firstDate !== null
+      ? parseDateBr(firstDate[1] ?? '', firstDate[2] ?? '', firstDate[3] ?? '')
+      : null;
 
   const valores: number[] = [];
   MONEY_RE.lastIndex = 0;
@@ -112,15 +118,22 @@ function parseLine(line: string, bancoContexto: string | null): HisconContrato |
   if (valores.length === 0) return null; // sem valor não é contrato reconhecível
 
   // Contrato: a MAIOR sequência de 6–20 dígitos que não faz parte de data/valor.
-  const semDatasEValores = normalized.replace(/\d{2}\/\d{2}\/\d{4}/g, ' ').replace(/\d{1,3}(?:\.\d{3})*,\d{2}/g, ' ');
+  const semDatasEValores = normalized
+    .replace(/\d{2}\/\d{2}\/\d{4}/g, ' ')
+    .replace(/\d{1,3}(?:\.\d{3})*,\d{2}/g, ' ');
   let contrato: string | null = null;
   CONTRACT_ID_RE.lastIndex = 0;
-  for (let m = CONTRACT_ID_RE.exec(semDatasEValores); m !== null; m = CONTRACT_ID_RE.exec(semDatasEValores)) {
+  for (
+    let m = CONTRACT_ID_RE.exec(semDatasEValores);
+    m !== null;
+    m = CONTRACT_ID_RE.exec(semDatasEValores)
+  ) {
     if (contrato === null || (m[0]?.length ?? 0) > contrato.length) contrato = m[0] ?? null;
   }
 
   const sit = SITUACAO_RE.exec(normalized);
-  const situacao = sit !== null ? (sit[1] ?? '').toUpperCase().replace('EXCLUÍDO', 'EXCLUIDO') : null;
+  const situacao =
+    sit !== null ? (sit[1] ?? '').toUpperCase().replace('EXCLUÍDO', 'EXCLUIDO') : null;
 
   const banco = inlineBank(normalized) ?? bancoContexto ?? BANCO_NAO_IDENTIFICADO;
 
@@ -132,11 +145,9 @@ function parseLine(line: string, bancoContexto: string | null): HisconContrato |
  * Determinístico: mesma entrada + mesma referência ⇒ mesmo resultado, sempre.
  */
 export function parseHiscon(texto: string, referencia: Date): HisconParse {
-  const janelaInicio = new Date(Date.UTC(
-    referencia.getUTCFullYear() - 5,
-    referencia.getUTCMonth(),
-    referencia.getUTCDate(),
-  ));
+  const janelaInicio = new Date(
+    Date.UTC(referencia.getUTCFullYear() - 5, referencia.getUTCMonth(), referencia.getUTCDate()),
+  );
 
   const dentro: HisconContrato[] = [];
   const fora: HisconContrato[] = [];
@@ -173,5 +184,12 @@ export function parseHiscon(texto: string, referencia: Date): HisconParse {
     (porBanco[c.banco] ??= []).push(c);
   }
 
-  return { contratos: dentro, foraDaJanela: fora, naoReconhecidas, porBanco, janelaInicio, referencia };
+  return {
+    contratos: dentro,
+    foraDaJanela: fora,
+    naoReconhecidas,
+    porBanco,
+    janelaInicio,
+    referencia,
+  };
 }

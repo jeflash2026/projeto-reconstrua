@@ -65,18 +65,27 @@ describe('PericiaService · dossiê do perito', () => {
     expect(dossie?.totalContratos).toBe(2);
     expect(dossie?.migrados.map((c) => c.contrato)).toEqual(['MIGRA1']);
     expect(dossie?.filaPedidoAdministrativo.map((c) => c.contrato)).toEqual(['NORMAL1']);
-    expect(dossie?.porBanco.map((b) => b.bancoNome)).toEqual(['BANCO BRADESCO S A', 'NOVO BANCO CONTINENTAL S A']);
+    expect(dossie?.porBanco.map((b) => b.bancoNome)).toEqual([
+      'BANCO BRADESCO S A',
+      'NOVO BANCO CONTINENTAL S A',
+    ]);
   });
 
   it('sem CNIS na contabilidade ⇒ null (sem inventar)', async () => {
     const { svc, json } = servico(HISCON);
-    await json.put('onboarding-documental', CHAT, { chatId: CHAT, recebidos: [{ codigo: 'IDENTIDADE', documentId: 'd-rg' }] });
+    await json.put('onboarding-documental', CHAT, {
+      chatId: CHAT,
+      recebidos: [{ codigo: 'IDENTIDADE', documentId: 'd-rg' }],
+    });
     expect(await svc.dossie(CHAT)).toBeNull();
   });
 
   it('transcrição indisponível ⇒ null', async () => {
     const { svc, json } = servico(null);
-    await json.put('onboarding-documental', CHAT, { chatId: CHAT, recebidos: [{ codigo: 'CNIS', documentId: 'd-h' }] });
+    await json.put('onboarding-documental', CHAT, {
+      chatId: CHAT,
+      recebidos: [{ codigo: 'CNIS', documentId: 'd-h' }],
+    });
     expect(await svc.dossie(CHAT)).toBeNull();
   });
 });
@@ -84,7 +93,10 @@ describe('PericiaService · dossiê do perito', () => {
 describe('PericiaService · aba Contratos Migrados (todos os clientes)', () => {
   it('lista só clientes COM migrados, por banco, com nome da jornada', async () => {
     const { svc, json } = servico(HISCON);
-    await json.put('onboarding-documental', CHAT, { chatId: CHAT, recebidos: [{ codigo: 'CNIS', documentId: 'd-h' }] });
+    await json.put('onboarding-documental', CHAT, {
+      chatId: CHAT,
+      recebidos: [{ codigo: 'CNIS', documentId: 'd-h' }],
+    });
     await json.put('jornada', CHAT, { chatId: CHAT, nome: 'Isabel' });
 
     const lista = await svc.migradosDeTodos();

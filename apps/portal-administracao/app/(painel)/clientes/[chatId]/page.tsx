@@ -57,7 +57,9 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
             <dt>Estilo de conversa</dt>
             <dd>{memory.conversationStyle ?? '—'}</dd>
             <dt>Docs pendentes</dt>
-            <dd>{memory.documentsPending.length === 0 ? 'nenhum' : memory.documentsPending.join(', ')}</dd>
+            <dd>
+              {memory.documentsPending.length === 0 ? 'nenhum' : memory.documentsPending.join(', ')}
+            </dd>
           </dl>
         </div>
         <div className="card">
@@ -67,7 +69,12 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
           ) : (
             <dl className="kv">
               {memory.attributes.map((a) => (
-                <ClientAttr key={`${a.key}-${a.source.at}`} k={a.key} v={a.value} src={a.source.ref} />
+                <ClientAttr
+                  key={`${a.key}-${a.source.at}`}
+                  k={a.key}
+                  v={a.value}
+                  src={a.source.ref}
+                />
               ))}
             </dl>
           )}
@@ -82,14 +89,20 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
           ) : (
             missions.map((m) => (
               <p key={m.missionId} style={{ margin: '4px 0' }}>
-                <Link href={`/missoes/${m.missionId}`} className="mono" style={{ color: 'var(--accent)' }}>
+                <Link
+                  href={`/missoes/${m.missionId}`}
+                  className="mono"
+                  style={{ color: 'var(--accent)' }}
+                >
                   {shortId(m.missionId, 12)}
                 </Link>{' '}
-                {m.progress ? m.progress.steps.map((s) => (
-                  <span key={s} className="badge accent" style={{ marginLeft: 4 }}>
-                    {s}
-                  </span>
-                )) : null}
+                {m.progress
+                  ? m.progress.steps.map((s) => (
+                      <span key={s} className="badge accent" style={{ marginLeft: 4 }}>
+                        {s}
+                      </span>
+                    ))
+                  : null}
               </p>
             ))
           )}
@@ -137,8 +150,16 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
                   <tr key={i}>
                     <td className="mono">{formatDate(e.at)}</td>
                     <td>
-                      <span className={`badge ${e.kind === 'inbound' ? 'accent' : e.kind === 'outbound' ? 'ok' : 'dim'}`}>{e.kind}</span>
-                      {e.intentDirective ? <span className="badge dim" style={{ marginLeft: 4 }}>{e.intentDirective}</span> : null}
+                      <span
+                        className={`badge ${e.kind === 'inbound' ? 'accent' : e.kind === 'outbound' ? 'ok' : 'dim'}`}
+                      >
+                        {e.kind}
+                      </span>
+                      {e.intentDirective ? (
+                        <span className="badge dim" style={{ marginLeft: 4 }}>
+                          {e.intentDirective}
+                        </span>
+                      ) : null}
                     </td>
                     <td style={{ whiteSpace: 'normal' }}>{e.text ?? '—'}</td>
                     <td className="mono">{e.operationalRuleRef ?? '—'}</td>
@@ -157,7 +178,10 @@ const ClientAttr = ({ k, v, src }: { k: string; v: string; src: string }): React
   <>
     <dt>{k}</dt>
     <dd>
-      {v} <span className="mono" style={{ color: 'var(--text-dim)', fontSize: 11 }}>(fonte: {shortId(src, 10)})</span>
+      {v}{' '}
+      <span className="mono" style={{ color: 'var(--text-dim)', fontSize: 11 }}>
+        (fonte: {shortId(src, 10)})
+      </span>
     </dd>
   </>
 );

@@ -32,7 +32,13 @@ import {
 } from '@reconstrua/application';
 import { requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 
-const STAFF_ROLES: readonly StaffRole[] = ['advogado', 'perito', 'operador', 'supervisor', 'administrador'];
+const STAFF_ROLES: readonly StaffRole[] = [
+  'advogado',
+  'perito',
+  'operador',
+  'supervisor',
+  'administrador',
+];
 
 function isStaffRole(value: string): value is StaffRole {
   return (STAFF_ROLES as readonly string[]).includes(value);
@@ -60,7 +66,11 @@ export function buildAdminServer(
   const founderSecret = opts.founderSecret ?? '';
   const isFounder = (request: { headers: Record<string, unknown> }): boolean => {
     const presented = request.headers['x-founder-secret'];
-    return founderSecret !== '' && typeof presented === 'string' && secretsMatch(presented, founderSecret);
+    return (
+      founderSecret !== '' &&
+      typeof presented === 'string' &&
+      secretsMatch(presented, founderSecret)
+    );
   };
 
   // CORS simples (portal em origem própria); sem dependência externa.
@@ -76,7 +86,10 @@ export function buildAdminServer(
 
   // BL-2.1 — Autenticação Real (DF-12): toda rota /admin/* exige o segredo do Admin
   // (Bearer). Fail-closed: segredo ausente ⇒ 401. Guard REUTILIZÁVEL (Onda 3: advogado).
-  requireBearer(app, { secret: opts.accessSecret ?? '', protect: (path) => path.startsWith('/admin/') });
+  requireBearer(app, {
+    secret: opts.accessSecret ?? '',
+    protect: (path) => path.startsWith('/admin/'),
+  });
 
   // ── DASHBOARD ────────────────────────────────────────────────────────────────
   app.get('/admin/dashboard', async () => {
@@ -87,7 +100,9 @@ export function buildAdminServer(
     const today = now.toISOString().slice(0, 10);
 
     const awaitingDocuments = memories.filter((m) => m.documentsPending.length > 0).length;
-    const newToday = memories.filter((m) => (m.firstContactAt?.toISOString().slice(0, 10) ?? '') === today).length;
+    const newToday = memories.filter(
+      (m) => (m.firstContactAt?.toISOString().slice(0, 10) ?? '') === today,
+    ).length;
     const totalMessages = memories.reduce((sum, m) => sum + m.messageCount, 0);
     const stats = op.observability.stats();
     const bottlenecks = await op.admin.answer('bottlenecks', now);
@@ -124,7 +139,9 @@ export function buildAdminServer(
     const today = now.toISOString().slice(0, 10);
 
     const aguardandoDocumentos = memories.filter((m) => m.documentsPending.length > 0).length;
-    const novosClientesHoje = memories.filter((m) => (m.firstContactAt?.toISOString().slice(0, 10) ?? '') === today).length;
+    const novosClientesHoje = memories.filter(
+      (m) => (m.firstContactAt?.toISOString().slice(0, 10) ?? '') === today,
+    ).length;
     const aguardandoAdvogado = (await op.handoff.openFor('advogado')).length;
     const bottlenecks = await op.admin.answer('bottlenecks', now);
     const casosPorAdvogado = metrics?.perAdvogado ?? {};
@@ -151,7 +168,9 @@ export function buildAdminServer(
       confiancaMediaCatalogo: temFeedback ? painel.confiancaMedia : null,
       confiancaMediaAnterior: null, // sem baseline histórico persistido — não força delta
       taxaAcerto: temFeedback ? painel.taxaAcerto : null,
-      estrategiaEmAlta: topEstrategia ? { ref: topEstrategia.chave, usos: topEstrategia.ocorrencias } : null,
+      estrategiaEmAlta: topEstrategia
+        ? { ref: topEstrategia.chave, usos: topEstrategia.ocorrencias }
+        : null,
       gargalo: bottlenecks.available ? bottlenecks.fact : null,
     });
 
@@ -288,7 +307,9 @@ export function buildAdminServer(
       return reply.code(409).send({ error: 'pedidos já confirmados para este cliente' });
     }
     if (cliente.status !== 'PRONTO_AGUARDANDO_PERICIA') {
-      return reply.code(409).send({ error: `cliente não está na fila da perícia (status: ${cliente.status})` });
+      return reply
+        .code(409)
+        .send({ error: `cliente não está na fila da perícia (status: ${cliente.status})` });
     }
 
     // Rastreabilidade (Lei 10): snapshot dos bancos/contratos no momento do ato.
@@ -359,7 +380,9 @@ export function buildAdminServer(
     if (!cliente) return reply.code(404).send({ error: 'cliente não encontrado' });
     if (cliente.status === 'VENDIDO') return reply.code(409).send({ error: 'cliente já vendido' });
     if (cliente.status !== 'PRONTO_AGUARDANDO_VENDA') {
-      return reply.code(409).send({ error: `cliente não está pronto para venda (status: ${cliente.status})` });
+      return reply
+        .code(409)
+        .send({ error: `cliente não está pronto para venda (status: ${cliente.status})` });
     }
 
     await op.vendaStore.save({
@@ -415,27 +438,45 @@ export function buildAdminServer(
     if (!memory) return null;
     const now = new Date();
     const entries = await op.conversationStore.recent(chatId, 200);
-    const ultimoInbound = [...entries].reverse().find((e) => e.kind === 'inbound' && e.text !== null && e.text !== '');
+    const ultimoInbound = [...entries]
+      .reverse()
+      .find((e) => e.kind === 'inbound' && e.text !== null && e.text !== '');
     const context = {
       chatId,
       session: { chatId, turns: entries.length, lastInboundAt: null, lastOutboundAt: null },
       recentEntries: entries,
-      recentOutboundTexts: entries.filter((e) => e.kind === 'outbound' && e.text !== null).map((e) => e.text ?? ''),
+      recentOutboundTexts: entries
+        .filter((e) => e.kind === 'outbound' && e.text !== null)
+        .map((e) => e.text ?? ''),
       lastPercept: ultimoInbound
-        ? { envelope: { text: ultimoInbound.text }, enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null } }
+        ? {
+            envelope: { text: ultimoInbound.text },
+            enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null },
+          }
         : null,
       silenceMs: null,
     } as unknown as ConversationContextView;
     const conhecimento = aprenderDaConversa(context, CATALOGO_CONSIGNADO_INSS);
     const documentosReconhecidos = memory.documentsSent.map((d) => d.label);
     const contratosEncontrados = documentosReconhecidos.filter((d) => /contrato/i.test(d));
-    const timeline = memory.rememberedEvents.map((e) => ({ rotulo: e.description, em: e.source.at, fonte: `read-model:memory:${e.source.kind}` }));
+    const timeline = memory.rememberedEvents.map((e) => ({
+      rotulo: e.description,
+      em: e.source.at,
+      fonte: `read-model:memory:${e.source.kind}`,
+    }));
     const missionId = op.projector.missionsOf(chatId)[0] ?? null;
     return montarDossie({
-      clienteId: chatId, chatId, missionId, decisionId: null, correlationId: null,
-      versaoCatalogo: '11A', geradoEm: now,
+      clienteId: chatId,
+      chatId,
+      missionId,
+      decisionId: null,
+      correlationId: null,
+      versaoCatalogo: '11A',
+      geradoEm: now,
       entradas: { conhecimento, documentosRecebidos: documentosReconhecidos },
-      documentosReconhecidos, contratosEncontrados, timeline,
+      documentosReconhecidos,
+      contratosEncontrados,
+      timeline,
     });
   }
 
@@ -446,7 +487,8 @@ export function buildAdminServer(
     if (!opts.pericia) return reply.code(404).send({ error: 'perícia não configurada' });
     const { chatId } = request.params as { chatId: string };
     const dossie = await opts.pericia.dossie(chatId);
-    if (dossie === null) return reply.code(404).send({ error: 'sem HISCON legível para este cliente' });
+    if (dossie === null)
+      return reply.code(404).send({ error: 'sem HISCON legível para este cliente' });
     return dossie;
   });
 
@@ -476,20 +518,39 @@ export function buildAdminServer(
     const primeiroInbound = entries.find((e) => e.kind === 'inbound');
     const missionId = op.projector.missionsOf(chatId)[0] ?? null;
     const missionTimeline = missionId ? op.projector.missionTimeline(missionId) : [];
-    const documentos = memory.documentsSent.map((d) => ({ label: d.label, em: d.source.at, reconhecidoComo: d.label }));
+    const documentos = memory.documentsSent.map((d) => ({
+      label: d.label,
+      em: d.source.at,
+      reconhecidoComo: d.label,
+    }));
 
     const timeline = montarTimelineCognitiva({
       conversaIniciadaEm: primeiroInbound?.at ?? null,
       totalMensagens: entries.filter((e) => e.kind === 'inbound' || e.kind === 'outbound').length,
-      beneficio: dossie?.evidenciasEncontradas.find((f) => f.startsWith('beneficio='))?.split('=')[1] ?? null,
+      beneficio:
+        dossie?.evidenciasEncontradas.find((f) => f.startsWith('beneficio='))?.split('=')[1] ??
+        null,
       fatosAprendidos: dossie?.evidenciasEncontradas ?? [],
       documentos,
       contratos: dossie?.contratosEncontrados ?? [],
-      raciocinio: dossie && dossie.hipoteses.length > 0
-        ? { totalHipoteses: dossie.hipoteses.length, principal: dossie.hipoteses[0]?.ref ?? null, fatosDaPrincipal: dossie.explicacao.fatosUtilizados }
+      raciocinio:
+        dossie && dossie.hipoteses.length > 0
+          ? {
+              totalHipoteses: dossie.hipoteses.length,
+              principal: dossie.hipoteses[0]?.ref ?? null,
+              fatosDaPrincipal: dossie.explicacao.fatosUtilizados,
+            }
+          : null,
+      decisao: dossie?.strategyRef
+        ? {
+            strategyRef: dossie.strategyRef,
+            confianca: dossie.grauConfianca ?? 'a apurar',
+            em: dossie.geradoEm,
+          }
         : null,
-      decisao: dossie?.strategyRef ? { strategyRef: dossie.strategyRef, confianca: dossie.grauConfianca ?? 'a apurar', em: dossie.geradoEm } : null,
-      missao: missionId ? { missionId, criadaEm: missionTimeline[0]?.at ?? null, advogado: null, recebidaEm: null } : null,
+      missao: missionId
+        ? { missionId, criadaEm: missionTimeline[0]?.at ?? null, advogado: null, recebidaEm: null }
+        : null,
       dossieAtualizadoEm: dossie?.geradoEm ?? null,
       encerradoEm: null,
       feedback: null,
@@ -511,12 +572,27 @@ export function buildAdminServer(
         const tempoParadoMs = c.ultimoContatoAt ? now - c.ultimoContatoAt.getTime() : null;
         if (!dossie) {
           return resumirCaso({
-            chatId: c.chatId, clienteNome: c.quem, status: c.status, tempoParadoMs, advogadoResponsavel: null,
-            dossie: { grauConfianca: null, hipoteses: [], proximasAcoes: [], documentosPendentes: [], missionId: c.missionId },
+            chatId: c.chatId,
+            clienteNome: c.quem,
+            status: c.status,
+            tempoParadoMs,
+            advogadoResponsavel: null,
+            dossie: {
+              grauConfianca: null,
+              hipoteses: [],
+              proximasAcoes: [],
+              documentosPendentes: [],
+              missionId: c.missionId,
+            },
           });
         }
         return resumirCaso({
-          chatId: c.chatId, clienteNome: c.quem, status: c.status, tempoParadoMs, advogadoResponsavel: null, dossie,
+          chatId: c.chatId,
+          clienteNome: c.quem,
+          status: c.status,
+          tempoParadoMs,
+          advogadoResponsavel: null,
+          dossie,
         });
       }),
     );
@@ -560,18 +636,39 @@ export function buildAdminServer(
     const fatos: FatoAprendidoDeCliente[] = [];
     for (const c of clientes) {
       const entries = await op.conversationStore.recent(c.chatId, 200);
-      const ultimoInbound = [...entries].reverse().find((e) => e.kind === 'inbound' && e.text !== null && e.text !== '');
+      const ultimoInbound = [...entries]
+        .reverse()
+        .find((e) => e.kind === 'inbound' && e.text !== null && e.text !== '');
       const context = {
         chatId: c.chatId,
-        session: { chatId: c.chatId, turns: entries.length, lastInboundAt: null, lastOutboundAt: null },
+        session: {
+          chatId: c.chatId,
+          turns: entries.length,
+          lastInboundAt: null,
+          lastOutboundAt: null,
+        },
         recentEntries: entries,
-        recentOutboundTexts: entries.filter((e) => e.kind === 'outbound' && e.text !== null).map((e) => e.text ?? ''),
-        lastPercept: ultimoInbound ? { envelope: { text: ultimoInbound.text }, enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null } } : null,
+        recentOutboundTexts: entries
+          .filter((e) => e.kind === 'outbound' && e.text !== null)
+          .map((e) => e.text ?? ''),
+        lastPercept: ultimoInbound
+          ? {
+              envelope: { text: ultimoInbound.text },
+              enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null },
+            }
+          : null,
         silenceMs: null,
       } as unknown as ConversationContextView;
       const conhecimento = aprenderDaConversa(context, CATALOGO_CONSIGNADO_INSS);
       for (const f of conhecimento) {
-        fatos.push({ clienteId: c.chatId, clienteNome: c.quem, factKey: f.factKey, valor: f.valor, origem: f.origem, confianca: f.confianca });
+        fatos.push({
+          clienteId: c.chatId,
+          clienteNome: c.quem,
+          factKey: f.factKey,
+          valor: f.valor,
+          origem: f.origem,
+          confianca: f.confianca,
+        });
       }
     }
     return { categorias: agregarConhecimento(fatos) };
@@ -607,7 +704,8 @@ export function buildAdminServer(
     const body = (request.body ?? {}) as { reason?: string };
     const mission = op.projector.missions().find((m) => m.missionId === missionId);
     if (!mission) return reply.code(404).send({ error: 'missão não encontrada' });
-    if (mission.chatId === null) return reply.code(409).send({ error: 'missão sem conversa associada' });
+    if (mission.chatId === null)
+      return reply.code(409).send({ error: 'missão sem conversa associada' });
 
     // Comando canônico (Regra 3): mesmo helper de /vender e /reabrir.
     const executed = await runMissionCommand({
@@ -636,7 +734,8 @@ export function buildAdminServer(
     const body = (request.body ?? {}) as { reason?: string };
     const mission = op.projector.missions().find((m) => m.missionId === missionId);
     if (!mission) return reply.code(404).send({ error: 'missão não encontrada' });
-    if (mission.chatId === null) return reply.code(409).send({ error: 'missão sem conversa associada' });
+    if (mission.chatId === null)
+      return reply.code(409).send({ error: 'missão sem conversa associada' });
 
     // Comando canônico (Regra 3): mesmo helper de /encerrar e /vender. O drain
     // projeta a reabertura e o Workflow re-arma o acompanhamento (B4.2).
@@ -662,9 +761,15 @@ export function buildAdminServer(
   // projeção/store/persistência nova; nada é recalculado a partir do Event Store.
   app.get('/admin/metrics/operacional', async () => {
     await op.projector.refresh();
-    const missions = op.projector.missions().map((m) => ({ missionId: m.missionId, createdAt: m.createdAt }));
+    const missions = op.projector
+      .missions()
+      .map((m) => ({ missionId: m.missionId, createdAt: m.createdAt }));
     const terminals = op.decisionState
-      ? (await op.decisionState.all()).map((r) => ({ missionId: r.missionId, terminalState: r.terminalState ?? null, updatedAt: r.updatedAt }))
+      ? (await op.decisionState.all()).map((r) => ({
+          missionId: r.missionId,
+          terminalState: r.terminalState ?? null,
+          updatedAt: r.updatedAt,
+        }))
       : [];
     const metrics = await op.metricsStore.load();
     const scheduler = await op.scheduler.counts();
@@ -725,10 +830,17 @@ export function buildAdminServer(
   app.get('/admin/whatsapp/apply-instructions', async (_request, reply) => {
     if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
     const status = await op.whatsapp.getStatus();
-    if (!status.hasPendingApply) return { pending: false, note: 'Nenhuma configuração pendente — a aplicação já usa a instância atual.' };
+    if (!status.hasPendingApply)
+      return {
+        pending: false,
+        note: 'Nenhuma configuração pendente — a aplicação já usa a instância atual.',
+      };
     return {
       pending: true,
-      envToSet: { EVOLUTION_INSTANCE: status.pending?.instance ?? '', WHATSAPP_NUMBER: status.pending?.number ?? '' },
+      envToSet: {
+        EVOLUTION_INSTANCE: status.pending?.instance ?? '',
+        WHATSAPP_NUMBER: status.pending?.number ?? '',
+      },
       note: 'Config confirmada e persistida. Para APLICAR: garanta estes valores no /opt/reconstrua/.env e faça o restart controlado (o EVOLUTION_API_KEY é o retornado na criação da instância).',
       command: 'bash /opt/reconstrua/deploy.sh',
     };
@@ -737,7 +849,8 @@ export function buildAdminServer(
   // Operações DESTRUTIVAS → exigem perfil FOUNDER (x-founder-secret) além do Bearer Admin.
   app.post('/admin/whatsapp/instances', async (request, reply) => {
     if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
-    if (!isFounder(request)) return reply.code(403).send({ error: 'operação exige perfil Founder (x-founder-secret)' });
+    if (!isFounder(request))
+      return reply.code(403).send({ error: 'operação exige perfil Founder (x-founder-secret)' });
     const body = request.body as { instanceName?: string };
     const name = (body.instanceName ?? '').trim();
     if (name === '') return reply.code(400).send({ error: 'instanceName obrigatório' });
@@ -746,10 +859,12 @@ export function buildAdminServer(
 
   app.post('/admin/whatsapp/discard', async (request, reply) => {
     if (!op.whatsapp) return reply.code(503).send({ error: 'conexão WhatsApp indisponível' });
-    if (!isFounder(request)) return reply.code(403).send({ error: 'operação exige perfil Founder (x-founder-secret)' });
+    if (!isFounder(request))
+      return reply.code(403).send({ error: 'operação exige perfil Founder (x-founder-secret)' });
     const body = request.body as { instanceName?: string; confirm?: boolean };
     if (!body.instanceName) return reply.code(400).send({ error: 'instanceName obrigatório' });
-    if (body.confirm !== true) return reply.code(400).send({ error: 'confirmação explícita obrigatória (confirm:true)' });
+    if (body.confirm !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória (confirm:true)' });
     await op.whatsapp.discard(body.instanceName, { role: 'founder' });
     return { discarded: true, instanceName: body.instanceName };
   });
@@ -758,7 +873,9 @@ export function buildAdminServer(
   app.get('/admin/documents', async () => {
     await op.projector.refresh();
     const memories = await op.memoryStore.all();
-    const pending = memories.flatMap((m) => m.documentsPending.map((d) => ({ chatId: m.chatId, document: d })));
+    const pending = memories.flatMap((m) =>
+      m.documentsPending.map((d) => ({ chatId: m.chatId, document: d })),
+    );
     return { recognized: op.projector.allDocuments(), pending };
   });
 
@@ -767,13 +884,17 @@ export function buildAdminServer(
   app.get('/admin/documents/:documentId/content', async (request, reply) => {
     const { documentId } = request.params as { documentId: string };
     const content = op.documentContent ? await op.documentContent.byDocumentId(documentId) : null;
-    if (content === null) return reply.code(404).send({ error: 'documento sem conteudo disponivel' });
+    if (content === null)
+      return reply.code(404).send({ error: 'documento sem conteudo disponivel' });
     return reply.header('content-type', content.mime).send(Buffer.from(content.bytes));
   });
 
   app.get('/admin/pericias', async () => {
     await op.projector.refresh();
-    return { pericias: op.projector.allPericias(), queue: (await op.handoff.openFor('perito')).length };
+    return {
+      pericias: op.projector.allPericias(),
+      queue: (await op.handoff.openFor('perito')).length,
+    };
   });
 
   // ── EQUIPE (diretório operacional) ──────────────────────────────────────────
@@ -799,13 +920,16 @@ export function buildAdminServer(
 
   app.post('/admin/bootstrap', async (request, reply) => {
     const body = request.body as { name?: string };
-    if (!body.name || body.name.trim() === '') return reply.code(400).send({ error: 'name é obrigatório' });
+    if (!body.name || body.name.trim() === '')
+      return reply.code(400).send({ error: 'name é obrigatório' });
     try {
       const member = await op.staff.bootstrapFirstAdmin(body.name.trim());
       return { bootstrapped: true, member };
     } catch {
       // AlreadyBootstrappedError: o sistema já foi inicializado (idempotente/one-time).
-      return reply.code(409).send({ bootstrapped: true, error: 'sistema já inicializado — o bootstrap não se repete' });
+      return reply
+        .code(409)
+        .send({ bootstrapped: true, error: 'sistema já inicializado — o bootstrap não se repete' });
     }
   });
 
@@ -815,14 +939,19 @@ export function buildAdminServer(
     try {
       return await op.staff.update(id, body);
     } catch (error) {
-      return reply.code(404).send({ error: error instanceof Error ? error.message : 'não encontrado' });
+      return reply
+        .code(404)
+        .send({ error: error instanceof Error ? error.message : 'não encontrado' });
     }
   });
 
   // ── CAMPANHAS / FINANCEIRO (read models; ausência explícita, nunca inventado) ─
   app.get('/admin/campaigns', async () => {
     const metrics = await op.metricsStore.load();
-    return { attribution: metrics?.campaignAttribution ?? {}, available: Object.keys(metrics?.campaignAttribution ?? {}).length > 0 };
+    return {
+      attribution: metrics?.campaignAttribution ?? {},
+      available: Object.keys(metrics?.campaignAttribution ?? {}).length > 0,
+    };
   });
 
   app.get('/admin/finance', async () => {
@@ -855,7 +984,11 @@ export function buildAdminServer(
       .filter((o) => (source ? o.component === source : true))
       .filter((o) => {
         const query = (q ?? '').trim().toLowerCase();
-        return query === '' || o.name.toLowerCase().includes(query) || o.component.toLowerCase().includes(query);
+        return (
+          query === '' ||
+          o.name.toLowerCase().includes(query) ||
+          o.component.toLowerCase().includes(query)
+        );
       })
       .slice(-200);
     return { events, observations: trail };

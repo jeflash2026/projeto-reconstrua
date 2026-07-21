@@ -45,7 +45,9 @@ export class PeritoView {
 
   /** A fila do perito — derivada da lista única (nenhum estado próprio). */
   async fila(now?: Date): Promise<readonly ClienteResumo[]> {
-    return (await this.deps.clientes.list(now)).filter((c) => c.status === 'PRONTO_AGUARDANDO_PERICIA');
+    return (await this.deps.clientes.list(now)).filter(
+      (c) => c.status === 'PRONTO_AGUARDANDO_PERICIA',
+    );
   }
 
   /** Contratos organizados do cliente (todas as fontes lidas; merge determinístico). */
@@ -53,7 +55,8 @@ export class PeritoView {
     const cliente = (await this.deps.clientes.list(now)).find((c) => c.clienteId === clienteId);
     if (cliente === undefined) return null;
 
-    const documentIds = cliente.missionId !== null ? await this.deps.documentosDaMissao(cliente.missionId) : [];
+    const documentIds =
+      cliente.missionId !== null ? await this.deps.documentosDaMissao(cliente.missionId) : [];
     const textos: string[] = [];
     let semTexto = 0;
     for (const id of documentIds) {

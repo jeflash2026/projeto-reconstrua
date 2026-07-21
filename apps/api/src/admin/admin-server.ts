@@ -40,7 +40,17 @@ function isStaffRole(value: string): value is StaffRole {
 
 export function buildAdminServer(
   op: AssembledAdminOperation,
-  opts: { readonly accessSecret?: string; readonly founderSecret?: string; readonly founderName?: string } = {},
+  opts: {
+    readonly accessSecret?: string;
+    readonly founderSecret?: string;
+    readonly founderName?: string;
+    /** Decreto Dossiê Pericial (2026-07-21): visão do PERITO — HISCON parseado
+     *  (contratos por banco, migrados, indícios). Opcional: ausente ⇒ 404. */
+    readonly pericia?: {
+      dossie(chatId: string): Promise<unknown>;
+      migradosDeTodos(): Promise<unknown>;
+    };
+  } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: false });
 
@@ -428,6 +438,23 @@ export function buildAdminServer(
       documentosReconhecidos, contratosEncontrados, timeline,
     });
   }
+
+  // ── DOSSIÊ PERICIAL (Decreto 2026-07-21) — o HISCON parseado para o PERITO:
+  //    contratos por banco (janela 5 anos), MIGRADOS (sem pedido administrativo;
+  //    destinação MANUAL do admin a advogado) e indícios de estratégia.
+  app.get('/admin/pericia/:chatId', async (request, reply) => {
+    if (!opts.pericia) return reply.code(404).send({ error: 'perícia não configurada' });
+    const { chatId } = request.params as { chatId: string };
+    const dossie = await opts.pericia.dossie(chatId);
+    if (dossie === null) return reply.code(404).send({ error: 'sem HISCON legível para este cliente' });
+    return dossie;
+  });
+
+  // ABA "Contratos Migrados": todos os clientes, só contratos migrados, por banco.
+  app.get('/admin/pericia-migrados', async (_request, reply) => {
+    if (!opts.pericia) return reply.code(404).send({ error: 'perícia não configurada' });
+    return { clientes: await opts.pericia.migradosDeTodos() };
+  });
 
   app.get('/admin/clients/:chatId/dossie', async (request, reply) => {
     await op.projector.refresh();

@@ -180,6 +180,7 @@ import {
   type MediaStorePort,
 } from '../media/index.js';
 import { AnthropicVisionClient, DocumentReaderService, JsonDocumentTextCache } from '../reading/index.js';
+import { PericiaService } from '../pericia/index.js';
 import { EvolutionInstanceClient, FetchEvoHttp, WhatsAppConnectionRuntime } from '../whatsapp-connection/index.js';
 
 export interface ProductionWiring {
@@ -221,6 +222,8 @@ export interface AssembledProduction {
   readonly databaseUrl: string | null;
   /** CAT-02A: captura assíncrona dos bytes reais de documentos (best-effort). */
   readonly mediaCapture: MediaCaptureRuntime;
+  /** Decreto Dossiê Pericial: visão do PERITO (HISCON→contratos/migrados/indícios). */
+  readonly pericia: PericiaService;
   /** CAT-03A: transforma um documento em texto bruto (disponível; sem gatilho automático). */
   readonly documentReader: DocumentReaderService;
   /** GO LIVE A · R1: a visão única do cliente (ALIR) + persona Operador de Qualificação. */
@@ -399,6 +402,19 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     clock,
     log: (message) => observability.error('reading', 'document', clock.now(), message),
   });
+  // Decreto Dossiê Pericial (2026-07-21): a visão do PERITO montada do HISCON
+  // transcrito — contratos por banco, migrados (sem pedido administrativo) e
+  // indícios de estratégia. Nada decide; a destinação a advogado é MANUAL.
+  const pericia = new PericiaService({
+    json,
+    reader: documentReader,
+    clock,
+    tetoJurosMensal:
+      env['PERICIA_TETO_JUROS_MENSAL'] !== undefined && env['PERICIA_TETO_JUROS_MENSAL'] !== ''
+        ? Number(env['PERICIA_TETO_JUROS_MENSAL'])
+        : null,
+  });
+
   const mediaCapture = new MediaCaptureRuntime({
     // Cadeia: base64 embutido no evento / API da Evolution → download direto do
     // CDN do WhatsApp com descriptografia local (independe da Evolution persistir).
@@ -1031,6 +1047,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     llm,
     databaseUrl,
     mediaCapture,
+    pericia,
     documentReader,
     alir,
     acompanhamento,

@@ -5,3 +5,6 @@
 export * from './hiscon.js';
 export * from './planilha.js';
 export * from './perito-view.js';
+// Decreto Dossiê Pericial (2026-07-21): parser DETALHADO do formato real em
+// blocos (CONTRATO:/BANCO:/ORIGEM DA AVERBAÇÃO — migrados/modalidade/taxas).
+export * from './hiscon-parser.js';

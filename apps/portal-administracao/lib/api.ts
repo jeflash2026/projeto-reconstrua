@@ -262,6 +262,54 @@ export interface ClientDetail {
   missions: Array<{ missionId: string; progress: { steps: string[] } | null }>;
 }
 
+// ── Dossiê Pericial (Decreto 2026-07-21) — o HISCON parseado para o PERITO ────
+export interface ContratoHisconView {
+  contrato: string;
+  bancoCodigo: string | null;
+  bancoNome: string | null;
+  situacao: string | null;
+  origemAverbacao: string | null;
+  migrado: boolean;
+  migradoDoContrato: string | null;
+  modalidade: 'EMPRESTIMO' | 'RMC' | 'RCC';
+  dataInclusao: string | null;
+  competenciaInicio: string | null;
+  competenciaFim: string | null;
+  qtdeParcelas: number | null;
+  valorParcela: number | null;
+  valorEmprestado: number | null;
+  valorLiberado: number | null;
+  taxaJurosMensal: number | null;
+  taxaJurosAnual: number | null;
+  valorPago: number | null;
+}
+
+export interface BancoComContratosView {
+  bancoCodigo: string | null;
+  bancoNome: string;
+  contratos: ContratoHisconView[];
+}
+
+export interface DossiePericialView {
+  chatId: string;
+  nomeCliente: string | null;
+  beneficio: { beneficiario: string | null; numeroBeneficio: string | null; bancoPagamento: string | null };
+  margens: { baseCalculo: number | null; maximoComprometimento: number | null; totalComprometido: number | null; extrapolada: number | null };
+  janelaAnos: number;
+  porBanco: BancoComContratosView[];
+  migrados: ContratoHisconView[];
+  filaPedidoAdministrativo: ContratoHisconView[];
+  indicios: Array<{ estrategiaRef: string; titulo: string; contratos: string[]; fundamentoFactual: string }>;
+  totalContratos: number;
+}
+
+export interface MigradosDoClienteView {
+  chatId: string;
+  nomeCliente: string | null;
+  porBanco: BancoComContratosView[];
+  totalMigrados: number;
+}
+
 export interface MissionRow {
   missionId: string;
   chatId: string | null;

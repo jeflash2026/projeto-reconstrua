@@ -77,6 +77,8 @@ async function main(): Promise<void> {
   const admin = buildAdminServer(prod.adminView, {
     accessSecret: env['ADMIN_ACCESS_SECRET'] ?? '',
     founderSecret: env['FOUNDER_ACCESS_SECRET'] ?? '',
+    // Decreto Dossiê Pericial: HISCON parseado (contratos/migrados/indícios).
+    pericia: prod.pericia,
   });
   const advogado = buildAdvogadoServer(prod.advogadoView, { accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '' });
   const lx = buildLawyerExperienceServer(prod.lxView, {

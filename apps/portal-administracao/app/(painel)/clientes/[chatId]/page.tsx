@@ -5,6 +5,7 @@ import { Suspense, type ReactElement } from 'react';
 import AutoRefresh from '../../../../components/auto-refresh';
 import AhriThinking from '../../../../components/ahri-thinking';
 import Dossie from '../../../../components/dossie';
+import PericiaHiscon from '../../../../components/pericia-hiscon';
 import TimelineCognitiva from '../../../../components/timeline-cognitiva';
 import { getJson, type ClientDetail } from '../../../../lib/api';
 import { formatDate, formatMs, shortId } from '../../../../lib/format';
@@ -32,6 +33,11 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
           14A — estados VIVOS enquanto a AHRI monta cada peça (streaming). */}
       <Suspense fallback={<AhriThinking label="Gerando o Dossiê Jurídico" />}>
         <Dossie chatId={chatId} />
+      </Suspense>
+      {/* Decreto Dossiê Pericial: o HISCON parseado — contratos por banco,
+          migrados e indícios — a mesa de trabalho do PERITO. */}
+      <Suspense fallback={<AhriThinking label="Lendo o HISCON (contratos por banco)" />}>
+        <PericiaHiscon chatId={chatId} />
       </Suspense>
       <Suspense fallback={<AhriThinking label="Reconstruindo a Timeline Cognitiva" />}>
         <TimelineCognitiva chatId={chatId} />

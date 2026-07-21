@@ -74,6 +74,38 @@ describe('Decreto · a jornada alimentada pelos eventos reais', () => {
     expect((await h.runtime.visao(CHAT))?.recebidos.some((r) => r.includes('RG'))).toBe(true);
   });
 
+  it('SOLUÇÃO DEFINITIVA: com sleeper, ESPERA a transcrição DENTRO do turno e classifica sem lançar', async () => {
+    // O cenário real das 4 rodadas: a imagem chega, o vínculo/transcrição leva
+    // alguns segundos — a AHRI deve ENXERGAR o documento antes de responder.
+    const textos: Record<string, string | null> = { dY: null };
+    const pendencias: string[][] = [];
+    const runtime = new OnboardingDocumentalRuntime({
+      store: new JsonOnboardingDocumentalStore(new InMemoryJsonStore()),
+      leitor: { texto: (id) => Promise.resolve(textos[id] ?? null) },
+      pendencias: { setPendingDocuments: (_c, l) => { pendencias.push([...l]); return Promise.resolve(); } },
+    });
+    let esperas = 0;
+    const subscriber = new OnboardingDocumentalSubscriber({
+      runtime,
+      chatDaMissao: () => Promise.resolve(CHAT),
+      observability: new ObservabilityRuntime(),
+      clock: new TestClock(),
+      sleeper: {
+        sleep: () => {
+          esperas += 1;
+          // A transcrição "fica pronta" durante a 2ª espera (captura assíncrona real).
+          if (esperas === 2) textos['dY'] = 'CARTEIRA DE IDENTIDADE — REGISTRO GERAL';
+          return Promise.resolve();
+        },
+      },
+    });
+    await subscriber.handle(missaoCriada);
+    await subscriber.handle(docReconhecido('dY', 'IMG_7777.jpg')); // NÃO lança
+    expect(esperas).toBeGreaterThanOrEqual(2);
+    expect((await runtime.visao(CHAT))?.recebidos.some((r) => r.includes('RG'))).toBe(true);
+    expect((await runtime.visao(CHAT))?.proximo).toContain('VERSO do RG'); // e já sabe pedir o verso
+  });
+
   it('chat da missão irresolúvel ⇒ LANÇA (a projeção pode estar um ciclo atrás)', async () => {
     const h = harness({}, false);
     await expect(h.subscriber.handle(missaoCriada)).rejects.toThrow('ainda não resolvível');

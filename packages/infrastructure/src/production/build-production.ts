@@ -582,6 +582,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       chatDaMissao: (missionId) => criarResolverDeChat(projector)(missionId),
       observability,
       clock,
+      // SOLUÇÃO DEFINITIVA (4ª rodada): esperar a transcrição DENTRO do turno —
+      // a AHRI só responde depois de ENXERGAR o documento. O drain processa o
+      // lote em paralelo (o DocumentLinkSubscriber não é bloqueado pela espera).
+      sleeper,
     }),
     1,
     clock.now(),

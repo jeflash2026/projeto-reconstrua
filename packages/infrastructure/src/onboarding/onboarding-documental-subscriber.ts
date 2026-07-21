@@ -54,7 +54,17 @@ export interface OnboardingSubscriberDeps {
   readonly chatDaMissao: (missionId: string) => Promise<string | null>;
   readonly observability: ObservabilityRuntime;
   readonly clock: Clock;
+  /** SOLUÇÃO DEFINITIVA do descompasso (4 rodadas de teste real): o vínculo da
+   *  mídia é assíncrono e a classificação perdia o turno — a resposta saía com
+   *  a contabilidade velha e o LLM improvisava (pulava o verso). Com o sleeper,
+   *  o subscriber ESPERA a transcrição DENTRO do turno (o drain roda antes da
+   *  fala): a AHRI só responde depois de ENXERGAR o documento. */
+  readonly sleeper?: { sleep(ms: number): Promise<void> } | null;
 }
+
+/** Espera local pela transcrição: N tentativas com intervalo — dentro do turno. */
+const ESPERA_TENTATIVAS = 4;
+const ESPERA_MS = 4000;
 
 export class OnboardingDocumentalSubscriber implements EventSubscriber {
   readonly name = 'onboarding-documental';
@@ -85,7 +95,17 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
         throw new Error(`onboarding: chat da missão ${missionId} ainda não resolvível (documento ${event.streamId})`);
       }
       const fileName = typeof event.payload['contentReference'] === 'string' ? event.payload['contentReference'] : '';
-      const resultado = await d.runtime.aoReconhecerDocumento(chatId, missionId, event.streamId, fileName, now);
+      let resultado = await d.runtime.aoReconhecerDocumento(chatId, missionId, event.streamId, fileName, now);
+      // ESPERA DENTRO DO TURNO: a captura/vínculo da mídia leva segundos; sem
+      // esperar, a classificação só chegava DEPOIS da resposta — e a conversa
+      // falava com dados velhos. Espera curta e limitada; o retry 2A.2 continua
+      // sendo a rede de segurança se a transcrição não vier a tempo.
+      if (resultado.classificacaoPendente && d.sleeper) {
+        for (let tentativa = 0; tentativa < ESPERA_TENTATIVAS && resultado.classificacaoPendente; tentativa += 1) {
+          await d.sleeper.sleep(ESPERA_MS);
+          resultado = await d.runtime.aoReconhecerDocumento(chatId, missionId, event.streamId, fileName, d.clock.now());
+        }
+      }
       if (resultado.classificacaoPendente) {
         // Texto ainda não transcrito E nome do arquivo insuficiente ⇒ retry 2A.2.
         throw new Error(`onboarding: classificação pendente do documento ${event.streamId} (transcrição ausente)`);

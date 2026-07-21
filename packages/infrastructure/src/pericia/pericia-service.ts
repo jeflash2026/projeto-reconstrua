@@ -96,6 +96,21 @@ export class PericiaService {
     return out;
   }
 
+  /** Medidor de Custo: documentId → chatId (dono) pela contabilidade documental
+   *  — resolve a quem pertence cada LEITURA registrada pelo medidor. */
+  async mapaDocumentoParaChat(): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    const chats = await this.deps.json.keys(NS_ONBOARDING);
+    for (const chatId of chats) {
+      const onboarding = (await this.deps.json.get(
+        NS_ONBOARDING,
+        chatId,
+      )) as OnboardingPersisted | null;
+      for (const r of onboarding?.recebidos ?? []) out[r.documentId] = chatId;
+    }
+    return out;
+  }
+
   /** Total REAL de documentos registrados na contabilidade (todas as conversas)
    *  — a fonte do painel "Documentos processados" (nunca eventos re-contados). */
   async contagemDocumentosRegistrados(): Promise<number> {

@@ -5,8 +5,8 @@
 // altera). Reutiliza o HttpClient e a chave/modelo já existentes.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { HttpClient } from '../conversation/evolution/http-client.js';
-import { asArray, asRecord, asString } from '../conversation/json.js';
-import type { DocumentReaderPort } from './document-reader-port.js';
+import { asArray, asNumber, asRecord, asString } from '../conversation/json.js';
+import type { DocumentReaderPort, LeituraDeDocumento } from './document-reader-port.js';
 
 const TRANSCRIBE_PROMPT =
   'Transcreva integralmente, em texto puro, todo o conteúdo textual deste documento, na ordem em que aparece. Não resuma, não interprete e não adicione comentários.';
@@ -30,7 +30,7 @@ export class AnthropicVisionClient implements DocumentReaderPort {
     private readonly model: string,
   ) {}
 
-  async read(bytes: Uint8Array, mime: string): Promise<string | null> {
+  async read(bytes: Uint8Array, mime: string): Promise<LeituraDeDocumento | null> {
     const block = mediaBlock(bytes, mime);
     if (block === null) return null;
 
@@ -76,6 +76,10 @@ export class AnthropicVisionClient implements DocumentReaderPort {
       }
       throw new Error(`anthropic-vision 2xx sem texto no content :: ${excerto}`);
     }
-    return texto;
+    return {
+      texto,
+      tokensIn: asNumber(asRecord(asRecord(response.body)?.['usage'])?.['input_tokens']) ?? null,
+      tokensOut: asNumber(asRecord(asRecord(response.body)?.['usage'])?.['output_tokens']) ?? null,
+    };
   }
 }

@@ -37,8 +37,18 @@ export class TokensMeter {
     if (tokensIn !== null) this.tokensIn = (this.tokensIn ?? 0) + tokensIn;
     if (tokensOut !== null) this.tokensOut = (this.tokensOut ?? 0) + tokensOut;
   }
-  snapshot(): { provider: string; calls: number; tokensIn: number | null; tokensOut: number | null } {
-    return { provider: this.provider, calls: this.calls, tokensIn: this.tokensIn, tokensOut: this.tokensOut };
+  snapshot(): {
+    provider: string;
+    calls: number;
+    tokensIn: number | null;
+    tokensOut: number | null;
+  } {
+    return {
+      provider: this.provider,
+      calls: this.calls,
+      tokensIn: this.tokensIn,
+      tokensOut: this.tokensOut,
+    };
   }
 }
 
@@ -70,15 +80,27 @@ function exigir2xx(provider: string, status: number, body: unknown): void {
 
 export class OpenAiCompletion implements LlmCompletion {
   readonly name = 'openai';
-  constructor(private readonly http: HttpClient, private readonly apiKey: string, private readonly model: string) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly apiKey: string,
+    private readonly model: string,
+  ) {}
   async complete(system: string, user: string): Promise<CompletionResult> {
     const res = await this.http.postJson(
       'https://api.openai.com/v1/chat/completions',
       { authorization: `Bearer ${this.apiKey}` },
-      { model: this.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: 0.7 },
+      {
+        model: this.model,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        temperature: 0.7,
+      },
     );
     exigir2xx(this.name, res.status, res.body);
-    const text = asString(dig(asArray(dig(res.body, ['choices']))?.[0], ['message', 'content'])) ?? '';
+    const text =
+      asString(dig(asArray(dig(res.body, ['choices']))?.[0], ['message', 'content'])) ?? '';
     return {
       text,
       tokensIn: asNumber(dig(res.body, ['usage', 'prompt_tokens'])),
@@ -89,7 +111,11 @@ export class OpenAiCompletion implements LlmCompletion {
 
 export class AnthropicCompletion implements LlmCompletion {
   readonly name = 'anthropic';
-  constructor(private readonly http: HttpClient, private readonly apiKey: string, private readonly model: string) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly apiKey: string,
+    private readonly model: string,
+  ) {}
   async complete(system: string, user: string): Promise<CompletionResult> {
     const res = await this.http.postJson(
       'https://api.anthropic.com/v1/messages',
@@ -123,12 +149,19 @@ export class AnthropicCompletion implements LlmCompletion {
 
 export class GeminiCompletion implements LlmCompletion {
   readonly name = 'gemini';
-  constructor(private readonly http: HttpClient, private readonly apiKey: string, private readonly model: string) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly apiKey: string,
+    private readonly model: string,
+  ) {}
   async complete(system: string, user: string): Promise<CompletionResult> {
     const res = await this.http.postJson(
       `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`,
       {},
-      { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }] },
+      {
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: user }] }],
+      },
     );
     exigir2xx(this.name, res.status, res.body);
     const candidate = asArray(dig(res.body, ['candidates']))?.[0];
@@ -175,16 +208,22 @@ export function parseEnrichment(raw: string): PerceptEnrichment | null {
     const urgency = asString(record['urgency']) ?? 'unknown';
     const relevance = asString(record['perceivedRelevance']) ?? '';
     const purpose = asString(record['perceivedPurpose']) ?? 'unknown';
-    const artifacts = (asArray(record['detectedArtifacts']) ?? []).map((a) => asString(a) ?? '').filter((a) => a !== '');
+    const artifacts = (asArray(record['detectedArtifacts']) ?? [])
+      .map((a) => asString(a) ?? '')
+      .filter((a) => a !== '');
     return {
       summary: asString(record['summary']) ?? '',
-      sentiment: (SENTIMENTS.has(sentiment) ? sentiment : 'unknown') as PerceptEnrichment['sentiment'],
+      sentiment: (SENTIMENTS.has(sentiment)
+        ? sentiment
+        : 'unknown') as PerceptEnrichment['sentiment'],
       urgency: (URGENCIES.has(urgency) ? urgency : 'unknown') as PerceptEnrichment['urgency'],
       detectedIntentSignal: asString(record['detectedIntentSignal']),
       detectedArtifacts: artifacts,
       language: asString(record['language']),
       // GO-LIVE 9C: propósito só entra se pertencer ao vocabulário FECHADO.
-      perceivedPurpose: (PURPOSES.has(purpose) ? purpose : 'unknown') as NonNullable<PerceptEnrichment['perceivedPurpose']>,
+      perceivedPurpose: (PURPOSES.has(purpose) ? purpose : 'unknown') as NonNullable<
+        PerceptEnrichment['perceivedPurpose']
+      >,
       // RFC-0044: só cruza se pertencer ao vocabulário fechado; caso contrário, AUSENTE.
       ...(RELEVANCES.has(relevance)
         ? { perceivedRelevance: relevance as NonNullable<PerceptEnrichment['perceivedRelevance']> }
@@ -202,7 +241,10 @@ class LlmPerception implements LlmPerceptionPort {
     private readonly track: (op: string, ms: number, ok: boolean, detalhe?: string) => void,
     private readonly clock: Clock,
   ) {}
-  async understand(envelope: InboundEnvelope, context: PerceptionContext): Promise<PerceptEnrichment> {
+  async understand(
+    envelope: InboundEnvelope,
+    context: PerceptionContext,
+  ): Promise<PerceptEnrichment> {
     const t0 = this.clock.now().getTime();
     const system = `${this.config.prompts.global}\n\nTAREFA DE PERCEPÇÃO: analise a mensagem e responda APENAS um JSON: {"summary":string,"sentiment":"positive|neutral|negative|anxious|confused|unknown","urgency":"low|normal|high|unknown","detectedIntentSignal":string|null,"detectedArtifacts":string[],"language":string|null,"perceivedRelevance":"RELEVANT|INFORMATIVE|null","perceivedPurpose":"greeting|smalltalk|question|service_request|unknown"}. perceivedPurpose: greeting=saudação/apresentação sem pedido; smalltalk=conversa social; question=dúvida genérica; service_request=a pessoa PEDE atendimento/serviço (ex.: quer dar entrada, resolver aposentadoria/benefício); unknown=incerto. Você PERCEBE; nunca decide.`;
     const user = `Tipo: ${envelope.kind}\nTexto: ${envelope.text ?? envelope.editedText ?? '(sem texto)'}\nArquivo: ${envelope.fileName ?? '-'}\nContexto recente: ${context.recentSummary ?? '-'}`;
@@ -212,10 +254,22 @@ class LlmPerception implements LlmPerceptionPort {
       try {
         const raw = (await this.llm.complete(system, user)).text;
         const parsed = parseEnrichment(raw);
-        this.track('perception', this.clock.now().getTime() - t0, parsed !== null, parsed === null ? `parse falhou (tentativa ${String(tentativa)}); resposta="${raw.slice(0, 200)}"` : undefined);
+        this.track(
+          'perception',
+          this.clock.now().getTime() - t0,
+          parsed !== null,
+          parsed === null
+            ? `parse falhou (tentativa ${String(tentativa)}); resposta="${raw.slice(0, 200)}"`
+            : undefined,
+        );
         if (parsed) return parsed;
       } catch (e) {
-        this.track('perception', this.clock.now().getTime() - t0, false, `${e instanceof Error ? e.message : String(e)} (tentativa ${String(tentativa)})`);
+        this.track(
+          'perception',
+          this.clock.now().getTime() - t0,
+          false,
+          `${e instanceof Error ? e.message : String(e)} (tentativa ${String(tentativa)})`,
+        );
       }
     }
     // Degrade explícito: percepção neutra factual (nunca inventa). GO-LIVE 9C:
@@ -225,7 +279,8 @@ class LlmPerception implements LlmPerceptionPort {
       sentiment: 'unknown',
       urgency: 'unknown',
       detectedIntentSignal: null,
-      detectedArtifacts: envelope.fileName !== null ? [`artefato documental: ${envelope.fileName}`] : [],
+      detectedArtifacts:
+        envelope.fileName !== null ? [`artefato documental: ${envelope.fileName}`] : [],
       language: null,
       perceivedPurpose: 'unknown',
     };
@@ -257,10 +312,14 @@ class LlmExpression implements LlmExpressionPort {
       `INTENÇÃO DECIDIDA (você apenas frasea): ${intent.directive}${intent.speechAct ? ` / ${intent.speechAct}` : ''}`,
       `Tópico: ${intent.topic ?? '-'}`,
       `Referências: ${intent.references.join(', ') || '-'}`,
-      ...(ultimaMensagem !== null && ultimaMensagem !== '' ? [`Última mensagem da pessoa: "${ultimaMensagem}"`] : []),
+      ...(ultimaMensagem !== null && ultimaMensagem !== ''
+        ? [`Última mensagem da pessoa: "${ultimaMensagem}"`]
+        : []),
       ...(fio !== null ? [`FIO DA CONVERSA: ${fio}`] : []),
       ...(conhecimento !== null
-        ? [`CONHECIMENTO JÁ APRENDIDO NESTA CONVERSA (jamais pergunte isto de novo): ${conhecimento}`]
+        ? [
+            `CONHECIMENTO JÁ APRENDIDO NESTA CONVERSA (jamais pergunte isto de novo): ${conhecimento}`,
+          ]
         : []),
       ...(casoFatos !== null ? [casoFatos] : []),
       `Tom: ${request.styleGuidance}`,
@@ -271,10 +330,20 @@ class LlmExpression implements LlmExpressionPort {
     for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
       try {
         const raw = (await this.llm.complete(system, user)).text.trim();
-        this.track('expression', this.clock.now().getTime() - t0, raw !== '', raw === '' ? `resposta vazia do modelo (tentativa ${String(tentativa)})` : undefined);
+        this.track(
+          'expression',
+          this.clock.now().getTime() - t0,
+          raw !== '',
+          raw === '' ? `resposta vazia do modelo (tentativa ${String(tentativa)})` : undefined,
+        );
         if (raw !== '') return raw;
       } catch (e) {
-        this.track('expression', this.clock.now().getTime() - t0, false, `${e instanceof Error ? e.message : String(e)} (tentativa ${String(tentativa)})`);
+        this.track(
+          'expression',
+          this.clock.now().getTime() - t0,
+          false,
+          `${e instanceof Error ? e.message : String(e)} (tentativa ${String(tentativa)})`,
+        );
       }
     }
     // Degrade explícito (GO-LIVE 9B + correção do teste real de 2026-07-20):
@@ -315,7 +384,8 @@ class LlmNarration implements AdminNarrationPort {
     }
     // Degrade determinístico HONESTO (GO-LIVE-03: nunca vazar slug interno tipo
     // "unknown"): sem LLM, fala o fato já calculado — ou declara a ausência.
-    if (!input.available) return 'Ainda não tenho esse dado — não vou inventar. Posso capturá-lo quando a fonte existir.';
+    if (!input.available)
+      return 'Ainda não tenho esse dado — não vou inventar. Posso capturá-lo quando a fonte existir.';
     const fact = input.facts['fact'];
     return typeof fact === 'string' && fact !== '' ? fact : 'Sem dados para esta pergunta.';
   }
@@ -335,7 +405,8 @@ class LlmExtractor implements MemoryAttributeExtractorPort {
       const raw = (await this.llm.complete(system, `Texto do cliente: ${text}`)).text;
       const start = raw.indexOf('{');
       const end = raw.lastIndexOf('}');
-      const parsed: unknown = start >= 0 && end > start ? JSON.parse(raw.slice(start, end + 1)) : null;
+      const parsed: unknown =
+        start >= 0 && end > start ? JSON.parse(raw.slice(start, end + 1)) : null;
       const list = asArray(asRecord(parsed)?.['attributes']) ?? [];
       const attributes: ProposedAttribute[] = [];
       for (const item of list) {
@@ -343,7 +414,11 @@ class LlmExtractor implements MemoryAttributeExtractorPort {
         const key = record ? asString(record['key']) : null;
         const value = record ? asString(record['value']) : null;
         if (key !== null && value !== null && key !== '' && value !== '') {
-          attributes.push({ key, value, confidence: (record ? asNumber(record['confidence']) : null) ?? 0.5 });
+          attributes.push({
+            key,
+            value,
+            confidence: (record ? asNumber(record['confidence']) : null) ?? 0.5,
+          });
         }
       }
       this.track('extraction', this.clock.now().getTime() - t0, true);
@@ -360,26 +435,50 @@ export interface LlmFactoryDeps {
   readonly http: HttpClient;
   readonly observability: ObservabilityRuntime;
   readonly clock: Clock;
+  /** Medidor de Custo (2026-07-21): cada chamada de conversa vira um registro
+   *  de gasto (atribuído ao turno/chatId aberto). Ausente ⇒ não mede. */
+  readonly custo?: {
+    registrarConversa(uso: {
+      provider: string;
+      model: string;
+      tokensIn: number | null;
+      tokensOut: number | null;
+    }): Promise<void>;
+  };
 }
 
 /** Seleciona o provedor configurado; 'offline' usa os doubles determinísticos. */
 export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
-  const { config, http, observability, clock } = deps;
+  const { config, http, observability, clock, custo } = deps;
   // Correção GO-LIVE (teste real 2026-07-20): 'falha/degrade' sem CAUSA deixou o
   // diagnóstico cego — agora cada degrade loga o MOTIVO literal (exceção, parse
   // ou resposta vazia, com excerto do que o modelo devolveu).
   const track = (op: string, ms: number, ok: boolean, detalhe?: string): void => {
     observability.latency('llm', op, ms, clock.now());
-    if (!ok) observability.error('llm', op, clock.now(), detalhe !== undefined && detalhe !== '' ? `falha/degrade: ${detalhe}` : 'falha/degrade');
+    if (!ok)
+      observability.error(
+        'llm',
+        op,
+        clock.now(),
+        detalhe !== undefined && detalhe !== '' ? `falha/degrade: ${detalhe}` : 'falha/degrade',
+      );
   };
 
   let completion: LlmCompletion | null = null;
+  let modelo = '';
   if (config.llm.provider === 'openai' && config.llm.openaiApiKey !== '') {
     completion = new OpenAiCompletion(http, config.llm.openaiApiKey, config.llm.openaiModel);
+    modelo = config.llm.openaiModel;
   } else if (config.llm.provider === 'anthropic' && config.llm.anthropicApiKey !== '') {
-    completion = new AnthropicCompletion(http, config.llm.anthropicApiKey, config.llm.anthropicModel);
+    completion = new AnthropicCompletion(
+      http,
+      config.llm.anthropicApiKey,
+      config.llm.anthropicModel,
+    );
+    modelo = config.llm.anthropicModel;
   } else if (config.llm.provider === 'gemini' && config.llm.geminiApiKey !== '') {
     completion = new GeminiCompletion(http, config.llm.geminiApiKey, config.llm.geminiModel);
+    modelo = config.llm.geminiModel;
   }
 
   if (completion === null) {
@@ -404,6 +503,17 @@ export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
     async complete(system: string, user: string): Promise<CompletionResult> {
       const result = await inner.complete(system, user);
       meter.record(result.tokensIn, result.tokensOut);
+      // Medidor de Custo: registro persistido por chamada (nunca derruba o turno).
+      if (custo) {
+        await custo
+          .registrarConversa({
+            provider: inner.name,
+            model: modelo,
+            tokensIn: result.tokensIn,
+            tokensOut: result.tokensOut,
+          })
+          .catch(() => undefined);
+      }
       return result;
     },
   };

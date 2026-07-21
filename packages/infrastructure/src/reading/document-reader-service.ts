@@ -5,6 +5,7 @@
 // invocável (readById). Ninguém o chama automaticamente nesta sprint.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock } from '@reconstrua/domain';
+import type { MedidorDeCusto } from '../custos/medidor-de-custo.js';
 import type { DocumentLinkStore, MediaStorePort } from '../media/index.js';
 import type { DocumentReaderPort } from './document-reader-port.js';
 import type { DocumentTextCache } from './document-text-cache.js';
@@ -21,6 +22,9 @@ export interface DocumentReaderDeps {
   readonly clock: Clock;
   readonly maxBytes?: number;
   readonly log?: (message: string) => void;
+  /** Medidor de Custo (2026-07-21): cada leitura por visão vira um registro
+   *  de gasto atribuído ao documentId. Ausente ⇒ lê sem medir. */
+  readonly custo?: MedidorDeCusto;
 }
 
 export class DocumentReaderService {
@@ -55,20 +59,29 @@ export class DocumentReaderService {
         return null;
       }
 
-      const text = await this.deps.reader.read(blob.bytes, blob.mime);
-      if (text === null || text === '') {
+      const leitura = await this.deps.reader.read(blob.bytes, blob.mime);
+      if (leitura === null || leitura.texto === '') {
         this.log(`visao nao retornou texto para ${link.sha256}`);
         return null;
+      }
+      if (this.deps.custo) {
+        await this.deps.custo.registrarLeitura({
+          provider: 'anthropic',
+          model: this.deps.model,
+          documentId,
+          tokensIn: leitura.tokensIn,
+          tokensOut: leitura.tokensOut,
+        });
       }
 
       await this.deps.cache.put({
         sha256: link.sha256,
-        text,
+        text: leitura.texto,
         model: this.deps.model,
-        chars: text.length,
+        chars: leitura.texto.length,
         readAt: this.deps.clock.now().toISOString(),
       });
-      return text;
+      return leitura.texto;
     } catch (error) {
       this.log(`falha na leitura: ${error instanceof Error ? error.message : String(error)}`);
       return null;

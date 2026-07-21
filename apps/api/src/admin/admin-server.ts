@@ -77,6 +77,25 @@ export function buildAdminServer(
       rotulosDosDocumentos?(chatId: string): Promise<Record<string, string>>;
       /** Total REAL de documentos registrados (fonte do painel). */
       contagemDocumentosRegistrados?(): Promise<number>;
+      /** Medidor de Custo: documentId → chatId (dono de cada leitura). */
+      mapaDocumentoParaChat?(): Promise<Record<string, string>>;
+    };
+    /** Medidor de Custo (2026-07-21): registros de gasto de IA (conversa +
+     *  leitura de documentos) para o painel "Custos de IA". */
+    readonly custos?: {
+      listar(): Promise<
+        ReadonlyArray<{
+          readonly at: string;
+          readonly contexto: 'conversa' | 'leitura-documento';
+          readonly provider: string;
+          readonly model: string;
+          readonly chatId: string | null;
+          readonly documentId: string | null;
+          readonly tokensIn: number | null;
+          readonly tokensOut: number | null;
+          readonly custoUsd: number | null;
+        }>
+      >;
     };
     /** Decreto 2026-07-21: convite→senha própria→login do PERITO (sem senha
      *  compartilhada). O Admin emite o convite; o portal do perito autentica. */
@@ -682,6 +701,97 @@ export function buildAdminServer(
   app.get('/admin/pericia-migrados', async (_request, reply) => {
     if (!opts.pericia) return reply.code(404).send({ error: 'perícia não configurada' });
     return { clientes: await opts.pericia.migradosDeTodos() };
+  });
+
+  // ── CUSTOS DE IA (2026-07-21) — o gasto REAL por cliente, do atendimento à
+  //    leitura de documentos. Fonte: registros do MedidorDeCusto (tokens + preço
+  //    do modelo por chamada). Leituras são atribuídas ao dono do documento pela
+  //    contabilidade documental. Valores em USD são ESTIMATIVA (a fatura real é
+  //    o Console do provedor).
+  app.get('/admin/custos', async (_request, reply) => {
+    if (!opts.custos) return reply.code(404).send({ error: 'medidor de custos não configurado' });
+    const registros = await opts.custos.listar();
+    const docParaChat = (await opts.pericia?.mapaDocumentoParaChat?.()) ?? {};
+    const nomes = new Map(((await op.clientes?.list()) ?? []).map((c) => [c.chatId, c.quem]));
+
+    const usd = (v: number | null): number => v ?? 0;
+    const agora = new Date();
+    const diaDe = (iso: string): string => iso.slice(0, 10);
+    const hoje = agora.toISOString().slice(0, 10);
+    const seteDiasAtras = new Date(agora.getTime() - 7 * 24 * 3600 * 1000).toISOString();
+
+    interface LinhaCliente {
+      chatId: string;
+      nome: string | null;
+      conversaUsd: number;
+      leituraUsd: number;
+      totalUsd: number;
+      chamadas: number;
+      tokensIn: number;
+      tokensOut: number;
+    }
+    const porCliente = new Map<string, LinhaCliente>();
+    const porDia = new Map<string, number>();
+    const porContexto = new Map<string, { usd: number; chamadas: number }>();
+    let totalUsd = 0;
+    let hojeUsd = 0;
+    let ultimos7DiasUsd = 0;
+    let semAtribuicaoUsd = 0;
+    let semAtribuicaoChamadas = 0;
+    let chamadasSemPreco = 0;
+
+    for (const r of registros) {
+      const valor = usd(r.custoUsd);
+      if (r.custoUsd === null) chamadasSemPreco += 1;
+      totalUsd += valor;
+      if (diaDe(r.at) === hoje) hojeUsd += valor;
+      if (r.at >= seteDiasAtras) ultimos7DiasUsd += valor;
+      porDia.set(diaDe(r.at), (porDia.get(diaDe(r.at)) ?? 0) + valor);
+      const ctx = porContexto.get(r.contexto) ?? { usd: 0, chamadas: 0 };
+      porContexto.set(r.contexto, { usd: ctx.usd + valor, chamadas: ctx.chamadas + 1 });
+
+      const dono = r.chatId ?? (r.documentId !== null ? (docParaChat[r.documentId] ?? null) : null);
+      if (dono === null) {
+        semAtribuicaoUsd += valor;
+        semAtribuicaoChamadas += 1;
+        continue;
+      }
+      const linha = porCliente.get(dono) ?? {
+        chatId: dono,
+        nome: nomes.get(dono) ?? null,
+        conversaUsd: 0,
+        leituraUsd: 0,
+        totalUsd: 0,
+        chamadas: 0,
+        tokensIn: 0,
+        tokensOut: 0,
+      };
+      if (r.contexto === 'conversa') linha.conversaUsd += valor;
+      else linha.leituraUsd += valor;
+      linha.totalUsd += valor;
+      linha.chamadas += 1;
+      linha.tokensIn += r.tokensIn ?? 0;
+      linha.tokensOut += r.tokensOut ?? 0;
+      porCliente.set(dono, linha);
+    }
+
+    return {
+      moeda: 'USD',
+      aviso:
+        'Estimativa calculada por tokens × preço de tabela do modelo; a fatura oficial é o Console do provedor.',
+      totalUsd,
+      hojeUsd,
+      ultimos7DiasUsd,
+      chamadas: registros.length,
+      chamadasSemPreco,
+      porContexto: [...porContexto.entries()].map(([contexto, v]) => ({ contexto, ...v })),
+      porDia: [...porDia.entries()]
+        .sort(([a], [b]) => (a < b ? 1 : -1))
+        .slice(0, 14)
+        .map(([dia, v]) => ({ dia, usd: v })),
+      porCliente: [...porCliente.values()].sort((a, b) => b.totalUsd - a.totalUsd),
+      semAtribuicao: { usd: semAtribuicaoUsd, chamadas: semAtribuicaoChamadas },
+    };
   });
 
   app.get('/admin/clients/:chatId/dossie', async (request, reply) => {

@@ -97,6 +97,8 @@ async function main(): Promise<void> {
     pericia: prod.pericia,
     // Decreto 2026-07-21: convite→senha própria→login do perito.
     peritoAuth: prod.peritoAuth,
+    // Custos de IA: gasto por cliente (conversa + leitura de documentos).
+    custos: prod.custos,
   });
   const advogado = buildAdvogadoServer(prod.advogadoView, {
     accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',

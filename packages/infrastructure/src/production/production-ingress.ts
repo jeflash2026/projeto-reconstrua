@@ -13,7 +13,15 @@
 // retry ou redelivery (redelivery idêntica já era coberta pela idempotência de
 // messageId, que continua valendo DENTRO da fila).
 // ─────────────────────────────────────────────────────────────────────────────
-import type { ConversationRuntime, FollowUpRecurrenceRuntime, InboundEnvelope, SchedulerRuntime, TurnResult, ScheduledTask } from '@reconstrua/application';
+import type {
+  ConversationRuntime,
+  FollowUpRecurrenceRuntime,
+  InboundEnvelope,
+  SchedulerRuntime,
+  TurnResult,
+  ScheduledTask,
+} from '@reconstrua/application';
+import type { MedidorDeCusto } from '../custos/medidor-de-custo.js';
 
 function toTemporalEnvelope(task: ScheduledTask, now: Date): InboundEnvelope {
   return {
@@ -59,13 +67,20 @@ export class ProductionIngress {
        *  anterior é SUPERADA (evita anúncio duplicado do mesmo registro). */
       aoReceberDocumento?(chatId: string, now: Date): Promise<void>;
     },
+    /** Medidor de Custo (2026-07-21): todo turno roda com o chatId em contexto —
+     *  cada chamada de IA do turno é atribuída ao cliente. Opcional (não mede). */
+    private readonly custo?: MedidorDeCusto,
   ) {}
 
   /** Enfileira uma operação na cadeia da conversa (estritamente sequencial por chat). */
   private enqueue<T>(chatId: string, op: () => Promise<T>): Promise<T> {
+    const medido = this.custo ? (): Promise<T> => this.custo!.noTurno(chatId, op) : op;
     const previous = this.chains.get(chatId) ?? Promise.resolve();
-    const next = previous.then(op, op); // a cadeia nunca quebra; o erro vai ao chamador
-    this.chains.set(chatId, next.catch(() => undefined));
+    const next = previous.then(medido, medido); // a cadeia nunca quebra; o erro vai ao chamador
+    this.chains.set(
+      chatId,
+      next.catch(() => undefined),
+    );
     return next;
   }
 
@@ -74,11 +89,23 @@ export class ProductionIngress {
     return this.enqueue(envelope.chatId, async () => {
       // 15C-4 · Parte 1: resposta de texto pode RESOLVER uma confirmação pendente
       // — roda ANTES do turno (o snapshot já chega limpo à conversa). Best-effort.
-      if (this.autonomia && envelope.kind === 'text' && envelope.text !== null && envelope.text !== '') {
-        await this.autonomia.aoReceberTexto(envelope.chatId, envelope.text, envelope.timestamp).catch(() => undefined);
+      if (
+        this.autonomia &&
+        envelope.kind === 'text' &&
+        envelope.text !== null &&
+        envelope.text !== ''
+      ) {
+        await this.autonomia
+          .aoReceberTexto(envelope.chatId, envelope.text, envelope.timestamp)
+          .catch(() => undefined);
       }
-      if (this.autonomia?.aoReceberDocumento && (envelope.kind === 'image' || envelope.kind === 'pdf' || envelope.kind === 'document')) {
-        await this.autonomia.aoReceberDocumento(envelope.chatId, envelope.timestamp).catch(() => undefined);
+      if (
+        this.autonomia?.aoReceberDocumento &&
+        (envelope.kind === 'image' || envelope.kind === 'pdf' || envelope.kind === 'document')
+      ) {
+        await this.autonomia
+          .aoReceberDocumento(envelope.chatId, envelope.timestamp)
+          .catch(() => undefined);
       }
       return this.conversation.receive(envelope);
     });

@@ -31,6 +31,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { sep: 'Gestão' },
   { href: '/campanhas', label: 'Campanhas' },
   { href: '/financeiro', label: 'Financeiro' },
+  { href: '/custos-ia', label: 'Custos de IA' },
   { href: '/founder-console', label: 'Founder Console' },
   { sep: 'Sistema' },
   { href: '/configuracoes', label: 'Configurações' },

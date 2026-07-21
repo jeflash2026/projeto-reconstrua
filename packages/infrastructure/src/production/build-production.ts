@@ -194,6 +194,7 @@ import {
   JsonDocumentTextCache,
 } from '../reading/index.js';
 import { PericiaService } from '../pericia/index.js';
+import { MedidorDeCusto } from '../custos/index.js';
 import {
   EvolutionInstanceClient,
   FetchEvoHttp,
@@ -249,6 +250,8 @@ export interface AssembledProduction {
   readonly peritoAuth: AdvogadoAuthRuntime;
   /** CAT-03A: transforma um documento em texto bruto (disponível; sem gatilho automático). */
   readonly documentReader: DocumentReaderService;
+  /** Medidor de Custo (2026-07-21): registros de gasto de IA por conversa/leitura. */
+  readonly custos: MedidorDeCusto;
   /** GO LIVE A · R1: a visão única do cliente (ALIR) + persona Operador de Qualificação. */
   readonly alir: AssembledALIR;
   /** PC-R1: a projeção segura do processo para o CLIENTE (Portal + AHRI — Princípio 3). */
@@ -411,7 +414,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     clock,
     'http',
   );
-  const llm = createLlmBundle({ config, http: resilientHttp, observability, clock });
+  // Medidor de Custo (2026-07-21): observa TODO gasto de IA — conversa (por
+  // turno/chatId via Ingress) e leitura de documentos (por documentId). Só
+  // registra; nunca decide nem bloqueia.
+  const custos = new MedidorDeCusto({ json, clock });
+  const llm = createLlmBundle({ config, http: resilientHttp, observability, clock, custo: custos });
 
   // ── CAT-02A: captura dos bytes reais de documentos (assíncrona, best-effort) ──
   // CAT-02B: referência messageId→sha256 e vínculo definitivo documentId→link
@@ -434,6 +441,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     model: config.llm.anthropicModel,
     clock,
     log: (message) => observability.error('reading', 'document', clock.now(), message),
+    custo: custos,
   });
   // Decreto Dossiê Pericial (2026-07-21): a visão do PERITO montada do HISCON
   // transcrito — contratos por banco, migrados (sem pedido administrativo) e
@@ -1140,6 +1148,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       aoReceberDocumento: (chatId) => jornadaComercial.aoReceberDocumento(chatId),
       varredura: (now) => documentRequestAutonomia.varredura(now),
     },
+    // Medidor de Custo: o turno inteiro roda com o chatId em contexto.
+    custos,
   );
   const shadow = new ShadowRecorder(
     plainIngress,
@@ -1197,6 +1207,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     pericia,
     peritoAuth,
     documentReader,
+    custos,
     alir,
     acompanhamento,
     nascimento,

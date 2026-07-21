@@ -19,7 +19,9 @@ export function formatMoney(value: number | null): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-export function shortId(id: string, size = 8): string {
+export function shortId(id: string | null | undefined, size = 8): string {
+  // Defensivo: dado de formato antigo/ausente NUNCA derruba o SSR do painel.
+  if (typeof id !== 'string' || id === '') return '—';
   return id.length <= size ? id : `${id.slice(0, size)}…`;
 }
 

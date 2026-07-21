@@ -61,7 +61,7 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
           ) : (
             <dl className="kv">
               {memory.attributes.map((a) => (
-                <ClientAttr key={`${a.key}-${a.observedAt}`} k={a.key} v={a.value} src={a.sourceMessageId} />
+                <ClientAttr key={`${a.key}-${a.source.at}`} k={a.key} v={a.value} src={a.source.ref} />
               ))}
             </dl>
           )}
@@ -95,14 +95,14 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
           ) : (
             <ul className="timeline">
               {memory.documentsSent.map((d) => (
-                <li key={`${d.reference}-${d.at}`}>
-                  <span className="when">{formatDate(d.at)}</span>
-                  <div>📄 {d.reference}</div>
+                <li key={`${d.ref}-${d.source.at}`}>
+                  <span className="when">{formatDate(d.source.at)}</span>
+                  <div>📄 {d.label}</div>
                 </li>
               ))}
               {memory.rememberedEvents.map((e) => (
-                <li key={`${e.description}-${e.at}`}>
-                  <span className="when">{formatDate(e.at)}</span>
+                <li key={`${e.description}-${e.source.at}`}>
+                  <span className="when">{formatDate(e.source.at)}</span>
                   <div>{e.description}</div>
                 </li>
               ))}

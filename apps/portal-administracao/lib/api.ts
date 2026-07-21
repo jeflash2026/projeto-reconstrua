@@ -242,12 +242,15 @@ export interface JornadaCliente {
 export interface ClientDetail {
   memory: {
     chatId: string;
-    attributes: Array<{ key: string; value: string; sourceMessageId: string; observedAt: string }>;
-    rememberedEvents: Array<{ description: string; at: string }>;
-    emotionsObserved: Array<{ sentiment: string; at: string }>;
-    documentsSent: Array<{ reference: string; at: string }>;
+    // Formato REAL da memória viva (2E): fonte estruturada {kind, ref, at}.
+    // O formato antigo (sourceMessageId/observedAt/reference) derrubava o SSR
+    // com TypeError em shortId(undefined) — o erro do clique no cliente.
+    attributes: Array<{ key: string; value: string; source: { kind: string; ref: string; at: string }; confidence: number }>;
+    rememberedEvents: Array<{ description: string; source: { kind: string; ref: string; at: string } }>;
+    emotionsObserved: Array<{ sentiment: string; source: { kind: string; ref: string; at: string } }>;
+    documentsSent: Array<{ ref: string; label: string; source: { kind: string; ref: string; at: string } }>;
     documentsPending: string[];
-    stagesCompleted: Array<{ stageRef: string; at: string }>;
+    stagesCompleted: Array<{ stageRef: string; source: { kind: string; ref: string; at: string } }>;
     conversationStyle: string | null;
     avgResponseMs: number | null;
     messageCount: number;

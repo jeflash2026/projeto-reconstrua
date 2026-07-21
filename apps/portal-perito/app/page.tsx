@@ -6,7 +6,7 @@
 //    destinação ao advogado sócio é decisão EXCLUSIVA do Admin.
 import type { ReactElement } from 'react';
 import { getJson, type ClienteDaFila } from '../lib/api';
-import { logoutPerito } from '../lib/actions';
+import { SairButton } from '../components/sair-button';
 import AcoesCliente from '../components/acoes-cliente';
 
 export const dynamic = 'force-dynamic';
@@ -39,11 +39,7 @@ const CentralPerito = async (): Promise<ReactElement> => {
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="page-title">Central do Perito</h1>
-        <form action={logoutPerito}>
-          <button type="submit" className="btn">
-            Sair
-          </button>
-        </form>
+        <SairButton />
       </div>
       <p className="page-sub">
         Baixe a planilha de contratos, faça os pedidos administrativos e confirme — a confirmação

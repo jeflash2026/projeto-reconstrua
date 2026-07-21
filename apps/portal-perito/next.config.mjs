@@ -7,6 +7,10 @@ const nextConfig = {
   poweredByHeader: false,
   basePath: '/perito',
   eslint: { ignoreDuringBuilds: true },
+  // O gate de TIPOS é o CI (pnpm typecheck + build a cada push, resolução
+  // real do workspace). Dentro da imagem Docker o pnpm re-resolve @types de
+  // forma não-determinística — o build da imagem SÓ compila.
+  typescript: { ignoreBuildErrors: true },
 };
 
 export default nextConfig;

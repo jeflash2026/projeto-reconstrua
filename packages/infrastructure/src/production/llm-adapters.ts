@@ -54,6 +54,20 @@ export interface LlmCompletion {
   readonly name: string;
 }
 
+/** Erro HTTP com causa LITERAL (status + excerto do corpo). Sem isso, um 429/529
+ *  virava texto vazio e o log dizia só "parse falhou; resposta=''" — o mesmo
+ *  silêncio que escondeu o HTTP 201 da mídia por 12 rodadas. */
+function exigir2xx(provider: string, status: number, body: unknown): void {
+  if (status >= 200 && status < 300) return;
+  let excerto = '';
+  try {
+    excerto = JSON.stringify(body).replace(/\s+/g, ' ').slice(0, 200);
+  } catch {
+    excerto = String(body).slice(0, 200);
+  }
+  throw new Error(`${provider} HTTP ${String(status)}: ${excerto}`);
+}
+
 export class OpenAiCompletion implements LlmCompletion {
   readonly name = 'openai';
   constructor(private readonly http: HttpClient, private readonly apiKey: string, private readonly model: string) {}
@@ -63,6 +77,7 @@ export class OpenAiCompletion implements LlmCompletion {
       { authorization: `Bearer ${this.apiKey}` },
       { model: this.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: 0.7 },
     );
+    exigir2xx(this.name, res.status, res.body);
     const text = asString(dig(asArray(dig(res.body, ['choices']))?.[0], ['message', 'content'])) ?? '';
     return {
       text,
@@ -81,6 +96,7 @@ export class AnthropicCompletion implements LlmCompletion {
       { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01' },
       { model: this.model, max_tokens: 1024, system, messages: [{ role: 'user', content: user }] },
     );
+    exigir2xx(this.name, res.status, res.body);
     const first = asArray(dig(res.body, ['content']))?.[0];
     return {
       text: asString(asRecord(first)?.['text']) ?? '',
@@ -99,6 +115,7 @@ export class GeminiCompletion implements LlmCompletion {
       {},
       { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }] },
     );
+    exigir2xx(this.name, res.status, res.body);
     const candidate = asArray(dig(res.body, ['candidates']))?.[0];
     const part = asArray(dig(candidate, ['content', 'parts']))?.[0];
     return {

@@ -39,9 +39,15 @@ interface BrainInput {
   readonly context: ConversationContextView;
 }
 
-function toPerceptView(percept: Percept): PerceptView {
+/** Envelope de mídia É artefato POR ESTRUTURA (decreto: a LLM não decide nenhum
+ *  passo da jornada). Sem isso, percepção degradada (LLM vazia) zerava os
+ *  artefatos e RO-2D-INGEST-DOC nunca disparava — o documento não entrava. */
+const KINDS_DOCUMENTAIS: ReadonlySet<string> = new Set(['image', 'pdf', 'document']);
+
+export function toPerceptView(percept: Percept): PerceptView {
   const enrichment = percept.enrichment;
-  const artifactCount = enrichment ? enrichment.detectedArtifacts.length : 0;
+  const daLlm = enrichment ? enrichment.detectedArtifacts.length : 0;
+  const artifactCount = KINDS_DOCUMENTAIS.has(percept.envelope.kind) ? Math.max(1, daLlm) : daLlm;
   return {
     kind: percept.envelope.kind,
     sentiment: enrichment?.sentiment ?? 'unknown',

@@ -1,0 +1,23 @@
+:root {
+  --black: #050505;
+  --surface: #101010;
+  --surface-raised: #151515;
+  --signal: #c1121f;
+  --signal-hover: #e63946;
+  --gold: #d4af37;
+  --ink: #ffffff;
+  --muted: #bbbbbb;
+  --dim: #777777;
+  --line: rgba(255, 255, 255, 0.12);
+  --soft-line: rgba(255, 255, 255, 0.07);
+  --font-sans: 'Inter', Arial, sans-serif;
+  --font-display: 'Outfit', Arial, sans-serif;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --shell: min(1320px, calc(100vw - 96px));
+}
+
+@media (max-width: 760px) {
+  :root {
+    --shell: min(100% - 40px, 1320px);
+  }
+}

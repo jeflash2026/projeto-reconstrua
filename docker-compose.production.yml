@@ -235,6 +235,29 @@ services:
       - default
       - npm-net
 
+  # Decreto 2026-07-21: LANDING nova (raiz do domínio; NPM / → landing-web:3500).
+  landing-web:
+    build:
+      context: .
+      target: landing-web
+    restart: unless-stopped
+    environment:
+      # O CTA aponta SEMPRE ao número OFICIAL (mesma regra da landing anterior).
+      OFFICIAL_WHATSAPP_NUMBER: ${OFFICIAL_WHATSAPP_NUMBER:-554137989737}
+      META_PIXEL_ID: ${META_PIXEL_ID:-}
+      GA_MEASUREMENT_ID: ${GA_MEASUREMENT_ID:-}
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://localhost:3500/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    ports:
+      - '3500:3500'
+    networks:
+      - default
+      - npm-net
+
 volumes:
   ahrios-prod-pgdata:
 

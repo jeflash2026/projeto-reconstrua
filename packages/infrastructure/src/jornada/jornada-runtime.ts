@@ -139,7 +139,20 @@ export class JornadaComercialRuntime {
     if (entrada.tipo === 'documento' && resposta === MENSAGENS_JORNADA.ackDocumento && !fatos.registro.aguardandoProgressao) {
       await this.salvar({ ...fatos.registro, aguardandoProgressao: true, atualizadoEm: this.deps.clock.now() }).catch(() => undefined);
     }
+    // 15ª rodada: o turno FALOU o fato ⇒ marcador antigo morre (evita a dupla
+    // "✅ Registrado" — progressão tardia + resposta do turno para o mesmo doc).
+    if (entrada.tipo === 'documento' && resposta !== MENSAGENS_JORNADA.ackDocumento && fatos.registro.aguardandoProgressao) {
+      await this.salvar({ ...fatos.registro, aguardandoProgressao: false, atualizadoEm: this.deps.clock.now() }).catch(() => undefined);
+    }
     return resposta;
+  }
+
+  /** 15ª rodada — chega um documento NOVO (pré-turno): qualquer progressão
+   *  pendente do envio anterior está SUPERADA — o próprio turno falará o estado
+   *  fresco (fato ou ack+marcador novo). Sem isso, um marcador velho fazia o
+   *  subscriber E a resposta do turno anunciarem o MESMO registro (mensagem 2×). */
+  async aoReceberDocumento(chatId: string): Promise<void> {
+    await this.concluirProgressao(chatId).catch(() => undefined);
   }
 
   /** O turno respondeu só o ack e a progressão ainda não foi falada? */

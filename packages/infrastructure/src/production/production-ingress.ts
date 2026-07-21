@@ -55,6 +55,9 @@ export class ProductionIngress {
     private readonly autonomia?: {
       aoReceberTexto(chatId: string, texto: string, now: Date): Promise<void>;
       varredura(now: Date): Promise<void>;
+      /** 15ª rodada: documento novo chegando ⇒ progressão pendente do envio
+       *  anterior é SUPERADA (evita anúncio duplicado do mesmo registro). */
+      aoReceberDocumento?(chatId: string, now: Date): Promise<void>;
     },
   ) {}
 
@@ -73,6 +76,9 @@ export class ProductionIngress {
       // — roda ANTES do turno (o snapshot já chega limpo à conversa). Best-effort.
       if (this.autonomia && envelope.kind === 'text' && envelope.text !== null && envelope.text !== '') {
         await this.autonomia.aoReceberTexto(envelope.chatId, envelope.text, envelope.timestamp).catch(() => undefined);
+      }
+      if (this.autonomia?.aoReceberDocumento && (envelope.kind === 'image' || envelope.kind === 'pdf' || envelope.kind === 'document')) {
+        await this.autonomia.aoReceberDocumento(envelope.chatId, envelope.timestamp).catch(() => undefined);
       }
       return this.conversation.receive(envelope);
     });

@@ -961,6 +961,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         await jornadaComercial.aoReceberTexto(chatId, texto, now);
         await documentRequestAutonomia.aoReceberTexto(chatId, texto, now);
       },
+      // 15ª rodada: documento novo supera a progressão pendente do anterior.
+      aoReceberDocumento: (chatId) => jornadaComercial.aoReceberDocumento(chatId),
       varredura: (now) => documentRequestAutonomia.varredura(now),
     },
   );

@@ -51,6 +51,14 @@ describe('Decreto · classificação DETERMINÍSTICA dos 3 obrigatórios', () =>
     expect(classificarDocumentoInicial('conta.pdf', 'CEMIG — fatura de energia elétrica — vencimento')).toBe('COMPROVANTE_RESIDENCIA');
     expect(classificarDocumentoInicial('comprovante-de-endereco.jpg', '')).toBe('COMPROVANTE_RESIDENCIA');
   });
+  it('15ª rodada — a conta de ÁGUA REAL que ficou OUTRO em produção ⇒ COMPROVANTE', () => {
+    const contaReal =
+      'JOSE RODRIGUES End.: RUA JOAO LOURENCO LEITE,475 - SANTA ERNESTINA - SP - 15970000 ' +
+      'Cod. Cliente: 087130751 PDE/RGI: 037141285 Hidrometro: A18L203308 Lacre: RESIDENCIAL Tipo de ligacao: AGUA E ESGOTO';
+    expect(classificarDocumentoInicial('IMG_5555.jpg', contaReal)).toBe('COMPROVANTE_RESIDENCIA');
+    expect(classificarDocumentoInicial('foto.jpg', 'SABESP - Companhia de Saneamento Basico')).toBe('COMPROVANTE_RESIDENCIA');
+    expect(classificarDocumentoInicial('foto.jpg', 'DAE Aguas — consumo do mes')).toBe('COMPROVANTE_RESIDENCIA');
+  });
   it('nada reconhecível OU empate ⇒ OUTRO (jamais adivinhar)', () => {
     expect(classificarDocumentoInicial('IMG_9999.jpg', '')).toBe('OUTRO');
     expect(classificarDocumentoInicial('doc.pdf', 'texto qualquer sem sinais')).toBe('OUTRO');

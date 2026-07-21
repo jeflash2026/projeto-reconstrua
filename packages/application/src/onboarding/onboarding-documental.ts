@@ -52,8 +52,16 @@ const SINAIS: Readonly<Record<DocumentoInicial, { frases: readonly string[]; tok
     tokens: [...SINAIS_RG.tokens, ...SINAIS_CNH.tokens],
   },
   COMPROVANTE_RESIDENCIA: {
-    frases: ['comprovante de residencia', 'comprovante de endereco', 'conta de luz', 'conta de agua', 'conta de energia', 'energia eletrica', 'fatura de energia', 'saneamento', 'telefonica'],
-    tokens: [],
+    // 15ª rodada (conta de ÁGUA real ficou 'OUTRO'): sinais de faturas de
+    // água/energia/gás — "Hidrometro: … Tipo de ligacao: AGUA E ESGOTO".
+    frases: [
+      'comprovante de residencia', 'comprovante de endereco', 'conta de luz', 'conta de agua', 'conta de energia',
+      'energia eletrica', 'fatura de energia', 'saneamento', 'telefonica',
+      'hidrometro', 'agua e esgoto', 'abastecimento de agua', 'fatura de agua', 'consumo de agua', 'tipo de ligacao',
+      'sabesp', 'copasa', 'sanepar', 'sanasa', 'embasa', 'cedae', 'cagece', 'energisa', 'equatorial', 'neoenergia',
+      'comgas', 'elektro', 'coelba', 'celpe', 'celesc', 'cemig', 'copel',
+    ],
+    tokens: ['dae', 'saae', 'enel', 'cpfl', 'edp'],
   },
 };
 

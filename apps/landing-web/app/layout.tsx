@@ -3,14 +3,21 @@ import type { ReactNode } from 'react';
 import Script from 'next/script';
 import './globals.css';
 
+// O preview do WhatsApp/redes lê o Open Graph daqui; a MESMA meta serve os
+// dois domínios (com e sem www) porque é o mesmo app — metadataBase só define
+// o endereço canônico das imagens.
 export const metadata: Metadata = {
   title: 'Projeto Reconstrua | Revisão de consignados INSS',
-  description: 'Especialistas em revisão de contratos de empréstimos consignados do INSS.',
+  description:
+    'Descontos no seu benefício do INSS podem estar errados. Você pode ter valores a recuperar — análise gratuita pelo WhatsApp.',
   metadataBase: new URL('https://projetoreconstrua.com.br'),
+  icons: { icon: '/icone.png', apple: '/icone.png' },
   openGraph: {
-    title: 'Projeto Reconstrua',
-    description: 'Inteligência jurídica e presença humana para revisar consignados INSS.',
+    title: 'Projeto Reconstrua — você pode ter valores a recuperar do INSS',
+    description:
+      'Pagou desconto indevido no seu benefício do INSS? Nossa análise identifica contratos com cobrança errada e o que pode ser recuperado. Comece grátis pelo WhatsApp.',
     type: 'website',
+    images: [{ url: '/og-preview.png', width: 1200, height: 630 }],
   },
 };
 

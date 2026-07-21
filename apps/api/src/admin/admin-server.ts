@@ -260,18 +260,30 @@ export function buildAdminServer(
     const potencialCC = opts.pericia?.potencialDeTodos
       ? await opts.pericia.potencialDeTodos().catch(() => null)
       : null;
+    // 100% dados reais TAMBÉM na Visão Executiva (correção do "2 clientes /
+    // 10 documentos" com uma única Isabel): clientes e casos vêm da LISTA ÚNICA
+    // derivada; documentos vêm da CONTABILIDADE documental; dossiês contam
+    // clientes com HISCON legível (o dossiê pericial existe para eles). As
+    // métricas projetadas ficam apenas como fallback de montagem incompleta.
+    const documentosReaisCC = opts.pericia?.contagemDocumentosRegistrados
+      ? await opts.pericia.contagemDocumentosRegistrados().catch(() => null)
+      : null;
 
     const indicadores = indicadoresExecutivos({
-      clientesAtivos: metrics?.clientCount ?? 0,
+      clientesAtivos: listaCC !== null ? listaCC.length : (metrics?.clientCount ?? 0),
       novosClientesHoje,
-      dossiesGerados: painel.totalAtendimentos,
-      casosDistribuidos: metrics?.processCount ?? 0,
+      dossiesGerados:
+        potencialCC !== null ? potencialCC.porCliente.length : painel.totalAtendimentos,
+      casosDistribuidos:
+        listaCC !== null
+          ? listaCC.filter((c) => c.status === 'EM_PROCESSO').length
+          : (metrics?.processCount ?? 0),
       aguardandoDocumentos,
       casosCriticos: 0,
       tempoMedioAteDecisaoMs: temFeedback ? painel.tempoMedioAteDecisaoMs : null,
       precisaoDecisoes: temFeedback ? painel.taxaAcerto : null,
       confiancaMediaIA: temFeedback ? painel.confiancaMedia : null,
-      documentosProcessados: metrics?.documentCount ?? 0,
+      documentosProcessados: documentosReaisCC ?? metrics?.documentCount ?? 0,
       valorRecuperavel:
         potencialCC !== null && potencialCC.porCliente.length > 0
           ? potencialCC.total

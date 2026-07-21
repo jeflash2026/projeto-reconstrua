@@ -91,6 +91,8 @@ import { DocumentRequestAutonomia } from '../document-request/autonomia.js';
 import { JsonNotificationChannelStore, LawyerNotifierSubscriber } from '../document-request/lawyer-notifier.js';
 import { JsonAnexoStore } from '../document-request/json-anexo-store.js';
 import { JsonOnboardingDocumentalStore } from '../onboarding/json-onboarding-store.js';
+import { JornadaComercialRuntime } from '../jornada/jornada-runtime.js';
+import { JourneyGovernedExpression } from '../jornada/journey-governed-expression.js';
 import { OnboardingDocumentalSubscriber, criarResolverDeChat } from '../onboarding/onboarding-documental-subscriber.js';
 import { online } from '@reconstrua/application';
 import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
@@ -549,6 +551,15 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     pendencias: { setPendingDocuments: (chatId, labels) => living.memory.setPendingDocuments(chatId, labels) },
   });
   const onboardingProvider: OnboardingDocumentalProvider = (chatId) => onboardingDocumental.visao(chatId);
+  // JORNADA COMERCIAL (decreto 2026-07-20): a máquina de estados determinística
+  // que governa o funil — fonte única da verdade (registro ns 'jornada' +
+  // contabilidade documental). A LLM não decide nenhum passo do funil.
+  const jornadaComercial = new JornadaComercialRuntime({
+    json,
+    onboarding: onboardingDocumental,
+    observability,
+    clock,
+  });
   const context = new ConversationContextRuntime(
     sessions,
     convMemory,
@@ -645,7 +656,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const delivery = new DeliveryRuntime({ gateway, timing, typing, delay, presence, queue, sessions, memory: convMemory, clock, policy });
   const conversation = new ConversationRuntimeClass({
     perception: llm.perception,
-    expression: llm.expression,
+    // Decreto 2026-07-20: enquanto a Jornada Comercial está ativa, a resposta é
+    // AUTORADA pelo Journey Runtime (determinística); concluída ⇒ LLM normal.
+    expression: new JourneyGovernedExpression(jornadaComercial, llm.expression),
     brain: fullLoop,
     gateway,
     sessions,
@@ -926,8 +939,16 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     (missionId) => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
     // B4.2: recorrência CONTROLADA sobre o MESMO scheduler (sem novo scheduler/persistência).
     new FollowUpRecurrenceRuntime(scheduler),
-    // 15C-4: autonomia do DocumentRequest (confirmação no inbound + SLA no tick).
-    documentRequestAutonomia,
+    // Pré-hook COMPOSTO (mesma fila serializada): a captura DETERMINÍSTICA da
+    // Jornada Comercial (nome/cidade/consentimento — decreto 2026-07-20) roda
+    // ANTES da autonomia do DocumentRequest (15C-4); a varredura de SLA segue.
+    {
+      aoReceberTexto: async (chatId, texto, now) => {
+        await jornadaComercial.aoReceberTexto(chatId, texto, now);
+        await documentRequestAutonomia.aoReceberTexto(chatId, texto, now);
+      },
+      varredura: (now) => documentRequestAutonomia.varredura(now),
+    },
   );
   const shadow = new ShadowRecorder(
     plainIngress,

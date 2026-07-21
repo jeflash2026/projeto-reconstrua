@@ -1,0 +1,132 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// JORNADA COMERCIAL — testes da MÁQUINA DE ESTADOS (decreto 2026-07-20).
+// Determinismo total: mesmo estado + mesma entrada ⇒ mesma resposta. Os casos
+// incluem os diálogos EXATOS que falharam nas rodadas reais de teste.
+// ─────────────────────────────────────────────────────────────────────────────
+import { describe, it, expect } from 'vitest';
+import {
+  MENSAGENS_JORNADA,
+  capturarIdentificacao,
+  derivarEtapa,
+  ehSaudacaoPura,
+  interpretarInteresse,
+  novaJornada,
+  responderTurno,
+  type FatosDaJornada,
+  type JornadaRecord,
+} from './jornada-comercial.js';
+
+const NOW = new Date('2026-07-20T21:00:00.000Z');
+const CHAT = '5517996332346@s.whatsapp.net';
+
+function fatos(over: Partial<JornadaRecord> = {}, docs: Partial<Omit<FatosDaJornada, 'registro'>> = {}): FatosDaJornada {
+  return {
+    registro: { ...novaJornada(CHAT, NOW), ...over },
+    docsRecebidos: docs.docsRecebidos ?? 0,
+    docsCompletos: docs.docsCompletos ?? false,
+    proximoDocumento: docs.proximoDocumento ?? 'RG (frente e verso) ou CNH',
+  };
+}
+
+const texto = (t: string, primeiro = false) => ({ tipo: 'texto' as const, texto: t, primeiroContato: primeiro });
+const documento = { tipo: 'documento' as const, texto: '', primeiroContato: false };
+
+describe('derivação PURA da etapa (nunca armazenada, nunca dessincroniza)', () => {
+  it('sem nome/cidade ⇒ IDENTIFICACAO; com ambos sem consentimento ⇒ CONSENTIMENTO; consentiu ⇒ TRIAGEM; docs completos ⇒ CONCLUIDA', () => {
+    expect(derivarEtapa(fatos())).toBe('IDENTIFICACAO');
+    expect(derivarEtapa(fatos({ nome: 'Isabel' }))).toBe('IDENTIFICACAO'); // falta cidade
+    expect(derivarEtapa(fatos({ nome: 'Isabel', cidade: 'Santa Ernestina' }))).toBe('CONSENTIMENTO');
+    expect(derivarEtapa(fatos({ nome: 'Isabel', cidade: 'Santa Ernestina', consentiu: true }))).toBe('TRIAGEM');
+    expect(derivarEtapa(fatos({}, { docsCompletos: true }))).toBe('CONCLUIDA');
+  });
+  it('documento já enviado = consentimento implícito ⇒ TRIAGEM manda', () => {
+    expect(derivarEtapa(fatos({}, { docsRecebidos: 1 }))).toBe('TRIAGEM');
+  });
+});
+
+describe('captura DETERMINÍSTICA de nome e cidade (os diálogos reais)', () => {
+  it('"Isabel, sou de santa ernestina- SP" ⇒ nome E cidade', () => {
+    const c = capturarIdentificacao('Isabel, sou de santa ernestina- SP', { nome: null, cidade: null });
+    expect(c.nome).toBe('Isabel');
+    expect(c.cidade).toContain('santa ernestina');
+  });
+  it('"Isabel" ⇒ só o nome; a cidade vem na mensagem seguinte', () => {
+    expect(capturarIdentificacao('Isabel', { nome: null, cidade: null })).toEqual({ nome: 'Isabel', cidade: null });
+    expect(capturarIdentificacao('Santa Ernestina', { nome: 'Isabel', cidade: null }).cidade).toBe('Santa Ernestina');
+  });
+  it('"Me chamo Isabel Marques" ⇒ nome sem o prefixo', () => {
+    expect(capturarIdentificacao('Me chamo Isabel Marques', { nome: null, cidade: null }).nome).toBe('Isabel Marques');
+  });
+  it('saudação pura NÃO captura nada ("Boa noite" não é nome)', () => {
+    expect(ehSaudacaoPura('Boa noite')).toBe(true);
+    expect(capturarIdentificacao('boa tarde', { nome: null, cidade: null })).toEqual({ nome: null, cidade: null });
+  });
+});
+
+describe('interesse DETERMINÍSTICO', () => {
+  it('sim/quero/pode ⇒ sim; não/depois ⇒ nao; resto ⇒ incerto', () => {
+    expect(interpretarInteresse('sim')).toBe('sim');
+    expect(interpretarInteresse('quero sim, pode fazer')).toBe('sim');
+    expect(interpretarInteresse('não, obrigada')).toBe('nao');
+    expect(interpretarInteresse('como funciona o pagamento?')).toBe('incerto');
+  });
+});
+
+describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
+  it('primeiro contato ⇒ boas-vindas completas (apresentação + nome e cidade)', () => {
+    expect(responderTurno(fatos(), texto('Boa noite', true))).toBe(MENSAGENS_JORNADA.boasVindas);
+  });
+  it('REGRESSÃO da rodada real: só o nome veio ⇒ "Prazer, Isabel! E de qual cidade você fala?"', () => {
+    const r = responderTurno(fatos({ nome: 'Isabel', ultimaCaptura: 'nome' }), texto('Isabel'));
+    expect(r).toBe(MENSAGENS_JORNADA.pedirCidade('Isabel'));
+  });
+  it('identificação recém-completa ⇒ explicação SEM promessas terminando na pergunta de interesse', () => {
+    const r = responderTurno(fatos({ nome: 'Isabel', cidade: 'Santa Ernestina', ultimaCaptura: 'cidade' }), texto('Santa Ernestina'));
+    expect(r).toContain('irregularidade');
+    expect(r).toContain('gratuita e sem compromisso');
+    expect(r).toContain('interesse em fazer essa análise?');
+    expect(r).not.toMatch(/garant|promet/i);
+  });
+  it('consentiu ⇒ inicia a triagem pedindo o PRIMEIRO documento (RG f/v ou CNH)', () => {
+    const r = responderTurno(
+      fatos({ nome: 'Isabel', cidade: 'Santa Ernestina', consentiu: true, ultimaCaptura: 'consentimento' }),
+      texto('sim'),
+    );
+    expect(r).toContain('três documentos, um por vez');
+    expect(r).toContain('RG (frente e verso) ou CNH');
+  });
+  it('recusa ⇒ despedida gentil, sem insistência', () => {
+    const r = responderTurno(fatos({ nome: 'Isabel', cidade: 'X', recusou: true }), texto('não quero'));
+    expect(r).toBe(MENSAGENS_JORNADA.recusa);
+  });
+  it('TRIAGEM: texto ⇒ reafirma o documento aguardado (do estado, nunca inventado)', () => {
+    const r = responderTurno(
+      fatos({ nome: 'Isabel', cidade: 'X', consentiu: true }, { docsRecebidos: 1, proximoDocumento: 'o VERSO do RG (a parte de trás do documento)' }),
+      texto('e agora?'),
+    );
+    expect(r).toContain('Estou aguardando: o VERSO do RG');
+  });
+  it('TRIAGEM: documento ⇒ SEMPRE o ack (a progressão automática pede o próximo)', () => {
+    const r = responderTurno(fatos({ nome: 'Isabel', cidade: 'X', consentiu: true }), documento);
+    expect(r).toBe(MENSAGENS_JORNADA.ackDocumento);
+  });
+  it('comprovante em nome do CÔNJUGE oferecido quando a pessoa diz que não tem no nome', () => {
+    const r = responderTurno(
+      fatos({ nome: 'I', cidade: 'X', consentiu: true }, { docsRecebidos: 1, proximoDocumento: 'comprovante de endereço' }),
+      texto('não tenho comprovante no meu nome'),
+    );
+    expect(r).toContain('cônjuge também vale');
+  });
+  it('pergunta de DIREITO ⇒ resposta canônica prefixada, em qualquer etapa', () => {
+    const r = responderTurno(fatos({ nome: 'I', cidade: 'X' }), texto('tenho direito?'));
+    expect(r).toContain('somente conseguimos afirmar após analisar gratuitamente o seu HISCON');
+  });
+  it('CONCLUIDA ⇒ resposta vazia (a conversa normal/LLM assume)', () => {
+    expect(responderTurno(fatos({}, { docsCompletos: true }), texto('obrigada'))).toBe('');
+  });
+  it('DETERMINISMO: mesma entrada, mesma resposta — sempre', () => {
+    const f = fatos({ nome: 'Isabel', ultimaCaptura: 'nome' });
+    const e = texto('Isabel');
+    expect(responderTurno(f, e)).toBe(responderTurno(f, e));
+  });
+});

@@ -200,6 +200,9 @@ export interface ResultadoDeRecebimento {
   /** Registro NOVO concluído ⇒ a mensagem AUTORADA de progressão da triagem
    *  ("✅ Registrado: X! Agora me manda: Y") — null quando nada novo entrou. */
   readonly progresso: string | null;
+  /** Excerto do texto transcrito usado na classificação (diagnóstico do
+   *  classificador — 14ª rodada: 'OUTRO' com texto presente era mudo). */
+  readonly textoExcerto?: string | null;
 }
 
 export class OnboardingDocumentalRuntime {
@@ -233,7 +236,14 @@ export class OnboardingDocumentalRuntime {
     const classificacao = classificarDocumentoInicial(fileName, texto ?? '');
     if (classificacao === 'OUTRO') {
       // Sem texto legível AINDA (o vínculo de mídia é assíncrono) ⇒ vale retentar.
-      return { classificacao, jaRecebido: false, faltando: faltando(atual), classificacaoPendente: texto === null, progresso: null };
+      return {
+        classificacao,
+        jaRecebido: false,
+        faltando: faltando(atual),
+        classificacaoPendente: texto === null,
+        progresso: null,
+        textoExcerto: texto === null ? null : texto.slice(0, 200),
+      };
     }
     // Já completo para este código ⇒ reenvio não duplica. IDENTIDADE via RG
     // aceita a SEGUNDA face (frente + verso) antes de fechar.

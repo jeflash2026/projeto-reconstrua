@@ -113,6 +113,16 @@ async function main(): Promise<void> {
       prod.observability.error('traducao', 'reprocessar', clock.now(), error instanceof Error ? error.message : 'falha no reprocesso de traduções');
     });
   }, 60_000);
+  // 14ª rodada — BOMBA DE RETENTATIVAS: entregas pendentes (ex.: classificação
+  // aguardando a transcrição da Vision) eram reprocessadas SÓ no próximo turno
+  // (próxima mensagem do cliente). Sem mensagem nova, a progressão tardia
+  // ("✅ Registrado…") nunca disparava. O drain é barato quando ocioso e o
+  // claim das entregas é atômico (locked_by) — seguro ao lado do drain do turno.
+  setInterval(() => {
+    void prod.outbox.drainToIdle().catch((error: unknown) => {
+      prod.observability.error('outbox', 'pump', clock.now(), error instanceof Error ? error.message : 'falha no pump do outbox');
+    });
+  }, 10_000);
   setInterval(() => {
     const now = clock.now();
     if (now.getHours() === 3 && now.getMinutes() === 0) {

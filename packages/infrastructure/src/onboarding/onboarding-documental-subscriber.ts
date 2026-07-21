@@ -126,6 +126,18 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
         // Texto ainda não transcrito E nome do arquivo insuficiente ⇒ retry 2A.2.
         throw new Error(`onboarding: classificação pendente do documento ${event.streamId} (transcrição ausente)`);
       }
+      // 14ª rodada: 'OUTRO' com texto PRESENTE era sucesso mudo (o cliente ficava
+      // no ack para sempre e nada aparecia nos logs). Agora a causa é literal:
+      // o excerto do texto lido mostra POR QUE os sinais não casaram.
+      if (resultado.classificacao === 'OUTRO') {
+        d.observability.error(
+          'onboarding',
+          'classificacao',
+          now,
+          `documento ${event.streamId} ficou OUTRO com texto presente :: "${(resultado.textoExcerto ?? '').replace(/\s+/g, ' ')}"`,
+        );
+        return;
+      }
       // PROGRESSÃO AUTOMÁTICA: registro novo ⇒ a AHRI avisa e pede o próximo,
       // sozinha (best-effort: falha de envio nunca desfaz o registro; a cliente
       // ainda pode perguntar e a conversa, com a contabilidade certa, responde).

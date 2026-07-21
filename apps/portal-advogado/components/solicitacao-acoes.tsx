@@ -14,43 +14,82 @@ const SolicitacaoAcoes = ({ s }: { s: Solicitacao }): ReactElement => {
   const [erro, setErro] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
 
-  const aberta = s.status === 'PENDING' || s.status === 'REOPENED' || s.status === 'AWAITING_CONFIRMATION';
+  const aberta =
+    s.status === 'PENDING' || s.status === 'REOPENED' || s.status === 'AWAITING_CONFIRMATION';
 
   const executar = (): void => {
-    if (motivo.trim() === '') { setErro('Descreva o motivo — ele fica registrado no histórico.'); return; }
+    if (motivo.trim() === '') {
+      setErro('Descreva o motivo — ele fica registrado no histórico.');
+      return;
+    }
     setErro(null);
-    iniciar(async () => {
-      const r = modo === 'reabrir' ? await reabrirSolicitacao(s.requestId, motivo.trim()) : await cancelarSolicitacao(s.requestId, motivo.trim());
-      if (!r.ok) { setErro(r.error); return; }
-      setModo('nenhum'); setMotivo('');
-      router.refresh();
+    iniciar(() => {
+      // Transition síncrona + IIFE async (tipagens React 18 e 19).
+      void (async () => {
+        const r =
+          modo === 'reabrir'
+            ? await reabrirSolicitacao(s.requestId, motivo.trim())
+            : await cancelarSolicitacao(s.requestId, motivo.trim());
+        if (!r.ok) {
+          setErro(r.error);
+          return;
+        }
+        setModo('nenhum');
+        setMotivo('');
+        router.refresh();
+      })();
     });
   };
 
   const copiarLink = (): void => {
     if (s.fulfilledBy === null) return;
-    void navigator.clipboard.writeText(`${window.location.origin}/solicitacoes/doc/${encodeURIComponent(s.caseId)}/${encodeURIComponent(s.fulfilledBy)}`);
+    void navigator.clipboard.writeText(
+      `${window.location.origin}/solicitacoes/doc/${encodeURIComponent(s.caseId)}/${encodeURIComponent(s.fulfilledBy)}`,
+    );
     setCopiado(true);
-    window.setTimeout(() => { setCopiado(false); }, 2000);
+    window.setTimeout(() => {
+      setCopiado(false);
+    }, 2000);
   };
 
   return (
     <div className="sol-acoes">
       {s.fulfilledBy !== null ? (
         <>
-          <a className="sol-btn sol-btn-primario" href={`/solicitacoes/doc/${encodeURIComponent(s.caseId)}/${encodeURIComponent(s.fulfilledBy)}`} target="_blank" rel="noreferrer">
+          <a
+            className="sol-btn sol-btn-primario"
+            href={`/solicitacoes/doc/${encodeURIComponent(s.caseId)}/${encodeURIComponent(s.fulfilledBy)}`}
+            target="_blank"
+            rel="noreferrer"
+          >
             Abrir documento
           </a>
-          <button className="sol-btn" onClick={copiarLink}>{copiado ? 'Link copiado ✓' : 'Copiar link do documento'}</button>
+          <button className="sol-btn" onClick={copiarLink}>
+            {copiado ? 'Link copiado ✓' : 'Copiar link do documento'}
+          </button>
         </>
       ) : null}
       {s.status === 'RECEIVED' ? (
-        <button className="sol-btn sol-btn-atencao" onClick={() => { setModo(modo === 'reabrir' ? 'nenhum' : 'reabrir'); setErro(null); }} disabled={pendente}>
+        <button
+          className="sol-btn sol-btn-atencao"
+          onClick={() => {
+            setModo(modo === 'reabrir' ? 'nenhum' : 'reabrir');
+            setErro(null);
+          }}
+          disabled={pendente}
+        >
           Reabrir
         </button>
       ) : null}
       {aberta ? (
-        <button className="sol-btn sol-btn-perigo" onClick={() => { setModo(modo === 'cancelar' ? 'nenhum' : 'cancelar'); setErro(null); }} disabled={pendente}>
+        <button
+          className="sol-btn sol-btn-perigo"
+          onClick={() => {
+            setModo(modo === 'cancelar' ? 'nenhum' : 'cancelar');
+            setErro(null);
+          }}
+          disabled={pendente}
+        >
           Cancelar
         </button>
       ) : null}
@@ -64,17 +103,40 @@ const SolicitacaoAcoes = ({ s }: { s: Solicitacao }): ReactElement => {
           </p>
           <input
             className="sol-input"
-            placeholder={modo === 'reabrir' ? 'Motivo (ex.: documento sem assinatura)' : 'Motivo do cancelamento'}
+            placeholder={
+              modo === 'reabrir'
+                ? 'Motivo (ex.: documento sem assinatura)'
+                : 'Motivo do cancelamento'
+            }
             value={motivo}
-            onChange={(e) => { setMotivo(e.target.value); }}
+            onChange={(e) => {
+              setMotivo(e.target.value);
+            }}
             autoFocus
           />
           {erro ? <p className="sol-erro">{erro}</p> : null}
           <div className="sol-confirma-botoes">
-            <button className={`sol-btn ${modo === 'reabrir' ? 'sol-btn-atencao' : 'sol-btn-perigo'}`} onClick={executar} disabled={pendente}>
-              {pendente ? 'Enviando…' : modo === 'reabrir' ? 'Confirmar reabertura' : 'Confirmar cancelamento'}
+            <button
+              className={`sol-btn ${modo === 'reabrir' ? 'sol-btn-atencao' : 'sol-btn-perigo'}`}
+              onClick={executar}
+              disabled={pendente}
+            >
+              {pendente
+                ? 'Enviando…'
+                : modo === 'reabrir'
+                  ? 'Confirmar reabertura'
+                  : 'Confirmar cancelamento'}
             </button>
-            <button className="sol-btn" onClick={() => { setModo('nenhum'); setErro(null); }} disabled={pendente}>Voltar</button>
+            <button
+              className="sol-btn"
+              onClick={() => {
+                setModo('nenhum');
+                setErro(null);
+              }}
+              disabled={pendente}
+            >
+              Voltar
+            </button>
           </div>
         </div>
       ) : null}

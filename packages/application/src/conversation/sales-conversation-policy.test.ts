@@ -179,34 +179,18 @@ describe('Decreto · JORNADA 1 — ONBOARDING_DOCUMENTAL', () => {
     expect(c).toContain('Painel do Advogado (Jornada 2)');
   });
 
-  it('GUARDA GO-LIVE: arquivo enviado NESTE turno ⇒ nunca negar a chegada, nunca pedir com registro pendente', () => {
+  it('GUARDA GO-LIVE (5ª rodada): turno com arquivo ⇒ SÓ o ack — a progressão é automática', () => {
     const c = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL', arquivo: 'hiscon.pdf' })).conduta;
     expect(c).toContain('ACABOU de enviar um arquivo NESTA mensagem');
-    expect(c).toContain('Confirme que ele CHEGOU');
-    // Regressão da 4ª rodada: "ainda não chegou aqui do meu lado" dito a quem
-    // ACABARA de mandar o verso — negar recebimento é PROIBIDO.
+    expect(c).toContain('APENAS a confirmação');
+    // Regressão da 4ª rodada: negar recebimento é PROIBIDO.
     expect(c).toContain('PROIBIDO dizer que não chegou');
-    // Regressão da 3ª rodada: a guarda antiga mandava "mencionar o outro
-    // documento" — e a AHRI saltava do RG-frente direto ao comprovante.
+    // Regressão da 3ª rodada: nunca mais "mencionar o outro documento".
     expect(c).not.toContain('mencione apenas esse outro');
-    // Lista atualizada ⇒ pedir o próximo (incl. o verso do RG, que não é repetição).
-    expect(c).toContain('se for o VERSO do RG, peça');
-    // Registro pendente ⇒ NÃO pedir NADA (o arquivo pode ser o que faltava).
-    expect(c).toContain('NÃO peça NENHUM documento nesta resposta');
-  });
-
-  it('guarda + contabilidade com RG de 1 face ⇒ o "Solicite AGORA" pede o VERSO e a guarda o permite', () => {
-    const c = politicaDaMissao(contexto({
-      missao: 'ONBOARDING_DOCUMENTAL',
-      arquivo: 'IMG_1.jpg',
-      onboarding: {
-        recebidos: ['RG (uma das faces)'],
-        faltando: ['o VERSO do RG (a parte de trás do documento)', 'comprovante de endereço', 'HISCON (histórico de empréstimos consignados do INSS)'],
-        proximo: 'o VERSO do RG (a parte de trás do documento)',
-      },
-    })).conduta;
-    expect(c).toContain('Solicite AGORA, nesta resposta, APENAS o próximo: o VERSO do RG');
-    expect(c).toContain('é a outra face, não repetição');
+    // 5ª rodada: a conversa NUNCA pede documento no turno do arquivo — a
+    // mensagem automática de progressão ("✅ Registrado: X! Agora: Y") faz isso.
+    expect(c).toContain('PEDIR QUALQUER documento nesta resposta');
+    expect(c).toContain('mensagem automática logo em seguida');
   });
 
   it('sem arquivo no turno ⇒ a guarda não aparece', () => {

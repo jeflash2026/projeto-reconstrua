@@ -33,6 +33,7 @@ const docReconhecido = (id: string, fileName: string): StoredEvent =>
 
 function harness(textos: Record<string, string | null>, chatResolvivel = true) {
   const pendencias: string[][] = [];
+  const progressos: string[] = [];
   const runtime = new OnboardingDocumentalRuntime({
     store: new JsonOnboardingDocumentalStore(new InMemoryJsonStore()),
     leitor: { texto: (id) => Promise.resolve(textos[id] ?? null) },
@@ -43,8 +44,9 @@ function harness(textos: Record<string, string | null>, chatResolvivel = true) {
     chatDaMissao: () => Promise.resolve(chatResolvivel ? CHAT : null),
     observability: new ObservabilityRuntime(),
     clock: new TestClock(),
+    comunicador: { enviar: (_c, texto) => { progressos.push(texto); return Promise.resolve(); } },
   });
-  return { runtime, subscriber, pendencias };
+  return { runtime, subscriber, pendencias, progressos };
 }
 
 describe('Decreto · a jornada alimentada pelos eventos reais', () => {
@@ -56,8 +58,14 @@ describe('Decreto · a jornada alimentada pelos eventos reais', () => {
 
     await h.subscriber.handle(docReconhecido('d1', 'doc.pdf'));
     expect((await h.runtime.visao(CHAT))?.proximo).toContain('RG'); // HISCON chegou fora de ordem; o próximo é o RG
+    // 5ª rodada — PROGRESSÃO AUTOMÁTICA: a AHRI avisa sozinha e pede o próximo.
+    expect(h.progressos[0]).toContain('✅ Registrado: HISCON');
+    expect(h.progressos[0]).toContain('Agora me manda, por favor: RG');
+
     await h.subscriber.handle(docReconhecido('d2', 'IMG_1.jpg'));
+    expect(h.progressos[1]).toContain('✅ Registrado: CNH');
     await h.subscriber.handle(docReconhecido('d3', 'IMG_2.jpg'));
+    expect(h.progressos[2]).toContain('documentação inicial está completa');
 
     expect(await h.runtime.estaCompleto(CHAT)).toBe(true); // ⇒ ANALISE_ADMINISTRATIVA
     expect(h.pendencias.at(-1)).toEqual([]); // ALIR/Readiness: nada pendente

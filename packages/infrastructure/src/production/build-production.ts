@@ -586,6 +586,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       // a AHRI só responde depois de ENXERGAR o documento. O drain processa o
       // lote em paralelo (o DocumentLinkSubscriber não é bloqueado pela espera).
       sleeper,
+      // PROGRESSÃO AUTOMÁTICA (5ª rodada): "✅ Registrado: X! Agora: Y" —
+      // autorada, sem LLM, gravada na memória da conversa (a AHRI fica ciente).
+      comunicador: {
+        enviar: async (chatId, texto) => {
+          const receipt = await gateway.sendText(chatId, texto);
+          await convMemory.recordOutbound(chatId, texto, receipt.providerMessageId);
+        },
+      },
     }),
     1,
     clock.now(),

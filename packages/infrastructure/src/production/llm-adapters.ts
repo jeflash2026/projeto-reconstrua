@@ -174,13 +174,17 @@ class LlmPerception implements LlmPerceptionPort {
     const t0 = this.clock.now().getTime();
     const system = `${this.config.prompts.global}\n\nTAREFA DE PERCEPÇÃO: analise a mensagem e responda APENAS um JSON: {"summary":string,"sentiment":"positive|neutral|negative|anxious|confused|unknown","urgency":"low|normal|high|unknown","detectedIntentSignal":string|null,"detectedArtifacts":string[],"language":string|null,"perceivedRelevance":"RELEVANT|INFORMATIVE|null","perceivedPurpose":"greeting|smalltalk|question|service_request|unknown"}. perceivedPurpose: greeting=saudação/apresentação sem pedido; smalltalk=conversa social; question=dúvida genérica; service_request=a pessoa PEDE atendimento/serviço (ex.: quer dar entrada, resolver aposentadoria/benefício); unknown=incerto. Você PERCEBE; nunca decide.`;
     const user = `Tipo: ${envelope.kind}\nTexto: ${envelope.text ?? envelope.editedText ?? '(sem texto)'}\nArquivo: ${envelope.fileName ?? '-'}\nContexto recente: ${context.recentSummary ?? '-'}`;
-    try {
-      const raw = (await this.llm.complete(system, user)).text;
-      const parsed = parseEnrichment(raw);
-      this.track('perception', this.clock.now().getTime() - t0, parsed !== null, parsed === null ? `parse falhou; resposta="${raw.slice(0, 200)}"` : undefined);
-      if (parsed) return parsed;
-    } catch (e) {
-      this.track('perception', this.clock.now().getTime() - t0, false, e instanceof Error ? e.message : String(e));
+    // 5ª rodada: as falhas intermitentes derrubavam o turno inteiro — UMA
+    // retentativa imediata resolve a maioria dos transientes (parse/vazio/erro).
+    for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
+      try {
+        const raw = (await this.llm.complete(system, user)).text;
+        const parsed = parseEnrichment(raw);
+        this.track('perception', this.clock.now().getTime() - t0, parsed !== null, parsed === null ? `parse falhou (tentativa ${String(tentativa)}); resposta="${raw.slice(0, 200)}"` : undefined);
+        if (parsed) return parsed;
+      } catch (e) {
+        this.track('perception', this.clock.now().getTime() - t0, false, `${e instanceof Error ? e.message : String(e)} (tentativa ${String(tentativa)})`);
+      }
     }
     // Degrade explícito: percepção neutra factual (nunca inventa). GO-LIVE 9C:
     // purpose 'unknown' = FAIL-SAFE — sem entendimento, nenhum onboarding nasce.
@@ -231,12 +235,15 @@ class LlmExpression implements LlmExpressionPort {
       `NUNCA repita estas frases: ${request.avoidPhrases.slice(0, 6).join(' | ') || '-'}`,
       'Responda APENAS a mensagem final ao cliente, sem aspas.',
     ].join('\n');
-    try {
-      const raw = (await this.llm.complete(system, user)).text.trim();
-      this.track('expression', this.clock.now().getTime() - t0, raw !== '', raw === '' ? 'resposta vazia do modelo' : undefined);
-      if (raw !== '') return raw;
-    } catch (e) {
-      this.track('expression', this.clock.now().getTime() - t0, false, e instanceof Error ? e.message : String(e));
+    // 5ª rodada: UMA retentativa imediata antes do degrade (transientes).
+    for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
+      try {
+        const raw = (await this.llm.complete(system, user)).text.trim();
+        this.track('expression', this.clock.now().getTime() - t0, raw !== '', raw === '' ? `resposta vazia do modelo (tentativa ${String(tentativa)})` : undefined);
+        if (raw !== '') return raw;
+      } catch (e) {
+        this.track('expression', this.clock.now().getTime() - t0, false, `${e instanceof Error ? e.message : String(e)} (tentativa ${String(tentativa)})`);
+      }
     }
     // Degrade explícito (GO-LIVE 9B + correção do teste real de 2026-07-20):
     // o fallback antigo ("volto a falar em breve") criava um BECO SEM SAÍDA no

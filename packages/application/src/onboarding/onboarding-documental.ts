@@ -146,6 +146,29 @@ export function rotuloDoPendente(state: OnboardingDocumentalState, codigo: Docum
   return ROTULO_INICIAL[codigo];
 }
 
+/** Rótulo humano do que acabou de ser registrado (a última entrada). */
+export function rotuloDoRegistrado(r: DocumentoInicialRecebido, state: OnboardingDocumentalState): string {
+  if (r.codigo === 'IDENTIDADE') {
+    if (r.subtipo === 'cnh') return 'CNH';
+    const faces = state.recebidos.filter((x) => x.codigo === 'IDENTIDADE' && x.subtipo !== 'cnh').length;
+    return faces >= 2 ? 'RG (frente e verso)' : 'a primeira face do RG';
+  }
+  return r.codigo === 'CNIS' ? 'HISCON' : 'comprovante de endereço';
+}
+
+/** PROGRESSÃO AUTOMÁTICA da triagem (5ª rodada — solução definitiva): quando o
+ *  registro conclui, a AHRI AVISA sozinha e pede o próximo — mensagem AUTORADA
+ *  e determinística; zero improviso de LLM no passo mais crítico do funil. */
+export function mensagemDeProgresso(state: OnboardingDocumentalState): string {
+  const ultimo = state.recebidos[state.recebidos.length - 1];
+  const registrado = ultimo !== undefined ? rotuloDoRegistrado(ultimo, state) : 'documento';
+  const prox = proximo(state);
+  if (prox === null) {
+    return `✅ Registrado: ${registrado}! Com isso sua documentação inicial está completa — já te mando os próximos passos.`;
+  }
+  return `✅ Registrado: ${registrado}! Agora me manda, por favor: ${rotuloDoPendente(state, prox)}.`;
+}
+
 // ── Portas ────────────────────────────────────────────────────────────────────
 export interface OnboardingDocumentalStore {
   load(chatId: string): Promise<OnboardingDocumentalState | null>;
@@ -174,6 +197,9 @@ export interface ResultadoDeRecebimento {
   readonly faltando: readonly DocumentoInicial[];
   /** true ⇒ não havia texto legível E o nome do arquivo não bastou — vale REtentar. */
   readonly classificacaoPendente: boolean;
+  /** Registro NOVO concluído ⇒ a mensagem AUTORADA de progressão da triagem
+   *  ("✅ Registrado: X! Agora me manda: Y") — null quando nada novo entrou. */
+  readonly progresso: string | null;
 }
 
 export class OnboardingDocumentalRuntime {
@@ -200,19 +226,19 @@ export class OnboardingDocumentalRuntime {
     const atual = (await this.deps.store.load(chatId)) ?? novoOnboarding(chatId, missionId, now);
     if (completo(atual)) {
       // Jornada 1 já concluída: documentos novos pertencem ao acervo/Jornada 2.
-      return { classificacao: 'OUTRO', jaRecebido: false, faltando: [], classificacaoPendente: false };
+      return { classificacao: 'OUTRO', jaRecebido: false, faltando: [], classificacaoPendente: false, progresso: null };
     }
 
     const texto = this.deps.leitor !== null ? await this.deps.leitor.texto(documentId).catch(() => null) : null;
     const classificacao = classificarDocumentoInicial(fileName, texto ?? '');
     if (classificacao === 'OUTRO') {
       // Sem texto legível AINDA (o vínculo de mídia é assíncrono) ⇒ vale retentar.
-      return { classificacao, jaRecebido: false, faltando: faltando(atual), classificacaoPendente: texto === null };
+      return { classificacao, jaRecebido: false, faltando: faltando(atual), classificacaoPendente: texto === null, progresso: null };
     }
     // Já completo para este código ⇒ reenvio não duplica. IDENTIDADE via RG
     // aceita a SEGUNDA face (frente + verso) antes de fechar.
     if (codigoCompleto(atual, classificacao)) {
-      return { classificacao, jaRecebido: true, faltando: faltando(atual), classificacaoPendente: false };
+      return { classificacao, jaRecebido: true, faltando: faltando(atual), classificacaoPendente: false, progresso: null };
     }
 
     const recebido: DocumentoInicialRecebido = {
@@ -229,7 +255,7 @@ export class OnboardingDocumentalRuntime {
     };
     await this.deps.store.save(state);
     await this.sincronizarPendencias(state);
-    return { classificacao, jaRecebido: false, faltando: faltando(state), classificacaoPendente: false };
+    return { classificacao, jaRecebido: false, faltando: faltando(state), classificacaoPendente: false, progresso: mensagemDeProgresso(state) };
   }
 
   /** A jornada está 100%? (fonte do estado ANALISE_ADMINISTRATIVA da conversa) */

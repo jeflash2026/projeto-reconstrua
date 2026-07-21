@@ -162,5 +162,5 @@ it('classificação AINDA pendente (contabilidade não mudou) ⇒ agradece e NÃ
   const sg = styleGuidances[0] ?? '';
   expect(sg).toContain('ACABOU de enviar um arquivo NESTA mensagem');
   expect(sg).toContain('PROIBIDO dizer que não chegou'); // jamais negar o recebimento
-  expect(sg).toContain('NÃO peça NENHUM documento nesta resposta'); // registrando ⇒ não pedir nada
+  expect(sg).toContain('PEDIR QUALQUER documento nesta resposta'); // ack apenas; a progressão é automática
 });

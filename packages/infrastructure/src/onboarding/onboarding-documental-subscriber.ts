@@ -60,6 +60,11 @@ export interface OnboardingSubscriberDeps {
    *  o subscriber ESPERA a transcrição DENTRO do turno (o drain roda antes da
    *  fala): a AHRI só responde depois de ENXERGAR o documento. */
   readonly sleeper?: { sleep(ms: number): Promise<void> } | null;
+  /** PROGRESSÃO AUTOMÁTICA (5ª rodada): registro concluído ⇒ a AHRI envia
+   *  SOZINHA a mensagem autorada "✅ Registrado: X! Agora me manda: Y" —
+   *  determinística, sem LLM, no turno OU segundos depois (retry). A conversa
+   *  do turno só dá o ack ("recebi, registrando"); quem progride é esta. */
+  readonly comunicador?: { enviar(chatId: string, texto: string): Promise<void> } | null;
 }
 
 /** Espera local pela transcrição: N tentativas com intervalo — dentro do turno. */
@@ -109,6 +114,14 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
       if (resultado.classificacaoPendente) {
         // Texto ainda não transcrito E nome do arquivo insuficiente ⇒ retry 2A.2.
         throw new Error(`onboarding: classificação pendente do documento ${event.streamId} (transcrição ausente)`);
+      }
+      // PROGRESSÃO AUTOMÁTICA: registro novo ⇒ a AHRI avisa e pede o próximo,
+      // sozinha (best-effort: falha de envio nunca desfaz o registro; a cliente
+      // ainda pode perguntar e a conversa, com a contabilidade certa, responde).
+      if (resultado.progresso !== null && d.comunicador) {
+        await d.comunicador.enviar(chatId, resultado.progresso).catch((e: unknown) => {
+          d.observability.error('onboarding', 'progresso-envio', now, e instanceof Error ? e.message : String(e));
+        });
       }
       d.observability.event(
         'onboarding',

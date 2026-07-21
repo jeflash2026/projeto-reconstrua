@@ -106,7 +106,10 @@ export class PgEventStore implements EventStore {
               version,
               e.eventType,
               e.isRelevant,
-              JSON.stringify(e.payload),
+              // Objeto CRU: o driver serializa para jsonb. JSON.stringify aqui
+              // fazia o driver codificar DE NOVO ⇒ jsonb-string (payload chegava
+              // como string aos subscribers; missionId/origin viravam undefined).
+              e.payload,
               provenance.factRef,
               provenance.actor,
               provenance.decisionType,

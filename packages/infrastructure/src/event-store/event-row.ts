@@ -18,6 +18,28 @@ export function asStringOrNull(value: unknown): string | null {
   return JSON.stringify(value);
 }
 
+/** Decodifica o payload defensivamente: linhas históricas foram gravadas com
+ *  dupla codificação (jsonb-STRING — o JSON.stringify no INSERT somado à
+ *  serialização do driver) e chegavam aqui como string ⇒ missionId/origin
+ *  viravam undefined nos subscribers/projetores. String JSON ⇒ parse. */
+export function decodePayload(value: unknown): Readonly<Record<string, unknown>> {
+  if (typeof value === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Readonly<Record<string, unknown>>;
+      }
+    } catch {
+      // não-JSON ⇒ payload vazio (nunca lança na leitura)
+    }
+    return {};
+  }
+  if (value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Readonly<Record<string, unknown>>;
+  }
+  return {};
+}
+
 export function rowToStoredEvent(r: SqlRow): StoredEvent {
   return {
     id: String(r.id),
@@ -26,7 +48,7 @@ export function rowToStoredEvent(r: SqlRow): StoredEvent {
     version: Number(r.version),
     eventType: String(r.event_type),
     isRelevant: Boolean(r.is_relevant),
-    payload: (r.payload ?? {}) as Readonly<Record<string, unknown>>,
+    payload: decodePayload(r.payload),
     provenance: {
       factRef: asStringOrNull(r.fact_ref),
       actor: asStringOrNull(r.actor),

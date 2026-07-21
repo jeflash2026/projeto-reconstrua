@@ -92,6 +92,21 @@ describe('EvolutionMediaClient · base64 embutido no webhook (base64:true)', () 
     expect(fetched).toEqual({ base64: JPEG_B64, mime: 'image/jpeg', fileName: null });
   });
 
+  it('PRODUÇÃO REAL (12ª rodada): Evolution responde HTTP 201 com o base64 ⇒ ACEITO (res.ok, não ===200)', async () => {
+    const http = httpStub(() => ({
+      status: 201,
+      body: { mediaType: 'imageMessage', fileName: '3EB0.jpeg', mimetype: 'image/jpeg', base64: JPEG_B64 },
+    }));
+    const client = new EvolutionMediaClient(http.client, CONFIG);
+    const fetched = await client.fetch({
+      data: {
+        key: { id: 'MSG-201', remoteJid: '5517996332346@s.whatsapp.net', fromMe: false },
+        message: { imageMessage: { mimetype: 'image/jpeg' } },
+      },
+    });
+    expect(fetched).toEqual({ base64: JPEG_B64, mime: 'image/jpeg', fileName: '3EB0.jpeg' });
+  });
+
   it('fallback com Evolution sem a mensagem (o cenário real: 400/404) ⇒ null', async () => {
     const http = httpStub(() => ({ status: 400, body: { message: 'Message not found' } }));
     const client = new EvolutionMediaClient(http.client, CONFIG);

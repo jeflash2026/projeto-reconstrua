@@ -45,7 +45,8 @@ export class EvolutionMediaClient implements MediaGatewayPort {
       { apikey: this.config.apiKey },
       { message: { key: minimalKey }, convertToMp4: false },
     );
-    if (response.status !== 200) {
+    // 2xx completo (a Evolution real responde 201) — igual ao res.ok do fetch.
+    if (response.status < 200 || response.status >= 300) {
       this.log(`evolution getBase64: HTTP ${String(response.status)} :: ${excerpt(response.body)}`);
       return null;
     }

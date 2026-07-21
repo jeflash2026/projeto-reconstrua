@@ -89,6 +89,20 @@ describe('DirectWhatsAppMediaClient · o payload REAL do webhook', () => {
     expect(fetched).toEqual({ base64: pdf.toString('base64'), mime: 'application/pdf', fileName: 'HISCON.pdf' });
   });
 
+  it('mediaKey como BYTES serializados (objeto {"0":n,…} — payload real da Evolution) ⇒ decifra igual', async () => {
+    const mediaKey = randomBytes(32);
+    const encrypted = encryptLikeWhatsApp(JPEG, mediaKey, 'image');
+    const serializado: Record<string, number> = {};
+    mediaKey.forEach((b, i) => {
+      serializado[String(i)] = b;
+    });
+    const client = new DirectWhatsAppMediaClient(() => Promise.resolve(new Uint8Array(encrypted)));
+    const fetched = await client.fetch(
+      webhook({ url: 'https://mmg.whatsapp.net/d/f/abc.enc', mediaKey: serializado, mimetype: 'image/jpeg' }),
+    );
+    expect(fetched).toEqual({ base64: JPEG.toString('base64'), mime: 'image/jpeg', fileName: null });
+  });
+
   it('sem url/mediaKey (texto puro) ⇒ null sem download', async () => {
     const client = new DirectWhatsAppMediaClient(() => {
       throw new Error('nao deveria baixar');

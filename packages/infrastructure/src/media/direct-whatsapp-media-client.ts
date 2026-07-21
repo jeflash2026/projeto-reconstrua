@@ -22,6 +22,29 @@ interface Candidato {
   readonly media: Record<string, unknown>;
 }
 
+/** mediaKey pode vir como string base64 OU como bytes serializados (objeto
+ *  {"0":n,"1":n,…} ou array) — a Evolution serializa binários do protobuf assim
+ *  (mesmo padrão do fileLength {low,high,unsigned} visto no payload real). */
+function mediaKeyBase64(value: unknown): string | null {
+  const direto = asString(value);
+  if (direto !== null && direto !== '') return direto;
+  if (Array.isArray(value) && value.length > 0 && value.every((n): n is number => typeof n === 'number')) {
+    return Buffer.from(value).toString('base64');
+  }
+  const rec = asRecord(value);
+  if (rec !== null) {
+    const chaves = Object.keys(rec);
+    if (chaves.length > 0 && chaves.every((k) => /^\d+$/.test(k))) {
+      const bytes = chaves
+        .sort((a, b) => Number(a) - Number(b))
+        .map((k) => rec[k])
+        .filter((n): n is number => typeof n === 'number');
+      if (bytes.length === chaves.length) return Buffer.from(bytes).toString('base64');
+    }
+  }
+  return null;
+}
+
 /** imageMessage/documentMessage do evento (inclui documentWithCaptionMessage). */
 function candidato(message: Record<string, unknown>): Candidato | null {
   const image = asRecord(message['imageMessage']);
@@ -49,8 +72,8 @@ export class DirectWhatsAppMediaClient implements MediaGatewayPort {
     const alvo = candidato(message);
     if (alvo === null) return null;
     const url = asString(alvo.media['url']);
-    const mediaKey = asString(alvo.media['mediaKey']);
-    if (url === null || url === '' || mediaKey === null || mediaKey === '') {
+    const mediaKey = mediaKeyBase64(alvo.media['mediaKey']);
+    if (url === null || url === '' || mediaKey === null) {
       this.log(`direct: sem url/mediaKey no ${alvo.tipo} (chaves=[${Object.keys(alvo.media).join(',')}])`);
       return null;
     }

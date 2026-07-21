@@ -338,6 +338,18 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       estimativaDias,
       whatsapp: officialNumber,
     },
+    // 15ª rodada — rótulos HUMANOS no Portal ("RG (frente e verso)" em vez de
+    // "documento 3e77f2a2"). Lazy: onboardingDocumental é declarado adiante
+    // nesta montagem; a closure só o toca em request-time.
+    rotulosDocumentais: async (chatId) => {
+      const v = await onboardingDocumental.visao(chatId);
+      if (v === null || v.recebidos.length === 0) return null;
+      const FACE_RG = 'RG (uma das faces)';
+      const faces = v.recebidos.filter((r) => r === FACE_RG).length;
+      const rg = faces >= 2 ? ['RG (frente e verso)'] : faces === 1 ? [FACE_RG] : [];
+      const demais = v.recebidos.filter((r, i, a) => r !== FACE_RG && a.indexOf(r) === i);
+      return [...rg, ...demais];
+    },
   });
 
   // ── PC-R4 · CONTINUIDADE DA RELAÇÃO: o pacote de FATOS do caso para a conversa.
@@ -536,7 +548,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const gateway =
     wiring.gateway ??
     (evolutionConfigured
-      ? new EvolutionGateway(resilientHttp, { baseUrl: config.evolution.baseUrl, instance: config.evolution.instance, apiKey: config.evolution.apiKey }, clock)
+      ? // 15ª rodada — SEM retry cego em ENVIO de mensagem: o retry do
+        // ResilientHttpClient reenviava mensagens que a Evolution JÁ tinha
+        // aceitado (resposta lenta/5xx pós-envio) ⇒ cliente recebia 2×. Envio
+        // não é idempotente; leituras (getBase64) continuam com o resiliente.
+        new EvolutionGateway(new FetchHttpClient(), { baseUrl: config.evolution.baseUrl, instance: config.evolution.instance, apiKey: config.evolution.apiKey }, clock)
       : new InMemoryConversationGateway(clock));
 
   // ── 2B: Conversa (peças públicas; handles retidos para a ponte 3B) ───────────

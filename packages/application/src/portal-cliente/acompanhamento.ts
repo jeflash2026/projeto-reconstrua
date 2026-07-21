@@ -72,6 +72,10 @@ export interface AcompanhamentoDeps {
   /** Fonte do fato de liberação (PC-R3); até lá, () => null. */
   readonly liberacao: (clienteId: string) => Promise<LiberacaoPortal | null>;
   readonly config: AcompanhamentoConfig;
+  /** 15ª rodada — rótulos HUMANOS dos documentos (da contabilidade documental:
+   *  "RG (frente e verso)", "Comprovante de endereço", "HISCON") no lugar dos
+   *  ids técnicos da memória ("documento 3e77f2a2"). Ausente/null ⇒ memória. */
+  readonly rotulosDocumentais?: (chatId: string) => Promise<readonly string[] | null>;
 }
 
 const ETAPAS = ['Documentação', 'Análise técnica', 'Processo', 'Conclusão'] as const;
@@ -244,7 +248,12 @@ export class AcompanhamentoView {
     }
 
     const memoria = await this.deps.memory.load(cliente.chatId);
-    const documentosRecebidos = (memoria?.documentsSent ?? []).map((d) => d.label);
+    // Preferência: rótulos humanos da contabilidade documental; memória = fallback.
+    const rotulos = this.deps.rotulosDocumentais
+      ? await this.deps.rotulosDocumentais(cliente.chatId).catch(() => null)
+      : null;
+    const documentosRecebidos =
+      rotulos !== null && rotulos.length > 0 ? [...rotulos] : (memoria?.documentsSent ?? []).map((d) => d.label);
 
     const liberacao = await this.deps.liberacao(clienteId);
     const dias = this.deps.config.estimativaDias;

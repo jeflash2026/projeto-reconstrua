@@ -25,15 +25,29 @@ export interface JornadaRecord {
   readonly consentiu: boolean;
   readonly recusou: boolean;
   /** O que o ÚLTIMO turno capturou (nuance de fraseado: "Prazer, X!"). */
-  readonly ultimaCaptura: 'nome' | 'cidade' | 'nome-cidade' | 'consentimento' | null;
+  readonly ultimaCaptura: 'nome' | 'cidade' | 'nome-cidade' | 'consentimento' | 'adiamento' | null;
   /** O turno respondeu só o ACK (registro processando) e a PROGRESSÃO ainda
    *  não foi falada — a classificação tardia deve enviá-la sozinha. */
   readonly aguardandoProgressao: boolean;
+  /** Caso Denise (2026-07-21): quantas vezes o cliente ADIOU o envio nesta
+   *  espera — 1º aviso ganha resposta completa; repetições, um "Combinado!"
+   *  curto (nunca a mesma cobrança de novo). Zera quando um documento chega. */
+  readonly avisosDeAdiamento: number;
   readonly atualizadoEm: Date;
 }
 
 export function novaJornada(chatId: string, now: Date): JornadaRecord {
-  return { chatId, nome: null, cidade: null, consentiu: false, recusou: false, ultimaCaptura: null, aguardandoProgressao: false, atualizadoEm: now };
+  return {
+    chatId,
+    nome: null,
+    cidade: null,
+    consentiu: false,
+    recusou: false,
+    ultimaCaptura: null,
+    aguardandoProgressao: false,
+    avisosDeAdiamento: 0,
+    atualizadoEm: now,
+  };
 }
 
 /** Os FATOS de que a derivação precisa (jornada + contabilidade documental). */
@@ -63,8 +77,10 @@ export function derivarEtapa(f: FatosDaJornada): EtapaJornada {
 // ── Interpretações DETERMINÍSTICAS do texto do cliente ────────────────────────
 
 const SAUDACOES = /^(oi+|ol[áa]+|bom dia|boa tarde|boa noite|hey|opa|e a[íi])[!.,\s]*$/i;
-const AFIRMATIVAS = /\b(sim|quero|pode|claro|vamos|aceito|bora|com certeza|isso|positivo|tenho interesse|ok|okay|beleza|demorou|manda|pode sim|quero sim)\b/i;
-const NEGATIVAS = /\b(n[ãa]o|nao quero|agora n[ãa]o|depois|talvez mais tarde|sem interesse|deixa)\b/i;
+const AFIRMATIVAS =
+  /\b(sim|quero|pode|claro|vamos|aceito|bora|com certeza|isso|positivo|tenho interesse|ok|okay|beleza|demorou|manda|pode sim|quero sim)\b/i;
+const NEGATIVAS =
+  /\b(n[ãa]o|nao quero|agora n[ãa]o|depois|talvez mais tarde|sem interesse|deixa)\b/i;
 
 export function ehSaudacaoPura(texto: string): boolean {
   return SAUDACOES.test(texto.trim());
@@ -91,8 +107,12 @@ export function capturarIdentificacao(
   if (t === '' || ehSaudacaoPura(t)) return { nome: null, cidade: null };
 
   const limparCidade = (s: string): string =>
-    s.replace(/^(sou\s+de|moro\s+em|de|da|do|em)\s+/i, '').replace(/\s*[-–]\s*[A-Z]{2}$/u, (m) => m).trim();
-  const limparNome = (s: string): string => s.replace(/^(me\s+chamo|meu\s+nome\s+[ée]|sou\s+a|sou\s+o|sou)\s+/i, '').trim();
+    s
+      .replace(/^(sou\s+de|moro\s+em|de|da|do|em)\s+/i, '')
+      .replace(/\s*[-–]\s*[A-Z]{2}$/u, (m) => m)
+      .trim();
+  const limparNome = (s: string): string =>
+    s.replace(/^(me\s+chamo|meu\s+nome\s+[ée]|sou\s+a|sou\s+o|sou)\s+/i, '').trim();
 
   // "Isabel Rodrigues eu sou de santa ernestina" (SEM vírgula) — o conector
   // "sou de"/"moro em" separa nome e cidade na mesma frase.
@@ -100,18 +120,21 @@ export function capturarIdentificacao(
   if (conector) {
     const nome = limparNome(conector[1] ?? '');
     const cidade = limparCidade(conector[2] ?? '');
-    if (nome !== '' && cidade !== '') return { nome, cidade };
+    if (nome !== '' && pareceNome(nome) && cidade !== '') return { nome, cidade };
   }
 
   const virgula = t.indexOf(',');
   if (virgula > 0) {
     const nome = limparNome(t.slice(0, virgula));
     const cidade = limparCidade(t.slice(virgula + 1));
-    return { nome: nome !== '' ? nome : null, cidade: cidade !== '' ? cidade : null };
+    return {
+      nome: nome !== '' && pareceNome(nome) ? nome : null,
+      cidade: cidade !== '' ? cidade : null,
+    };
   }
   if (atual.nome === null) {
     const nome = limparNome(t);
-    return { nome: nome !== '' ? nome : null, cidade: null };
+    return { nome: nome !== '' && pareceNome(nome) ? nome : null, cidade: null };
   }
   if (atual.cidade === null) {
     const cidade = limparCidade(t);
@@ -120,9 +143,39 @@ export function capturarIdentificacao(
   return { nome: null, cidade: null };
 }
 
-const PERGUNTA_DE_DIREITO = /\bdireito\b|\bdireitos\b|me\s+enquadr|tenho\s+como|eleg[íi]v|fa[çc]o\s+jus/i;
+const PERGUNTA_DE_DIREITO =
+  /\bdireito\b|\bdireitos\b|me\s+enquadr|tenho\s+como|eleg[íi]v|fa[çc]o\s+jus/i;
 export function ehPerguntaDeDireito(texto: string): boolean {
   return PERGUNTA_DE_DIREITO.test(texto);
+}
+
+// Caso Denise (2026-07-21, cliente real): "posso deixar p amanha nao estou em
+// casa" recebia a MESMA cobrança de documento três vezes. ADIAMENTO é um fato
+// da conversa: reconhecido deterministicamente, a resposta vira acolhimento
+// ("sem problema, combinado!") — nunca a repetição da cobrança.
+// ATENÇÃO: nunca usar \b ENCOSTADO em letra acentuada — em JS, "ã"/"á" não são
+// "word chars" e `amanh[ãa]\b` jamais casa com "amanhã" (defeito pego em teste).
+const ADIAMENTO =
+  /\bamanh[ãa]|\bmais\s+tarde\b|\blogo\s+cedo\b|\bdepois\s+(te\s+)?(mando|envio)\b|\bassim\s+que\s+(chegar|puder|der|conseguir)\b|\bquando\s+(eu\s+)?(chegar|puder|der|conseguir)\b|\bn[ãa]o\s+(estou|to|t[ôo])\s+em\s+casa\b|\bhoje\s+n[ãa]o\s+(consigo|d[áa]|vai\s+dar)|\bs[óo]\s+(amanh[ãa]|[àa]\s+noite|de\s+manh[ãa]|semana\s+que\s+vem)|\bdeixa\s+(pra|para)\s+(amanh[ãa]|depois|mais\s+tarde)/i;
+export function ehAdiamento(texto: string): boolean {
+  return ADIAMENTO.test(texto);
+}
+
+/** Um candidato a NOME precisa PARECER nome: sem '?', sem dígitos, até 6
+ *  palavras e sem vocabulário do funil ("posso ter mais informações…" NUNCA é
+ *  nome — defeito real do primeiro contato da Denise). */
+export function pareceNome(s: string): boolean {
+  const t = s.trim();
+  if (t === '' || t.length > 60) return false;
+  if (/[?!0-9@#/\\]/.test(t)) return false;
+  if (t.split(/\s+/).length > 6) return false;
+  if (
+    /\b(posso|pode|informa[cç][ãa]o|informa[cç][õo]es|an[áa]lise|consignado|benef[íi]cio|d[úu]vida|ajuda|documento|como\s+funciona|quero\s+saber|sobre\s+isso|gostaria)\b/i.test(
+      t,
+    )
+  )
+    return false;
+  return true;
 }
 
 // ── MENSAGENS AUTORADAS (o conteúdo do funil — a LLM nunca as decide) ─────────
@@ -131,14 +184,16 @@ export const MENSAGENS_JORNADA = {
   boasVindas:
     'Oi! 😊 Seja muito bem-vindo(a)! Me chamo Ahri e a partir de agora vou te acompanhar do começo ao fim dessa jornada.\n\n' +
     'Pra gente começar, pode me dizer seu nome completo e a cidade onde você mora?',
-  pedirNomeECidade: 'Pra eu te ajudar direitinho, me conta seu nome completo e a cidade onde você mora? 😊',
+  pedirNomeECidade:
+    'Pra eu te ajudar direitinho, me conta seu nome completo e a cidade onde você mora? 😊',
   pedirCidade: (nome: string): string => `Prazer, ${nome}! 😊 E de qual cidade você fala?`,
   pedirNome: 'E qual é o seu nome completo? 😊',
   explicacaoConsentimento: (nome: string): string =>
     `${nome !== '' ? `Prazer, ${nome}! ` : ''}Deixa eu te explicar rapidinho como funciona: nossa equipe analisa o seu consignado do INSS pra verificar se existe alguma irregularidade nos descontos do benefício. Se encontrarmos algo fora do previsto, aí sim é possível buscar a revisão e a recuperação desses valores.\n\n` +
     'A análise é gratuita e sem compromisso — e só depois dela dá pra saber se existe algum direito no seu caso.\n\n' +
     'Você tem interesse em fazer essa análise?',
-  reforcoConsentimento: 'Só me confirma: você tem interesse em fazer a análise gratuita do seu consignado? 😊',
+  reforcoConsentimento:
+    'Só me confirma: você tem interesse em fazer a análise gratuita do seu consignado? 😊',
   recusa:
     'Sem problemas! 😊 Fico à disposição — se mudar de ideia ou tiver qualquer dúvida sobre a análise, é só me chamar por aqui.',
   iniciarTriagem: (proximo: string): string =>
@@ -154,6 +209,12 @@ export const MENSAGENS_JORNADA = {
     `Recebi! ✅ Registrado: ${registrado}. Com isso sua documentação inicial está completa — já te mando os próximos passos. 🎉`,
   comprovanteConjuge:
     'Se você não tiver um comprovante de endereço no seu nome, o do seu cônjuge também vale, viu? 😊',
+  // Caso Denise: adiamento reconhecido ⇒ acolhimento, nunca a cobrança de novo.
+  adiamentoOk: (proximo: string): string =>
+    `Sem problema nenhum! 😊 Combinado — quando você conseguir, é só mandar o ${proximo} por aqui mesmo. Fico à disposição, obrigada! 🙏`,
+  adiamentoOkCurto: 'Combinado! 😊 Fico no aguardo então — qualquer coisa estou por aqui. Até já!',
+  documentoNaoIdentificado: (proximo: string): string =>
+    `Dei uma olhada aqui e essa imagem não parece ser o que eu estava esperando 😅 No momento preciso de: ${proximo}. Pode conferir e mandar de novo? Se tiver qualquer dúvida, me chama!`,
 } as const;
 
 /** A ENTRADA de um turno, já normalizada pelo runtime. */
@@ -191,7 +252,10 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
   if (entrada.tipo === 'documento') {
     if (registroDoTurnoConcluido(f, entrada) && f.ultimoRegistrado !== null) {
       if (f.docsCompletos) return MENSAGENS_JORNADA.documentoRegistradoCompleto(f.ultimoRegistrado);
-      return MENSAGENS_JORNADA.documentoRegistrado(f.ultimoRegistrado, f.proximoDocumento ?? 'o documento pendente');
+      return MENSAGENS_JORNADA.documentoRegistrado(
+        f.ultimoRegistrado,
+        f.proximoDocumento ?? 'o documento pendente',
+      );
     }
     return MENSAGENS_JORNADA.ackDocumento;
   }
@@ -212,7 +276,11 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
       return prefixoDireito + MENSAGENS_JORNADA.pedirNomeECidade;
     }
     case 'CONSENTIMENTO': {
-      if (r.ultimaCaptura === 'nome' || r.ultimaCaptura === 'cidade' || r.ultimaCaptura === 'nome-cidade') {
+      if (
+        r.ultimaCaptura === 'nome' ||
+        r.ultimaCaptura === 'cidade' ||
+        r.ultimaCaptura === 'nome-cidade'
+      ) {
         // Identificação recém-completa ⇒ explicação + pergunta de interesse (uma mensagem).
         return prefixoDireito + MENSAGENS_JORNADA.explicacaoConsentimento(r.nome ?? '');
       }
@@ -221,10 +289,19 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
     }
     case 'TRIAGEM': {
       const proximo = f.proximoDocumento ?? 'o documento pendente';
-      if (r.ultimaCaptura === 'consentimento') return prefixoDireito + MENSAGENS_JORNADA.iniciarTriagem(proximo);
-      const extraConjuge = /comprovante/i.test(proximo) && /não tenho|nao tenho|meu nome/i.test(entrada.texto)
-        ? `\n\n${MENSAGENS_JORNADA.comprovanteConjuge}`
-        : '';
+      if (r.ultimaCaptura === 'consentimento')
+        return prefixoDireito + MENSAGENS_JORNADA.iniciarTriagem(proximo);
+      // Caso Denise: "posso deixar p amanhã" ⇒ acolhimento (1º aviso completo;
+      // repetição ganha o "Combinado!" curto) — NUNCA a mesma cobrança de novo.
+      if (ehAdiamento(entrada.texto)) {
+        return r.avisosDeAdiamento > 1
+          ? MENSAGENS_JORNADA.adiamentoOkCurto
+          : MENSAGENS_JORNADA.adiamentoOk(proximo);
+      }
+      const extraConjuge =
+        /comprovante/i.test(proximo) && /não tenho|nao tenho|meu nome/i.test(entrada.texto)
+          ? `\n\n${MENSAGENS_JORNADA.comprovanteConjuge}`
+          : '';
       return prefixoDireito + MENSAGENS_JORNADA.aguardandoDocumento(proximo) + extraConjuge;
     }
     case 'CONCLUIDA':

@@ -7,6 +7,8 @@ import { describe, it, expect } from 'vitest';
 import {
   MENSAGENS_JORNADA,
   capturarIdentificacao,
+  ehAdiamento,
+  pareceNome,
   derivarEtapa,
   ehSaudacaoPura,
   interpretarInteresse,
@@ -19,7 +21,10 @@ import {
 const NOW = new Date('2026-07-20T21:00:00.000Z');
 const CHAT = '5517996332346@s.whatsapp.net';
 
-function fatos(over: Partial<JornadaRecord> = {}, docs: Partial<Omit<FatosDaJornada, 'registro'>> = {}): FatosDaJornada {
+function fatos(
+  over: Partial<JornadaRecord> = {},
+  docs: Partial<Omit<FatosDaJornada, 'registro'>> = {},
+): FatosDaJornada {
   return {
     registro: { ...novaJornada(CHAT, NOW), ...over },
     docsRecebidos: docs.docsRecebidos ?? 0,
@@ -30,15 +35,24 @@ function fatos(over: Partial<JornadaRecord> = {}, docs: Partial<Omit<FatosDaJorn
   };
 }
 
-const texto = (t: string, primeiro = false) => ({ tipo: 'texto' as const, texto: t, primeiroContato: primeiro, timestamp: NOW });
+const texto = (t: string, primeiro = false) => ({
+  tipo: 'texto' as const,
+  texto: t,
+  primeiroContato: primeiro,
+  timestamp: NOW,
+});
 const documento = { tipo: 'documento' as const, texto: '', primeiroContato: false, timestamp: NOW };
 
 describe('derivação PURA da etapa (nunca armazenada, nunca dessincroniza)', () => {
   it('sem nome/cidade ⇒ IDENTIFICACAO; com ambos sem consentimento ⇒ CONSENTIMENTO; consentiu ⇒ TRIAGEM; docs completos ⇒ CONCLUIDA', () => {
     expect(derivarEtapa(fatos())).toBe('IDENTIFICACAO');
     expect(derivarEtapa(fatos({ nome: 'Isabel' }))).toBe('IDENTIFICACAO'); // falta cidade
-    expect(derivarEtapa(fatos({ nome: 'Isabel', cidade: 'Santa Ernestina' }))).toBe('CONSENTIMENTO');
-    expect(derivarEtapa(fatos({ nome: 'Isabel', cidade: 'Santa Ernestina', consentiu: true }))).toBe('TRIAGEM');
+    expect(derivarEtapa(fatos({ nome: 'Isabel', cidade: 'Santa Ernestina' }))).toBe(
+      'CONSENTIMENTO',
+    );
+    expect(
+      derivarEtapa(fatos({ nome: 'Isabel', cidade: 'Santa Ernestina', consentiu: true })),
+    ).toBe('TRIAGEM');
     expect(derivarEtapa(fatos({}, { docsCompletos: true }))).toBe('CONCLUIDA');
   });
   it('documento já enviado = consentimento implícito ⇒ TRIAGEM manda', () => {
@@ -48,19 +62,32 @@ describe('derivação PURA da etapa (nunca armazenada, nunca dessincroniza)', ()
 
 describe('captura DETERMINÍSTICA de nome e cidade (os diálogos reais)', () => {
   it('"Isabel, sou de santa ernestina- SP" ⇒ nome E cidade', () => {
-    const c = capturarIdentificacao('Isabel, sou de santa ernestina- SP', { nome: null, cidade: null });
+    const c = capturarIdentificacao('Isabel, sou de santa ernestina- SP', {
+      nome: null,
+      cidade: null,
+    });
     expect(c.nome).toBe('Isabel');
     expect(c.cidade).toContain('santa ernestina');
   });
   it('"Isabel" ⇒ só o nome; a cidade vem na mensagem seguinte', () => {
-    expect(capturarIdentificacao('Isabel', { nome: null, cidade: null })).toEqual({ nome: 'Isabel', cidade: null });
-    expect(capturarIdentificacao('Santa Ernestina', { nome: 'Isabel', cidade: null }).cidade).toBe('Santa Ernestina');
+    expect(capturarIdentificacao('Isabel', { nome: null, cidade: null })).toEqual({
+      nome: 'Isabel',
+      cidade: null,
+    });
+    expect(capturarIdentificacao('Santa Ernestina', { nome: 'Isabel', cidade: null }).cidade).toBe(
+      'Santa Ernestina',
+    );
   });
   it('"Me chamo Isabel Marques" ⇒ nome sem o prefixo', () => {
-    expect(capturarIdentificacao('Me chamo Isabel Marques', { nome: null, cidade: null }).nome).toBe('Isabel Marques');
+    expect(
+      capturarIdentificacao('Me chamo Isabel Marques', { nome: null, cidade: null }).nome,
+    ).toBe('Isabel Marques');
   });
   it('REGRESSÃO 11ª rodada: "Isabel Rodrigues eu sou de santa ernestina" (SEM vírgula) ⇒ nome E cidade separados pelo conector', () => {
-    const c = capturarIdentificacao('Isabel Rodrigues eu sou de santa ernestina', { nome: null, cidade: null });
+    const c = capturarIdentificacao('Isabel Rodrigues eu sou de santa ernestina', {
+      nome: null,
+      cidade: null,
+    });
     expect(c.nome).toBe('Isabel Rodrigues');
     expect(c.cidade).toBe('santa ernestina');
   });
@@ -71,7 +98,10 @@ describe('captura DETERMINÍSTICA de nome e cidade (os diálogos reais)', () => 
   });
   it('saudação pura NÃO captura nada ("Boa noite" não é nome)', () => {
     expect(ehSaudacaoPura('Boa noite')).toBe(true);
-    expect(capturarIdentificacao('boa tarde', { nome: null, cidade: null })).toEqual({ nome: null, cidade: null });
+    expect(capturarIdentificacao('boa tarde', { nome: null, cidade: null })).toEqual({
+      nome: null,
+      cidade: null,
+    });
   });
 });
 
@@ -93,7 +123,10 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
     expect(r).toBe(MENSAGENS_JORNADA.pedirCidade('Isabel'));
   });
   it('identificação recém-completa ⇒ explicação SEM promessas terminando na pergunta de interesse', () => {
-    const r = responderTurno(fatos({ nome: 'Isabel', cidade: 'Santa Ernestina', ultimaCaptura: 'cidade' }), texto('Santa Ernestina'));
+    const r = responderTurno(
+      fatos({ nome: 'Isabel', cidade: 'Santa Ernestina', ultimaCaptura: 'cidade' }),
+      texto('Santa Ernestina'),
+    );
     expect(r).toContain('irregularidade');
     expect(r).toContain('gratuita e sem compromisso');
     expect(r).toContain('interesse em fazer essa análise?');
@@ -101,19 +134,30 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
   });
   it('consentiu ⇒ inicia a triagem pedindo o PRIMEIRO documento (RG f/v ou CNH)', () => {
     const r = responderTurno(
-      fatos({ nome: 'Isabel', cidade: 'Santa Ernestina', consentiu: true, ultimaCaptura: 'consentimento' }),
+      fatos({
+        nome: 'Isabel',
+        cidade: 'Santa Ernestina',
+        consentiu: true,
+        ultimaCaptura: 'consentimento',
+      }),
       texto('sim'),
     );
     expect(r).toContain('três documentos, um por vez');
     expect(r).toContain('RG (frente e verso) ou CNH');
   });
   it('recusa ⇒ despedida gentil, sem insistência', () => {
-    const r = responderTurno(fatos({ nome: 'Isabel', cidade: 'X', recusou: true }), texto('não quero'));
+    const r = responderTurno(
+      fatos({ nome: 'Isabel', cidade: 'X', recusou: true }),
+      texto('não quero'),
+    );
     expect(r).toBe(MENSAGENS_JORNADA.recusa);
   });
   it('TRIAGEM: texto ⇒ reafirma o documento aguardado (do estado, nunca inventado)', () => {
     const r = responderTurno(
-      fatos({ nome: 'Isabel', cidade: 'X', consentiu: true }, { docsRecebidos: 1, proximoDocumento: 'o VERSO do RG (a parte de trás do documento)' }),
+      fatos(
+        { nome: 'Isabel', cidade: 'X', consentiu: true },
+        { docsRecebidos: 1, proximoDocumento: 'o VERSO do RG (a parte de trás do documento)' },
+      ),
       texto('e agora?'),
     );
     expect(r).toContain('Estou aguardando: o VERSO do RG');
@@ -141,7 +185,11 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
   it('registro do turno concluído + documentação COMPLETA ⇒ despedida da jornada', () => {
     const f = fatos(
       { nome: 'Isabel', cidade: 'X', consentiu: true },
-      { docsCompletos: true, ultimoRegistrado: 'HISCON', ultimoRegistroEm: new Date(NOW.getTime() + 5000) },
+      {
+        docsCompletos: true,
+        ultimoRegistrado: 'HISCON',
+        ultimoRegistroEm: new Date(NOW.getTime() + 5000),
+      },
     );
     const r = responderTurno(f, documento);
     expect(r).toContain('✅ Registrado: HISCON');
@@ -151,13 +199,20 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
   it('registro ANTIGO (de outro turno) não conta como fresco ⇒ ack', () => {
     const f = fatos(
       { nome: 'Isabel', cidade: 'X', consentiu: true },
-      { docsRecebidos: 1, ultimoRegistrado: 'a primeira face do RG', ultimoRegistroEm: new Date(NOW.getTime() - 60000) },
+      {
+        docsRecebidos: 1,
+        ultimoRegistrado: 'a primeira face do RG',
+        ultimoRegistroEm: new Date(NOW.getTime() - 60000),
+      },
     );
     expect(responderTurno(f, documento)).toBe(MENSAGENS_JORNADA.ackDocumento);
   });
   it('comprovante em nome do CÔNJUGE oferecido quando a pessoa diz que não tem no nome', () => {
     const r = responderTurno(
-      fatos({ nome: 'I', cidade: 'X', consentiu: true }, { docsRecebidos: 1, proximoDocumento: 'comprovante de endereço' }),
+      fatos(
+        { nome: 'I', cidade: 'X', consentiu: true },
+        { docsRecebidos: 1, proximoDocumento: 'comprovante de endereço' },
+      ),
       texto('não tenho comprovante no meu nome'),
     );
     expect(r).toContain('cônjuge também vale');
@@ -173,5 +228,78 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
     const f = fatos({ nome: 'Isabel', ultimaCaptura: 'nome' });
     const e = texto('Isabel');
     expect(responderTurno(f, e)).toBe(responderTurno(f, e));
+  });
+});
+
+// ── CASO DENISE (2026-07-21, primeira cliente real após o go-live) ───────────
+describe('caso Denise — adiamento entendido como humano (nunca repetir a cobrança)', () => {
+  const emTriagem = (over: Partial<JornadaRecord> = {}) =>
+    fatos(
+      { nome: 'Denise', cidade: 'Anastácio - MS', consentiu: true, ...over },
+      { docsRecebidos: 2, proximoDocumento: 'comprovante de endereço' },
+    );
+
+  it('"Olha poso deixa p amanha nao estou em casa" ⇒ acolhimento (não a cobrança)', () => {
+    const r = responderTurno(
+      emTriagem({ avisosDeAdiamento: 1 }),
+      texto('Olha poso deixa p amanha nao estou em casa'),
+    );
+    expect(r).toBe(MENSAGENS_JORNADA.adiamentoOk('comprovante de endereço'));
+    expect(r).not.toContain('Estou aguardando');
+  });
+
+  it('repetição ("So amanhã ok" / "Cedo logo cedo te envio") ⇒ "Combinado!" curto', () => {
+    expect(responderTurno(emTriagem({ avisosDeAdiamento: 2 }), texto('So amanhã ok'))).toBe(
+      MENSAGENS_JORNADA.adiamentoOkCurto,
+    );
+    expect(
+      responderTurno(emTriagem({ avisosDeAdiamento: 3 }), texto('Cedo logo cedo te envio')),
+    ).toBe(MENSAGENS_JORNADA.adiamentoOkCurto);
+  });
+
+  it('detector de adiamento cobre as variações reais', () => {
+    for (const t of [
+      'posso deixar pra amanhã?',
+      'só amanhã ok',
+      'mais tarde te mando',
+      'quando eu chegar envio',
+      'não estou em casa',
+      'hoje não consigo',
+      'assim que puder te envio',
+      'logo cedo te envio',
+    ]) {
+      expect(ehAdiamento(t)).toBe(true);
+    }
+    expect(ehAdiamento('segue o comprovante')).toBe(false);
+    expect(ehAdiamento('ok')).toBe(false);
+  });
+});
+
+describe('caso Denise — a primeira mensagem NUNCA vira nome', () => {
+  it('"Olá! Posso ter mais informações sobre isso?" não parece nome (captura rejeita)', () => {
+    expect(pareceNome('Olá! Posso ter mais informações sobre isso?')).toBe(false);
+    expect(
+      capturarIdentificacao('Olá! Posso ter mais informações sobre isso?', {
+        nome: null,
+        cidade: null,
+      }),
+    ).toEqual({ nome: null, cidade: null });
+  });
+  it('nomes reais continuam passando (inclusive com pontuação de digitação)', () => {
+    expect(pareceNome('Denise.rondora ferreira')).toBe(true);
+    expect(
+      capturarIdentificacao('Denise.rondora ferreira', { nome: null, cidade: null }).nome,
+    ).toBe('Denise.rondora ferreira');
+    expect(pareceNome('Isabel Marques Caldeira Rodrigues')).toBe(true);
+  });
+  it('frases de funil/perguntas nunca viram nome', () => {
+    for (const t of [
+      'quero saber sobre a análise',
+      'como funciona?',
+      'tenho uma dúvida sobre o consignado',
+      'pode me passar informações',
+    ]) {
+      expect(capturarIdentificacao(t, { nome: null, cidade: null }).nome).toBeNull();
+    }
   });
 });

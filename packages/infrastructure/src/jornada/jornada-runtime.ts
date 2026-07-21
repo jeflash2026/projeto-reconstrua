@@ -12,6 +12,7 @@ import {
   MENSAGENS_JORNADA,
   capturarIdentificacao,
   derivarEtapa,
+  ehAdiamento,
   interpretarInteresse,
   novaJornada,
   registroDoTurnoConcluido,
@@ -33,6 +34,7 @@ interface Persisted {
   readonly recusou: boolean;
   readonly ultimaCaptura: JornadaRecord['ultimaCaptura'];
   readonly aguardandoProgressao?: boolean;
+  readonly avisosDeAdiamento?: number;
   readonly atualizadoEm: string;
 }
 
@@ -49,7 +51,17 @@ export class JornadaComercialRuntime {
   private async carregar(chatId: string): Promise<JornadaRecord> {
     const raw = (await this.deps.json.get(NS, chatId)) as Persisted | null;
     if (raw === null) return novaJornada(chatId, this.deps.clock.now());
-    return { ...raw, aguardandoProgressao: raw.aguardandoProgressao === true, atualizadoEm: new Date(raw.atualizadoEm) };
+    return {
+      ...raw,
+      aguardandoProgressao: raw.aguardandoProgressao === true,
+      avisosDeAdiamento: raw.avisosDeAdiamento ?? 0,
+      atualizadoEm: new Date(raw.atualizadoEm),
+    };
+  }
+
+  /** O registro JÁ existe? (false = esta é a PRIMEIRA mensagem da conversa.) */
+  private async jaExiste(chatId: string): Promise<boolean> {
+    return (await this.deps.json.get(NS, chatId)) !== null;
   }
 
   private async salvar(r: JornadaRecord): Promise<void> {
@@ -84,6 +96,15 @@ export class JornadaComercialRuntime {
       const r = fatos.registro;
 
       if (etapa === 'IDENTIFICACAO') {
+        // Caso Denise (2026-07-21): a PRIMEIRA mensagem ("Olá! Posso ter mais
+        // informações?") chega ANTES de qualquer pergunta — nada nela é nome/
+        // cidade, salvo apresentação explícita ("me chamo…"). Sem este guarda,
+        // a pergunta do cliente virava o nome ("Prazer, Olá! Posso ter…!").
+        const primeiraMensagem = !(await this.jaExiste(chatId));
+        if (primeiraMensagem && !/\b(me\s+chamo|meu\s+nome)\b/i.test(texto)) {
+          await this.salvar({ ...r, ultimaCaptura: null, atualizadoEm: now });
+          return;
+        }
         const capturado = capturarIdentificacao(texto, { nome: r.nome, cidade: r.cidade });
         if (capturado.nome !== null || capturado.cidade !== null) {
           const ultimaCaptura =
@@ -109,7 +130,13 @@ export class JornadaComercialRuntime {
       if (etapa === 'CONSENTIMENTO') {
         const interesse = interpretarInteresse(texto);
         if (interesse === 'sim') {
-          await this.salvar({ ...r, consentiu: true, recusou: false, ultimaCaptura: 'consentimento', atualizadoEm: now });
+          await this.salvar({
+            ...r,
+            consentiu: true,
+            recusou: false,
+            ultimaCaptura: 'consentimento',
+            atualizadoEm: now,
+          });
           this.deps.observability.event('jornada', `consentimento chat=${chatId}`, now);
         } else if (interesse === 'nao') {
           await this.salvar({ ...r, recusou: true, ultimaCaptura: null, atualizadoEm: now });
@@ -119,30 +146,71 @@ export class JornadaComercialRuntime {
         return;
       }
 
+      // TRIAGEM: adiamento é FATO capturável ("posso deixar p amanhã") — conta
+      // os avisos (1º = acolhimento completo; repetição = "Combinado!" curto).
+      if (etapa === 'TRIAGEM' && ehAdiamento(texto)) {
+        await this.salvar({
+          ...r,
+          ultimaCaptura: 'adiamento',
+          avisosDeAdiamento: r.avisosDeAdiamento + 1,
+          atualizadoEm: now,
+        });
+        this.deps.observability.event(
+          'jornada',
+          `adiamento chat=${chatId} avisos=${String(r.avisosDeAdiamento + 1)}`,
+          now,
+        );
+        return;
+      }
       // TRIAGEM/CONCLUIDA: nada a capturar; limpa a nuance do turno anterior.
-      if (r.ultimaCaptura !== null) await this.salvar({ ...r, ultimaCaptura: null, atualizadoEm: now });
+      if (r.ultimaCaptura !== null)
+        await this.salvar({ ...r, ultimaCaptura: null, atualizadoEm: now });
     } catch (e) {
-      this.deps.observability.error('jornada', 'captura', now, e instanceof Error ? e.message : String(e));
+      this.deps.observability.error(
+        'jornada',
+        'captura',
+        now,
+        e instanceof Error ? e.message : String(e),
+      );
     }
   }
 
   /** A RESPOSTA AUTORADA do turno — '' quando a jornada NÃO governa (CONCLUIDA). */
   async responder(chatId: string, entrada: EntradaDoTurno): Promise<string> {
     const fatos = await this.fatos(chatId);
-    const concluidaAgora = entrada.tipo === 'documento' && registroDoTurnoConcluido(fatos, entrada) && fatos.docsCompletos;
+    const concluidaAgora =
+      entrada.tipo === 'documento' &&
+      registroDoTurnoConcluido(fatos, entrada) &&
+      fatos.docsCompletos;
     // CONCLUIDA delega ao LLM — EXCETO o turno do ÚLTIMO documento, cuja
     // resposta ("documentação completa") é a despedida da própria jornada.
     if (derivarEtapa(fatos) === 'CONCLUIDA' && !concluidaAgora) return '';
     const resposta = responderTurno(fatos, entrada);
     // Ack emitido com o registro AINDA processando ⇒ marca: a classificação
     // tardia deve FALAR a progressão sozinha (o subscriber checa o marcador).
-    if (entrada.tipo === 'documento' && resposta === MENSAGENS_JORNADA.ackDocumento && !fatos.registro.aguardandoProgressao) {
-      await this.salvar({ ...fatos.registro, aguardandoProgressao: true, atualizadoEm: this.deps.clock.now() }).catch(() => undefined);
+    if (
+      entrada.tipo === 'documento' &&
+      resposta === MENSAGENS_JORNADA.ackDocumento &&
+      !fatos.registro.aguardandoProgressao
+    ) {
+      await this.salvar({
+        ...fatos.registro,
+        aguardandoProgressao: true,
+        atualizadoEm: this.deps.clock.now(),
+      }).catch(() => undefined);
     }
     // 15ª rodada: o turno FALOU o fato ⇒ marcador antigo morre (evita a dupla
     // "✅ Registrado" — progressão tardia + resposta do turno para o mesmo doc).
-    if (entrada.tipo === 'documento' && resposta !== MENSAGENS_JORNADA.ackDocumento && fatos.registro.aguardandoProgressao) {
-      await this.salvar({ ...fatos.registro, aguardandoProgressao: false, atualizadoEm: this.deps.clock.now() }).catch(() => undefined);
+    if (
+      entrada.tipo === 'documento' &&
+      resposta !== MENSAGENS_JORNADA.ackDocumento &&
+      fatos.registro.aguardandoProgressao
+    ) {
+      await this.salvar({
+        ...fatos.registro,
+        aguardandoProgressao: false,
+        atualizadoEm: this.deps.clock.now(),
+      }).catch(() => undefined);
     }
     return resposta;
   }
@@ -150,9 +218,19 @@ export class JornadaComercialRuntime {
   /** 15ª rodada — chega um documento NOVO (pré-turno): qualquer progressão
    *  pendente do envio anterior está SUPERADA — o próprio turno falará o estado
    *  fresco (fato ou ack+marcador novo). Sem isso, um marcador velho fazia o
-   *  subscriber E a resposta do turno anunciarem o MESMO registro (mensagem 2×). */
+   *  subscriber E a resposta do turno anunciarem o MESMO registro (mensagem 2×).
+   *  Documento chegando também ZERA os avisos de adiamento (a espera acabou). */
   async aoReceberDocumento(chatId: string): Promise<void> {
     await this.concluirProgressao(chatId).catch(() => undefined);
+    const r = await this.carregar(chatId);
+    if (r.avisosDeAdiamento > 0 || r.ultimaCaptura === 'adiamento') {
+      await this.salvar({
+        ...r,
+        avisosDeAdiamento: 0,
+        ultimaCaptura: null,
+        atualizadoEm: this.deps.clock.now(),
+      }).catch(() => undefined);
+    }
   }
 
   /** O turno respondeu só o ack e a progressão ainda não foi falada? */
@@ -163,6 +241,7 @@ export class JornadaComercialRuntime {
   /** A progressão foi falada (pelo subscriber tardio ou pelo próprio turno). */
   async concluirProgressao(chatId: string): Promise<void> {
     const r = await this.carregar(chatId);
-    if (r.aguardandoProgressao) await this.salvar({ ...r, aguardandoProgressao: false, atualizadoEm: this.deps.clock.now() });
+    if (r.aguardandoProgressao)
+      await this.salvar({ ...r, aguardandoProgressao: false, atualizadoEm: this.deps.clock.now() });
   }
 }

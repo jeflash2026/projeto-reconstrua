@@ -16,7 +16,13 @@
 // chat da missão ainda não é resolvível (a projeção do vínculo é incremental).
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock } from '@reconstrua/domain';
-import type { EventSubscriber, ObservabilityRuntime, OnboardingDocumentalRuntime, StoredEvent } from '@reconstrua/application';
+import { MENSAGENS_JORNADA } from '@reconstrua/application';
+import type {
+  EventSubscriber,
+  ObservabilityRuntime,
+  OnboardingDocumentalRuntime,
+  StoredEvent,
+} from '@reconstrua/application';
 
 /** A projeção mínima de que o resolver precisa (o TimelineProjector real satisfaz). */
 export interface ProjecaoDeMissoes {
@@ -32,9 +38,12 @@ export interface ProjecaoDeMissoes {
  * perdida. Tenta; se não achar, faz refresh incremental (globalSeq) e tenta de
  * novo. Falha do refresh é tolerada (devolve null ⇒ retry do dispatcher).
  */
-export function criarResolverDeChat(projector: ProjecaoDeMissoes): (missionId: string) => Promise<string | null> {
+export function criarResolverDeChat(
+  projector: ProjecaoDeMissoes,
+): (missionId: string) => Promise<string | null> {
   return async (missionId) => {
-    const achar = (): string | null => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null;
+    const achar = (): string | null =>
+      projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null;
     let chat = achar();
     if (chat === null) {
       await projector.refresh().catch(() => undefined);
@@ -72,6 +81,10 @@ export interface OnboardingSubscriberDeps {
   readonly jornada?: {
     estaAguardandoProgressao(chatId: string): Promise<boolean>;
     concluirProgressao(chatId: string): Promise<void>;
+    /** Caso Denise (2026-07-21): documento OUTRO com ack pendurado precisa
+     *  FALAR com o cliente ("essa imagem não parece ser X") — o próximo
+     *  documento pendente vem dos fatos da jornada. */
+    fatos?(chatId: string): Promise<{ proximoDocumento: string | null }>;
   } | null;
 }
 
@@ -99,32 +112,60 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
         throw new Error(`onboarding: chat da missão ${event.streamId} ainda não resolvível`);
       }
       await d.runtime.aoCriarMissao(chatId, event.streamId, now);
-      d.observability.event('onboarding', `jornada semeada chat=${chatId} missao=${event.streamId}`, now);
+      d.observability.event(
+        'onboarding',
+        `jornada semeada chat=${chatId} missao=${event.streamId}`,
+        now,
+      );
       return;
     }
 
     if (event.streamType === 'document' && event.eventType === 'document.recognized') {
-      const missionId = typeof event.payload['missionId'] === 'string' ? event.payload['missionId'] : null;
+      const missionId =
+        typeof event.payload['missionId'] === 'string' ? event.payload['missionId'] : null;
       if (missionId === null) return;
       const chatId = await d.chatDaMissao(missionId);
       if (chatId === null) {
-        throw new Error(`onboarding: chat da missão ${missionId} ainda não resolvível (documento ${event.streamId})`);
+        throw new Error(
+          `onboarding: chat da missão ${missionId} ainda não resolvível (documento ${event.streamId})`,
+        );
       }
-      const fileName = typeof event.payload['contentReference'] === 'string' ? event.payload['contentReference'] : '';
-      let resultado = await d.runtime.aoReconhecerDocumento(chatId, missionId, event.streamId, fileName, now);
+      const fileName =
+        typeof event.payload['contentReference'] === 'string'
+          ? event.payload['contentReference']
+          : '';
+      let resultado = await d.runtime.aoReconhecerDocumento(
+        chatId,
+        missionId,
+        event.streamId,
+        fileName,
+        now,
+      );
       // ESPERA DENTRO DO TURNO: a captura/vínculo da mídia leva segundos; sem
       // esperar, a classificação só chegava DEPOIS da resposta — e a conversa
       // falava com dados velhos. Espera curta e limitada; o retry 2A.2 continua
       // sendo a rede de segurança se a transcrição não vier a tempo.
       if (resultado.classificacaoPendente && d.sleeper) {
-        for (let tentativa = 0; tentativa < ESPERA_TENTATIVAS && resultado.classificacaoPendente; tentativa += 1) {
+        for (
+          let tentativa = 0;
+          tentativa < ESPERA_TENTATIVAS && resultado.classificacaoPendente;
+          tentativa += 1
+        ) {
           await d.sleeper.sleep(ESPERA_MS);
-          resultado = await d.runtime.aoReconhecerDocumento(chatId, missionId, event.streamId, fileName, d.clock.now());
+          resultado = await d.runtime.aoReconhecerDocumento(
+            chatId,
+            missionId,
+            event.streamId,
+            fileName,
+            d.clock.now(),
+          );
         }
       }
       if (resultado.classificacaoPendente) {
         // Texto ainda não transcrito E nome do arquivo insuficiente ⇒ retry 2A.2.
-        throw new Error(`onboarding: classificação pendente do documento ${event.streamId} (transcrição ausente)`);
+        throw new Error(
+          `onboarding: classificação pendente do documento ${event.streamId} (transcrição ausente)`,
+        );
       }
       // 14ª rodada: 'OUTRO' com texto PRESENTE era sucesso mudo (o cliente ficava
       // no ack para sempre e nada aparecia nos logs). Agora a causa é literal:
@@ -136,6 +177,28 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
           now,
           `documento ${event.streamId} ficou OUTRO com texto presente :: "${(resultado.textoExcerto ?? '').replace(/\s+/g, ' ')}"`,
         );
+        // Caso Denise: o turno respondeu "já estou registrando" e a classificação
+        // concluiu que a imagem NÃO é um documento esperado — silêncio deixava o
+        // cliente pendurado para sempre. Agora a AHRI FALA o fato e pede de novo.
+        if (d.comunicador && d.jornada) {
+          const pendurado = await d.jornada.estaAguardandoProgressao(chatId).catch(() => false);
+          if (pendurado) {
+            const proximo =
+              (await d.jornada.fatos?.(chatId).catch(() => null))?.proximoDocumento ??
+              'o documento pendente';
+            await d.comunicador
+              .enviar(chatId, MENSAGENS_JORNADA.documentoNaoIdentificado(proximo))
+              .catch((e: unknown) => {
+                d.observability.error(
+                  'onboarding',
+                  'outro-envio',
+                  now,
+                  e instanceof Error ? e.message : String(e),
+                );
+              });
+            await d.jornada.concluirProgressao(chatId).catch(() => undefined);
+          }
+        }
         return;
       }
       // PROGRESSÃO AUTOMÁTICA: registro novo ⇒ a AHRI avisa e pede o próximo,
@@ -145,10 +208,17 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
       // — aqui só a progressão TARDIA (marcador ativo). Sem jornada ligada
       // (testes/legado) ⇒ comportamento anterior (sempre envia).
       if (resultado.progresso !== null && d.comunicador) {
-        const tardio = d.jornada ? await d.jornada.estaAguardandoProgressao(chatId).catch(() => true) : true;
+        const tardio = d.jornada
+          ? await d.jornada.estaAguardandoProgressao(chatId).catch(() => true)
+          : true;
         if (tardio) {
           await d.comunicador.enviar(chatId, resultado.progresso).catch((e: unknown) => {
-            d.observability.error('onboarding', 'progresso-envio', now, e instanceof Error ? e.message : String(e));
+            d.observability.error(
+              'onboarding',
+              'progresso-envio',
+              now,
+              e instanceof Error ? e.message : String(e),
+            );
           });
           if (d.jornada) await d.jornada.concluirProgressao(chatId).catch(() => undefined);
         }

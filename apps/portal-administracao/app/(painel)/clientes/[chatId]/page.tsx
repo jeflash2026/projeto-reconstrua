@@ -116,7 +116,18 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
               {memory.documentsSent.map((d) => (
                 <li key={`${d.ref}-${d.source.at}`}>
                   <span className="when">{formatDate(d.source.at)}</span>
-                  <div>📄 {d.label}</div>
+                  <div>
+                    📄 {d.label}{' '}
+                    {/* Preview: o proxy /api/documento serve os bytes reais (inline). */}
+                    <a
+                      href={`/api/documento/${encodeURIComponent(d.ref)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: 'var(--accent)', fontSize: 12 }}
+                    >
+                      ver documento
+                    </a>
+                  </div>
                 </li>
               ))}
               {memory.rememberedEvents.map((e) => (

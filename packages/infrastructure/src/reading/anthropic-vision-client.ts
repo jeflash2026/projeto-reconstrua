@@ -37,7 +37,13 @@ export class AnthropicVisionClient implements DocumentReaderPort {
     const response = await this.http.postJson(
       'https://api.anthropic.com/v1/messages',
       { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01' },
-      { model: this.model, max_tokens: 4096, messages: [{ role: 'user', content: [block, { type: 'text', text: TRANSCRIBE_PROMPT }] }] },
+      // 17ª rodada: 4096 truncava o HISCON de 13 páginas em ~6k chars — os
+      // contratos excluídos/encerrados e as seções RMC/RCC ficavam de fora.
+      {
+        model: this.model,
+        max_tokens: 32000,
+        messages: [{ role: 'user', content: [block, { type: 'text', text: TRANSCRIBE_PROMPT }] }],
+      },
     );
     // 2xx completo + erro LITERAL (mesma lição do HTTP 201 da mídia e do 429 do
     // LLM): status fora de 2xx lança com o corpo — o DocumentReaderService

@@ -55,6 +55,8 @@ export function buildAdminServer(
     readonly pericia?: {
       dossie(chatId: string): Promise<unknown>;
       migradosDeTodos(): Promise<unknown>;
+      /** documentId → rótulo humano ("RG (frente)", "HISCON"…) da contabilidade. */
+      rotulosDosDocumentos?(chatId: string): Promise<Record<string, string>>;
     };
   } = {},
 ): FastifyInstance {
@@ -413,6 +415,37 @@ export function buildAdminServer(
   // A LISTAGEM por memória (/admin/clients) foi REMOVIDA na R4 (Regra 2 — LEGACY não
   // convive): a lista única é /admin/jornada/clientes (status derivado). O DETALHE
   // do cliente (abaixo) permanece — não foi substituído.
+  // Decreto Dossiê Pericial: rótulos HUMANOS dos documentos ("RG (frente)",
+  // "HISCON") no lugar de "documento 094d7a2b" — direto da contabilidade.
+  async function rotulosDe(chatId: string): Promise<Record<string, string>> {
+    if (!opts.pericia?.rotulosDosDocumentos) return {};
+    try {
+      return await opts.pericia.rotulosDosDocumentos(chatId);
+    } catch {
+      return {};
+    }
+  }
+  function aplicarRotuloEmTexto(texto: string, rotulos: Record<string, string>): string {
+    return texto.replace(/documento ([0-9a-f]{8})/gi, (original, id8: string) => {
+      const completo = Object.keys(rotulos).find((k) => k.startsWith(id8));
+      return completo !== undefined ? (rotulos[completo] ?? original) : original;
+    });
+  }
+  type MemoriaDoCliente = NonNullable<Awaited<ReturnType<typeof op.memoryStore.load>>>;
+  function memoriaComRotulos(
+    memory: MemoriaDoCliente,
+    rotulos: Record<string, string>,
+  ): MemoriaDoCliente {
+    return {
+      ...memory,
+      documentsSent: memory.documentsSent.map((d) => ({ ...d, label: rotulos[d.ref] ?? d.label })),
+      rememberedEvents: memory.rememberedEvents.map((e) => ({
+        ...e,
+        description: aplicarRotuloEmTexto(e.description, rotulos),
+      })),
+    };
+  }
+
   app.get('/admin/clients/:chatId', async (request, reply) => {
     await op.projector.refresh();
     const { chatId } = request.params as { chatId: string };
@@ -424,7 +457,12 @@ export function buildAdminServer(
     const missions = await Promise.all(
       missionIds.map(async (id) => ({ missionId: id, progress: await op.workflow.progress(id) })),
     );
-    return { memory, relationship, conversation, missions };
+    return {
+      memory: memoriaComRotulos(memory, await rotulosDe(chatId)),
+      relationship,
+      conversation,
+      missions,
+    };
   });
 
   // ── DOSSIÊ JURÍDICO (GO-LIVE 13A · seção 4) — o parecer inicial da AHRI para um
@@ -434,8 +472,9 @@ export function buildAdminServer(
   //    pipeline (aprenderDaConversa) — nenhuma arquitetura nova, nada recalculado
   //    na interface, nada inventado. Helper reutilizado pela timeline e pelos casos.
   async function dossieDoCliente(chatId: string): Promise<DossieJuridico | null> {
-    const memory = await op.memoryStore.load(chatId);
-    if (!memory) return null;
+    const cru = await op.memoryStore.load(chatId);
+    if (!cru) return null;
+    const memory = memoriaComRotulos(cru, await rotulosDe(chatId));
     const now = new Date();
     const entries = await op.conversationStore.recent(chatId, 200);
     const ultimoInbound = [...entries]
@@ -511,8 +550,9 @@ export function buildAdminServer(
   app.get('/admin/clients/:chatId/timeline', async (request, reply) => {
     await op.projector.refresh();
     const { chatId } = request.params as { chatId: string };
-    const memory = await op.memoryStore.load(chatId);
-    if (!memory) return reply.code(404).send({ error: 'cliente não encontrado' });
+    const memoryCru = await op.memoryStore.load(chatId);
+    if (!memoryCru) return reply.code(404).send({ error: 'cliente não encontrado' });
+    const memory = memoriaComRotulos(memoryCru, await rotulosDe(chatId));
     const dossie = await dossieDoCliente(chatId);
     const entries = await op.conversationStore.recent(chatId, 200);
     const primeiroInbound = entries.find((e) => e.kind === 'inbound');

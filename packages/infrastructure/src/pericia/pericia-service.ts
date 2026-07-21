@@ -28,7 +28,7 @@ const JANELA_ANOS = 5;
 
 interface OnboardingPersisted {
   readonly chatId: string;
-  readonly recebidos?: readonly { codigo: string; documentId: string }[];
+  readonly recebidos?: readonly { codigo: string; documentId: string; subtipo?: 'rg' | 'cnh' }[];
 }
 
 export interface DossiePericial {
@@ -65,6 +65,31 @@ export interface PericiaServiceDeps {
 
 export class PericiaService {
   constructor(private readonly deps: PericiaServiceDeps) {}
+
+  /** documentId → rótulo HUMANO ("RG (frente)", "Comprovante de endereço",
+   *  "HISCON") a partir da contabilidade documental — para o Dossiê Jurídico e
+   *  as timelines pararem de exibir "documento 094d7a2b". */
+  async rotulosDosDocumentos(chatId: string): Promise<Record<string, string>> {
+    const onboarding = (await this.deps.json.get(
+      NS_ONBOARDING,
+      chatId,
+    )) as OnboardingPersisted | null;
+    const out: Record<string, string> = {};
+    let faceRg = 0;
+    for (const r of onboarding?.recebidos ?? []) {
+      if (r.codigo === 'IDENTIDADE') {
+        if (r.subtipo === 'cnh') out[r.documentId] = 'CNH';
+        else {
+          faceRg += 1;
+          out[r.documentId] = faceRg === 1 ? 'RG (frente)' : 'RG (verso)';
+        }
+      } else if (r.codigo === 'COMPROVANTE_RESIDENCIA')
+        out[r.documentId] = 'Comprovante de endereço';
+      else if (r.codigo === 'CNIS') out[r.documentId] = 'HISCON (extrato do INSS)';
+      else out[r.documentId] = r.codigo;
+    }
+    return out;
+  }
 
   private async nomeDoCliente(chatId: string): Promise<string | null> {
     const jornada = (await this.deps.json.get(NS_JORNADA, chatId)) as {

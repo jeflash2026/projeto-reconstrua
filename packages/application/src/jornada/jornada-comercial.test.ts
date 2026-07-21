@@ -59,6 +59,16 @@ describe('captura DETERMINÍSTICA de nome e cidade (os diálogos reais)', () => 
   it('"Me chamo Isabel Marques" ⇒ nome sem o prefixo', () => {
     expect(capturarIdentificacao('Me chamo Isabel Marques', { nome: null, cidade: null }).nome).toBe('Isabel Marques');
   });
+  it('REGRESSÃO 11ª rodada: "Isabel Rodrigues eu sou de santa ernestina" (SEM vírgula) ⇒ nome E cidade separados pelo conector', () => {
+    const c = capturarIdentificacao('Isabel Rodrigues eu sou de santa ernestina', { nome: null, cidade: null });
+    expect(c.nome).toBe('Isabel Rodrigues');
+    expect(c.cidade).toBe('santa ernestina');
+  });
+  it('"Maria moro em Campinas" ⇒ conector "moro em" também separa', () => {
+    const c = capturarIdentificacao('Maria moro em Campinas', { nome: null, cidade: null });
+    expect(c.nome).toBe('Maria');
+    expect(c.cidade).toBe('Campinas');
+  });
   it('saudação pura NÃO captura nada ("Boa noite" não é nome)', () => {
     expect(ehSaudacaoPura('Boa noite')).toBe(true);
     expect(capturarIdentificacao('boa tarde', { nome: null, cidade: null })).toEqual({ nome: null, cidade: null });

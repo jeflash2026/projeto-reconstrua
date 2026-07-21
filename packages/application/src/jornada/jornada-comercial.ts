@@ -94,6 +94,15 @@ export function capturarIdentificacao(
     s.replace(/^(sou\s+de|moro\s+em|de|da|do|em)\s+/i, '').replace(/\s*[-–]\s*[A-Z]{2}$/u, (m) => m).trim();
   const limparNome = (s: string): string => s.replace(/^(me\s+chamo|meu\s+nome\s+[ée]|sou\s+a|sou\s+o|sou)\s+/i, '').trim();
 
+  // "Isabel Rodrigues eu sou de santa ernestina" (SEM vírgula) — o conector
+  // "sou de"/"moro em" separa nome e cidade na mesma frase.
+  const conector = /^(.+?)[\s,]+(?:eu\s+)?(?:sou\s+de|moro\s+em)\s+(.+)$/i.exec(t);
+  if (conector) {
+    const nome = limparNome(conector[1] ?? '');
+    const cidade = limparCidade(conector[2] ?? '');
+    if (nome !== '' && cidade !== '') return { nome, cidade };
+  }
+
   const virgula = t.indexOf(',');
   if (virgula > 0) {
     const nome = limparNome(t.slice(0, virgula));

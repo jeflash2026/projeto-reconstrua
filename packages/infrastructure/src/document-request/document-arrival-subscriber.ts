@@ -55,7 +55,8 @@ export interface ArrivalDeps {
 
 export class DocumentArrivalSubscriber implements EventSubscriber {
   readonly name = 'document-request-arrival';
-  readonly interestedIn = ['document'];
+  // 13ª rodada: interestedIn é filtrado por event.eventType (não stream type).
+  readonly interestedIn = ['document.recognized'];
 
   constructor(private readonly deps: ArrivalDeps) {}
 

@@ -85,7 +85,8 @@ export const defaultEncerramentoResolver: EncerramentoResolver = (event) => {
 
 export class MissionClosureFeedbackSubscriber implements EventSubscriber {
   readonly name = 'mission-closure-feedback';
-  readonly interestedIn = ['operational-state'];
+  // 13ª rodada: interestedIn é filtrado por event.eventType (não stream type).
+  readonly interestedIn = ['operational-state.derived'];
 
   constructor(private readonly deps: FeedbackHookDeps) {}
 

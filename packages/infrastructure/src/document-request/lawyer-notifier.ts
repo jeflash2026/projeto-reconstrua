@@ -62,7 +62,8 @@ export interface NotifierDeps {
 
 export class LawyerNotifierSubscriber implements EventSubscriber {
   readonly name = 'document-request-lawyer-notifier';
-  readonly interestedIn = ['document-request'];
+  // 13ª rodada: interestedIn é filtrado por event.eventType (não stream type).
+  readonly interestedIn = ['document-request.received'];
 
   constructor(private readonly deps: NotifierDeps) {}
 

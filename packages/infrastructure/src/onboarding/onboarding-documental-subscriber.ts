@@ -81,7 +81,10 @@ const ESPERA_MS = 4000;
 
 export class OnboardingDocumentalSubscriber implements EventSubscriber {
   readonly name = 'onboarding-documental';
-  readonly interestedIn = ['mission', 'document'];
+  // CAUSA RAIZ da 13ª rodada: o registry filtra por event.eventType — declarar
+  // stream types aqui ('mission','document') fazia o subscriber NUNCA receber
+  // entrega nenhuma em produção (zero deliveries na história).
+  readonly interestedIn = ['mission.created', 'document.recognized'];
 
   constructor(private readonly deps: OnboardingSubscriberDeps) {}
 

@@ -55,6 +55,21 @@ describe('EvolutionMediaClient · base64 embutido no webhook (base64:true)', () 
     expect(fetched).toEqual({ base64: 'QUJD', mime: 'application/pdf', fileName: 'HISCON.pdf' });
   });
 
+  it('base64 em nível DIFERENTE (dentro do imageMessage — varia por versão da Evolution) ⇒ busca profunda encontra', async () => {
+    const http = httpStub(() => {
+      throw new Error('nao deveria chamar HTTP');
+    });
+    const client = new EvolutionMediaClient(http.client, CONFIG);
+    const fetched = await client.fetch({
+      data: {
+        key: { id: 'MSG-N' },
+        message: { imageMessage: { mimetype: 'image/jpeg', base64: JPEG_B64 } },
+      },
+    });
+    expect(http.calls).toHaveLength(0);
+    expect(fetched).toEqual({ base64: JPEG_B64, mime: 'image/jpeg', fileName: null });
+  });
+
   it('SEM base64 embutido ⇒ fallback para getBase64FromMediaMessage (comportamento anterior)', async () => {
     const http = httpStub((url) => {
       expect(url).toBe('http://evolution:8080/chat/getBase64FromMediaMessage/INST');

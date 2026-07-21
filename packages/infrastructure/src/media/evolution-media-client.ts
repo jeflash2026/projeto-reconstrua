@@ -42,16 +42,30 @@ export class EvolutionMediaClient implements MediaGatewayPort {
 }
 
 // Com o webhook configurado com base64:true a Evolution entrega o conteúdo da
-// mídia DENTRO do próprio evento (data.message.base64). É o único caminho quando
-// a instância não persiste mensagens recebidas — nesse cenário o endpoint
-// getBase64FromMediaMessage nunca encontra a mensagem e devolve erro.
+// mídia DENTRO do próprio evento. É o único caminho quando a instância não
+// persiste mensagens recebidas — nesse cenário getBase64FromMediaMessage nunca
+// encontra a mensagem. O NÍVEL onde o campo "base64" aparece varia entre versões
+// da Evolution (data.message.base64, data.base64, dentro do *Message…), então a
+// busca é PROFUNDA por nome de chave, não por caminho fixo.
 function embeddedMedia(data: Record<string, unknown> | null): FetchedMedia | null {
-  const message = data ? asRecord(data['message']) : null;
-  if (!message) return null;
-  const base64 = asString(message['base64']);
+  if (data === null) return null;
+  const base64 = deepFindString(data, 'base64', 5);
   if (base64 === null || base64 === '') return null;
-  const media = asRecord(message['imageMessage']) ?? asRecord(message['documentMessage']);
-  const mime = (media ? asString(media['mimetype']) : null) ?? 'application/octet-stream';
-  const fileName = media ? asString(media['fileName']) : null;
+  const mime = deepFindString(data, 'mimetype', 6) ?? 'application/octet-stream';
+  const fileName = deepFindString(data, 'fileName', 6);
   return { base64, mime, fileName };
+}
+
+/** Primeira string não-vazia sob a chave `key`, em qualquer nível até `depth`. */
+function deepFindString(value: unknown, key: string, depth: number): string | null {
+  if (depth < 0) return null;
+  const rec = asRecord(value);
+  if (rec === null) return null;
+  const direct = asString(rec[key]);
+  if (direct !== null && direct !== '') return direct;
+  for (const k of Object.keys(rec)) {
+    const found = deepFindString(rec[k], key, depth - 1);
+    if (found !== null) return found;
+  }
+  return null;
 }

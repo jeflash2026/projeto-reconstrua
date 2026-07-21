@@ -5,7 +5,7 @@
 //   log. Não faz OCR, IA, reconhecimento, classificação nem toca no fluxo de conversa.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHash } from 'node:crypto';
-import { messageIdOf } from './raw.js';
+import { asRecord, messageIdOf } from './raw.js';
 import type { MediaGatewayPort } from './media-gateway-port.js';
 import type { MediaStorePort } from './media-store-port.js';
 import type { MediaReferenceStore } from './media-reference-store.js';
@@ -44,7 +44,9 @@ export class MediaCaptureRuntime {
     try {
       const fetched = await this.deps.gateway.fetch(rawMessage);
       if (fetched === null) {
-        this.log('midia indisponivel na Evolution');
+        // Diagnóstico definitivo: a FORMA do payload (só nomes de chave, nunca
+        // valores) mostra se a Evolution embutiu o base64 e sob qual campo.
+        this.log(`midia indisponivel na Evolution :: ${payloadShape(rawMessage)}`);
         return;
       }
       if (!this.allowlist.includes(fetched.mime)) {
@@ -86,6 +88,16 @@ export class MediaCaptureRuntime {
   private log(message: string): void {
     if (this.deps.log) this.deps.log(message);
   }
+}
+
+/** Nomes de chave de data e data.message (2 níveis) — nunca valores. */
+function payloadShape(rawMessage: unknown): string {
+  const root = asRecord(rawMessage);
+  const data = root ? asRecord(root['data']) : null;
+  const message = data ? asRecord(data['message']) : null;
+  const dataKeys = data ? Object.keys(data).join(',') : '-';
+  const messageKeys = message ? Object.keys(message).join(',') : '-';
+  return `data=[${dataKeys}] message=[${messageKeys}]`;
 }
 
 function decodeBase64(base64: string): Uint8Array | null {

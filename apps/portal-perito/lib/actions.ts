@@ -1,38 +1,49 @@
 'use server';
 // ─────────────────────────────────────────────────────────────────────────────
-// AÇÕES do Portal do PERITO — login com o segredo PRÓPRIO (PERITO_ACCESS_SECRET)
-// e a confirmação dos pedidos administrativos (o ÚNICO fato que o perito grava;
-// a partir dele nasce a contagem regressiva dos 10 dias — Jornada B, B-R3).
+// AÇÕES do Portal do PERITO (Decreto 2026-07-21) — autenticação INDIVIDUAL:
+// convite do Admin → o perito cria a própria senha → login ID+senha (a API
+// valida no Auth Runtime; papel 'perito'). E a confirmação dos pedidos
+// administrativos — o ato que inicia a contagem dos 10 dias (Jornada B, B-R3).
 // ─────────────────────────────────────────────────────────────────────────────
 import { cookies } from 'next/headers';
-import { peritoSessionToken, secretsMatch, PERITO_SESSION_COOKIE } from './session';
+import { cookieDeSessao, PERITO_SESSION_COOKIE } from './session';
 import { postJson } from './api';
 
-const PERITO_SECRET = process.env['PERITO_ACCESS_SECRET'] ?? '';
+const SEGREDO_SESSAO = process.env['ADMIN_API_TOKEN'] ?? '';
 
 export interface LoginResult {
   ok: boolean;
   error?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/require-await -- 'use server' exige async
-export async function loginPerito(senha: string): Promise<LoginResult> {
-  if (PERITO_SECRET === '') {
-    return {
-      ok: false,
-      error: 'servidor sem segredo do perito configurado (PERITO_ACCESS_SECRET)',
-    };
+export async function loginPerito(peritoId: string, senha: string): Promise<LoginResult> {
+  if (SEGREDO_SESSAO === '') {
+    return { ok: false, error: 'servidor sem segredo de sessão configurado (ADMIN_API_TOKEN)' };
   }
-  if (!secretsMatch(senha.trim(), PERITO_SECRET)) {
-    return { ok: false, error: 'senha de acesso incorreta' };
-  }
-  cookies().set(PERITO_SESSION_COOKIE, peritoSessionToken(PERITO_SECRET), {
+  const r = await postJson<{ ok: boolean; peritoId: string; nome: string }>('/admin/perito/login', {
+    peritoId: peritoId.trim(),
+    senha,
+  });
+  if (r === null || !r.ok) return { ok: false, error: 'credenciais inválidas' };
+  cookies().set(PERITO_SESSION_COOKIE, cookieDeSessao(SEGREDO_SESSAO, r.peritoId), {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: 60 * 60 * 12,
   });
+  return { ok: true };
+}
+
+/** O perito cria a PRÓPRIA senha a partir do convite do Admin. */
+export async function definirSenhaPerito(token: string, senha: string): Promise<LoginResult> {
+  const r = await postJson<{ ok: boolean; error?: string }>('/admin/perito/definir-senha', {
+    token,
+    senha,
+  });
+  if (r === null) {
+    return { ok: false, error: 'convite inválido ou expirado — peça um novo ao escritório' };
+  }
   return { ok: true };
 }
 

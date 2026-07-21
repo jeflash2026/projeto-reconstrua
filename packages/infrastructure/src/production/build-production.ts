@@ -245,6 +245,8 @@ export interface AssembledProduction {
   readonly mediaCapture: MediaCaptureRuntime;
   /** Decreto Dossiê Pericial: visão do PERITO (HISCON→contratos/migrados/indícios). */
   readonly pericia: PericiaService;
+  /** Decreto 2026-07-21: convite→senha própria→login do PERITO (Auth Runtime, papel 'perito'). */
+  readonly peritoAuth: AdvogadoAuthRuntime;
   /** CAT-03A: transforma um documento em texto bruto (disponível; sem gatilho automático). */
   readonly documentReader: DocumentReaderService;
   /** GO LIVE A · R1: a visão única do cliente (ALIR) + persona Operador de Qualificação. */
@@ -436,6 +438,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // Decreto Dossiê Pericial (2026-07-21): a visão do PERITO montada do HISCON
   // transcrito — contratos por banco, migrados (sem pedido administrativo) e
   // indícios de estratégia. Nada decide; a destinação a advogado é MANUAL.
+  // Decreto 2026-07-21: convite→senha própria→login TAMBÉM para o PERITO (o
+  // mesmo Auth Runtime, papel 'perito'; convites assinados pelo segredo do
+  // Admin — quem os emite; credenciais no MESMO store, ids são únicos).
+  const peritoAuth = new AdvogadoAuthRuntime({
+    staff: staffStore,
+    credenciais: new JsonCredenciaisAdvogadoStore(json),
+    secret: env['ADMIN_ACCESS_SECRET'] ?? '',
+    role: 'perito',
+    usoConvite: 'convite-perito',
+  });
+
   const pericia = new PericiaService({
     json,
     reader: documentReader,
@@ -1182,6 +1195,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     databaseUrl,
     mediaCapture,
     pericia,
+    peritoAuth,
     documentReader,
     alir,
     acompanhamento,

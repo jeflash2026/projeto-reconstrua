@@ -217,8 +217,6 @@ services:
       # API admin interna (as rotas da função pericial); o Bearer fica server-side.
       API_URL: http://api:${ADMIN_PORT:-3102}
       ADMIN_API_TOKEN: ${ADMIN_ACCESS_SECRET:-}
-      # Senha PRÓPRIA do perito (o perito nunca conhece o segredo do Admin).
-      PERITO_ACCESS_SECRET: ${PERITO_ACCESS_SECRET:-}
     healthcheck:
       test:
         [

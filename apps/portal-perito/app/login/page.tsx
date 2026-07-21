@@ -1,20 +1,22 @@
 'use client';
-// LOGIN do Portal do PERITO — tela NUA: nada abre sem a senha própria do perito.
+// LOGIN do Portal do PERITO — credencial INDIVIDUAL (convite do escritório →
+// senha própria). Tela NUA: nada abre sem autenticação.
 import { useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginPerito } from '../../lib/actions';
 
 const LoginPage = (): ReactElement => {
   const router = useRouter();
+  const [id, setId] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const entrar = async (): Promise<void> => {
-    if (busy || senha === '') return;
+    if (busy || senha === '' || id.trim() === '') return;
     setBusy(true);
     setErro(null);
-    const result = await loginPerito(senha);
+    const result = await loginPerito(id, senha);
     if (!result.ok) {
       setErro(result.error ?? 'falha no login');
     } else {
@@ -28,7 +30,10 @@ const LoginPage = (): ReactElement => {
     <div style={{ maxWidth: 420, margin: '10vh auto', padding: '0 16px' }}>
       <div className="card">
         <h1 className="page-title">Central do Perito</h1>
-        <p className="page-sub">Entre com a senha de acesso do perito.</p>
+        <p className="page-sub">
+          Entre com o seu ID e a sua senha. Ainda não tem senha? Use o link de convite que o
+          escritório enviou a você.
+        </p>
         <form
           className="form-row"
           onSubmit={(e) => {
@@ -38,10 +43,18 @@ const LoginPage = (): ReactElement => {
           style={{ flexDirection: 'column', alignItems: 'stretch' }}
         >
           <input
-            type="password"
-            placeholder="Senha de acesso"
-            value={senha}
+            type="text"
+            placeholder="Seu ID de perito"
+            value={id}
             autoFocus
+            onChange={(e) => {
+              setId(e.target.value);
+            }}
+          />
+          <input
+            type="password"
+            placeholder="Sua senha"
+            value={senha}
             onChange={(e) => {
               setSenha(e.target.value);
             }}

@@ -78,6 +78,20 @@ export function buildAdminServer(
       /** Total REAL de documentos registrados (fonte do painel). */
       contagemDocumentosRegistrados?(): Promise<number>;
     };
+    /** Decreto 2026-07-21: convite→senha própria→login do PERITO (sem senha
+     *  compartilhada). O Admin emite o convite; o portal do perito autentica. */
+    readonly peritoAuth?: {
+      emitirConvite(peritoId: string, now: Date): Promise<string | null>;
+      definirSenha(
+        token: string,
+        senha: string,
+        now: Date,
+      ): Promise<{ ok: true; advogadoId: string; nome: string } | { ok: false; error: string }>;
+      login(
+        peritoId: string,
+        senha: string,
+      ): Promise<{ ok: true; advogadoId: string; nome: string } | { ok: false; error: string }>;
+    };
   } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: false });
@@ -616,6 +630,41 @@ export function buildAdminServer(
           : `HISCON analisado: ${String(pericial.totalContratos)} contrato(s) em ${String(pericial.porBanco.length)} banco(s); ${String(pericial.indicios.length)} indício(s) de estratégia identificados a partir dos fatos do documento.`,
     };
   }
+
+  // ── AUTENTICAÇÃO DO PERITO (Decreto 2026-07-21) — convite do Admin → o perito
+  //    cria a PRÓPRIA senha → login individual. Mesmo Auth Runtime do advogado
+  //    (papel 'perito'); rotas atrás do Bearer do Admin (só os portais o têm).
+  app.post('/admin/perito/convite', async (request, reply) => {
+    if (!opts.peritoAuth)
+      return reply.code(503).send({ error: 'autenticação do perito indisponível' });
+    const body = request.body as { peritoId?: string };
+    if (!body.peritoId) return reply.code(400).send({ error: 'peritoId obrigatório' });
+    const token = await opts.peritoAuth.emitirConvite(body.peritoId, new Date());
+    if (token === null) return reply.code(404).send({ error: 'perito não encontrado ou inativo' });
+    return { peritoId: body.peritoId, token, validadeDias: 7 };
+  });
+
+  app.post('/admin/perito/definir-senha', async (request, reply) => {
+    if (!opts.peritoAuth)
+      return reply.code(503).send({ error: 'autenticação do perito indisponível' });
+    const body = request.body as { token?: string; senha?: string };
+    if (!body.token || !body.senha)
+      return reply.code(400).send({ error: 'token e senha são obrigatórios' });
+    const result = await opts.peritoAuth.definirSenha(body.token, body.senha, new Date());
+    if (!result.ok) return reply.code(400).send({ error: result.error });
+    return { ok: true, peritoId: result.advogadoId, nome: result.nome };
+  });
+
+  app.post('/admin/perito/login', async (request, reply) => {
+    if (!opts.peritoAuth)
+      return reply.code(503).send({ error: 'autenticação do perito indisponível' });
+    const body = request.body as { peritoId?: string; senha?: string };
+    if (!body.peritoId || !body.senha)
+      return reply.code(400).send({ error: 'peritoId e senha são obrigatórios' });
+    const result = await opts.peritoAuth.login(body.peritoId, body.senha);
+    if (!result.ok) return reply.code(401).send({ error: result.error });
+    return { ok: true, peritoId: result.advogadoId, nome: result.nome };
+  });
 
   // ── DOSSIÊ PERICIAL (Decreto 2026-07-21) — o HISCON parseado para o PERITO:
   //    contratos por banco (janela 5 anos), MIGRADOS (sem pedido administrativo;

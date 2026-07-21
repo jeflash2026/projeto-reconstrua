@@ -40,8 +40,10 @@ function setAdminSession(): void {
 }
 
 export async function loginAdmin(senha: string): Promise<LoginResult> {
-  if (ADMIN_TOKEN_LOGIN === '') return { ok: false, error: 'servidor sem segredo de acesso configurado (ADMIN_ACCESS_SECRET)' };
-  if (!secretsMatch(senha.trim(), ADMIN_TOKEN_LOGIN)) return { ok: false, error: 'senha de acesso incorreta' };
+  if (ADMIN_TOKEN_LOGIN === '')
+    return { ok: false, error: 'servidor sem segredo de acesso configurado (ADMIN_ACCESS_SECRET)' };
+  if (!secretsMatch(senha.trim(), ADMIN_TOKEN_LOGIN))
+    return { ok: false, error: 'senha de acesso incorreta' };
   setAdminSession();
   // GO-LIVE-05: a verdade do bootstrap é do SERVIDOR (∃ administrador ativo),
   // NUNCA inferida contando a lista (causa raiz do bug: leitura vazia/falha
@@ -53,7 +55,8 @@ export async function loginAdmin(senha: string): Promise<LoginResult> {
 }
 
 export async function bootstrapAdmin(senha: string, nome: string): Promise<LoginResult> {
-  if (!secretsMatch(senha.trim(), ADMIN_TOKEN_LOGIN)) return { ok: false, error: 'senha de acesso incorreta' };
+  if (!secretsMatch(senha.trim(), ADMIN_TOKEN_LOGIN))
+    return { ok: false, error: 'senha de acesso incorreta' };
   // GO-LIVE-05: bootstrap ONE-TIME no servidor. 409 = já inicializado (corrida ou
   // duplo clique) ⇒ tratamos como sucesso e apenas abrimos a sessão.
   const res = await fetch(`${API_BASE}/admin/bootstrap`, {
@@ -87,7 +90,11 @@ export async function fetchStaff(role: string): Promise<StaffData | null> {
   return getJson<StaffData>(`/admin/staff/${role}`);
 }
 
-export async function createStaff(role: string, name: string, email: string | null): Promise<StaffMember | null> {
+export async function createStaff(
+  role: string,
+  name: string,
+  email: string | null,
+): Promise<StaffMember | null> {
   return sendJson<StaffMember>('POST', '/admin/staff', { role, name, email });
 }
 
@@ -105,14 +112,18 @@ export async function definirModalidade(
   clienteId: string,
   modalidade: 'VENDA' | 'SOCIEDADE',
 ): Promise<{ clienteId: string; modalidade: string } | null> {
-  return sendJson('POST', `/admin/jornada/clientes/${encodeURIComponent(clienteId)}/modalidade`, { modalidade });
+  return sendJson('POST', `/admin/jornada/clientes/${encodeURIComponent(clienteId)}/modalidade`, {
+    modalidade,
+  });
 }
 
 export async function venderCliente(
   clienteId: string,
   comprador: string,
 ): Promise<{ clienteId: string; vendido: boolean; comprador: string } | null> {
-  return sendJson('POST', `/admin/jornada/clientes/${encodeURIComponent(clienteId)}/vender`, { comprador });
+  return sendJson('POST', `/admin/jornada/clientes/${encodeURIComponent(clienteId)}/vender`, {
+    comprador,
+  });
 }
 
 // ── JORNADA B (B-R6) — operação do PERITO: fila derivada, planilhas (CSV) e o
@@ -132,15 +143,24 @@ export async function fetchFilaPericia(): Promise<{ clientes: JornadaCliente[] }
 
 export async function fetchPlanilhaCliente(clienteId: string): Promise<PlanilhaGerada | null> {
   try {
-    const res = await fetch(`${API_BASE}/admin/jornada/pericia/${encodeURIComponent(clienteId)}/planilha`, {
-      cache: 'no-store',
-      headers: ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {},
-    });
+    const res = await fetch(
+      `${API_BASE}/admin/jornada/pericia/${encodeURIComponent(clienteId)}/planilha`,
+      {
+        cache: 'no-store',
+        headers: ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {},
+      },
+    );
     if (!res.ok) return null;
     const conteudo = await res.text();
     const disposition = res.headers.get('content-disposition') ?? '';
     const nome = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `contratos-${clienteId}.csv`;
-    return { clienteId, quem: '', nomeArquivo: nome, mime: res.headers.get('content-type') ?? 'text/csv', conteudo };
+    return {
+      clienteId,
+      quem: '',
+      nomeArquivo: nome,
+      mime: res.headers.get('content-type') ?? 'text/csv',
+      conteudo,
+    };
   } catch {
     return null;
   }
@@ -154,9 +174,13 @@ export async function confirmarPedidos(
   clienteId: string,
   confirmadoPor: string | null,
 ): Promise<{ clienteId: string; confirmado: boolean; prazoAte: string } | null> {
-  return sendJson('POST', `/admin/jornada/pericia/${encodeURIComponent(clienteId)}/confirmar-pedidos`, {
-    confirmadoPor: confirmadoPor ?? '',
-  });
+  return sendJson(
+    'POST',
+    `/admin/jornada/pericia/${encodeURIComponent(clienteId)}/confirmar-pedidos`,
+    {
+      confirmadoPor: confirmadoPor ?? '',
+    },
+  );
 }
 
 // B4.1: encerramento OFICIAL do processo — ato humano do operador. Chama a API do
@@ -169,8 +193,13 @@ export interface CloseResult {
   stateId: string | null;
 }
 
-export async function encerrarMission(missionId: string, reason: string | null): Promise<CloseResult | null> {
-  return sendJson<CloseResult>('POST', `/admin/missions/${missionId}/encerrar`, { reason: reason ?? '' });
+export async function encerrarMission(
+  missionId: string,
+  reason: string | null,
+): Promise<CloseResult | null> {
+  return sendJson<CloseResult>('POST', `/admin/missions/${missionId}/encerrar`, {
+    reason: reason ?? '',
+  });
 }
 
 // B4.3: reabertura OFICIAL de um processo encerrado (fato jurídico legítimo). Evento
@@ -182,15 +211,21 @@ export interface ReopenResult {
   stateId: string | null;
 }
 
-export async function reabrirMission(missionId: string, reason: string | null): Promise<ReopenResult | null> {
-  return sendJson<ReopenResult>('POST', `/admin/missions/${missionId}/reabrir`, { reason: reason ?? '' });
+export async function reabrirMission(
+  missionId: string,
+  reason: string | null,
+): Promise<ReopenResult | null> {
+  return sendJson<ReopenResult>('POST', `/admin/missions/${missionId}/reabrir`, {
+    reason: reason ?? '',
+  });
 }
 
 // ── Conexão WhatsApp — administração de instância Evolution pelo Portal Admin ────
 // Não-destrutivas (status/qr/confirm/apply) usam o Bearer do Admin. Destrutivas
 // (criar/descartar) adicionam o header x-founder-secret com o FOUNDER_API_TOKEN
 // SERVER-SIDE — o segredo Founder nunca chega ao browser.
-const API_BASE = process.env['API_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
+const API_BASE =
+  process.env['API_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
 const ADMIN_TOKEN = process.env['ADMIN_API_TOKEN'] ?? '';
 const FOUNDER_TOKEN = process.env['FOUNDER_API_TOKEN'] ?? '';
 
@@ -239,21 +274,44 @@ export async function fetchApplyInstructions(): Promise<ApplyInstructions | null
 
 // GO-LIVE-05 (BUG 2): DIAGNÓSTICO — o erro REAL de cada dependência. Diferente do
 // getJson genérico: quando a própria API falha, devolve a causa (HTTP/rede), não null.
-export interface DiagnosticStep { step: string; ok: boolean; detail: string }
-export interface DiagnosticReport { ok: boolean; steps: DiagnosticStep[]; at: string }
+export interface DiagnosticStep {
+  step: string;
+  ok: boolean;
+  detail: string;
+}
+export interface DiagnosticReport {
+  ok: boolean;
+  steps: DiagnosticStep[];
+  at: string;
+}
 
-export async function runWhatsappDiagnostics(): Promise<{ report: DiagnosticReport | null; error: string | null }> {
+export async function runWhatsappDiagnostics(): Promise<{
+  report: DiagnosticReport | null;
+  error: string | null;
+}> {
   try {
-    const res = await fetch(`${API_BASE}/admin/whatsapp/diagnostics`, { cache: 'no-store', headers: ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {} });
+    const res = await fetch(`${API_BASE}/admin/whatsapp/diagnostics`, {
+      cache: 'no-store',
+      headers: ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {},
+    });
     if (!res.ok) {
       let detail = `A API administrativa respondeu HTTP ${String(res.status)}`;
-      if (res.status === 401) detail = 'A API recusou a autenticação (ADMIN_ACCESS_SECRET incorreto no servidor)';
-      if (res.status === 503) detail = 'A conexão WhatsApp não está montada na API (verifique a configuração da Evolution)';
+      if (res.status === 401)
+        detail = 'A API recusou a autenticação (ADMIN_ACCESS_SECRET incorreto no servidor)';
+      if (res.status === 503)
+        detail =
+          'A conexão WhatsApp não está montada na API (verifique a configuração da Evolution)';
       return { report: null, error: detail };
     }
     return { report: (await res.json()) as DiagnosticReport, error: null };
   } catch (error) {
-    return { report: null, error: error instanceof Error ? `API administrativa inacessível: ${error.message}` : 'API administrativa inacessível' };
+    return {
+      report: null,
+      error:
+        error instanceof Error
+          ? `API administrativa inacessível: ${error.message}`
+          : 'API administrativa inacessível',
+    };
   }
 }
 
@@ -267,7 +325,12 @@ export interface FounderActionResult<T> {
 
 async function founderPost<T>(path: string, body: unknown): Promise<FounderActionResult<T>> {
   if (FOUNDER_TOKEN === '') {
-    return { ok: false, data: null, error: 'FOUNDER_ACCESS_SECRET não configurado no servidor — defina no .env e recrie os containers.' };
+    return {
+      ok: false,
+      data: null,
+      error:
+        'FOUNDER_ACCESS_SECRET não configurado no servidor — defina no .env e recrie os containers.',
+    };
   }
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -292,13 +355,21 @@ async function founderPost<T>(path: string, body: unknown): Promise<FounderActio
     }
     return { ok: true, data: (await res.json()) as T, error: null };
   } catch (error) {
-    return { ok: false, data: null, error: error instanceof Error ? `API inacessível: ${error.message}` : 'API inacessível' };
+    return {
+      ok: false,
+      data: null,
+      error: error instanceof Error ? `API inacessível: ${error.message}` : 'API inacessível',
+    };
   }
 }
-export async function createWhatsappInstance(instanceName: string): Promise<FounderActionResult<{ instanceName: string; qr: WhatsAppQr }>> {
+export async function createWhatsappInstance(
+  instanceName: string,
+): Promise<FounderActionResult<{ instanceName: string; qr: WhatsAppQr }>> {
   return founderPost('/admin/whatsapp/instances', { instanceName });
 }
-export async function discardWhatsappInstance(instanceName: string): Promise<FounderActionResult<{ discarded: boolean }>> {
+export async function discardWhatsappInstance(
+  instanceName: string,
+): Promise<FounderActionResult<{ discarded: boolean }>> {
   return founderPost('/admin/whatsapp/discard', { instanceName, confirm: true });
 }
 
@@ -328,7 +399,10 @@ export interface ClientePronto {
   pedidosConfirmadosEm: string | null;
 }
 
-export async function listarClientesProntos(): Promise<{ prontos: ClientePronto[]; advogados: { id: string; name: string }[] } | null> {
+export async function listarClientesProntos(): Promise<{
+  prontos: ClientePronto[];
+  advogados: { id: string; name: string }[];
+} | null> {
   if (ADVOGADO_API_URL === '') return null;
   try {
     const res = await fetch(`${ADVOGADO_API_URL}/advogado-admin/clientes-prontos`, {
@@ -336,7 +410,10 @@ export async function listarClientesProntos(): Promise<{ prontos: ClientePronto[
       cache: 'no-store',
     });
     if (!res.ok) return null;
-    return (await res.json()) as { prontos: ClientePronto[]; advogados: { id: string; name: string }[] };
+    return (await res.json()) as {
+      prontos: ClientePronto[];
+      advogados: { id: string; name: string }[];
+    };
   } catch {
     return null;
   }
@@ -346,8 +423,14 @@ export async function listarClientesProntos(): Promise<{ prontos: ClientePronto[
 // do Administrador (nunca cadastro público, nunca criação pela URL). O token é
 // assinado pelo Auth Runtime na API do Advogado; aqui só transporte + montagem
 // do link no domínio único da plataforma.
-export async function gerarConviteAdvogado(advogadoId: string): Promise<{ link: string | null; error: string | null }> {
-  if (ADVOGADO_API_URL === '') return { link: null, error: 'integração com o Portal do Advogado não configurada (ADVOGADO_API_URL)' };
+export async function gerarConviteAdvogado(
+  advogadoId: string,
+): Promise<{ link: string | null; error: string | null }> {
+  if (ADVOGADO_API_URL === '')
+    return {
+      link: null,
+      error: 'integração com o Portal do Advogado não configurada (ADVOGADO_API_URL)',
+    };
   try {
     const res = await fetch(`${ADVOGADO_API_URL}/advogado-admin/convite`, {
       method: 'POST',
@@ -372,10 +455,48 @@ export async function gerarConviteAdvogado(advogadoId: string): Promise<{ link: 
     const h = headers();
     const proto = h.get('x-forwarded-proto') ?? 'https';
     const host = h.get('x-forwarded-host') ?? h.get('host') ?? '';
-    if (host === '') return { link: null, error: 'não foi possível determinar o domínio da plataforma' };
+    if (host === '')
+      return { link: null, error: 'não foi possível determinar o domínio da plataforma' };
     return { link: `${proto}://${host}/advogado/convite?t=${data.token}`, error: null };
   } catch {
     return { link: null, error: 'API do Portal do Advogado inacessível' };
+  }
+}
+
+/** Decreto 2026-07-21: convite do PERITO (link de criação de senha própria) —
+ *  emitido pela API do Admin; o link aponta ao Portal do Perito (/perito). */
+export async function gerarConvitePerito(
+  peritoId: string,
+): Promise<{ link: string | null; error: string | null }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/perito/convite`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
+      },
+      body: JSON.stringify({ peritoId }),
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      let detail = `HTTP ${String(res.status)}`;
+      try {
+        const parsed = (await res.json()) as { error?: string };
+        if (typeof parsed.error === 'string' && parsed.error !== '') detail = parsed.error;
+      } catch {
+        /* corpo não-JSON */
+      }
+      return { link: null, error: detail };
+    }
+    const data = (await res.json()) as { token: string };
+    const h = headers();
+    const proto = h.get('x-forwarded-proto') ?? 'https';
+    const host = h.get('x-forwarded-host') ?? h.get('host') ?? '';
+    if (host === '')
+      return { link: null, error: 'não foi possível determinar o domínio da plataforma' };
+    return { link: `${proto}://${host}/perito/convite?t=${data.token}`, error: null };
+  } catch {
+    return { link: null, error: 'API do Admin inacessível' };
   }
 }
 

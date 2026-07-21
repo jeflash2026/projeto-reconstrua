@@ -3,7 +3,13 @@
 // fila e carga (read models). Compartilhado por Advogados/Peritos/Operadores/Supervisores.
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { type StaffData } from '../lib/api';
-import { createStaff, fetchStaff, gerarConviteAdvogado, setStaffActive } from '../lib/actions';
+import {
+  createStaff,
+  fetchStaff,
+  gerarConviteAdvogado,
+  gerarConvitePerito,
+  setStaffActive,
+} from '../lib/actions';
 import { formatDate } from '../lib/format';
 
 const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElement => {
@@ -17,7 +23,8 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
   const convidar = async (id: string): Promise<void> => {
     setError(null);
     setConvite(null);
-    const res = await gerarConviteAdvogado(id);
+    // Decreto 2026-07-21: o MESMO fluxo de convite serve o PERITO (portal /perito).
+    const res = role === 'perito' ? await gerarConvitePerito(id) : await gerarConviteAdvogado(id);
     if (res.link === null) {
       setError(res.error ?? 'Falha ao gerar o convite.');
       return;
@@ -67,11 +74,24 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
 
       {data ? (
         <div className="grid stats" style={{ marginBottom: 16 }}>
-          <div className="card stat"><div className="value">{data.workload.activeMembers}</div><div className="label">Ativos</div></div>
-          <div className="card stat"><div className="value">{data.workload.inactiveMembers}</div><div className="label">Inativos</div></div>
-          <div className="card stat"><div className="value">{data.workload.openHandoffs}</div><div className="label">Fila (handoffs abertos)</div></div>
           <div className="card stat">
-            <div className="value">{data.workload.avgQueuePerMember === null ? '—' : data.workload.avgQueuePerMember.toFixed(1)}</div>
+            <div className="value">{data.workload.activeMembers}</div>
+            <div className="label">Ativos</div>
+          </div>
+          <div className="card stat">
+            <div className="value">{data.workload.inactiveMembers}</div>
+            <div className="label">Inativos</div>
+          </div>
+          <div className="card stat">
+            <div className="value">{data.workload.openHandoffs}</div>
+            <div className="label">Fila (handoffs abertos)</div>
+          </div>
+          <div className="card stat">
+            <div className="value">
+              {data.workload.avgQueuePerMember === null
+                ? '—'
+                : data.workload.avgQueuePerMember.toFixed(1)}
+            </div>
             <div className="label">Carga média por pessoa</div>
           </div>
         </div>
@@ -80,9 +100,26 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
       <div className="card" style={{ marginBottom: 16 }}>
         <h3>Cadastrar</h3>
         <div className="form-row">
-          <input placeholder="Nome completo" value={name} onChange={(e) => { setName(e.target.value); }} />
-          <input placeholder="E-mail (opcional)" value={email} onChange={(e) => { setEmail(e.target.value); }} />
-          <button className="primary" onClick={() => { void register(); }}>
+          <input
+            placeholder="Nome completo"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+            }}
+          />
+          <input
+            placeholder="E-mail (opcional)"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+            }}
+          />
+          <button
+            className="primary"
+            onClick={() => {
+              void register();
+            }}
+          >
             Cadastrar
           </button>
         </div>
@@ -124,13 +161,34 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
                   <tr key={m.id}>
                     <td style={{ fontWeight: 600 }}>{m.name}</td>
                     <td>{m.email ?? '—'}</td>
-                    <td className="mono" style={{ fontSize: 12 }}>{m.id}</td>
-                    <td>{m.active ? <span className="badge ok">ativo</span> : <span className="badge bad">inativo</span>}</td>
+                    <td className="mono" style={{ fontSize: 12 }}>
+                      {m.id}
+                    </td>
+                    <td>
+                      {m.active ? (
+                        <span className="badge ok">ativo</span>
+                      ) : (
+                        <span className="badge bad">inativo</span>
+                      )}
+                    </td>
                     <td>{formatDate(m.createdAt)}</td>
                     <td>
-                      <button onClick={() => { void setActive(m.id, !m.active); }}>{m.active ? 'Desativar' : 'Ativar'}</button>
-                      {role === 'advogado' && m.active ? (
-                        <button style={{ marginLeft: 6 }} onClick={() => { void convidar(m.id); }}>Gerar convite</button>
+                      <button
+                        onClick={() => {
+                          void setActive(m.id, !m.active);
+                        }}
+                      >
+                        {m.active ? 'Desativar' : 'Ativar'}
+                      </button>
+                      {(role === 'advogado' || role === 'perito') && m.active ? (
+                        <button
+                          style={{ marginLeft: 6 }}
+                          onClick={() => {
+                            void convidar(m.id);
+                          }}
+                        >
+                          Gerar convite
+                        </button>
                       ) : null}
                     </td>
                   </tr>

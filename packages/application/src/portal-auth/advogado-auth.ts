@@ -34,6 +34,10 @@ export interface AdvogadoAuthDeps {
   readonly credenciais: CredenciaisStore;
   /** Segredo que ASSINA convites (o mesmo segredo de acesso do portal — nada novo). */
   readonly secret: string;
+  /** Decreto 2026-07-21 (Portal do Perito): o MESMO fluxo convite→senha→login
+   *  serve outros papéis do diretório. Defaults preservam o advogado. */
+  readonly role?: 'advogado' | 'perito' | 'operador' | 'supervisor' | 'administrador';
+  readonly usoConvite?: string;
 }
 
 export type ResultadoAuth =
@@ -43,29 +47,43 @@ export type ResultadoAuth =
 const CREDENCIAIS_INVALIDAS = 'credenciais inválidas';
 
 export class AdvogadoAuthRuntime {
-  constructor(private readonly deps: AdvogadoAuthDeps) {}
+  private readonly role: NonNullable<AdvogadoAuthDeps['role']>;
+  private readonly usoConvite: string;
 
-  /** Advogado cadastrado, ativo e do papel certo? (guard único, fail-closed) */
+  constructor(private readonly deps: AdvogadoAuthDeps) {
+    this.role = deps.role ?? 'advogado';
+    this.usoConvite = deps.usoConvite ?? USO_CONVITE_ADVOGADO;
+  }
+
+  /** Membro cadastrado, ativo e do papel certo? (guard único, fail-closed) */
   private async advogadoAtivo(advogadoId: string): Promise<{ id: string; name: string } | null> {
     const member = await this.deps.staff.byId(advogadoId);
-    if (member === null || member.role !== 'advogado' || !member.active) return null;
+    if (member === null || member.role !== this.role || !member.active) return null;
     return { id: member.id, name: member.name };
   }
 
-  /** ATO DO ADMINISTRADOR: convite assinado (7 dias) — só para advogado ativo. */
+  /** ATO DO ADMINISTRADOR: convite assinado (7 dias) — só para membro ativo. */
   async emitirConvite(advogadoId: string, now: Date): Promise<string | null> {
     if (this.deps.secret === '') return null; // fail-closed
     const member = await this.advogadoAtivo(advogadoId);
     if (member === null) return null;
-    return assinarTokenPortal(member.id, USO_CONVITE_ADVOGADO, VALIDADE_CONVITE_DIAS, now, this.deps.secret);
+    return assinarTokenPortal(
+      member.id,
+      this.usoConvite,
+      VALIDADE_CONVITE_DIAS,
+      now,
+      this.deps.secret,
+    );
   }
 
-  /** O advogado cria a PRÓPRIA senha a partir do convite (nunca pela URL crua). */
+  /** O membro cria a PRÓPRIA senha a partir do convite (nunca pela URL crua). */
   async definirSenha(token: string, senha: string, now: Date): Promise<ResultadoAuth> {
-    const convite = validarTokenPortalDetalhado(token, USO_CONVITE_ADVOGADO, now, this.deps.secret);
-    if (convite === null) return { ok: false, error: 'convite inválido ou expirado — peça um novo ao escritório' };
+    const convite = validarTokenPortalDetalhado(token, this.usoConvite, now, this.deps.secret);
+    if (convite === null)
+      return { ok: false, error: 'convite inválido ou expirado — peça um novo ao escritório' };
     const member = await this.advogadoAtivo(convite.sub);
-    if (member === null) return { ok: false, error: 'cadastro não encontrado ou inativo — fale com o escritório' };
+    if (member === null)
+      return { ok: false, error: 'cadastro não encontrado ou inativo — fale com o escritório' };
     // GO-LIVE-04.1 · CONVITE NÃO É REUTILIZÁVEL: se já existe senha criada DEPOIS
     // da emissão deste convite, ele morreu. Redefinição exige convite NOVO do
     // escritório (emitido após a senha atual) — nunca um link antigo vazado.
@@ -73,8 +91,16 @@ export class AdvogadoAuthRuntime {
     if (existente !== null && existente.atualizadaEm.getTime() >= convite.emitidoEm.getTime()) {
       return { ok: false, error: 'este convite já foi utilizado — peça um novo ao escritório' };
     }
-    if (senha.length < SENHA_MINIMA) return { ok: false, error: `a senha precisa ter pelo menos ${String(SENHA_MINIMA)} caracteres` };
-    await this.deps.credenciais.save({ sujeitoId: member.id, hash: hashSenha(senha), atualizadaEm: now });
+    if (senha.length < SENHA_MINIMA)
+      return {
+        ok: false,
+        error: `a senha precisa ter pelo menos ${String(SENHA_MINIMA)} caracteres`,
+      };
+    await this.deps.credenciais.save({
+      sujeitoId: member.id,
+      hash: hashSenha(senha),
+      atualizadaEm: now,
+    });
     return { ok: true, advogadoId: member.id, nome: member.name };
   }
 

@@ -95,6 +95,8 @@ async function main(): Promise<void> {
     founderSecret: env['FOUNDER_ACCESS_SECRET'] ?? '',
     // Decreto Dossiê Pericial: HISCON parseado (contratos/migrados/indícios).
     pericia: prod.pericia,
+    // Decreto 2026-07-21: convite→senha própria→login do perito.
+    peritoAuth: prod.peritoAuth,
   });
   const advogado = buildAdvogadoServer(prod.advogadoView, {
     accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',

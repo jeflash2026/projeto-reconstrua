@@ -58,4 +58,21 @@ describe('AnthropicVisionClient (CAT-03A)', () => {
     const http = new CapturingHttp({ status: 201, body: { content: [{ type: 'text', text: 'TRANSCRITO' }] } });
     expect(await new AnthropicVisionClient(http, 'k', 'm').read(bytes, 'image/jpeg')).toBe('TRANSCRITO');
   });
+
+  it('15ª rodada (verso do RG): content em MÚLTIPLOS blocos ⇒ concatena todos os textos', async () => {
+    const http = new CapturingHttp({
+      status: 200,
+      body: { content: [{ type: 'text', text: 'CARTEIRA DE IDENTIDADE' }, { type: 'text', text: 'ORGAO EXPEDIDOR SSP' }] },
+    });
+    expect(await new AnthropicVisionClient(http, 'k', 'm').read(bytes, 'image/jpeg')).toBe(
+      'CARTEIRA DE IDENTIDADE\nORGAO EXPEDIDOR SSP',
+    );
+  });
+
+  it('2xx SEM texto no content ⇒ LANÇA com o corpo real (nunca null mudo)', async () => {
+    const http = new CapturingHttp({ status: 200, body: { content: [], stop_reason: 'end_turn' } });
+    await expect(new AnthropicVisionClient(http, 'k', 'm').read(bytes, 'image/jpeg')).rejects.toThrow(
+      /anthropic-vision 2xx sem texto.*end_turn/,
+    );
+  });
 });

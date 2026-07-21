@@ -52,8 +52,24 @@ export class AnthropicVisionClient implements DocumentReaderPort {
       throw new Error(`anthropic-vision HTTP ${String(response.status)}: ${excerto}`);
     }
 
-    const first = asArray(asRecord(response.body)?.['content'])?.[0];
-    const text = asString(asRecord(first)?.['text']);
-    return text !== null && text !== '' ? text : null;
+    // 15ª rodada (verso do RG): mesmo defeito do adapter de texto — ler só o
+    // content[0] perdia respostas em múltiplos blocos. Concatena TODOS os blocos
+    // de texto; se ainda assim vier vazio, LANÇA com o corpo real (stop_reason/
+    // recusa/formato aparecem no log em vez de "visao nao retornou texto" mudo.
+    const blocos = asArray(asRecord(response.body)?.['content']) ?? [];
+    const texto = blocos
+      .map((b) => asString(asRecord(b)?.['text']) ?? '')
+      .filter((t) => t !== '')
+      .join('\n');
+    if (texto === '') {
+      let excerto = '';
+      try {
+        excerto = JSON.stringify(response.body).replace(/\s+/g, ' ').slice(0, 300);
+      } catch {
+        excerto = String(response.body).slice(0, 300);
+      }
+      throw new Error(`anthropic-vision 2xx sem texto no content :: ${excerto}`);
+    }
+    return texto;
   }
 }

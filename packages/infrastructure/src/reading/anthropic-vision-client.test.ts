@@ -47,8 +47,15 @@ describe('AnthropicVisionClient (CAT-03A)', () => {
     expect(http.lastUrl).toBe('');
   });
 
-  it('status != 200 ⇒ null', async () => {
-    const http = new CapturingHttp({ status: 500, body: {} });
-    expect(await new AnthropicVisionClient(http, 'k', 'm').read(bytes, 'image/jpeg')).toBeNull();
+  it('erro HTTP (429/500) ⇒ LANÇA com status + corpo (o serviço loga a causa literal)', async () => {
+    const http = new CapturingHttp({ status: 429, body: { type: 'error', error: { type: 'rate_limit_error' } } });
+    await expect(new AnthropicVisionClient(http, 'k', 'm').read(bytes, 'image/jpeg')).rejects.toThrow(
+      /anthropic-vision HTTP 429.*rate_limit_error/,
+    );
+  });
+
+  it('2xx não-200 ⇒ ACEITO (lição do HTTP 201 da mídia)', async () => {
+    const http = new CapturingHttp({ status: 201, body: { content: [{ type: 'text', text: 'TRANSCRITO' }] } });
+    expect(await new AnthropicVisionClient(http, 'k', 'm').read(bytes, 'image/jpeg')).toBe('TRANSCRITO');
   });
 });

@@ -39,7 +39,18 @@ export class AnthropicVisionClient implements DocumentReaderPort {
       { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01' },
       { model: this.model, max_tokens: 4096, messages: [{ role: 'user', content: [block, { type: 'text', text: TRANSCRIBE_PROMPT }] }] },
     );
-    if (response.status !== 200) return null;
+    // 2xx completo + erro LITERAL (mesma lição do HTTP 201 da mídia e do 429 do
+    // LLM): status fora de 2xx lança com o corpo — o DocumentReaderService
+    // captura e loga a causa real em vez de um null mudo.
+    if (response.status < 200 || response.status >= 300) {
+      let excerto = '';
+      try {
+        excerto = JSON.stringify(response.body).replace(/\s+/g, ' ').slice(0, 200);
+      } catch {
+        excerto = String(response.body).slice(0, 200);
+      }
+      throw new Error(`anthropic-vision HTTP ${String(response.status)}: ${excerto}`);
+    }
 
     const first = asArray(asRecord(response.body)?.['content'])?.[0];
     const text = asString(asRecord(first)?.['text']);

@@ -97,9 +97,24 @@ export class AnthropicCompletion implements LlmCompletion {
       { model: this.model, max_tokens: 1024, system, messages: [{ role: 'user', content: user }] },
     );
     exigir2xx(this.name, res.status, res.body);
-    const first = asArray(dig(res.body, ['content']))?.[0];
+    // 13ª rodada: 2xx com content sem texto (thinking/vazio/shape inesperado)
+    // virava resposta="" muda — agora lança com o CORPO real para o log.
+    const blocos = asArray(dig(res.body, ['content'])) ?? [];
+    const texto = blocos
+      .map((b) => asString(asRecord(b)?.['text']) ?? '')
+      .filter((t) => t !== '')
+      .join('\n');
+    if (texto === '') {
+      let excerto = '';
+      try {
+        excerto = JSON.stringify(res.body).replace(/\s+/g, ' ').slice(0, 300);
+      } catch {
+        excerto = String(res.body).slice(0, 300);
+      }
+      throw new Error(`anthropic 2xx sem texto no content :: ${excerto}`);
+    }
     return {
-      text: asString(asRecord(first)?.['text']) ?? '',
+      text: texto,
       tokensIn: asNumber(dig(res.body, ['usage', 'input_tokens'])),
       tokensOut: asNumber(dig(res.body, ['usage', 'output_tokens'])),
     };

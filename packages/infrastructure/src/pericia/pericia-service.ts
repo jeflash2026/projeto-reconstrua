@@ -96,6 +96,21 @@ export class PericiaService {
     return out;
   }
 
+  /** Total REAL de documentos registrados na contabilidade (todas as conversas)
+   *  — a fonte do painel "Documentos processados" (nunca eventos re-contados). */
+  async contagemDocumentosRegistrados(): Promise<number> {
+    const chats = await this.deps.json.keys(NS_ONBOARDING);
+    let total = 0;
+    for (const chatId of chats) {
+      const onboarding = (await this.deps.json.get(
+        NS_ONBOARDING,
+        chatId,
+      )) as OnboardingPersisted | null;
+      total += onboarding?.recebidos?.length ?? 0;
+    }
+    return total;
+  }
+
   private async nomeDoCliente(chatId: string): Promise<string | null> {
     const jornada = (await this.deps.json.get(NS_JORNADA, chatId)) as {
       nome?: string | null;

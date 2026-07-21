@@ -44,6 +44,24 @@ function isStaffRole(value: string): value is StaffRole {
   return (STAFF_ROLES as readonly string[]).includes(value);
 }
 
+/** A fatia do Dossiê Pericial que o Admin consome (Decreto 2026-07-21). */
+interface DossiePericialResumo {
+  readonly totalContratos: number;
+  readonly porBanco: ReadonlyArray<{
+    readonly bancoNome: string;
+    readonly bancoCodigo: string | null;
+    readonly contratos: ReadonlyArray<{ readonly contrato: string }>;
+  }>;
+  readonly migrados: ReadonlyArray<{ readonly contrato: string }>;
+  readonly filaPedidoAdministrativo: ReadonlyArray<{ readonly contrato: string }>;
+  readonly indicios: ReadonlyArray<{
+    readonly estrategiaRef: string;
+    readonly titulo: string;
+    readonly fundamentoFactual: string;
+    readonly contratos: ReadonlyArray<string>;
+  }>;
+}
+
 export function buildAdminServer(
   op: AssembledAdminOperation,
   opts: {
@@ -53,10 +71,12 @@ export function buildAdminServer(
     /** Decreto Dossiê Pericial (2026-07-21): visão do PERITO — HISCON parseado
      *  (contratos por banco, migrados, indícios). Opcional: ausente ⇒ 404. */
     readonly pericia?: {
-      dossie(chatId: string): Promise<unknown>;
+      dossie(chatId: string): Promise<DossiePericialResumo | null>;
       migradosDeTodos(): Promise<unknown>;
       /** documentId → rótulo humano ("RG (frente)", "HISCON"…) da contabilidade. */
       rotulosDosDocumentos?(chatId: string): Promise<Record<string, string>>;
+      /** Total REAL de documentos registrados (fonte do painel). */
+      contagemDocumentosRegistrados?(): Promise<number>;
     };
   } = {},
 ): FastifyInstance {
@@ -110,16 +130,28 @@ export function buildAdminServer(
     const bottlenecks = await op.admin.answer('bottlenecks', now);
     const sector = await op.admin.answer('sector_needing_attention', now);
 
+    // 100% DADOS REAIS (decreto 2026-07-21): clientes/casos vêm da LISTA ÚNICA
+    // derivada (nunca de eventos re-contados — reenvios e replays inflavam o
+    // painel); documentos vêm da CONTABILIDADE documental. Métricas projetadas
+    // ficam como fallback quando a fonte derivada não está montada.
+    const listaClientes = op.clientes ? await op.clientes.list(now) : null;
+    const documentosReais = opts.pericia?.contagemDocumentosRegistrados
+      ? await opts.pericia.contagemDocumentosRegistrados().catch(() => null)
+      : null;
+
     return {
-      activeClients: metrics?.clientCount ?? 0,
+      activeClients: listaClientes !== null ? listaClientes.length : (metrics?.clientCount ?? 0),
       newClientsToday: newToday,
       awaitingDocuments,
       awaitingPericia: (await op.handoff.openFor('perito')).length,
       awaitingAdvogado: (await op.handoff.openFor('advogado')).length,
-      processesDistributed: metrics?.processCount ?? 0,
+      processesDistributed:
+        listaClientes !== null
+          ? listaClientes.filter((c) => c.status === 'EM_PROCESSO').length
+          : (metrics?.processCount ?? 0),
       avgHandlingMs: stats.avgLatencyMs,
       messageCount: totalMessages,
-      documentCount: metrics?.documentCount ?? 0,
+      documentCount: documentosReais ?? metrics?.documentCount ?? 0,
       financialUnderAdministration: metrics?.financialUnderAdministration ?? null,
       expectedFees: null, // sem fonte de dados no domínio congelado — nunca inventado
       bottlenecks: bottlenecks.fact,
@@ -156,10 +188,12 @@ export function buildAdminServer(
     const temFeedback = atendimentos.length > 0;
     const topEstrategia = painel.estrategiasMaisUtilizadas[0] ?? null;
 
+    // 100% dados reais (decreto): a lista única derivada é a fonte dos clientes.
+    const listaCC = op.clientes ? await op.clientes.list(now) : null;
     const briefing = gerarBriefing({
       founderName: opts.founderName ?? 'founder',
       now,
-      clientesAtivos: metrics?.clientCount ?? 0,
+      clientesAtivos: listaCC !== null ? listaCC.length : (metrics?.clientCount ?? 0),
       novosClientesHoje,
       dossiesProntos: 0, // Read Model de "dossiê pronto/liberado" chega em incremento próprio
       aguardandoDocumentos,
@@ -322,8 +356,24 @@ export function buildAdminServer(
       chatId: cliente.chatId,
       confirmadoEm: now,
       confirmadoPor: body.confirmadoPor?.trim() ? body.confirmadoPor.trim() : 'perito',
-      bancos: contratos !== null ? Object.keys(contratos.parse.porBanco) : [],
-      contratos: contratos !== null ? contratos.parse.contratos.length : 0,
+      // Snapshot do parser DETALHADO quando ele reconheceu o formato em blocos
+      // (o heurístico devolvia 0 no HISCON real); fallback preservado.
+      bancos:
+        contratos !== null && (contratos.detalhado?.contratos.length ?? 0) > 0
+          ? [
+              ...new Set(
+                contratos.detalhado.contratos.map((c) => c.bancoNome ?? 'BANCO NÃO IDENTIFICADO'),
+              ),
+            ]
+          : contratos !== null
+            ? Object.keys(contratos.parse.porBanco)
+            : [],
+      contratos:
+        contratos !== null && (contratos.detalhado?.contratos.length ?? 0) > 0
+          ? contratos.detalhado.contratos.length
+          : contratos !== null
+            ? contratos.parse.contratos.length
+            : 0,
     });
 
     // Consequência temporal: sinal para a AHRI quando o prazo vencer (Lei 8).
@@ -504,7 +554,7 @@ export function buildAdminServer(
       fonte: `read-model:memory:${e.source.kind}`,
     }));
     const missionId = op.projector.missionsOf(chatId)[0] ?? null;
-    return montarDossie({
+    const dossie = montarDossie({
       clienteId: chatId,
       chatId,
       missionId,
@@ -517,6 +567,54 @@ export function buildAdminServer(
       contratosEncontrados,
       timeline,
     });
+
+    // Decreto Dossiê Pericial: o parecer é ENRIQUECIDO pelos FATOS do HISCON
+    // parseado — contratos encontrados, evidências e hipóteses nascem do
+    // documento (cada item cita o fato; nada é inventado pela IA).
+    const pericial = opts.pericia ? await opts.pericia.dossie(chatId).catch(() => null) : null;
+    if (pericial === null || pericial.totalContratos === 0) return dossie;
+
+    const contratosDoHiscon = pericial.porBanco.flatMap((b) =>
+      b.contratos.map(
+        (c) =>
+          `${c.contrato} — ${b.bancoNome}${b.bancoCodigo !== null ? ` (${b.bancoCodigo})` : ''}`,
+      ),
+    );
+    const evidenciasDoHiscon = pericial.indicios.map(
+      (i) => `${i.fundamentoFactual} [HISCON · ${i.estrategiaRef}]`,
+    );
+    const hipotesesDoHiscon = pericial.indicios.map((i, posicao) => ({
+      posicao: posicao + 1,
+      ref: i.estrategiaRef,
+      hipotese: i.titulo,
+      confianca: 'media' as const,
+      prioridade: posicao + 1,
+      justificativa: i.fundamentoFactual,
+      fundamento: 'HISCON — fatos extraídos do documento (parser determinístico)',
+    }));
+    const acoes: string[] = [];
+    if (pericial.filaPedidoAdministrativo.length > 0) {
+      acoes.push(
+        `Perito: fazer os pedidos administrativos de ${String(pericial.filaPedidoAdministrativo.length)} contrato(s) em ${String(pericial.porBanco.length)} banco(s)`,
+      );
+    }
+    if (pericial.migrados.length > 0) {
+      acoes.push(
+        `Admin: ${String(pericial.migrados.length)} contrato(s) MIGRADO(s) sem pedido administrativo — destinar diretamente a um advogado`,
+      );
+    }
+
+    return {
+      ...dossie,
+      contratosEncontrados: contratosDoHiscon,
+      evidenciasEncontradas: [...dossie.evidenciasEncontradas, ...evidenciasDoHiscon],
+      hipoteses: dossie.hipoteses.length > 0 ? dossie.hipoteses : hipotesesDoHiscon,
+      proximasAcoes: [...dossie.proximasAcoes, ...acoes],
+      resumoExecutivo:
+        dossie.hipoteses.length > 0
+          ? dossie.resumoExecutivo
+          : `HISCON analisado: ${String(pericial.totalContratos)} contrato(s) em ${String(pericial.porBanco.length)} banco(s); ${String(pericial.indicios.length)} indício(s) de estratégia identificados a partir dos fatos do documento.`,
+    };
   }
 
   // ── DOSSIÊ PERICIAL (Decreto 2026-07-21) — o HISCON parseado para o PERITO:

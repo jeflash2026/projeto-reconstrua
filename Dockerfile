@@ -41,8 +41,9 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.js
 COPY apps/portal-administracao ./apps/portal-administracao
 COPY apps/portal-advogado ./apps/portal-advogado
 COPY apps/portal-cliente ./apps/portal-cliente
+COPY apps/portal-perito ./apps/portal-perito
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente build
+RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente --filter @reconstrua/portal-perito build
 
 FROM portal-build AS portal-admin
 ENV NODE_ENV=production
@@ -58,3 +59,9 @@ FROM portal-build AS portal-cliente
 ENV NODE_ENV=production
 EXPOSE 3300
 CMD ["pnpm", "--filter", "@reconstrua/portal-cliente", "start"]
+
+# Decreto 2026-07-21: Portal do PERITO — apartado do Admin (basePath /perito).
+FROM portal-build AS portal-perito
+ENV NODE_ENV=production
+EXPOSE 3400
+CMD ["pnpm", "--filter", "@reconstrua/portal-perito", "start"]

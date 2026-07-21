@@ -53,7 +53,9 @@ export interface ProductionServerDeps {
 
 export function buildProductionServer(deps: ProductionServerDeps): FastifyInstance {
   const { prod, env } = deps;
-  const app = Fastify({ logger: false });
+  // Webhook com base64:true carrega a mídia inteira no corpo (imagens/PDFs);
+  // o padrão de 1 MiB do Fastify derrubaria o evento com 413.
+  const app = Fastify({ logger: false, bodyLimit: 30 * 1024 * 1024 });
 
   app.addHook('onSend', (_request, reply, _payload, done) => {
     reply.header('access-control-allow-origin', '*');

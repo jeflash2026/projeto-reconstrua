@@ -550,7 +550,7 @@ main() {
   WEBHOOK_URL="http://${PUBLIC_IP}:${PORT}/webhook/evolution"
   if curl -fsS -m 10 -X POST "${EVOLUTION_BASE_URL}/webhook/set/${EVOLUTION_INSTANCE}" \
       -H "apikey: ${EVOLUTION_API_KEY}" -H "content-type: application/json" \
-      -d "{\"webhook\":{\"enabled\":true,\"url\":\"${WEBHOOK_URL}\",\"byEvents\":false,\"base64\":false,\"events\":[\"MESSAGES_UPSERT\"]}}" >/dev/null 2>&1; then
+      -d "{\"webhook\":{\"enabled\":true,\"url\":\"${WEBHOOK_URL}\",\"byEvents\":false,\"base64\":true,\"events\":[\"MESSAGES_UPSERT\"]}}" >/dev/null 2>&1; then
     ok "webhook: ${WEBHOOK_URL}"
   else
     warn "API de webhook recusou — registre no manager: ${WEBHOOK_URL} (MESSAGES_UPSERT)"

@@ -23,6 +23,8 @@ export class EvolutionMediaClient implements MediaGatewayPort {
   async fetch(rawMessage: unknown): Promise<FetchedMedia | null> {
     const root = asRecord(rawMessage);
     const data = root ? asRecord(root['data']) : null;
+    const embutida = embeddedMedia(data);
+    if (embutida !== null) return embutida;
     const key = data ? asRecord(data['key']) : null;
     if (!key) return null;
 
@@ -37,4 +39,19 @@ export class EvolutionMediaClient implements MediaGatewayPort {
     const fileName = asString(body['fileName']);
     return { base64, mime, fileName };
   }
+}
+
+// Com o webhook configurado com base64:true a Evolution entrega o conteúdo da
+// mídia DENTRO do próprio evento (data.message.base64). É o único caminho quando
+// a instância não persiste mensagens recebidas — nesse cenário o endpoint
+// getBase64FromMediaMessage nunca encontra a mensagem e devolve erro.
+function embeddedMedia(data: Record<string, unknown> | null): FetchedMedia | null {
+  const message = data ? asRecord(data['message']) : null;
+  if (!message) return null;
+  const base64 = asString(message['base64']);
+  if (base64 === null || base64 === '') return null;
+  const media = asRecord(message['imageMessage']) ?? asRecord(message['documentMessage']);
+  const mime = (media ? asString(media['mimetype']) : null) ?? 'application/octet-stream';
+  const fileName = media ? asString(media['fileName']) : null;
+  return { base64, mime, fileName };
 }

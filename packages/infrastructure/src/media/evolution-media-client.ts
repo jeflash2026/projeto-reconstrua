@@ -13,6 +13,7 @@ export class EvolutionMediaClient implements MediaGatewayPort {
   constructor(
     private readonly http: HttpClient,
     private readonly config: EvolutionConfig,
+    private readonly log: (message: string) => void = () => undefined,
   ) {}
 
   private url(): string {
@@ -28,16 +29,49 @@ export class EvolutionMediaClient implements MediaGatewayPort {
     const key = data ? asRecord(data['key']) : null;
     if (!key) return null;
 
-    const response = await this.http.postJson(this.url(), { apikey: this.config.apiKey }, { message: { key }, convertToMp4: false });
-    if (response.status !== 200) return null;
+    // Key MÍNIMA {remoteJid,id,fromMe} — formato comprovado em produção no
+    // sistema anterior; a key crua do webhook carrega campos extras
+    // (senderLid/participant/…) que versões da Evolution rejeitam no lookup.
+    const remoteJid = asString(key['remoteJid']);
+    const id = asString(key['id']);
+    if (remoteJid === null || id === null) {
+      this.log(`evolution getBase64: key incompleta (chaves=[${Object.keys(key).join(',')}])`);
+      return null;
+    }
+    const minimalKey = { remoteJid, id, fromMe: key['fromMe'] === true };
+
+    const response = await this.http.postJson(
+      this.url(),
+      { apikey: this.config.apiKey },
+      { message: { key: minimalKey }, convertToMp4: false },
+    );
+    if (response.status !== 200) {
+      this.log(`evolution getBase64: HTTP ${String(response.status)} :: ${excerpt(response.body)}`);
+      return null;
+    }
 
     const body = asRecord(response.body);
-    if (!body) return null;
+    if (!body) {
+      this.log('evolution getBase64: resposta sem corpo JSON');
+      return null;
+    }
     const base64 = asString(body['base64']) ?? asString(body['media']);
-    if (base64 === null || base64 === '') return null;
+    if (base64 === null || base64 === '') {
+      this.log(`evolution getBase64: 200 sem base64 (chaves=[${Object.keys(body).join(',')}])`);
+      return null;
+    }
     const mime = asString(body['mimetype']) ?? asString(body['mimeType']) ?? 'application/octet-stream';
     const fileName = asString(body['fileName']);
     return { base64, mime, fileName };
+  }
+}
+
+/** Trecho seguro do corpo de erro para log (200 chars, sem quebras). */
+function excerpt(body: unknown): string {
+  try {
+    return JSON.stringify(body).replace(/\s+/g, ' ').slice(0, 200);
+  } catch {
+    return String(body).slice(0, 200);
   }
 }
 

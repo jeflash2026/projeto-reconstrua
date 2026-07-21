@@ -70,23 +70,34 @@ describe('EvolutionMediaClient · base64 embutido no webhook (base64:true)', () 
     expect(fetched).toEqual({ base64: JPEG_B64, mime: 'image/jpeg', fileName: null });
   });
 
-  it('SEM base64 embutido ⇒ fallback para getBase64FromMediaMessage (comportamento anterior)', async () => {
-    const http = httpStub((url) => {
+  it('SEM base64 embutido ⇒ fallback getBase64FromMediaMessage com key MÍNIMA {remoteJid,id,fromMe} — campos extras (senderLid/participant) NÃO viajam', async () => {
+    const corpos: unknown[] = [];
+    const http = httpStub((url, body) => {
       expect(url).toBe('http://evolution:8080/chat/getBase64FromMediaMessage/INST');
+      corpos.push(body);
       return { status: 200, body: { base64: JPEG_B64, mimetype: 'image/jpeg' } };
     });
     const client = new EvolutionMediaClient(http.client, CONFIG);
     const fetched = await client.fetch({
-      data: { key: { id: 'MSG-3' }, message: { imageMessage: { mimetype: 'image/jpeg' } } },
+      data: {
+        key: { id: 'MSG-3', remoteJid: '5517996332346@s.whatsapp.net', fromMe: false, senderLid: '123@lid', participant: '' },
+        message: { imageMessage: { mimetype: 'image/jpeg' } },
+      },
     });
     expect(http.calls).toHaveLength(1);
+    expect(corpos[0]).toEqual({
+      message: { key: { remoteJid: '5517996332346@s.whatsapp.net', id: 'MSG-3', fromMe: false } },
+      convertToMp4: false,
+    });
     expect(fetched).toEqual({ base64: JPEG_B64, mime: 'image/jpeg', fileName: null });
   });
 
   it('fallback com Evolution sem a mensagem (o cenário real: 400/404) ⇒ null', async () => {
     const http = httpStub(() => ({ status: 400, body: { message: 'Message not found' } }));
     const client = new EvolutionMediaClient(http.client, CONFIG);
-    const fetched = await client.fetch({ data: { key: { id: 'MSG-4' }, message: {} } });
+    const fetched = await client.fetch({
+      data: { key: { id: 'MSG-4', remoteJid: '5517996332346@s.whatsapp.net', fromMe: false }, message: {} },
+    });
     expect(fetched).toBeNull();
   });
 

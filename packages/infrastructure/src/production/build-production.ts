@@ -391,7 +391,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // Cadeia: base64 embutido no evento / API da Evolution → download direto do
     // CDN do WhatsApp com descriptografia local (independe da Evolution persistir).
     gateway: new ChainedMediaGateway([
-      new EvolutionMediaClient(resilientHttp, config.evolution),
+      new EvolutionMediaClient(resilientHttp, config.evolution, (message) =>
+        observability.error('media', 'evolution', clock.now(), message),
+      ),
       new DirectWhatsAppMediaClient(undefined, (message) =>
         observability.error('media', 'direct', clock.now(), message),
       ),

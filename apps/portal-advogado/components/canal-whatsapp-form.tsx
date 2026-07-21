@@ -13,23 +13,32 @@ const CanalWhatsAppForm = ({ atual }: { atual: string | null }): ReactElement =>
   const salvar = (): void => {
     setSalvo(null);
     setErro(null);
-    iniciar(async () => {
-      const r = await definirCanalWhatsApp(numero);
-      if (r.ok) setSalvo('Número salvo — a AHRI avisará você por este WhatsApp.');
-      else setErro(r.error ?? 'não consegui salvar');
+    // Transition SÍNCRONA envolvendo o trabalho async — compila igual nas
+    // tipagens do React 18 e 19 (async direto quebrava o build Docker quando a
+    // resolução de tipos mudou com a entrada do React 19 no workspace).
+    iniciar(() => {
+      void (async () => {
+        const r = await definirCanalWhatsApp(numero);
+        if (r.ok) setSalvo('Número salvo — a AHRI avisará você por este WhatsApp.');
+        else setErro(r.error ?? 'não consegui salvar');
+      })();
     });
   };
 
   return (
     <div className="card">
       <h3>Meu WhatsApp (avisos da AHRI)</h3>
-      <p className="page-sub">Quando um documento solicitado chegar, a AHRI avisa você neste número.</p>
+      <p className="page-sub">
+        Quando um documento solicitado chegar, a AHRI avisa você neste número.
+      </p>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <input
           className="sol-input mono"
           style={{ maxWidth: 260 }}
           value={numero}
-          onChange={(e) => { setNumero(e.target.value); }}
+          onChange={(e) => {
+            setNumero(e.target.value);
+          }}
           placeholder="5541999999999 (DDI+DDD+número)"
           inputMode="numeric"
         />

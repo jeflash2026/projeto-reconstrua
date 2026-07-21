@@ -38,6 +38,10 @@ FROM node:22-alpine AS portal-build
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@9 --activate
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
+# Workspace COMPLETO: com importers parciais o pnpm re-resolvia os @types e os
+# builds falhavam com erros de tipo que não existem no local/CI.
+COPY packages ./packages
+COPY apps/api ./apps/api
 COPY apps/portal-administracao ./apps/portal-administracao
 COPY apps/portal-advogado ./apps/portal-advogado
 COPY apps/portal-cliente ./apps/portal-cliente

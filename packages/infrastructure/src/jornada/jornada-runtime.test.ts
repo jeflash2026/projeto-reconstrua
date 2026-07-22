@@ -106,7 +106,7 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
 
     // "Santa Ernestina" ⇒ identificação completa ⇒ explicação + pergunta de interesse.
     const explicacao = await h.turno('Santa Ernestina');
-    expect(explicacao).toContain('interesse em fazer essa análise?');
+    expect(explicacao).toContain('interesse em fazer essa análise');
     expect(await h.jornada.etapa(CHAT)).toBe('CONSENTIMENTO');
 
     // "sim" ⇒ consentimento registrado ⇒ triagem começa pelo RG f/v ou CNH.
@@ -137,7 +137,7 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
     const h = harness();
     await h.turno('Boa noite', { turns: 1 });
     const r = await h.turno('Isabel, sou de santa ernestina- SP');
-    expect(r).toContain('interesse em fazer essa análise?');
+    expect(r).toContain('interesse em fazer essa análise');
   });
 
   it('recusa ⇒ despedida gentil; novo "sim" depois reativa a triagem', async () => {

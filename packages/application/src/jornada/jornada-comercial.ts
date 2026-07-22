@@ -266,17 +266,20 @@ export function pareceNome(s: string): boolean {
 // Decreto 2026-07-22 (caso Lucas): tom de CONSULTORA JURÍDICA — profissional,
 // claro e acolhedor, SEM emojis. Atendimento que transmite segurança.
 export const MENSAGENS_JORNADA = {
+  // Decreto Fluxo 2026-07-22: nome PRIMEIRO (registra), depois cidade, depois
+  // a explicação com o modelo de honorários por ÊXITO.
   boasVindas:
     'Olá, seja bem-vindo(a) ao Projeto Reconstrua. Eu me chamo Ahri e sou a consultora responsável pelo seu atendimento — vou acompanhar o seu caso do início ao fim.\n\n' +
-    'Para começarmos, pode me informar o seu nome completo e a cidade onde mora?',
+    'Para começarmos, pode me informar o seu nome completo?',
   pedirNomeECidade:
-    'Para eu registrar o seu atendimento corretamente, pode me informar o seu nome completo e a cidade onde mora?',
-  pedirCidade: (nome: string): string => `Prazer, ${nome}. E de qual cidade você fala?`,
+    'Para eu registrar o seu atendimento corretamente, pode me informar o seu nome completo?',
+  pedirCidade: (nome: string): string =>
+    `Prazer, ${nome}, é um gosto falar com você. E em qual cidade você mora?`,
   pedirNome: 'E qual é o seu nome completo, por favor?',
   explicacaoConsentimento: (nome: string): string =>
-    `${nome !== '' ? `Prazer, ${nome}. ` : ''}Deixa eu te explicar como funciona: nossa equipe analisa o seu consignado do INSS para verificar se existe alguma irregularidade nos descontos do benefício. Se encontrarmos algo fora do previsto, é possível buscar a revisão e a recuperação desses valores.\n\n` +
-    'A análise é gratuita e sem compromisso — e só depois dela é possível saber se existe algum direito no seu caso.\n\n' +
-    'Você tem interesse em fazer essa análise?',
+    `${nome !== '' ? `Obrigada, ${nome}. ` : ''}Deixa eu te explicar como funciona o Projeto Reconstrua: nossa equipe analisa o seu consignado do INSS para verificar se existe alguma irregularidade nos descontos do seu benefício. Se encontrarmos algo fora do previsto, buscamos a revisão e a recuperação desses valores para você.\n\n` +
+    'Sobre custos, para a sua total tranquilidade: a análise é gratuita. E se identificarmos que o seu caso é viável, você também não paga nada para dar entrada no processo — os honorários são do advogado e cobrados apenas ao final, somente em caso de êxito. Ou seja, você só tem algo a pagar se conseguirmos o resultado para você.\n\n' +
+    'Você tem interesse em fazer essa análise gratuita?',
   reforcoConsentimento:
     'Só para eu confirmar: você tem interesse em fazer a análise gratuita do seu consignado?',
   recusa:
@@ -284,8 +287,8 @@ export const MENSAGENS_JORNADA = {
   // Decreto HISCON-ONLY (2026-07-22): a análise inicial precisa de UM documento.
   iniciarTriagem: (proximo: string): string =>
     'Ótimo, vamos começar.\n\n' +
-    `Para a análise eu preciso de apenas UM documento: ${proximo}.\n\n` +
-    'Você consegue emitir pelo aplicativo ou site Meu INSS, na opção "Extrato de Empréstimos Consignados". Pode enviar o PDF ou fotos das páginas por aqui mesmo — e se tiver qualquer dificuldade para emitir, me avise que eu te explico o passo a passo.',
+    `Para a análise eu preciso de apenas UM documento: ${proximo}. Você consegue emitir pelo aplicativo ou site Meu INSS, na opção "Extrato de Empréstimos Consignados", e enviar aqui mesmo em PDF ou foto das páginas.\n\n` +
+    'Precisa de ajuda para baixar o arquivo e enviar para mim? É só me dizer que eu te explico o passo a passo, com calma.',
   aguardandoDocumento: (proximo: string): string =>
     `Estou aguardando: ${proximo}. Pode enviar foto ou print por aqui, no seu tempo.`,
   // Escada de cobrança: o 2º pedido NUNCA repete o 1º — reforça e oferece ajuda.

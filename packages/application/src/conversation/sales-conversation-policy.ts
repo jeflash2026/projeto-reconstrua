@@ -160,10 +160,13 @@ function condutaOnboarding(context: ConversationContextView): string {
 }
 
 const REFORCO_ANALISE_ADMINISTRATIVA =
-  'ESTADO: ANALISE_ADMINISTRATIVA — a documentação inicial está 100% completa e o cadastro está em análise administrativa. ' +
-  'Responda dúvidas, converse normalmente e informe o andamento do caso quando perguntarem. ' +
-  'Preserve o sigilo da empresa, NUNCA revele dados de terceiros e NUNCA invente prazos. ' +
-  'NUNCA solicite documentos por iniciativa própria: documento complementar só é pedido quando existir uma solicitação ATIVA do advogado (ela aparece como MISSÃO OPERACIONAL); sem ela, nenhum pedido de documento';
+  'ESTADO: ANALISE_ADMINISTRATIVA — o HISCON foi recebido e o caso está em ANÁLISE (prazo de até 10 dias úteis). ' +
+  'Comporte-se como uma consultora humana: converse normalmente, com acolhimento. ' +
+  'Se a pessoa perguntar sobre o andamento, informe com naturalidade que o caso ainda está EM ANÁLISE dentro do prazo e que você a avisará por aqui assim que houver novidade — sem inventar datas, resultados ou valores. ' +
+  'Se ela perguntar qualquer outra coisa (dúvidas sobre o processo, sobre custos, sobre o INSS, ou assuntos gerais), RESPONDA de verdade, como uma pessoa faria. ' +
+  'Lembre, quando fizer sentido, que a análise e a entrada no processo não têm custo — os honorários do advogado são cobrados só no final e apenas em caso de êxito. ' +
+  'Preserve o sigilo da empresa, NUNCA revele dados de terceiros. ' +
+  'NUNCA solicite documentos por iniciativa própria: RG, comprovante e procuração só são pedidos DEPOIS da análise, quando o advogado abrir a solicitação (aparece como MISSÃO OPERACIONAL); sem ela, nenhum pedido de documento';
 
 const REFORCO_CLIENTE =
   'ESTADO: CLIENTE — responda diretamente a dúvida antes de tudo; a conversa livre é permitida, mas nunca perca a missão do caso';

@@ -129,8 +129,10 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
       texto('Santa Ernestina'),
     );
     expect(r).toContain('irregularidade');
-    expect(r).toContain('gratuita e sem compromisso');
-    expect(r).toContain('interesse em fazer essa análise?');
+    expect(r).toContain('a análise é gratuita');
+    // Decreto Fluxo 2026-07-22: modelo de honorários por ÊXITO, sem custo antes.
+    expect(r).toContain('somente em caso de êxito');
+    expect(r).toContain('interesse em fazer essa análise');
     expect(r).not.toMatch(/garant|promet/i);
   });
   it('consentiu ⇒ inicia a triagem pedindo APENAS o HISCON (decreto 2026-07-22)', () => {
@@ -400,7 +402,7 @@ describe('humanização — pergunta livre delega à conversa humana em QUALQUER
     ).toBe('');
     expect(
       responderTurno(fatos({ nome: 'Ana', cidade: 'X', ultimaCaptura: 'cidade' }), texto('X')),
-    ).toContain('interesse em fazer essa análise?');
+    ).toContain('interesse em fazer essa análise');
   });
   it('1º contato segue com as boas-vindas mesmo sendo pergunta (a resposta É a acolhida)', () => {
     expect(responderTurno(fatos(), texto('como funciona?', true))).toBe(

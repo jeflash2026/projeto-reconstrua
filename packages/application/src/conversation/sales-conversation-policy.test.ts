@@ -300,16 +300,16 @@ describe('Decreto · ANALISE_ADMINISTRATIVA — conversa normal, zero pedido esp
     expect(p.substituiCuriosidade).toBe(false);
     expect(p.conduta).toBe('');
   });
-  it('responde dúvidas, informa andamento, sigilo, sem inventar prazos', () => {
-    expect(p.reforco).toContain('em análise administrativa');
-    expect(p.reforco).toContain('informe o andamento');
+  it('responde dúvidas, informa andamento (em análise, prazo 10 dias), sigilo, sem inventar', () => {
+    expect(p.reforco).toContain('EM ANÁLISE');
+    expect(p.reforco).toContain('10 dias úteis');
     expect(p.reforco).toContain('sigilo da empresa');
     expect(p.reforco).toContain('NUNCA revele dados de terceiros');
-    expect(p.reforco).toContain('NUNCA invente prazos');
+    expect(p.reforco).toContain('sem inventar datas, resultados ou valores');
   });
-  it('NUNCA solicita documentos por iniciativa própria — só DocumentRequest ativo', () => {
+  it('NUNCA solicita documentos por iniciativa própria — só depois, pelo advogado', () => {
     expect(p.reforco).toContain('NUNCA solicite documentos por iniciativa própria');
-    expect(p.reforco).toContain('solicitação ATIVA do advogado');
+    expect(p.reforco).toContain('o advogado abrir a solicitação');
     expect(p.reforco).toContain('MISSÃO OPERACIONAL');
   });
 });

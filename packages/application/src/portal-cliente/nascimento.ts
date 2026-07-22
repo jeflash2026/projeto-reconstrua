@@ -55,15 +55,16 @@ export interface NascimentoResumo {
  *  ANALISE_ADMINISTRATIVA. Toda a plataforma usa exclusivamente o D2. */
 export function mensagemNascimento(dias: number, link: string): string {
   return (
-    // Decreto HISCON-ONLY (2026-07-22): a documentação inicial é só o HISCON.
+    // Decreto HISCON-ONLY + Fluxo (2026-07-22): só o HISCON; a AHRI retoma o
+    // contato pedindo o restante SE a análise encontrar viabilidade.
     'Recebi o seu HISCON — a documentação desta primeira etapa está completa. ' +
     'Você não precisa enviar mais nada por enquanto. ' +
-    `Seu cadastro entrou agora na etapa de análise administrativa, que pode levar até ${String(dias)} dias úteis. ` +
-    'Se algum documento complementar for necessário durante a análise, nossa equipe solicitará diretamente por este atendimento. ' +
-    'Enquanto isso, você pode acompanhar as informações do seu processo pelo Portal do Cliente: ' +
+    `Seu caso entrou agora na etapa de análise, que pode levar até ${String(dias)} dias úteis. ` +
+    'Você pode acompanhar o andamento pelo Portal do Cliente: ' +
     `${link} ` +
-    'Sempre que houver alguma novidade, eu entrarei em contato automaticamente por aqui. ' +
-    'Se precisar conversar comigo durante esse período, estarei aqui.'
+    'Assim que a análise for concluída, eu retomo o contato por aqui mesmo. ' +
+    'Se identificarmos que o seu caso é viável, aí sim vou te pedir os documentos para dar entrada: RG (frente e verso) ou CNH, comprovante de endereço e a procuração assinada pelo advogado que vai te representar. ' +
+    'Enquanto isso, se você tiver qualquer dúvida, é só me chamar por aqui — estou à disposição.'
   );
 }
 

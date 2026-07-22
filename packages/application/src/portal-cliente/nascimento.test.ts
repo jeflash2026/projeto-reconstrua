@@ -109,7 +109,7 @@ describe('Nascimento · o momento acontece (sem clique humano)', () => {
     const msg = comunicador.mensagens[0];
     expect(msg?.texto).toContain('Recebi o seu HISCON');
     expect(msg?.texto).toContain('até 12 dias úteis');
-    expect(msg?.texto).toContain('estarei aqui.'); // a frase final OBRIGATÓRIA
+    expect(msg?.texto).toContain('estou à disposição.'); // a frase final OBRIGATÓRIA
     // O LINK verbatim, com token VÁLIDO do cliente certo:
     const token = /\?t=([^\s]+)/.exec(msg?.texto ?? '')?.[1] ?? '';
     expect(validarTokenCliente(token, NOW, SECRET)).toBe('cli-1');
@@ -175,22 +175,23 @@ describe('mensagemNascimento (D2 — revisado pelo decreto "Jornada Documental I
       // (sentimento: terminou a primeira etapa; nada mais a enviar espontaneamente)
       'a documentação desta primeira etapa está completa',
       'Você não precisa enviar mais nada por enquanto',
-      // 2. Entrou na análise administrativa:
-      'etapa de análise administrativa',
+      // 2. Entrou na análise:
+      'entrou agora na etapa de análise',
       // 3. Prazo esperado:
       'até 10 dias úteis',
-      // 4. Complementares só quando a equipe solicitar por este atendimento:
-      'documento complementar for necessário durante a análise, nossa equipe solicitará diretamente por este atendimento',
+      // 4. Decreto Fluxo 2026-07-22: a AHRI retoma pedindo o restante SE viável:
+      'Se identificarmos que o seu caso é viável',
+      'RG (frente e verso) ou CNH, comprovante de endereço e a procuração assinada',
       // 5. Portal para acompanhamento (link verbatim):
-      'acompanhar as informações do seu processo pelo Portal do Cliente',
+      'acompanhar o andamento pelo Portal do Cliente',
       'https://x/portal?t=abc',
-      // 6. Contato automático quando houver novidade:
-      'Sempre que houver alguma novidade, eu entrarei em contato automaticamente',
+      // 6. Retoma o contato ao concluir:
+      'eu retomo o contato por aqui',
       // Invariante PC-R3: o relacionamento nunca termina.
-      'estarei aqui.',
+      'estou à disposição.',
     ]) {
       expect(m).toContain(trecho);
     }
-    expect(m.endsWith('estarei aqui.')).toBe(true);
+    expect(m.endsWith('estou à disposição.')).toBe(true);
   });
 });

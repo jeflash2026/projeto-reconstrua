@@ -25,7 +25,13 @@ export async function extrairTextoDePdf(bytes: Uint8Array): Promise<string | nul
         opts: { mergePages: boolean },
       ) => Promise<{ text: string | string[] }>;
     };
-    const doc = await unpdf.getDocumentProxy(bytes);
+    // CAUSA RAIZ (caso Maria, 2026-07-22): o pdf.js ASSUME A POSSE do buffer e o
+    // DETACHA (esvazia) ao ler. O LocalFirstReader chama a extração local ANTES da
+    // Vision usando o MESMO Uint8Array — sem a cópia, a Vision recebia o PDF já
+    // esvaziado ("PDF cannot be empty", HTTP 400) e a leitura de TODO HISCON
+    // falhava. Passamos uma CÓPIA ao pdf.js: os bytes do chamador ficam íntegros.
+    const copia = bytes.slice();
+    const doc = await unpdf.getDocumentProxy(copia);
     const { text } = await unpdf.extractText(doc, { mergePages: true });
     const conteudo = Array.isArray(text) ? text.join('\n') : text;
     const limpo = conteudo.trim();

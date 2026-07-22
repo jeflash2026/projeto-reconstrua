@@ -24,4 +24,16 @@ describe('extrairTextoDePdf (extração LOCAL, custo zero)', () => {
     expect(await extrairTextoDePdf(new Uint8Array([1, 2, 3, 4, 5]))).toBeNull();
     expect(await extrairTextoDePdf(new Uint8Array(0))).toBeNull();
   });
+
+  it('NÃO detacha o buffer de entrada — os bytes seguem íntegros para a Vision (caso Maria)', async () => {
+    const bytes = new Uint8Array(Buffer.from(PDF_NATIVO_BASE64, 'base64'));
+    const tamanhoAntes = bytes.length;
+    await extrairTextoDePdf(bytes);
+    // Antes da correção, o pdf.js detachava o ArrayBuffer e bytes.length virava 0
+    // — a Vision recebia o PDF vazio e a leitura do HISCON falhava (HTTP 400).
+    expect(bytes.length).toBe(tamanhoAntes);
+    expect(bytes.length).toBeGreaterThan(0);
+    // E continua sendo um PDF válido (assinatura "%PDF-").
+    expect(Array.from(bytes.slice(0, 5))).toEqual([0x25, 0x50, 0x44, 0x46, 0x2d]);
+  });
 });

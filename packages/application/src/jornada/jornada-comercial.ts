@@ -284,16 +284,19 @@ export const MENSAGENS_JORNADA = {
     'Só para eu confirmar: você tem interesse em fazer a análise gratuita do seu consignado?',
   recusa:
     'Sem problemas, respeito a sua decisão. Fico à disposição — se mudar de ideia ou tiver qualquer dúvida sobre a análise, é só me chamar por aqui.',
-  // Decreto HISCON-ONLY (2026-07-22): a análise inicial precisa de UM documento.
+  // Decreto HISCON-ONLY + PDF-ONLY (2026-07-22): a análise precisa de UM
+  // documento, e SÓ o ARQUIVO PDF serve — a foto/print do app vem incompleta
+  // (sem todos os contratos e sem o valor das parcelas), e a análise não roda.
   iniciarTriagem: (proximo: string): string =>
     'Ótimo, vamos começar.\n\n' +
-    `Para a análise eu preciso de apenas UM documento: ${proximo}. Você consegue emitir pelo aplicativo ou site Meu INSS, na opção "Extrato de Empréstimos Consignados", e enviar aqui mesmo em PDF ou foto das páginas.\n\n` +
-    'Precisa de ajuda para baixar o arquivo e enviar para mim? É só me dizer que eu te explico o passo a passo, com calma.',
+    `Para a análise eu preciso de apenas UM documento: ${proximo}. Você consegue emitir pelo aplicativo ou site Meu INSS, na opção "Extrato de Empréstimos Consignados".\n\n` +
+    'Importante: preciso do ARQUIVO em PDF (aquele que abre o documento completo, com todos os contratos) — a foto ou o print da tela não servem para a análise. É só baixar o PDF e me enviar aqui como anexo.\n\n' +
+    'Precisa de ajuda para localizar essa opção e baixar o arquivo? Me avisa que eu te explico o passo a passo, com calma.',
   aguardandoDocumento: (proximo: string): string =>
-    `Estou aguardando: ${proximo}. Pode enviar foto ou print por aqui, no seu tempo.`,
+    `Estou aguardando: ${proximo}, no seu tempo. Lembrando que preciso do arquivo em PDF (a foto ou o print da tela não servem para a análise).`,
   // Escada de cobrança: o 2º pedido NUNCA repete o 1º — reforça e oferece ajuda.
   aguardandoDocumentoReforco: (proximo: string): string =>
-    `Só reforçando: para dar sequência à sua análise, preciso de ${proximo}. Se estiver com qualquer dificuldade para enviar (foto, tamanho do arquivo, formato), me avise que eu te oriento.`,
+    `Só reforçando: para dar sequência à sua análise, preciso de ${proximo} — o arquivo em PDF, que é o único formato que traz todos os contratos. Se estiver com dificuldade para baixar ou enviar, me avise que eu te oriento passo a passo.`,
   ackDocumento:
     'Recebi o documento. Um instante enquanto faço o registro — assim que concluir, te confirmo o próximo passo.',
   documentoRegistrado: (registrado: string, proximo: string): string =>
@@ -323,7 +326,7 @@ export const MENSAGENS_JORNADA = {
   // Caso Sidinei: documento mandado como LINK ⇒ orientação clara, nunca cobrança.
   linkDeDocumento: (proximo: string): string =>
     'Recebi o seu link, obrigada. Só que por segurança eu não consigo abrir documentos por link — preciso do ARQUIVO aqui na conversa mesmo.\n\n' +
-    'É simples: abra o documento no aplicativo, toque em "Baixar" (ou "Salvar no celular") e depois me envie o arquivo como anexo aqui no WhatsApp — ou, se preferir, uma foto legível do documento já resolve.\n\n' +
+    'É simples: abra o documento no aplicativo, toque em "Baixar" (ou "Salvar no celular") e depois me envie o arquivo em PDF como anexo aqui no WhatsApp. Preciso do PDF completo — a foto ou o print da tela não trazem todos os contratos e a análise não roda.\n\n' +
     `Estou aguardando: ${proximo}. Qualquer dificuldade, me avise que eu te oriento passo a passo.`,
 } as const;
 

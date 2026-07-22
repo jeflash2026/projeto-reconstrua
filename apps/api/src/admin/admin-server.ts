@@ -109,6 +109,14 @@ export function buildAdminServer(
         }>
       >;
     };
+    /** Decreto 2026-07-22: REAQUECIMENTO de leads frios — o admin AUTORIZA
+     *  lead a lead; a AHRI envia a mensagem do estágio (guardrails no serviço). */
+    readonly reaquecimento?: {
+      leadsFrios(): Promise<readonly unknown[]>;
+      reaquecer(
+        chatId: string,
+      ): Promise<{ ok: true; estagio: string } | { ok: false; error: string }>;
+    };
     /** Decreto 2026-07-21: convite→senha própria→login do PERITO (sem senha
      *  compartilhada). O Admin emite o convite; o portal do perito autentica. */
     readonly peritoAuth?: {
@@ -734,6 +742,24 @@ export function buildAdminServer(
   app.get('/admin/pericia-migrados', async (_request, reply) => {
     if (!opts.pericia) return reply.code(404).send({ error: 'perícia não configurada' });
     return { clientes: await opts.pericia.migradosDeTodos() };
+  });
+
+  // ── REAQUECIMENTO DE LEADS (decreto 2026-07-22) — a AHRI só reaquece com
+  //    AUTORIZAÇÃO manual do admin, lead a lead. GET lista os frios (estágio,
+  //    silêncio, tentativas); POST executa UM reaquecimento autorizado.
+  app.get('/admin/reaquecimento', async (_request, reply) => {
+    if (!opts.reaquecimento)
+      return reply.code(404).send({ error: 'reaquecimento não configurado' });
+    return { leads: await opts.reaquecimento.leadsFrios() };
+  });
+
+  app.post('/admin/reaquecimento/:chatId', async (request, reply) => {
+    if (!opts.reaquecimento)
+      return reply.code(404).send({ error: 'reaquecimento não configurado' });
+    const { chatId } = request.params as { chatId: string };
+    const resultado = await opts.reaquecimento.reaquecer(chatId);
+    if (!resultado.ok) return reply.code(409).send({ error: resultado.error });
+    return resultado;
   });
 
   // ── CUSTOS DE IA (2026-07-21) — o gasto REAL por cliente, do atendimento à

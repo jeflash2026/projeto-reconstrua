@@ -19,6 +19,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { href: '/conexao-whatsapp', label: 'Conexão WhatsApp' },
   { href: '/operacao', label: 'Métricas' },
   { href: '/clientes', label: 'Clientes' },
+  { href: '/reaquecimento', label: 'Reaquecimento' },
   { href: '/clientes-prontos', label: 'Prontos p/ Advogado' },
   { href: '/contratos-migrados', label: 'Contratos Migrados' },
   { href: '/missoes', label: 'Missões' },

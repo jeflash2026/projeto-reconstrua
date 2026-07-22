@@ -99,6 +99,8 @@ async function main(): Promise<void> {
     peritoAuth: prod.peritoAuth,
     // Custos de IA: gasto por cliente (conversa + leitura de documentos).
     custos: prod.custos,
+    // Reaquecimento de leads frios — autorizado pelo admin, lead a lead.
+    reaquecimento: prod.reaquecimento,
   });
   const advogado = buildAdvogadoServer(prod.advogadoView, {
     accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',

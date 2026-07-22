@@ -24,6 +24,7 @@ export * from './onboarding/index.js';
 export * from './jornada/index.js';
 export * from './pericia/index.js';
 export * from './custos/index.js';
+export * from './reaquecimento/index.js';
 export * from './living-memory/index.js';
 export * from './administration/index.js';
 export * from './go-live/index.js';

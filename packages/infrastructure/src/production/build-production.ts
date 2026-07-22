@@ -195,6 +195,7 @@ import {
 } from '../reading/index.js';
 import { PericiaService } from '../pericia/index.js';
 import { MedidorDeCusto } from '../custos/index.js';
+import { ReaquecimentoService } from '../reaquecimento/index.js';
 import {
   EvolutionInstanceClient,
   FetchEvoHttp,
@@ -252,6 +253,8 @@ export interface AssembledProduction {
   readonly documentReader: DocumentReaderService;
   /** Medidor de Custo (2026-07-21): registros de gasto de IA por conversa/leitura. */
   readonly custos: MedidorDeCusto;
+  /** Decreto 2026-07-22: reaquecimento de leads frios — autorizado pelo admin. */
+  readonly reaquecimento: ReaquecimentoService;
   /** GO LIVE A · R1: a visão única do cliente (ALIR) + persona Operador de Qualificação. */
   readonly alir: AssembledALIR;
   /** PC-R1: a projeção segura do processo para o CLIENTE (Portal + AHRI — Princípio 3). */
@@ -708,6 +711,18 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     json,
     onboarding: onboardingDocumental,
     observability,
+    clock,
+  });
+  // Decreto 2026-07-22: REAQUECIMENTO DE LEADS — lista os frios e executa o
+  // reaquecimento AUTORIZADO pelo admin (nada automático). Mesmo canal das
+  // mensagens automáticas: gateway + memória da conversa (a AHRI fica ciente).
+  const reaquecimento = new ReaquecimentoService({
+    json,
+    jornada: jornadaComercial,
+    enviar: async (chatId, texto) => {
+      const receipt = await gateway.sendText(chatId, texto);
+      await convMemory.recordOutbound(chatId, texto, receipt.providerMessageId);
+    },
     clock,
   });
   const context = new ConversationContextRuntime(
@@ -1208,6 +1223,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     peritoAuth,
     documentReader,
     custos,
+    reaquecimento,
     alir,
     acompanhamento,
     nascimento,

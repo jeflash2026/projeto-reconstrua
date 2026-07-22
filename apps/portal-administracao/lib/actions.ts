@@ -522,3 +522,26 @@ export async function assignCase(
     return null;
   }
 }
+
+// ── REAQUECIMENTO DE LEADS (decreto 2026-07-22) — autorização MANUAL do admin:
+// cada clique reaquece UM lead (a AHRI envia a mensagem do estágio; guardrails
+// de intervalo/teto valem no servidor — nunca spam).
+export async function autorizarReaquecimento(
+  chatId: string,
+): Promise<{ ok: boolean; error: string | null }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/reaquecimento/${encodeURIComponent(chatId)}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
+      },
+      cache: 'no-store',
+    });
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) return { ok: false, error: body.error ?? `HTTP ${String(res.status)}` };
+    return { ok: true, error: null };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'falha de rede' };
+  }
+}

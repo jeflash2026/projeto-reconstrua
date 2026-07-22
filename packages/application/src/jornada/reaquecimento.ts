@@ -84,7 +84,7 @@ export function mensagemDeReaquecimento(estagio: EstagioLead, d: DadosDoReaqueci
     case 'CONSENTIU_SEM_DOCS':
       return (
         `${tratamento} Aqui é a Ahri, do Projeto Reconstrua. Você confirmou interesse na análise gratuita do seu consignado, e para começar preciso apenas de: ${proximo}.\n\n` +
-        'Pode enviar foto ou print por aqui mesmo. Se ficou alguma dúvida sobre o processo, me pergunte — estou à disposição.'
+        'Pode me enviar o arquivo em PDF por aqui mesmo. Se ficou alguma dúvida sobre o processo, me pergunte — estou à disposição.'
       );
     case 'DOCS_PARCIAIS':
       return (
@@ -126,7 +126,7 @@ export function mensagemDeRetomada(d: DadosDaRetomada): string {
   if (d.docsRecebidos > 0 || d.consentiu) {
     return (
       desculpa +
-      `Retomando o seu atendimento do ponto onde paramos: preciso de ${proximo}. Pode enviar foto ou print por aqui mesmo. Qualquer dúvida, estou à disposição.`
+      `Retomando o seu atendimento do ponto onde paramos: preciso de ${proximo}. Pode me enviar o arquivo em PDF por aqui mesmo. Qualquer dúvida, estou à disposição.`
     );
   }
   if (d.nome !== null && d.cidade !== null) {

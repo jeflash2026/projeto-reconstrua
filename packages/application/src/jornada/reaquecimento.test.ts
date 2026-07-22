@@ -21,7 +21,8 @@ function fatos(
     registro: { ...novaJornada('c@s.whatsapp.net', NOW), ...over },
     docsRecebidos: docs.docsRecebidos ?? 0,
     docsCompletos: docs.docsCompletos ?? false,
-    proximoDocumento: docs.proximoDocumento ?? 'RG (frente e verso) ou CNH',
+    proximoDocumento:
+      docs.proximoDocumento ?? 'HISCON (histórico de empréstimos consignados do INSS)',
     ultimoRegistrado: null,
     ultimoRegistroEm: null,
   };

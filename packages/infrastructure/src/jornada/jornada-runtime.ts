@@ -82,7 +82,10 @@ export class JornadaComercialRuntime {
       registro,
       docsRecebidos: visao?.recebidos.length ?? 0,
       docsCompletos: visao !== null && visao.faltando.length === 0 && visao.recebidos.length > 0,
-      proximoDocumento: visao?.proximo ?? 'RG (frente e verso) ou CNH',
+      // Decreto HISCON-ONLY (2026-07-22): enquanto não há onboarding semeado
+      // (ex.: lead que só consentiu), o próximo documento é SEMPRE o HISCON — NUNCA
+      // RG/CNH (isso é da Jornada 2, conduzida pelo advogado no portal).
+      proximoDocumento: visao?.proximo ?? 'HISCON (histórico de empréstimos consignados do INSS)',
       ultimoRegistrado: visao?.ultimoRegistrado ?? null,
       ultimoRegistroEm: visao?.ultimoRegistroEm ?? null,
     };

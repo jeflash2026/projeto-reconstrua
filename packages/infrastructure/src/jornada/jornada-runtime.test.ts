@@ -109,10 +109,11 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
     expect(explicacao).toContain('interesse em fazer essa análise');
     expect(await h.jornada.etapa(CHAT)).toBe('CONSENTIMENTO');
 
-    // "sim" ⇒ consentimento registrado ⇒ triagem começa pelo RG f/v ou CNH.
+    // "sim" ⇒ consentimento registrado ⇒ triagem começa pelo HISCON (decreto
+    // HISCON-ONLY): sem onboarding semeado, o padrão é o HISCON, NUNCA RG/CNH.
     const inicio = await h.turno('sim');
     expect(inicio).toContain('apenas UM documento');
-    expect(inicio).toContain('RG (frente e verso) ou CNH');
+    expect(inicio).toContain('HISCON (histórico de empréstimos consignados do INSS)');
     expect(await h.jornada.etapa(CHAT)).toBe('TRIAGEM');
 
     // Documento chega ⇒ ack autorado (a progressão automática pede o próximo).

@@ -9,15 +9,26 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { ContratoHiscon } from './hiscon-parser.js';
 
-/** "03/2026" → índice absoluto de meses (ano×12+mês). null se ilegível. */
+/** Competência → índice absoluto de meses (ano×12+mês). Aceita os dois formatos
+ *  do Meu INSS: "03/2026" (mm/aaaa, Formato A) e "02/02/26" (dd/mm/aa, Formato B
+ *  em "Início de Desconto"). null se ilegível. */
 function mesAbsoluto(competencia: string | null): number | null {
   if (competencia === null) return null;
-  const m = /^(\d{2})\/(\d{4})$/.exec(competencia.trim());
-  if (m === null) return null;
-  const mes = Number(m[1]);
-  const ano = Number(m[2]);
-  if (mes < 1 || mes > 12) return null;
-  return ano * 12 + (mes - 1);
+  const t = competencia.trim();
+  const mmAaaa = /^(\d{2})\/(\d{4})$/.exec(t);
+  if (mmAaaa !== null) {
+    const mes = Number(mmAaaa[1]);
+    const ano = Number(mmAaaa[2]);
+    return mes >= 1 && mes <= 12 ? ano * 12 + (mes - 1) : null;
+  }
+  const ddMmAa = /^\d{2}\/(\d{2})\/(\d{2}|\d{4})$/.exec(t);
+  if (ddMmAa !== null) {
+    const mes = Number(ddMmAa[1]);
+    const aa = Number(ddMmAa[2]);
+    const ano = ddMmAa[2]?.length === 4 ? aa : aa >= 70 ? 1900 + aa : 2000 + aa;
+    return mes >= 1 && mes <= 12 ? ano * 12 + (mes - 1) : null;
+  }
+  return null;
 }
 
 /** Parcelas JÁ descontadas até `hoje` (inclusive a competência corrente).

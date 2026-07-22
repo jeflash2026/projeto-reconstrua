@@ -84,7 +84,18 @@ function taxa(valor: string | null): number | null {
 /** "27/02/26" ou "27/02/2026" → Date (século pivotado em 70). */
 export function dataCurta(valor: string | null): Date | null {
   if (valor === null) return null;
-  const m = /^(\d{2})\/(\d{2})\/(\d{2}|\d{4})$/.exec(valor.trim());
+  const t = valor.trim();
+  // Formato B do Meu INSS: "Data Inclusão: 02/2026" = mm/aaaa (competência) ⇒
+  // primeiro dia do mês. (Formato A usa dd/mm/aa na inclusão.)
+  const comp = /^(\d{2})\/(\d{4})$/.exec(t);
+  if (comp) {
+    const mm = Number(comp[1]);
+    const ano = Number(comp[2]);
+    if (mm < 1 || mm > 12) return null;
+    const d = new Date(Date.UTC(ano, mm - 1, 1));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const m = /^(\d{2})\/(\d{2})\/(\d{2}|\d{4})$/.exec(t);
   if (!m) return null;
   const dd = Number(m[1]);
   const mm = Number(m[2]);
@@ -122,7 +133,14 @@ function modalidadeDaSecao(cabecalho: string): ModalidadeContrato {
 
 // ── o parser ──────────────────────────────────────────────────────────────────
 
-export function parseHisconDetalhado(texto: string): HisconExtraido {
+export function parseHisconDetalhado(textoBruto: string): HisconExtraido {
+  // Meu INSS emite o HISCON em DOIS formatos que a Vision transcreve diferente:
+  //  • Formato A: cada campo em uma linha ("CONTRATO:\nBANCO:\n...").
+  //  • Formato B: o contrato inteiro em UMA linha, campos separados por " | "
+  //    ("Contrato: X | Banco: Y | Situação: ..."), rótulos em Title Case curtos.
+  // Normaliza o B para multilinha ⇒ o MESMO parser (split por CONTRATO:, campos
+  // por rótulo case-insensitive) lê os dois. Contratos do A não têm " | ".
+  const texto = textoBruto.replace(/[ \t]*\|[ \t]*/g, '\n');
   const margens: MargensHiscon = {
     baseCalculo: dinheiro(campo(texto, 'BASE DE C[ÁA]LCULO')),
     maximoComprometimento: dinheiro(campo(texto, 'M[ÁA]XIMO DE COMPROMETIMENTO PERMITIDO')),
@@ -167,20 +185,23 @@ export function parseHisconDetalhado(texto: string): HisconExtraido {
       migradoDoContrato: migradoDe?.[1] ?? null,
       migradoDoCbc: cbcDe?.[1] ?? null,
       modalidade: modalidadeDaSecao(secao),
+      // Rótulos aceitam os DOIS formatos (A maiúsculo longo, B Title Case curto):
+      // "DATA INCLUSÃO"/"Data Inclusão", "COMPETÊNCIA INÍCIO DE DESCONTO"/"Início
+      // de Desconto", "VALOR EMPRESTADO"/"Emprestado", etc. (campo é case-insens).
       dataInclusao: dataCurta(campo(bloco, 'DATA INCLUS[ÃA]O')),
-      competenciaInicio: campo(bloco, 'COMPET[ÊE]NCIA IN[ÍI]CIO DE DESCONTO'),
-      competenciaFim: campo(bloco, 'COMPET[ÊE]NCIA FIM DE DESCONTO'),
+      competenciaInicio: campo(bloco, '(?:COMPET[ÊE]NCIA )?IN[ÍI]CIO DE DESCONTO'),
+      competenciaFim: campo(bloco, '(?:COMPET[ÊE]NCIA )?FIM DE DESCONTO'),
       qtdeParcelas: inteiro(campo(bloco, 'QTDE PARCELAS')),
       valorParcela: dinheiro(campo(bloco, 'VALOR PARCELA')),
-      valorEmprestado: dinheiro(campo(bloco, 'VALOR EMPRESTADO')),
-      valorLiberado: dinheiro(campo(bloco, 'VALOR LIBERADO')),
+      valorEmprestado: dinheiro(campo(bloco, '(?:VALOR )?EMPRESTADO')),
+      valorLiberado: dinheiro(campo(bloco, '(?:VALOR )?LIBERADO')),
       iof: dinheiro(campo(bloco, 'IOF')),
       cetMensal: taxa(campo(bloco, 'CET MENSAL')),
       cetAnual: taxa(campo(bloco, 'CET ANUAL')),
       taxaJurosMensal: taxa(campo(bloco, 'TAXA JUROS MENSAL')),
       taxaJurosAnual: taxa(campo(bloco, 'TAXA JUROS ANUAL')),
       valorPago: dinheiro(campo(bloco, 'VALOR PAGO\\*{0,2}')),
-      dataPrimeiroDesconto: dataCurta(campo(bloco, 'DATA PRIMEIRO DESCONTO')),
+      dataPrimeiroDesconto: dataCurta(campo(bloco, '(?:DATA )?PRIMEIRO DESCONTO')),
     });
   }
 

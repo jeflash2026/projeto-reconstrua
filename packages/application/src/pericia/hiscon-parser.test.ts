@@ -224,3 +224,50 @@ describe('helpers puros', () => {
     expect(dataCurta('27/02/1998')?.toISOString().slice(0, 10)).toBe('1998-02-27');
   });
 });
+
+// ── FORMATO B do Meu INSS (2026-07-22): contrato em UMA linha, campos "|" ─────
+// Texto REAL de produção (Rosângela) — antes dava 0 contratos; agora parseia.
+const HISCON_FORMATO_B = `Instituto Nacional do Seguro Social
+HISTÓRICO DE
+EMPRÉSTIMO CONSIGNADO
+ROSANGELA APARECIDA RODRIGUES
+
+EMPRÉSTIMOS BANCÁRIOS
+CONTRATOS ATIVOS E SUSPENSOS*
+
+Contrato: 0149457174 | Banco: 079 - PICPAY BANK | Situação: Ativo | Origem da Averbação: Averbação nova | Data Inclusão: 02/2026 | Início de Desconto: 02/02/26 | Fim de Desconto: 01/2034 | Qtde Parcelas: 96 | Valor Parcela: R$25,29 | Emprestado: R$1.186,15 | Liberado: R$1.146,95 | IOF: R$39,20 | CET Mensal: 1,76 | CET Anual: 23,62 | Taxa Juros Mensal: 1,69 | Taxa Juros Anual: 22,28 | Valor Pago: | Primeiro Desconto: 20/03/26
+Contrato: 0143875351 | Banco: 079 - PICPAY BANK | Situação: Ativo | Origem da Averbação: Averbação por Refinanciamento | Data Inclusão: 11/2025 | Início de Desconto: 21/10/25 | Fim de Desconto: 10/2033 | Qtde Parcelas: 96 | Valor Parcela: R$506,00 | Emprestado: R$23.446,55 | IOF: R$36,91 | CET Mensal: 1,68 | CET Anual: 22,52 | Taxa Juros Mensal: 1,75 | Taxa Juros Anual: 23,14 | Valor Pago: R$22.368,93 | Primeiro Desconto: 20/12/25
+`;
+
+describe('Formato B (pipe) — mesmo parser lê os dois layouts', () => {
+  it('extrai os contratos, banco, parcela e competência do Formato B', () => {
+    const e = parseHisconDetalhado(HISCON_FORMATO_B);
+    expect(e.beneficiario).toBe('ROSANGELA APARECIDA RODRIGUES');
+    expect(e.contratos).toHaveLength(2);
+    const [c1, c2] = e.contratos;
+    expect(c1?.contrato).toBe('0149457174');
+    expect(c1?.bancoCodigo).toBe('079');
+    expect(c1?.bancoNome).toBe('PICPAY BANK');
+    expect(c1?.situacao).toBe('Ativo');
+    expect(c1?.valorParcela).toBeCloseTo(25.29);
+    expect(c1?.qtdeParcelas).toBe(96);
+    expect(c1?.competenciaInicio).toBe('02/02/26');
+    expect(c2?.valorParcela).toBeCloseTo(506);
+  });
+
+  it('potencial de recuperação computa (competência dd/mm/aa do Formato B)', async () => {
+    const { potencialDeRecuperacao } = await import('./potencial-recuperacao.js');
+    const e = parseHisconDetalhado(HISCON_FORMATO_B);
+    const pot = potencialDeRecuperacao(e.contratos, new Date('2026-07-22T00:00:00Z'));
+    // C1: 02/2026→07/2026 = 6 × 25,29 = 151,74 ; C2: 10/2025→07/2026 = 10 × 506 = 5060
+    expect(pot.total).toBeCloseTo(5211.74, 2);
+    expect(pot.contratosSemValor).toBe(0);
+  });
+});
+
+describe('helpers — datas dos dois formatos', () => {
+  it('dataCurta aceita mm/aaaa (Formato B) além de dd/mm/aa', () => {
+    expect(dataCurta('02/2026')?.toISOString().slice(0, 10)).toBe('2026-02-01');
+    expect(dataCurta('10/02/26')?.toISOString().slice(0, 10)).toBe('2026-02-10');
+  });
+});

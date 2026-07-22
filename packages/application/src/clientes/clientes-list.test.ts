@@ -179,7 +179,7 @@ describe('deriveClienteStatus · a tabela de filas congelada', () => {
       'ATENDIMENTO',
     );
 
-    const coletando = alirOf({ chatId: 'c2', pendentes: ['IDENTIDADE'] });
+    const coletando = alirOf({ chatId: 'c2', pendentes: ['CNIS'] });
     expect(deriveClienteStatus(coletando, ready(coletando), null, false, null, NOW)).toBe(
       'COLETANDO_DOCUMENTOS',
     );
@@ -270,7 +270,7 @@ describe('ClientesList · lista única', () => {
     const { list } = listOf(
       [
         { chatId: 'c1', clienteId: 'cli-1', nome: 'Maria', ultimoContato: antigo },
-        { chatId: 'c2', clienteId: 'cli-2', nome: 'João', pendentes: ['IDENTIDADE'] },
+        { chatId: 'c2', clienteId: 'cli-2', nome: 'João', pendentes: ['CNIS'] },
       ],
       { 'cli-1': 'VENDA' },
     );
@@ -278,7 +278,7 @@ describe('ClientesList · lista única', () => {
     expect(clientes).toHaveLength(2);
     expect(clientes[0]?.quem).toBe('João'); // mais recente primeiro
     expect(clientes[0]?.status).toBe('COLETANDO_DOCUMENTOS');
-    expect(clientes[0]?.faltando).toContain('documento de identidade');
+    expect(clientes[0]?.faltando).toContain('extrato previdenciário (CNIS/HISCON)');
     expect(clientes[1]?.quem).toBe('Maria');
     expect(clientes[1]?.status).toBe('PRONTO_AGUARDANDO_VENDA');
     expect(clientes[1]?.modalidade).toBe('VENDA');

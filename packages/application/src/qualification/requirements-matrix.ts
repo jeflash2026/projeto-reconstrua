@@ -135,10 +135,14 @@ export const REQUIREMENTS: Readonly<Record<QualificationCaseType, CaseRequiremen
   },
   GENERICO: {
     caseType: 'GENERICO',
-    // Decreto "Jornada Documental Inicial": a documentação inicial é FIXA —
-    // HISCON (CNIS) + RG/CNH (IDENTIDADE) + comprovante de endereço. Sempre.
-    requiredDocuments: ['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS'],
-    optionalDocuments: ['PROCURACAO'],
+    // Decreto HISCON-ONLY (2026-07-22): a documentação inicial obrigatória é
+    // APENAS o HISCON (CNIS). Com o HISCON o cliente fica PRONTO ⇒ o Portal
+    // nasce e a análise começa. RG/CNH, comprovante e procuração viram
+    // OPCIONAIS aqui (o advogado os solicita depois, se houver viabilidade).
+    // Sem esta unificação, o Readiness/nascimento ainda exigiam os 3 e o
+    // portal NUNCA era entregue a quem mandou só o HISCON (bug da Maria).
+    requiredDocuments: ['CNIS'],
+    optionalDocuments: ['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'PROCURACAO'],
     requiredInfo: BASE_INFO,
     blockingConditions: BASE_BLOCKING,
     sufficientConditions: SUFFICIENT,

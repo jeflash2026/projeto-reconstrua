@@ -138,8 +138,10 @@ describe('Nascimento · NUNCA prematuro', () => {
     expect(comunicador.mensagens).toEqual([]);
   });
 
-  it('sem evidência REAL de recebimento (docs < obrigatórios) → silêncio, mesmo PRONTO', async () => {
-    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 1); // decreto: 3 obrigatórios
+  it('sem evidência REAL de recebimento (0 docs < 1 obrigatório) → silêncio, mesmo PRONTO', async () => {
+    // Decreto HISCON-ONLY: o obrigatório é 1 (o HISCON); com 0 recebidos, o
+    // portal NÃO nasce mesmo o Readiness dizendo PRONTO (nunca prematuro).
+    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 0);
     const r = await nascimento.verificar(NOW);
     expect(r.nascidos).toEqual([]);
     expect(liberacao.salvos).toEqual([]);

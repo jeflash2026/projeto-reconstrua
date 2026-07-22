@@ -9,7 +9,18 @@
 // imagem — não é carregado nesta rota, por isso é neverBuilt no monorepo).
 // NUNCA lança: qualquer falha (PDF corrompido, escaneado sem texto) devolve
 // null, e o chamador cai na Vision.
+//
+// HISCON (Frente 2): quando o PDF é o HISCON matriz do Meu INSS, a extração
+// LINEAR embaralha a tabela. Antes de devolver, tentamos a RECONSTRUÇÃO POSICIONAL
+// (por coordenadas) — que devolve o texto Formato A com cada valor no campo certo.
+// Só quando ela reconhece a tabela de contratos; senão segue o texto linear.
 // ─────────────────────────────────────────────────────────────────────────────
+import { reconstruirHisconPosicional, type ItemPosicional } from './hiscon-posicional.js';
+
+interface PdfJsProxy {
+  numPages: number;
+  getPage(n: number): Promise<{ getTextContent(): Promise<{ items: ItemPosicional[] }> }>;
+}
 
 /** Texto embutido do PDF (null quando não há camada de texto ou em erro). */
 export async function extrairTextoDePdf(bytes: Uint8Array): Promise<string | null> {
@@ -31,7 +42,18 @@ export async function extrairTextoDePdf(bytes: Uint8Array): Promise<string | nul
     // esvaziado ("PDF cannot be empty", HTTP 400) e a leitura de TODO HISCON
     // falhava. Passamos uma CÓPIA ao pdf.js: os bytes do chamador ficam íntegros.
     const copia = bytes.slice();
-    const doc = await unpdf.getDocumentProxy(copia);
+    const doc = (await unpdf.getDocumentProxy(copia)) as PdfJsProxy;
+
+    // Frente 2: reconstrução POSICIONAL do HISCON matriz (valor no campo certo).
+    const paginas: ItemPosicional[][] = [];
+    for (let p = 1; p <= doc.numPages; p += 1) {
+      const page = await doc.getPage(p);
+      paginas.push((await page.getTextContent()).items);
+    }
+    const hiscon = reconstruirHisconPosicional(paginas);
+    if (hiscon !== null) return hiscon;
+
+    // Não é HISCON matriz ⇒ texto linear comum.
     const { text } = await unpdf.extractText(doc, { mergePages: true });
     const conteudo = Array.isArray(text) ? text.join('\n') : text;
     const limpo = conteudo.trim();

@@ -221,6 +221,15 @@ export function ehPerguntaLivre(texto: string): boolean {
   return PERGUNTA_LIVRE.test(texto.trim());
 }
 
+// Caso Sidinei (2026-07-22, cliente real): comprovante enviado como LINK do
+// Adobe Acrobat — link é texto, não arquivo; o sistema precisa dos BYTES do
+// documento (Vision/perícia). A resposta certa é ORIENTAR como humana, nunca
+// a cobrança repetida.
+const LINK_EXTERNO = /https?:\/\/\S+/i;
+export function ehLinkExterno(texto: string): boolean {
+  return LINK_EXTERNO.test(texto);
+}
+
 /** Este texto, na TRIAGEM, cairá na COBRANÇA de documento? (nenhum outro
  *  manejo o captura). O runtime usa para contar a escada de cobrança. */
 export function vaiReceberCobranca(texto: string): boolean {
@@ -230,7 +239,8 @@ export function vaiReceberCobranca(texto: string): boolean {
     !ehAdiamento(texto) &&
     !ehAgradecimentoPuro(texto) &&
     !ehPerguntaLivre(texto) &&
-    !ehPerguntaDeDireito(texto)
+    !ehPerguntaDeDireito(texto) &&
+    !ehLinkExterno(texto)
   );
 }
 
@@ -305,6 +315,11 @@ export const MENSAGENS_JORNADA = {
   despedidaRespeitosa:
     'Entendo e respeito a sua decisão. Se mudar de ideia ou quiser esclarecer qualquer dúvida sobre a análise, é só mandar uma mensagem por aqui — este canal fica à sua disposição. Obrigada pelo contato.',
   socialCurto: 'Por nada. Qualquer dúvida, estou à disposição.',
+  // Caso Sidinei: documento mandado como LINK ⇒ orientação clara, nunca cobrança.
+  linkDeDocumento: (proximo: string): string =>
+    'Recebi o seu link, obrigada. Só que por segurança eu não consigo abrir documentos por link — preciso do ARQUIVO aqui na conversa mesmo.\n\n' +
+    'É simples: abra o documento no aplicativo, toque em "Baixar" (ou "Salvar no celular") e depois me envie o arquivo como anexo aqui no WhatsApp — ou, se preferir, uma foto legível do documento já resolve.\n\n' +
+    `Estou aguardando: ${proximo}. Qualquer dificuldade, me avise que eu te oriento passo a passo.`,
 } as const;
 
 /** A ENTRADA de um turno, já normalizada pelo runtime. */
@@ -411,6 +426,9 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
       }
       // Agradecimento/confirmação curta NÃO merece cobrança — cortesia breve.
       if (ehAgradecimentoPuro(entrada.texto)) return MENSAGENS_JORNADA.socialCurto;
+      // Caso Sidinei: LINK de documento ⇒ orientação de envio (antes da checagem
+      // de pergunta — URLs contêm '?' e virariam delegação errada ao LLM).
+      if (ehLinkExterno(entrada.texto)) return MENSAGENS_JORNADA.linkDeDocumento(proximo);
       const extraConjuge =
         /comprovante/i.test(proximo) && /não tenho|nao tenho|meu nome/i.test(entrada.texto)
           ? `\n\n${MENSAGENS_JORNADA.comprovanteConjuge}`

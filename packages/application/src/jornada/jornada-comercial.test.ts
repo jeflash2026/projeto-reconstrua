@@ -452,3 +452,24 @@ describe('caso Marileide — "Olá bom dia meu nome completo X" captura o nome',
     ).toBeNull();
   });
 });
+
+// ── CASO SIDINEI (2026-07-22): comprovante mandado como LINK do Acrobat ──────
+describe('caso Sidinei — link de documento recebe ORIENTAÇÃO, nunca cobrança repetida', () => {
+  const emTriagem = fatos(
+    { nome: 'Sidinei', cidade: 'Amaral Ferrador', consentiu: true },
+    { docsRecebidos: 2, proximoDocumento: 'comprovante de endereço' },
+  );
+  it('o link EXATO do cliente real ganha a orientação de baixar e anexar', () => {
+    const r = responderTurno(
+      emTriagem,
+      texto('https://acrobat.adobe.com/id/urn:aaid:sc:US:d93ace56-36f7-4996-ac1b-5fc695a83af9'),
+    );
+    expect(r).toContain('não consigo abrir documentos por link');
+    expect(r).toContain('Baixar');
+    expect(r).toContain('comprovante de endereço');
+  });
+  it('link com "?" na URL NÃO vira delegação de pergunta ao LLM', () => {
+    const r = responderTurno(emTriagem, texto('https://drive.google.com/file/d/abc?usp=sharing'));
+    expect(r).toContain('não consigo abrir documentos por link');
+  });
+});

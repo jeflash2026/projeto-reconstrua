@@ -21,7 +21,8 @@
     "@reconstrua/application": "workspace:*",
     "@reconstrua/domain": "workspace:*",
     "drizzle-orm": "^0.35.1",
-    "postgres": "^3.4.4"
+    "postgres": "^3.4.4",
+    "unpdf": "^0.12.1"
   },
   "devDependencies": {
     "drizzle-kit": "^0.26.2"

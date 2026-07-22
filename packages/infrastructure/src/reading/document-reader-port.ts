@@ -8,6 +8,10 @@ export interface LeituraDeDocumento {
   readonly texto: string;
   readonly tokensIn: number | null;
   readonly tokensOut: number | null;
+  /** COMO o texto foi obtido — auditoria (documento jurídico): 'local' =
+   *  extração mecânica do PDF (custo zero, texto literal); 'vision' = IA
+   *  transcreveu (foto/PDF escaneado). Ausente ⇒ 'vision' (compat.). */
+  readonly metodo?: 'local' | 'vision';
 }
 
 export interface DocumentReaderPort {

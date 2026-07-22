@@ -192,6 +192,8 @@ import {
   AnthropicVisionClient,
   DocumentReaderService,
   JsonDocumentTextCache,
+  LocalFirstDocumentReader,
+  PdfTextExtractor,
 } from '../reading/index.js';
 import { PericiaService } from '../pericia/index.js';
 import { MedidorDeCusto } from '../custos/index.js';
@@ -430,16 +432,22 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const documentLinks = new JsonDocumentLinkStore(json);
   // CAT-02C: serve o conteúdo real do documento por documentId (uso interno, servidor admin).
   const documentContent = new DocumentContentService(documentLinks, mediaStore);
-  // CAT-03A: transforma um documento em texto bruto (documentId → Vision → cache por sha256).
-  // Apenas EXISTE e fica disponível em assembleProduction; ninguém o chama automaticamente.
+  // CAT-03A + Economia da Leitura (2026-07-22): documentId → TEXTO, cache por
+  // sha256. A cadeia LOCAL-PRIMEIRO extrai o texto embutido do PDF (HISCON do
+  // Meu INSS é nativo) de graça e local; só cai na Vision para foto/PDF
+  // escaneado. Texto jurídico: extração mecânica NUNCA inventa contrato.
   const documentReader = new DocumentReaderService({
     links: documentLinks,
     store: mediaStore,
-    reader: new AnthropicVisionClient(
-      resilientHttp,
-      config.llm.anthropicApiKey,
-      config.llm.anthropicModel,
-    ),
+    reader: new LocalFirstDocumentReader({
+      extractor: new PdfTextExtractor(),
+      vision: new AnthropicVisionClient(
+        resilientHttp,
+        config.llm.anthropicApiKey,
+        config.llm.anthropicModel,
+      ),
+      log: (message) => observability.event('reading', message, clock.now()),
+    }),
     cache: new JsonDocumentTextCache(json),
     model: config.llm.anthropicModel,
     clock,

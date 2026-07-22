@@ -64,13 +64,17 @@ export class DocumentReaderService {
         this.log(`visao nao retornou texto para ${link.sha256}`);
         return null;
       }
+      // Medidor de Custo: leitura LOCAL (extração mecânica do PDF) custa ZERO —
+      // registra com provider 'local'/tokens 0 (o painel mostra $0). Leitura por
+      // Vision registra o provedor e os tokens reais.
       if (this.deps.custo) {
+        const local = leitura.metodo === 'local';
         await this.deps.custo.registrarLeitura({
-          provider: 'anthropic',
-          model: this.deps.model,
+          provider: local ? 'local' : 'anthropic',
+          model: local ? 'pdf-local' : this.deps.model,
           documentId,
-          tokensIn: leitura.tokensIn,
-          tokensOut: leitura.tokensOut,
+          tokensIn: local ? 0 : leitura.tokensIn,
+          tokensOut: local ? 0 : leitura.tokensOut,
         });
       }
 

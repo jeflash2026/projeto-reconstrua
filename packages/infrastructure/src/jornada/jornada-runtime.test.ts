@@ -7,7 +7,11 @@
 import { describe, it, expect } from 'vitest';
 import type { Clock } from '@reconstrua/domain';
 import type { PhrasingRequest } from '@reconstrua/application';
-import { MENSAGENS_JORNADA, ObservabilityRuntime, OnboardingDocumentalRuntime } from '@reconstrua/application';
+import {
+  MENSAGENS_JORNADA,
+  ObservabilityRuntime,
+  OnboardingDocumentalRuntime,
+} from '@reconstrua/application';
 import { InMemoryJsonStore } from '../production/json-store.js';
 import { JsonOnboardingDocumentalStore } from '../onboarding/json-onboarding-store.js';
 import { JornadaComercialRuntime } from './jornada-runtime.js';
@@ -16,7 +20,9 @@ import { JourneyGovernedExpression } from './journey-governed-expression.js';
 const NOW = new Date('2026-07-20T21:00:00.000Z');
 const CHAT = '5517996332346@s.whatsapp.net';
 class TestClock implements Clock {
-  now(): Date { return NOW; }
+  now(): Date {
+    return NOW;
+  }
 }
 
 function harness() {
@@ -27,19 +33,51 @@ function harness() {
     leitor: { texto: (id) => Promise.resolve(textos[id] ?? null) },
     pendencias: null,
   });
-  const jornada = new JornadaComercialRuntime({ json, onboarding, observability: new ObservabilityRuntime(), clock: new TestClock() });
+  const jornada = new JornadaComercialRuntime({
+    json,
+    onboarding,
+    observability: new ObservabilityRuntime(),
+    clock: new TestClock(),
+  });
   const expression = new JourneyGovernedExpression(jornada, {
     phrase: () => Promise.resolve('RESPOSTA-DO-LLM'),
   });
 
-  const request = (texto: string | null, opts: { turns?: number; arquivo?: boolean } = {}): PhrasingRequest =>
+  const request = (
+    texto: string | null,
+    opts: { turns?: number; arquivo?: boolean } = {},
+  ): PhrasingRequest =>
     ({
-      intent: { id: 'i1', chatId: CHAT, directive: 'speak', speechAct: 'inform', topic: 't', references: [], urgency: 'normal', operationalRuleRef: 'RO', fundamento: 'f', timingHintMs: null, formedAt: NOW },
+      intent: {
+        id: 'i1',
+        chatId: CHAT,
+        directive: 'speak',
+        speechAct: 'inform',
+        topic: 't',
+        references: [],
+        urgency: 'normal',
+        operationalRuleRef: 'RO',
+        fundamento: 'f',
+        timingHintMs: null,
+        formedAt: NOW,
+      },
       context: {
         chatId: CHAT,
-        session: { chatId: CHAT, turns: opts.turns ?? 3, lastInboundAt: null, lastOutboundAt: null },
-        recentEntries: [], recentOutboundTexts: [],
-        lastPercept: { envelope: { text: texto, fileName: opts.arquivo ? 'IMG_1.jpg' : null, mediaUrl: opts.arquivo ? 'https://wa/m' : null } },
+        session: {
+          chatId: CHAT,
+          turns: opts.turns ?? 3,
+          lastInboundAt: null,
+          lastOutboundAt: null,
+        },
+        recentEntries: [],
+        recentOutboundTexts: [],
+        lastPercept: {
+          envelope: {
+            text: texto,
+            fileName: opts.arquivo ? 'IMG_1.jpg' : null,
+            mediaUrl: opts.arquivo ? 'https://wa/m' : null,
+          },
+        },
         silenceMs: null,
       },
       avoidPhrases: [],
@@ -78,7 +116,9 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
     expect(await h.jornada.etapa(CHAT)).toBe('TRIAGEM');
 
     // Documento chega ⇒ ack autorado (a progressão automática pede o próximo).
-    expect(await h.expression.phrase(h.request(null, { arquivo: true }))).toBe(MENSAGENS_JORNADA.ackDocumento);
+    expect(await h.expression.phrase(h.request(null, { arquivo: true }))).toBe(
+      MENSAGENS_JORNADA.ackDocumento,
+    );
 
     // Registra CNH + comprovante + HISCON (a contabilidade real) ⇒ CONCLUIDA.
     h.textos['d1'] = 'carteira nacional de habilitação';
@@ -111,14 +151,26 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
 
   it('falha do store da jornada JAMAIS silencia: delega ao LLM', async () => {
     const json = new InMemoryJsonStore();
-    const onboarding = new OnboardingDocumentalRuntime({ store: new JsonOnboardingDocumentalStore(json), leitor: null, pendencias: null });
+    const onboarding = new OnboardingDocumentalRuntime({
+      store: new JsonOnboardingDocumentalStore(json),
+      leitor: null,
+      pendencias: null,
+    });
     const quebrada = new JornadaComercialRuntime({
-      json: { get: () => Promise.reject(new Error('pg down')), put: () => Promise.reject(new Error('pg down')), del: () => Promise.reject(new Error('pg down')), list: () => Promise.reject(new Error('pg down')), keys: () => Promise.reject(new Error('pg down')) },
+      json: {
+        get: () => Promise.reject(new Error('pg down')),
+        put: () => Promise.reject(new Error('pg down')),
+        del: () => Promise.reject(new Error('pg down')),
+        list: () => Promise.reject(new Error('pg down')),
+        keys: () => Promise.reject(new Error('pg down')),
+      },
       onboarding,
       observability: new ObservabilityRuntime(),
       clock: new TestClock(),
     });
-    const expression = new JourneyGovernedExpression(quebrada, { phrase: () => Promise.resolve('LLM-FALLBACK') });
+    const expression = new JourneyGovernedExpression(quebrada, {
+      phrase: () => Promise.resolve('LLM-FALLBACK'),
+    });
     const h = harness();
     expect(await expression.phrase(h.request('oi'))).toBe('LLM-FALLBACK');
   });

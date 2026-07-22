@@ -9,11 +9,22 @@
 import type { ConversationIntent, SpeechAct } from './intent.js';
 import type { ConversationContextView, PhrasingRequest } from './ports.js';
 import { conduzirTurno } from './conversation-intelligence.js';
-import { condutaDePendencia, politicaDaMissao, styleGuidanceDaMissao } from './sales-conversation-policy.js';
+import {
+  condutaDePendencia,
+  politicaDaMissao,
+  styleGuidanceDaMissao,
+} from './sales-conversation-policy.js';
+
+// Decreto 2026-07-22 (caso Lucas): a AHRI fala como CONSULTORA JURÍDICA —
+// profissional, clara e acolhedora; NUNCA emojis; segurança acima de simpatia.
+const TOM_CONSULTORA =
+  'tom de consultora jurídica profissional: claro, direto e acolhedor; ' +
+  'NUNCA use emojis ou emoticons; frases objetivas; transmita segurança e competência; ' +
+  'se a pessoa fizer uma pergunta, RESPONDA por completo primeiro e só depois retome o assunto pendente';
 
 function toneFor(intent: ConversationIntent, context: ConversationContextView): string {
   const sentiment = context.lastPercept?.enrichment?.sentiment ?? 'unknown';
-  const parts: string[] = [];
+  const parts: string[] = [TOM_CONSULTORA];
 
   // Registro base por ato de fala (guia, não roteiro).
   const act: SpeechAct | null = intent.speechAct;

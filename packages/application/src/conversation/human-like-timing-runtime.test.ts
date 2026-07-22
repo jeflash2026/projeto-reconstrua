@@ -20,14 +20,15 @@ describe('HumanLikeTimingRuntime', () => {
 
   it('é determinístico e proporcional ao tamanho da resposta (mais texto → mais digitação)', () => {
     const rt = new HumanLikeTimingRuntime(DEFAULT_HUMANIZATION_POLICY, noJitter);
-    const short = rt.compute(10, 24);
-    const long = rt.compute(10, 240);
-    // 24 chars / 12 cps = 2000ms; 240 chars = 20000 → limitado a maxTypeMs 12000.
-    expect(short.typingDurationMs).toBe(2_000);
+    const short = rt.compute(10, 40);
+    const long = rt.compute(10, 2400);
+    // Cadência ágil (decreto 2026-07-22): 40 chars / 40 cps = 1000ms;
+    // 2400 chars = 60000 → limitado a maxTypeMs 4000.
+    expect(short.typingDurationMs).toBe(1_000);
     expect(long.typingDurationMs).toBe(DEFAULT_HUMANIZATION_POLICY.maxTypeMs);
     expect(long.typingDurationMs).toBeGreaterThan(short.typingDurationMs);
     // Reprodutível.
-    expect(rt.compute(10, 24)).toEqual(short);
+    expect(rt.compute(10, 40)).toEqual(short);
   });
 
   it('respeita a dica de tempo do Brain como piso adicional', () => {

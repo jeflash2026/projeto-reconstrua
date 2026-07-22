@@ -13,6 +13,7 @@ import {
   capturarIdentificacao,
   derivarEtapa,
   ehAdiamento,
+  ehDesistencia,
   interpretarInteresse,
   novaJornada,
   registroDoTurnoConcluido,
@@ -35,6 +36,7 @@ interface Persisted {
   readonly ultimaCaptura: JornadaRecord['ultimaCaptura'];
   readonly aguardandoProgressao?: boolean;
   readonly avisosDeAdiamento?: number;
+  readonly desistiu?: boolean;
   readonly atualizadoEm: string;
 }
 
@@ -55,6 +57,7 @@ export class JornadaComercialRuntime {
       ...raw,
       aguardandoProgressao: raw.aguardandoProgressao === true,
       avisosDeAdiamento: raw.avisosDeAdiamento ?? 0,
+      desistiu: raw.desistiu === true,
       atualizadoEm: new Date(raw.atualizadoEm),
     };
   }
@@ -146,6 +149,24 @@ export class JornadaComercialRuntime {
         return;
       }
 
+      // Caso Lucas: DESISTÊNCIA na triagem ⇒ marca (a cobrança cessa; a
+      // despedida deste turno é da resposta autorada). RETOMADA: interesse novo
+      // reativa o funil do ponto onde parou.
+      if (etapa === 'TRIAGEM' && ehDesistencia(texto)) {
+        await this.salvar({ ...r, desistiu: true, ultimaCaptura: null, atualizadoEm: now });
+        this.deps.observability.event('jornada', `desistencia chat=${chatId}`, now);
+        return;
+      }
+      if (etapa === 'TRIAGEM' && r.desistiu && interpretarInteresse(texto) === 'sim') {
+        await this.salvar({
+          ...r,
+          desistiu: false,
+          ultimaCaptura: 'consentimento',
+          atualizadoEm: now,
+        });
+        this.deps.observability.event('jornada', `retomada chat=${chatId}`, now);
+        return;
+      }
       // TRIAGEM: adiamento é FATO capturável ("posso deixar p amanhã") — conta
       // os avisos (1º = acolhimento completo; repetição = "Combinado!" curto).
       if (etapa === 'TRIAGEM' && ehAdiamento(texto)) {
@@ -223,10 +244,12 @@ export class JornadaComercialRuntime {
   async aoReceberDocumento(chatId: string): Promise<void> {
     await this.concluirProgressao(chatId).catch(() => undefined);
     const r = await this.carregar(chatId);
-    if (r.avisosDeAdiamento > 0 || r.ultimaCaptura === 'adiamento') {
+    // Documento chegando = a espera acabou E a desistência foi superada.
+    if (r.avisosDeAdiamento > 0 || r.ultimaCaptura === 'adiamento' || r.desistiu) {
       await this.salvar({
         ...r,
         avisosDeAdiamento: 0,
+        desistiu: false,
         ultimaCaptura: null,
         atualizadoEm: this.deps.clock.now(),
       }).catch(() => undefined);

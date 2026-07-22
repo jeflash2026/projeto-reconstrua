@@ -24,9 +24,15 @@ export class JourneyGovernedExpression implements LlmExpressionPort {
     try {
       const envelope = request.context.lastPercept?.envelope ?? null;
       const entrada: EntradaDoTurno = {
-        tipo: envelope !== null && (envelope.fileName != null || envelope.mediaUrl != null) ? 'documento' : 'texto',
+        tipo:
+          envelope !== null && (envelope.fileName != null || envelope.mediaUrl != null)
+            ? 'documento'
+            : 'texto',
         texto: envelope?.text ?? '',
-        primeiroContato: request.context.session.turns <= 1,
+        // Sinal TEMPORAL (follow-up) nunca é "primeiro contato" — sem isto, o
+        // follow-up de um lead de 1 mensagem repetia as boas-vindas VERBATIM
+        // (eco robótico que o guard agora silencia; caso Lucas 2026-07-22).
+        primeiroContato: request.context.session.turns <= 1 && envelope?.kind !== 'timeout',
         timestamp: envelope?.timestamp ?? null,
       };
       const autorada = await this.jornada.responder(chatId, entrada);

@@ -40,15 +40,19 @@ export interface HumanizationPolicy {
   readonly timeoutThresholdMs: number;
 }
 
-/** Política padrão — valores humanos plausíveis, todos ajustáveis por RO. */
+/** Política padrão — valores humanos plausíveis, todos ajustáveis por RO.
+ *  Decreto de agilidade (2026-07-22, caso Lucas): a cadência anterior somava
+ *  até ~18s só de "lendo/digitando" por mensagem — atendimento LENTO gera
+ *  insegurança. Cadência nova: consultora ágil (rápida, com digitação ainda
+ *  perceptível; nunca instantâneo-robótico). */
 export const DEFAULT_HUMANIZATION_POLICY: HumanizationPolicy = {
-  readMsPerChar: 18,
-  maxReadMs: 6_000,
-  baseThinkMs: 700,
-  typeCharsPerSecond: 12,
-  minTypeMs: 900,
-  maxTypeMs: 12_000,
-  minPreSendMs: 1_200,
+  readMsPerChar: 8,
+  maxReadMs: 2_000,
+  baseThinkMs: 400,
+  typeCharsPerSecond: 40,
+  minTypeMs: 600,
+  maxTypeMs: 4_000,
+  minPreSendMs: 800,
   jitter: 0.25,
   interMessageMs: 800,
   repetitionThreshold: 0.8,

@@ -8,6 +8,7 @@ import {
   MENSAGENS_JORNADA,
   capturarIdentificacao,
   ehAdiamento,
+  ehDesistencia,
   pareceNome,
   derivarEtapa,
   ehSaudacaoPura,
@@ -158,7 +159,7 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
         { nome: 'Isabel', cidade: 'X', consentiu: true },
         { docsRecebidos: 1, proximoDocumento: 'o VERSO do RG (a parte de trás do documento)' },
       ),
-      texto('e agora?'),
+      texto('to sem saber o que mandar'),
     );
     expect(r).toContain('Estou aguardando: o VERSO do RG');
   });
@@ -178,8 +179,8 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
       },
     );
     const r = responderTurno(f, documento);
-    expect(r).toContain('✅ Registrado: a primeira face do RG');
-    expect(r).toContain('Agora me manda, por favor: o VERSO do RG');
+    expect(r).toContain('Registrado: a primeira face do RG');
+    expect(r).toContain('Agora preciso de: o VERSO do RG');
   });
 
   it('registro do turno concluído + documentação COMPLETA ⇒ despedida da jornada', () => {
@@ -192,7 +193,7 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
       },
     );
     const r = responderTurno(f, documento);
-    expect(r).toContain('✅ Registrado: HISCON');
+    expect(r).toContain('Registrado: HISCON');
     expect(r).toContain('documentação inicial está completa');
   });
 
@@ -300,6 +301,85 @@ describe('caso Denise — a primeira mensagem NUNCA vira nome', () => {
       'pode me passar informações',
     ]) {
       expect(capturarIdentificacao(t, { nome: null, cidade: null }).nome).toBeNull();
+    }
+  });
+});
+
+// ── CASO LUCAS (2026-07-22, cliente real PERDIDO por trava robótica) ─────────
+describe('caso Lucas — desconfiança, desistência e perguntas tratadas como humano', () => {
+  const emTriagem = (over: Partial<JornadaRecord> = {}) =>
+    fatos(
+      { nome: 'Lucas', cidade: 'Guaramirim', consentiu: true, ...over },
+      { docsRecebidos: 0, proximoDocumento: 'RG (frente e verso) ou CNH' },
+    );
+
+  it('"Cara de golpe isso" ⇒ resposta de SEGURANÇA (nunca cobrança de documento) — em QUALQUER etapa', () => {
+    expect(responderTurno(emTriagem(), texto('Cara de golpe isso'))).toBe(
+      MENSAGENS_JORNADA.seguranca,
+    );
+    // Também na identificação e no consentimento.
+    expect(responderTurno(fatos(), texto('isso é golpe?'))).toBe(MENSAGENS_JORNADA.seguranca);
+    expect(
+      responderTurno(fatos({ nome: 'Lucas', cidade: 'Guaramirim' }), texto('parece fraude')),
+    ).toBe(MENSAGENS_JORNADA.seguranca);
+  });
+
+  it('a mensagem de segurança é profissional: gratuita, sem senhas, site oficial, LGPD — e sem emojis', () => {
+    const m = MENSAGENS_JORNADA.seguranca;
+    expect(m).toContain('gratuita');
+    expect(m).toContain('senhas');
+    expect(m).toContain('projetoreconstrua.com.br');
+    expect(m).toContain('LGPD');
+  });
+
+  it('"Na verdade vou deixar quieto" ⇒ despedida respeitosa; a cobrança CESSA', () => {
+    expect(ehDesistencia('Na verdade vou deixar quieto')).toBe(true);
+    expect(responderTurno(emTriagem(), texto('Na verdade vou deixar quieto'))).toBe(
+      MENSAGENS_JORNADA.despedidaRespeitosa,
+    );
+  });
+
+  it('depois de desistir: "Obrigada" ⇒ cortesia breve; texto livre ⇒ delega ao LLM (nunca cobrança)', () => {
+    expect(responderTurno(emTriagem({ desistiu: true }), texto('Obrigada'))).toBe(
+      MENSAGENS_JORNADA.socialCurto,
+    );
+    expect(responderTurno(emTriagem({ desistiu: true }), texto('vou pensar melhor'))).toBe('');
+  });
+
+  it('pergunta LIVRE na triagem ⇒ delega à conversa humana (LLM responde e retoma o foco)', () => {
+    expect(responderTurno(emTriagem(), texto('quanto tempo demora a análise?'))).toBe('');
+    expect(responderTurno(emTriagem(), texto('como vocês ganham dinheiro com isso?'))).toBe('');
+  });
+
+  it('agradecimento curto na triagem ⇒ cortesia breve, nunca a cobrança', () => {
+    expect(responderTurno(emTriagem(), texto('Obrigada'))).toBe(MENSAGENS_JORNADA.socialCurto);
+    expect(responderTurno(emTriagem(), texto('ok'))).toBe(MENSAGENS_JORNADA.socialCurto);
+  });
+
+  it('NENHUMA mensagem autorada contém emoji (tom de consultora jurídica)', () => {
+    const todas = [
+      MENSAGENS_JORNADA.boasVindas,
+      MENSAGENS_JORNADA.pedirNomeECidade,
+      MENSAGENS_JORNADA.pedirCidade('X'),
+      MENSAGENS_JORNADA.pedirNome,
+      MENSAGENS_JORNADA.explicacaoConsentimento('X'),
+      MENSAGENS_JORNADA.reforcoConsentimento,
+      MENSAGENS_JORNADA.recusa,
+      MENSAGENS_JORNADA.iniciarTriagem('X'),
+      MENSAGENS_JORNADA.aguardandoDocumento('X'),
+      MENSAGENS_JORNADA.ackDocumento,
+      MENSAGENS_JORNADA.documentoRegistrado('X', 'Y'),
+      MENSAGENS_JORNADA.documentoRegistradoCompleto('X'),
+      MENSAGENS_JORNADA.comprovanteConjuge,
+      MENSAGENS_JORNADA.adiamentoOk('X'),
+      MENSAGENS_JORNADA.adiamentoOkCurto,
+      MENSAGENS_JORNADA.documentoNaoIdentificado('X'),
+      MENSAGENS_JORNADA.seguranca,
+      MENSAGENS_JORNADA.despedidaRespeitosa,
+      MENSAGENS_JORNADA.socialCurto,
+    ];
+    for (const m of todas) {
+      expect(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u.test(m)).toBe(false);
     }
   });
 });

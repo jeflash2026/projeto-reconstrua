@@ -182,6 +182,9 @@ export class ConversationRuntime {
 
     // Fraseia (LLM de expressão) com guard anti-repetição.
     const text = await this.phraseWithoutRepetition(intent, view, turnPhrases);
+    // Decreto 2026-07-22 (caso Lucas): guard esgotado ⇒ SILÊNCIO. Repetir a
+    // mesma frase pela 3ª vez é a trava robótica que perdeu um cliente real.
+    if (text === '') return;
     turnPhrases.push(text);
     await queue.enqueue(intent.chatId, intent.id, text);
   }
@@ -207,10 +210,21 @@ export class ConversationRuntime {
       avoid = [...avoid, candidate];
       attempt += 1;
     }
-    // Degenerado (LLM incapaz de variar): envia o último, mas deixa rastro auditável.
+    // Degenerado (expressão incapaz de variar) — decreto 2026-07-22 (caso
+    // Lucas): se o candidato é LITERALMENTE idêntico a uma fala recente,
+    // SILÊNCIO (o eco robótico perdeu um cliente real). Se é apenas similar
+    // (paráfrase da mesma intenção), envia — follow-ups legítimos continuam.
+    const eco = avoidBase.some((a) => a.trim() === candidate.trim());
+    if (eco) {
+      await memory.recordNote(
+        intent.chatId,
+        'guard anti-repetição esgotou tentativas; SILÊNCIO (candidato idêntico a fala recente)',
+      );
+      return '';
+    }
     await memory.recordNote(
       intent.chatId,
-      'guard anti-repetição esgotou tentativas; enviando último fraseado',
+      'guard anti-repetição esgotou tentativas; enviando fraseado similar (não idêntico)',
     );
     return candidate;
   }

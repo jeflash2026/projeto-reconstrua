@@ -33,6 +33,10 @@ export interface JornadaRecord {
    *  espera — 1º aviso ganha resposta completa; repetições, um "Combinado!"
    *  curto (nunca a mesma cobrança de novo). Zera quando um documento chega. */
   readonly avisosDeAdiamento: number;
+  /** Caso Lucas (2026-07-22): o cliente DESISTIU ("vou deixar quieto") — a
+   *  cobrança de documento CESSA; despedida respeitosa uma vez, e o canal fica
+   *  humano (LLM) até ele retomar (interesse novo ou documento chegando). */
+  readonly desistiu: boolean;
   readonly atualizadoEm: Date;
 }
 
@@ -46,6 +50,7 @@ export function novaJornada(chatId: string, now: Date): JornadaRecord {
     ultimaCaptura: null,
     aguardandoProgressao: false,
     avisosDeAdiamento: 0,
+    desistiu: false,
     atualizadoEm: now,
   };
 }
@@ -161,6 +166,38 @@ export function ehAdiamento(texto: string): boolean {
   return ADIAMENTO.test(texto);
 }
 
+// ── Caso Lucas (2026-07-22, cliente real perdido): "Cara de golpe isso" e
+// "Na verdade vou deixar quieto" receberam TRÊS vezes a cobrança de documento.
+// Decreto: desconfiança ganha resposta de SEGURANÇA; desistência ganha
+// despedida respeitosa e a cobrança CESSA; pergunta ganha resposta humana
+// (LLM) antes de voltar ao foco. Nunca mais trava robótica repetitiva.
+
+const DESCONFIANCA =
+  /\bgolpe\b|\bfraude\b|desconfi|suspeit|n[ãa]o\s+confio|engana[çc]|enrola[çc]|\b[ée]\s+seguro\b|\bisso\s+[ée]\s+verdade\b|\bverdade\s+isso\b|\bconfi[áa]vel\b|\bmedo\s+de\b|\bn[ãa]o\s+[ée]\s+golpe\b/i;
+export function ehDesconfianca(texto: string): boolean {
+  return DESCONFIANCA.test(texto);
+}
+
+const DESISTENCIA =
+  /\bdeixa[r]?\s+quieto\b|\bdesisto\b|\bdesistir\b|\bn[ãa]o\s+quero\s+mais\b|\besquece\b|\bdeixa\s+(pra\s+l[áa]|isso)|\bpode\s+parar\b|\bn[ãa]o\s+tenho\s+(mais\s+)?interesse\b|\bperdi\s+o\s+interesse\b/i;
+export function ehDesistencia(texto: string): boolean {
+  return DESISTENCIA.test(texto);
+}
+
+const AGRADECIMENTO_PURO =
+  /^(obrigad[oa]s?|obg|brigad[oa]o?|valeu|blz|beleza|ok(ay)?|t[áa]\s*(bom|bem)?|certo|entendi|tudo\s+bem|de\s+nada|👍|🙏)[!.,\s]*$/i;
+export function ehAgradecimentoPuro(texto: string): boolean {
+  return AGRADECIMENTO_PURO.test(texto.trim());
+}
+
+/** Pergunta LIVRE do cliente (não coberta pelas respostas canônicas): o decreto
+ *  manda RESPONDER (LLM, tom de consultora) e depois voltar ao foco do funil. */
+const PERGUNTA_LIVRE =
+  /\?|^(como|quando|quanto|qual|quais|onde|quem|por\s*qu[eê]|pq|o\s*qu[eê])\b/i;
+export function ehPerguntaLivre(texto: string): boolean {
+  return PERGUNTA_LIVRE.test(texto.trim());
+}
+
 /** Um candidato a NOME precisa PARECER nome: sem '?', sem dígitos, até 6
  *  palavras e sem vocabulário do funil ("posso ter mais informações…" NUNCA é
  *  nome — defeito real do primeiro contato da Denise). */
@@ -180,41 +217,55 @@ export function pareceNome(s: string): boolean {
 
 // ── MENSAGENS AUTORADAS (o conteúdo do funil — a LLM nunca as decide) ─────────
 
+// Decreto 2026-07-22 (caso Lucas): tom de CONSULTORA JURÍDICA — profissional,
+// claro e acolhedor, SEM emojis. Atendimento que transmite segurança.
 export const MENSAGENS_JORNADA = {
   boasVindas:
-    'Oi! 😊 Seja muito bem-vindo(a)! Me chamo Ahri e a partir de agora vou te acompanhar do começo ao fim dessa jornada.\n\n' +
-    'Pra gente começar, pode me dizer seu nome completo e a cidade onde você mora?',
+    'Olá, seja bem-vindo(a) ao Projeto Reconstrua. Eu me chamo Ahri e sou a consultora responsável pelo seu atendimento — vou acompanhar o seu caso do início ao fim.\n\n' +
+    'Para começarmos, pode me informar o seu nome completo e a cidade onde mora?',
   pedirNomeECidade:
-    'Pra eu te ajudar direitinho, me conta seu nome completo e a cidade onde você mora? 😊',
-  pedirCidade: (nome: string): string => `Prazer, ${nome}! 😊 E de qual cidade você fala?`,
-  pedirNome: 'E qual é o seu nome completo? 😊',
+    'Para eu registrar o seu atendimento corretamente, pode me informar o seu nome completo e a cidade onde mora?',
+  pedirCidade: (nome: string): string => `Prazer, ${nome}. E de qual cidade você fala?`,
+  pedirNome: 'E qual é o seu nome completo, por favor?',
   explicacaoConsentimento: (nome: string): string =>
-    `${nome !== '' ? `Prazer, ${nome}! ` : ''}Deixa eu te explicar rapidinho como funciona: nossa equipe analisa o seu consignado do INSS pra verificar se existe alguma irregularidade nos descontos do benefício. Se encontrarmos algo fora do previsto, aí sim é possível buscar a revisão e a recuperação desses valores.\n\n` +
-    'A análise é gratuita e sem compromisso — e só depois dela dá pra saber se existe algum direito no seu caso.\n\n' +
+    `${nome !== '' ? `Prazer, ${nome}. ` : ''}Deixa eu te explicar como funciona: nossa equipe analisa o seu consignado do INSS para verificar se existe alguma irregularidade nos descontos do benefício. Se encontrarmos algo fora do previsto, é possível buscar a revisão e a recuperação desses valores.\n\n` +
+    'A análise é gratuita e sem compromisso — e só depois dela é possível saber se existe algum direito no seu caso.\n\n' +
     'Você tem interesse em fazer essa análise?',
   reforcoConsentimento:
-    'Só me confirma: você tem interesse em fazer a análise gratuita do seu consignado? 😊',
+    'Só para eu confirmar: você tem interesse em fazer a análise gratuita do seu consignado?',
   recusa:
-    'Sem problemas! 😊 Fico à disposição — se mudar de ideia ou tiver qualquer dúvida sobre a análise, é só me chamar por aqui.',
+    'Sem problemas, respeito a sua decisão. Fico à disposição — se mudar de ideia ou tiver qualquer dúvida sobre a análise, é só me chamar por aqui.',
   iniciarTriagem: (proximo: string): string =>
-    'Que ótimo! Vamos começar então 😊\n\n' +
-    `Vou precisar de apenas três documentos, um por vez — nada complicado. O primeiro: ${proximo}. Pode mandar foto ou print.`,
+    'Ótimo, vamos começar.\n\n' +
+    `Vou precisar de três documentos, um por vez. O primeiro: ${proximo}. Pode enviar foto ou print por aqui mesmo.`,
   aguardandoDocumento: (proximo: string): string =>
-    `Estou aguardando: ${proximo}. Pode mandar foto ou print por aqui mesmo, no seu tempo. 😊`,
+    `Estou aguardando: ${proximo}. Pode enviar foto ou print por aqui, no seu tempo.`,
   ackDocumento:
-    'Recebi aqui! 📄 Só um instante que já estou registrando — assim que concluir, te confirmo o próximo passo.',
+    'Recebi o documento. Um instante enquanto faço o registro — assim que concluir, te confirmo o próximo passo.',
   documentoRegistrado: (registrado: string, proximo: string): string =>
-    `Recebi! ✅ Registrado: ${registrado}. Agora me manda, por favor: ${proximo}.`,
+    `Registrado: ${registrado}. Agora preciso de: ${proximo}.`,
   documentoRegistradoCompleto: (registrado: string): string =>
-    `Recebi! ✅ Registrado: ${registrado}. Com isso sua documentação inicial está completa — já te mando os próximos passos. 🎉`,
+    `Registrado: ${registrado}. Com isso a sua documentação inicial está completa — já te envio os próximos passos.`,
   comprovanteConjuge:
-    'Se você não tiver um comprovante de endereço no seu nome, o do seu cônjuge também vale, viu? 😊',
+    'Se você não tiver um comprovante de endereço no seu nome, o do seu cônjuge também vale.',
   // Caso Denise: adiamento reconhecido ⇒ acolhimento, nunca a cobrança de novo.
   adiamentoOk: (proximo: string): string =>
-    `Sem problema nenhum! 😊 Combinado — quando você conseguir, é só mandar o ${proximo} por aqui mesmo. Fico à disposição, obrigada! 🙏`,
-  adiamentoOkCurto: 'Combinado! 😊 Fico no aguardo então — qualquer coisa estou por aqui. Até já!',
+    `Sem problema nenhum, combinado. Quando você conseguir, é só enviar o ${proximo} por aqui mesmo. Fico à disposição.`,
+  adiamentoOkCurto: 'Combinado. Fico no aguardo — qualquer coisa, estou por aqui.',
   documentoNaoIdentificado: (proximo: string): string =>
-    `Dei uma olhada aqui e essa imagem não parece ser o que eu estava esperando 😅 No momento preciso de: ${proximo}. Pode conferir e mandar de novo? Se tiver qualquer dúvida, me chama!`,
+    `Verifiquei aqui e essa imagem não parece ser o documento que estou aguardando (${proximo}). Pode conferir e enviar novamente? Qualquer dúvida, me chame.`,
+  // Caso Lucas: desconfiança ("cara de golpe") ⇒ resposta de SEGURANÇA.
+  seguranca:
+    'Sua cautela é correta — e desconfiar é importante mesmo. Alguns pontos para a sua segurança:\n\n' +
+    '1. A análise é gratuita: você não paga nada, em nenhuma etapa.\n' +
+    '2. Nunca pedimos senhas, códigos de verificação ou qualquer pagamento.\n' +
+    '3. Este é o canal oficial do Projeto Reconstrua — você pode confirmar no nosso site: projetoreconstrua.com.br.\n' +
+    '4. Seus documentos são usados exclusivamente para a análise do seu benefício, conforme a Lei Geral de Proteção de Dados (LGPD).\n\n' +
+    'Se preferir, posso esclarecer qualquer dúvida antes de você enviar qualquer documento. Estou à disposição.',
+  // Caso Lucas: desistência ⇒ despedida respeitosa, cobrança CESSA.
+  despedidaRespeitosa:
+    'Entendo e respeito a sua decisão. Se mudar de ideia ou quiser esclarecer qualquer dúvida sobre a análise, é só mandar uma mensagem por aqui — este canal fica à sua disposição. Obrigada pelo contato.',
+  socialCurto: 'Por nada. Qualquer dúvida, estou à disposição.',
 } as const;
 
 /** A ENTRADA de um turno, já normalizada pelo runtime. */
@@ -260,6 +311,10 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
     return MENSAGENS_JORNADA.ackDocumento;
   }
 
+  // Caso Lucas: DESCONFIANÇA tem prioridade máxima em QUALQUER etapa — quem
+  // acha que é golpe não manda documento; primeiro segurança, depois funil.
+  if (ehDesconfianca(entrada.texto)) return MENSAGENS_JORNADA.seguranca;
+
   // Pergunta de direito/elegibilidade tem resposta canônica, em qualquer etapa.
   const prefixoDireito = ehPerguntaDeDireito(entrada.texto)
     ? 'É possível, mas somente conseguimos afirmar após analisar gratuitamente o seu HISCON (histórico de empréstimos consignados do INSS). '
@@ -291,6 +346,14 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
       const proximo = f.proximoDocumento ?? 'o documento pendente';
       if (r.ultimaCaptura === 'consentimento')
         return prefixoDireito + MENSAGENS_JORNADA.iniciarTriagem(proximo);
+      // Caso Lucas: DESISTÊNCIA ⇒ despedida respeitosa; a cobrança CESSA.
+      if (ehDesistencia(entrada.texto)) return MENSAGENS_JORNADA.despedidaRespeitosa;
+      // Cliente desistiu antes: nada de cobrança. Agradecimento ganha cortesia
+      // breve; o resto vai para a conversa humana (LLM) — porta sempre aberta.
+      if (r.desistiu) {
+        if (ehAgradecimentoPuro(entrada.texto)) return MENSAGENS_JORNADA.socialCurto;
+        return '';
+      }
       // Caso Denise: "posso deixar p amanhã" ⇒ acolhimento (1º aviso completo;
       // repetição ganha o "Combinado!" curto) — NUNCA a mesma cobrança de novo.
       if (ehAdiamento(entrada.texto)) {
@@ -298,10 +361,15 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
           ? MENSAGENS_JORNADA.adiamentoOkCurto
           : MENSAGENS_JORNADA.adiamentoOk(proximo);
       }
+      // Agradecimento/confirmação curta NÃO merece cobrança — cortesia breve.
+      if (ehAgradecimentoPuro(entrada.texto)) return MENSAGENS_JORNADA.socialCurto;
       const extraConjuge =
         /comprovante/i.test(proximo) && /não tenho|nao tenho|meu nome/i.test(entrada.texto)
           ? `\n\n${MENSAGENS_JORNADA.comprovanteConjuge}`
           : '';
+      // Decreto: pergunta LIVRE do cliente ⇒ a conversa humana (LLM) responde e
+      // retoma o foco — nunca a cobrança seca no lugar da resposta.
+      if (prefixoDireito === '' && ehPerguntaLivre(entrada.texto)) return '';
       return prefixoDireito + MENSAGENS_JORNADA.aguardandoDocumento(proximo) + extraConjuge;
     }
     case 'CONCLUIDA':

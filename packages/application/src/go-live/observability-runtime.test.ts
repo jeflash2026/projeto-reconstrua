@@ -7,7 +7,11 @@
 //   • error() e degraded() produzem as observações corretas e são emitidas.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from 'vitest';
-import { ObservabilityRuntime, stderrErrorSink, type Observation } from './observability-runtime.js';
+import {
+  ObservabilityRuntime,
+  stderrErrorSink,
+  type Observation,
+} from './observability-runtime.js';
 
 const NOW = new Date('2026-07-17T12:00:00.000Z');
 
@@ -39,13 +43,29 @@ describe('ObservabilityRuntime (B5.3) — sink durável + trilha preservada', ()
     obs.error('media', 'capture', NOW, 'falha');
     obs.degraded('go-live', 'degraded-start', NOW, 'itens vermelhos: llm');
     const trail = obs.trail();
-    expect(trail[0]).toMatchObject({ kind: 'error', component: 'media', name: 'capture', detail: 'falha' });
-    expect(trail[1]).toMatchObject({ kind: 'health', component: 'go-live', name: 'degraded-start' });
+    expect(trail[0]).toMatchObject({
+      kind: 'error',
+      component: 'media',
+      name: 'capture',
+      detail: 'falha',
+    });
+    expect(trail[1]).toMatchObject({
+      kind: 'health',
+      component: 'go-live',
+      name: 'degraded-start',
+    });
   });
 });
 
 describe('stderrErrorSink (B5.3) — só erros/degradações vão ao stderr', () => {
-  const obsOf = (kind: Observation['kind']): Observation => ({ kind, component: 'c', name: 'n', value: null, detail: 'd', at: NOW });
+  const obsOf = (kind: Observation['kind']): Observation => ({
+    kind,
+    component: 'c',
+    name: 'n',
+    value: null,
+    detail: 'd',
+    at: NOW,
+  });
 
   it('emite erro e degradação (health); ignora event/latency/queue/stat', () => {
     const spy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);

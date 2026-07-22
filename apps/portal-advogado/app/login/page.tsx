@@ -37,7 +37,10 @@ const LoginPage = (): ReactElement => {
         </p>
         <form
           className="form-row"
-          onSubmit={(e) => { e.preventDefault(); void entrar(); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void entrar();
+          }}
           style={{ flexDirection: 'column', alignItems: 'stretch' }}
         >
           <input
@@ -45,19 +48,31 @@ const LoginPage = (): ReactElement => {
             placeholder="Seu ID de advogado"
             value={id}
             autoFocus
-            onChange={(e) => { setId(e.target.value); }}
+            onChange={(e) => {
+              setId(e.target.value);
+            }}
           />
           <input
             type="password"
             placeholder="Sua senha"
             value={senha}
-            onChange={(e) => { setSenha(e.target.value); }}
+            onChange={(e) => {
+              setSenha(e.target.value);
+            }}
           />
-          <button type="submit" className="primary" disabled={busy || senha === '' || id.trim() === ''}>
+          <button
+            type="submit"
+            className="primary"
+            disabled={busy || senha === '' || id.trim() === ''}
+          >
             Entrar
           </button>
         </form>
-        {erro ? <div className="error-box" style={{ marginTop: 12 }}>{erro}</div> : null}
+        {erro ? (
+          <div className="error-box" style={{ marginTop: 12 }}>
+            {erro}
+          </div>
+        ) : null}
       </div>
     </div>
   );

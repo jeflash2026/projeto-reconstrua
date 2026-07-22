@@ -17,18 +17,26 @@ import {
 } from './staff-directory.js';
 
 class FixedClock implements Clock {
-  now(): Date { return new Date('2026-07-19T12:00:00.000Z'); }
+  now(): Date {
+    return new Date('2026-07-19T12:00:00.000Z');
+  }
 }
 class SeqUuid implements UuidGenerator {
   private n = 0;
-  next(): Uuid { this.n += 1; return toUuid(`00000000-0000-4000-8000-${String(this.n).padStart(12, '0')}`); }
+  next(): Uuid {
+    this.n += 1;
+    return toUuid(`00000000-0000-4000-8000-${String(this.n).padStart(12, '0')}`);
+  }
 }
 
 /** Store em memória — persiste de verdade entre chamadas (imita o Postgres). */
 function memStore(): StaffStore {
   const rows = new Map<string, StaffMember>();
   return {
-    save: (m) => { rows.set(m.id, m); return Promise.resolve(); },
+    save: (m) => {
+      rows.set(m.id, m);
+      return Promise.resolve();
+    },
     byId: (id) => Promise.resolve(rows.get(id) ?? null),
     byRole: (role: StaffRole) => Promise.resolve([...rows.values()].filter((m) => m.role === role)),
     all: () => Promise.resolve([...rows.values()]),
@@ -36,7 +44,11 @@ function memStore(): StaffStore {
 }
 
 function runtime(store: StaffStore = memStore()): StaffDirectoryRuntime {
-  const handoff = new HumanHandoffRuntime({ save: () => Promise.resolve(), byId: () => Promise.resolve(null), openByRole: () => Promise.resolve([]) });
+  const handoff = new HumanHandoffRuntime({
+    save: () => Promise.resolve(),
+    byId: () => Promise.resolve(null),
+    openByRole: () => Promise.resolve([]),
+  });
   return new StaffDirectoryRuntime(store, handoff, new FixedClock(), new SeqUuid());
 }
 
@@ -58,8 +70,10 @@ describe('StaffDirectory · bootstrap ONE-TIME (BUG 1)', () => {
   it('o segundo bootstrap é RECUSADO (AlreadyBootstrappedError) — nunca cria outro admin', async () => {
     const dir = runtime();
     await dir.bootstrapFirstAdmin('Jessé Fundador');
-    await expect(dir.bootstrapFirstAdmin('Intruso')).rejects.toBeInstanceOf(AlreadyBootstrappedError);
-    expect((await dir.list('administrador'))).toHaveLength(1); // só o primeiro
+    await expect(dir.bootstrapFirstAdmin('Intruso')).rejects.toBeInstanceOf(
+      AlreadyBootstrappedError,
+    );
+    expect(await dir.list('administrador')).toHaveLength(1); // só o primeiro
   });
 
   it('o nome do administrador PERSISTE na releitura (o cerne do bug relatado)', async () => {
@@ -90,7 +104,7 @@ describe('StaffDirectory · bootstrap ONE-TIME (BUG 1)', () => {
     const again = await runtime(store).ensureBootstrapped('Outro');
     expect(again).toBeNull();
     expect(await runtime(store).isBootstrapped()).toBe(true);
-    expect((await runtime(store).list('administrador'))).toHaveLength(1);
+    expect(await runtime(store).list('administrador')).toHaveLength(1);
   });
 
   it('ensureBootstrapped usa nome padrão quando o informado é vazio', async () => {

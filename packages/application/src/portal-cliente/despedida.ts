@@ -78,7 +78,11 @@ export class DespedidaRuntime {
       });
 
       // A DESPEDIDA nasce (texto homologado; entrega pelo pipeline canônico).
-      const entregue = await comunicador.comunicar(cliente.chatId, cliente.clienteId, mensagemDespedida(cliente.quem));
+      const entregue = await comunicador.comunicar(
+        cliente.chatId,
+        cliente.clienteId,
+        mensagemDespedida(cliente.quem),
+      );
       if (entregue) despedidos.push(cliente.clienteId);
       // Brain vetou/canal falhou: o fato permanece (decisão tomada) — nunca
       // reenvio automático em loop; a conversa continua disponível (PC-R4).

@@ -17,7 +17,11 @@ import { InMemoryJsonStore } from '../production/json-store.js';
 import { JsonDocumentRequestStore } from './json-document-request-store.js';
 import { DocumentArrivalSubscriber, NS_CONFIRMACOES } from './document-arrival-subscriber.js';
 import { DocumentRequestAutonomia, identificarCandidata } from './autonomia.js';
-import { JsonNotificationChannelStore, LawyerNotifierSubscriber, NS_ENTREGAS } from './lawyer-notifier.js';
+import {
+  JsonNotificationChannelStore,
+  LawyerNotifierSubscriber,
+  NS_ENTREGAS,
+} from './lawyer-notifier.js';
 import type { RegistroDeEntrega } from './lawyer-notifier.js';
 import { ProductionIngress } from '../production/production-ingress.js';
 
@@ -27,13 +31,17 @@ const CASO = 'M-CASO-1';
 const ADV = 'ADV-1';
 const ADV_FONE = '5511988887777@s.whatsapp.net';
 class TestClock implements Clock {
-  now(): Date { return NOW; }
+  now(): Date {
+    return NOW;
+  }
 }
 
 const R1 = '00000000-0000-4000-8000-0000000000a1'; // Procuração
 const R2 = '00000000-0000-4000-8000-0000000000a2'; // Extrato Bancário
 
-function horas(n: number): Date { return new Date(NOW.getTime() + n * 60 * 60 * 1000); }
+function horas(n: number): Date {
+  return new Date(NOW.getTime() + n * 60 * 60 * 1000);
+}
 
 function harness(opts: { gatewayFalha?: boolean } = {}) {
   const json = new InMemoryJsonStore();
@@ -49,30 +57,89 @@ function harness(opts: { gatewayFalha?: boolean } = {}) {
   };
   const observability = new ObservabilityRuntime();
   const clock = new TestClock();
-  const subscriber = new DocumentArrivalSubscriber({ store, runtime, gateway: gateway as never, confirmacoes: json, observability, clock });
-  const autonomia = new DocumentRequestAutonomia({ store, runtime, gateway: gateway as never, confirmacoes: json, nomeDoCliente: () => Promise.resolve('Jessé'), observability, clock });
+  const subscriber = new DocumentArrivalSubscriber({
+    store,
+    runtime,
+    gateway: gateway as never,
+    confirmacoes: json,
+    observability,
+    clock,
+  });
+  const autonomia = new DocumentRequestAutonomia({
+    store,
+    runtime,
+    gateway: gateway as never,
+    confirmacoes: json,
+    nomeDoCliente: () => Promise.resolve('Jessé'),
+    observability,
+    clock,
+  });
   const canais = new JsonNotificationChannelStore(json);
-  const notifier = new LawyerNotifierSubscriber({ store, canais, gateway: gateway as never, entregas: json, nomeDoCliente: () => Promise.resolve('Jessé'), observability, clock });
+  const notifier = new LawyerNotifierSubscriber({
+    store,
+    canais,
+    gateway: gateway as never,
+    entregas: json,
+    nomeDoCliente: () => Promise.resolve('Jessé'),
+    observability,
+    clock,
+  });
   return { json, store, runtime, subscriber, autonomia, canais, notifier, enviadas, observability };
 }
 
-const BASE = { caseId: CASO, clientId: CHAT, lawyerId: ADV, requestedBy: 'Dr. João Silva', createdAt: NOW } as const;
+const BASE = {
+  caseId: CASO,
+  clientId: CHAT,
+  lawyerId: ADV,
+  requestedBy: 'Dr. João Silva',
+  createdAt: NOW,
+} as const;
 
 function eventoDocumento(documentId: string, fileName: string): StoredEvent {
   return {
-    id: 'e1', streamType: 'document', streamId: documentId, version: 1, eventType: 'document.recognized',
-    isRelevant: true, payload: { missionId: CASO, contentReference: fileName, mimeType: 'application/pdf' },
-    provenance: { factRef: null, actor: 'AHRI', decisionType: null, fundamento: null, operationalRuleRef: null },
-    previousHash: null, hash: 'h', occurredAt: NOW, recordedAt: NOW, globalSeq: 1,
+    id: 'e1',
+    streamType: 'document',
+    streamId: documentId,
+    version: 1,
+    eventType: 'document.recognized',
+    isRelevant: true,
+    payload: { missionId: CASO, contentReference: fileName, mimeType: 'application/pdf' },
+    provenance: {
+      factRef: null,
+      actor: 'AHRI',
+      decisionType: null,
+      fundamento: null,
+      operationalRuleRef: null,
+    },
+    previousHash: null,
+    hash: 'h',
+    occurredAt: NOW,
+    recordedAt: NOW,
+    globalSeq: 1,
   };
 }
 
 function eventoReceived(requestId: string, version = 3): StoredEvent {
   return {
-    id: `er-${requestId}`, streamType: 'document-request', streamId: requestId, version, eventType: 'document-request.received',
-    isRelevant: true, payload: {},
-    provenance: { factRef: null, actor: 'AHRI', decisionType: null, fundamento: null, operationalRuleRef: null },
-    previousHash: null, hash: 'h', occurredAt: NOW, recordedAt: NOW, globalSeq: 2,
+    id: `er-${requestId}`,
+    streamType: 'document-request',
+    streamId: requestId,
+    version,
+    eventType: 'document-request.received',
+    isRelevant: true,
+    payload: {},
+    provenance: {
+      factRef: null,
+      actor: 'AHRI',
+      decisionType: null,
+      fundamento: null,
+      operationalRuleRef: null,
+    },
+    previousHash: null,
+    hash: 'h',
+    occurredAt: NOW,
+    recordedAt: NOW,
+    globalSeq: 2,
   };
 }
 
@@ -137,7 +204,12 @@ describe('15C-4 · Parte 1 — resolução da confirmação', () => {
 describe('15C-4 · Parte 2 — SLA automático', () => {
   it('política 24h vencida ⇒ lembrete registrado (aggregate) + mensagem entregue', async () => {
     const h = harness();
-    await h.runtime.criar({ ...BASE, requestId: R1, documentName: 'Procuração', reminderPolicy: '24h' });
+    await h.runtime.criar({
+      ...BASE,
+      requestId: R1,
+      documentName: 'Procuração',
+      reminderPolicy: '24h',
+    });
     await h.autonomia.varredura(horas(25));
     const s = await h.store.porId(R1);
     expect(s?.lastReminderAt).not.toBeNull();
@@ -152,22 +224,42 @@ describe('15C-4 · Parte 2 — SLA automático', () => {
 
   it('política ainda não vencida ⇒ silêncio', async () => {
     const h = harness();
-    await h.runtime.criar({ ...BASE, requestId: R1, documentName: 'Procuração', reminderPolicy: '24h' });
+    await h.runtime.criar({
+      ...BASE,
+      requestId: R1,
+      documentName: 'Procuração',
+      reminderPolicy: '24h',
+    });
     await h.autonomia.varredura(horas(10));
     expect(h.enviadas).toHaveLength(0);
   });
 
   it("política 'nenhum' ⇒ nunca lembra", async () => {
     const h = harness();
-    await h.runtime.criar({ ...BASE, requestId: R1, documentName: 'Procuração', reminderPolicy: 'nenhum' });
+    await h.runtime.criar({
+      ...BASE,
+      requestId: R1,
+      documentName: 'Procuração',
+      reminderPolicy: 'nenhum',
+    });
     await h.autonomia.varredura(horas(24 * 30));
     expect(h.enviadas).toHaveLength(0);
   });
 
   it('RECEIVED e CANCELLED jamais recebem lembrete', async () => {
     const h = harness();
-    await h.runtime.criar({ ...BASE, requestId: R1, documentName: 'Procuração', reminderPolicy: '24h' });
-    await h.runtime.criar({ ...BASE, requestId: R2, documentName: 'Extrato Bancário', reminderPolicy: '24h' });
+    await h.runtime.criar({
+      ...BASE,
+      requestId: R1,
+      documentName: 'Procuração',
+      reminderPolicy: '24h',
+    });
+    await h.runtime.criar({
+      ...BASE,
+      requestId: R2,
+      documentName: 'Extrato Bancário',
+      reminderPolicy: '24h',
+    });
     await h.runtime.associar(R1, 'doc-1', 'unica', NOW);
     await h.runtime.cancelar(R2, 'não precisa mais', ADV, NOW);
     await h.autonomia.varredura(horas(25));
@@ -176,7 +268,12 @@ describe('15C-4 · Parte 2 — SLA automático', () => {
 
   it('lembretes SUCESSIVOS respeitam a cadência (25h envia; 26h não; 50h envia de novo)', async () => {
     const h = harness();
-    await h.runtime.criar({ ...BASE, requestId: R1, documentName: 'Procuração', reminderPolicy: '24h' });
+    await h.runtime.criar({
+      ...BASE,
+      requestId: R1,
+      documentName: 'Procuração',
+      reminderPolicy: '24h',
+    });
     await h.autonomia.varredura(horas(25));
     await h.autonomia.varredura(horas(26));
     expect(h.enviadas).toHaveLength(1);
@@ -188,13 +285,17 @@ describe('15C-4 · Parte 2 — SLA automático', () => {
 describe('15C-4 · Parte 3 — entrega ao advogado', () => {
   it('received + canal preferido ⇒ WhatsApp ao advogado + registro "entregue"', async () => {
     const h = harness();
-    await h.canais.definir(ADV, [{ tipo: 'whatsapp', endereco: ADV_FONE, preferido: true, verificadoEm: NOW.toISOString() }]);
+    await h.canais.definir(ADV, [
+      { tipo: 'whatsapp', endereco: ADV_FONE, preferido: true, verificadoEm: NOW.toISOString() },
+    ]);
     await h.runtime.criar({ ...BASE, requestId: R1, documentName: 'Procuração' });
     await h.runtime.associar(R1, 'doc-1', 'unica', NOW);
     await h.notifier.handle(eventoReceived(R1));
     expect(h.enviadas).toHaveLength(1);
     expect(h.enviadas[0]?.para).toBe(ADV_FONE);
-    expect(h.enviadas[0]?.texto).toContain('O cliente Jessé acabou de enviar o documento solicitado');
+    expect(h.enviadas[0]?.texto).toContain(
+      'O cliente Jessé acabou de enviar o documento solicitado',
+    );
     expect(h.enviadas[0]?.texto).toContain('Procuração');
     const reg = (await h.json.get(NS_ENTREGAS, `${R1}:v3`)) as RegistroDeEntrega;
     expect(reg.resultado).toBe('entregue');
@@ -202,7 +303,9 @@ describe('15C-4 · Parte 3 — entrega ao advogado', () => {
 
   it('reentrega do MESMO evento ⇒ dedup (nenhuma segunda mensagem)', async () => {
     const h = harness();
-    await h.canais.definir(ADV, [{ tipo: 'whatsapp', endereco: ADV_FONE, preferido: true, verificadoEm: null }]);
+    await h.canais.definir(ADV, [
+      { tipo: 'whatsapp', endereco: ADV_FONE, preferido: true, verificadoEm: null },
+    ]);
     await h.runtime.criar({ ...BASE, requestId: R1, documentName: 'Procuração' });
     await h.runtime.associar(R1, 'doc-1', 'unica', NOW);
     await h.notifier.handle(eventoReceived(R1));
@@ -222,7 +325,9 @@ describe('15C-4 · Parte 3 — entrega ao advogado', () => {
 
   it('WhatsApp falha ⇒ registro "falhou" com erro; NENHUMA exceção escapa', async () => {
     const h = harness({ gatewayFalha: true });
-    await h.canais.definir(ADV, [{ tipo: 'whatsapp', endereco: ADV_FONE, preferido: true, verificadoEm: null }]);
+    await h.canais.definir(ADV, [
+      { tipo: 'whatsapp', endereco: ADV_FONE, preferido: true, verificadoEm: null },
+    ]);
     await h.runtime.criar({ ...BASE, requestId: R1, documentName: 'Procuração' });
     await h.runtime.associar(R1, 'doc-1', 'unica', NOW);
     await expect(h.notifier.handle(eventoReceived(R1))).resolves.toBeUndefined();
@@ -235,7 +340,12 @@ describe('15C-4 · Parte 3 — entrega ao advogado', () => {
 describe('15C-4 · Parte 4 — resiliência', () => {
   it('WhatsApp fora na varredura ⇒ lembrete FICA registrado; volta do gateway não duplica', async () => {
     const h = harness({ gatewayFalha: true });
-    await h.runtime.criar({ ...BASE, requestId: R1, documentName: 'Procuração', reminderPolicy: '24h' });
+    await h.runtime.criar({
+      ...BASE,
+      requestId: R1,
+      documentName: 'Procuração',
+      reminderPolicy: '24h',
+    });
     await expect(h.autonomia.varredura(horas(25))).resolves.toBeUndefined();
     expect((await h.store.porId(R1))?.lastReminderAt).not.toBeNull(); // registrado ANTES do envio
     expect(h.enviadas).toHaveLength(0);
@@ -249,8 +359,12 @@ describe('15C-4 · Parte 4 — resiliência', () => {
     const h = harness();
     const quebrado = new DocumentRequestAutonomia({
       store: { abertas: () => Promise.reject(new Error('pg down')) } as never,
-      runtime: h.runtime, gateway: null, confirmacoes: h.json,
-      nomeDoCliente: null, observability: h.observability, clock: new TestClock(),
+      runtime: h.runtime,
+      gateway: null,
+      confirmacoes: h.json,
+      nomeDoCliente: null,
+      observability: h.observability,
+      clock: new TestClock(),
     });
     await expect(quebrado.varredura(NOW)).resolves.toBeUndefined();
   });
@@ -260,8 +374,12 @@ describe('15C-4 · Parte 4 — resiliência', () => {
     await cenarioDeDuvida(h);
     const quebrado = new DocumentRequestAutonomia({
       store: { abertasDoCliente: () => Promise.reject(new Error('pg down')) } as never,
-      runtime: h.runtime, gateway: null, confirmacoes: h.json,
-      nomeDoCliente: null, observability: h.observability, clock: new TestClock(),
+      runtime: h.runtime,
+      gateway: null,
+      confirmacoes: h.json,
+      nomeDoCliente: null,
+      observability: h.observability,
+      clock: new TestClock(),
     });
     await expect(quebrado.aoReceberTexto(CHAT, 'é a procuração', NOW)).resolves.toBeUndefined();
     expect((await h.store.porId(R1))?.status).toBe('AWAITING_CONFIRMATION'); // nada perdido
@@ -273,20 +391,47 @@ describe('15C-4 · Parte 4 — resiliência', () => {
   it('ingress: autonomia roda ANTES do turno na MESMA fila; falha dela nunca derruba a conversa', async () => {
     const ordem: string[] = [];
     const conversation = {
-      receive: () => { ordem.push('turno'); return Promise.resolve({ outcome: 'ok' } as never); },
+      receive: () => {
+        ordem.push('turno');
+        return Promise.resolve({ outcome: 'ok' } as never);
+      },
       onTemporalTrigger: () => Promise.resolve({ outcome: 'ok' } as never),
     };
     const scheduler = { fireDue: () => Promise.resolve([]) };
     const autonomia = {
-      aoReceberTexto: () => { ordem.push('autonomia'); return Promise.reject(new Error('boom')); },
-      varredura: () => { ordem.push('varredura'); return Promise.resolve(); },
+      aoReceberTexto: () => {
+        ordem.push('autonomia');
+        return Promise.reject(new Error('boom'));
+      },
+      varredura: () => {
+        ordem.push('varredura');
+        return Promise.resolve();
+      },
     };
-    const ingress = new ProductionIngress(conversation as never, scheduler as never, () => null, undefined, autonomia);
+    const ingress = new ProductionIngress(
+      conversation as never,
+      scheduler as never,
+      () => null,
+      undefined,
+      autonomia,
+    );
     const envelope = {
-      messageId: 'm1', chatId: CHAT, from: CHAT, kind: 'text' as const, text: 'é a procuração',
-      mediaUrl: null, mediaMimeType: null, fileName: null, location: null, contact: null,
-      reactionEmoji: null, reactionToMessageId: null, editedText: null, deletedMessageId: null,
-      silenceMs: 0, timestamp: NOW,
+      messageId: 'm1',
+      chatId: CHAT,
+      from: CHAT,
+      kind: 'text' as const,
+      text: 'é a procuração',
+      mediaUrl: null,
+      mediaMimeType: null,
+      fileName: null,
+      location: null,
+      contact: null,
+      reactionEmoji: null,
+      reactionToMessageId: null,
+      editedText: null,
+      deletedMessageId: null,
+      silenceMs: 0,
+      timestamp: NOW,
     };
     await expect(ingress.receive(envelope)).resolves.toEqual({ outcome: 'ok' }); // falha da autonomia isolada
     await ingress.tick(NOW); // varredura no MESMO motor temporal

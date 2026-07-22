@@ -15,7 +15,9 @@ export class NextBestActionPlanner {
     orderedLegitimate: readonly OperationalRuleSpec[],
     strategy: StrategyDecision,
   ): ChosenAction | null {
-    const primaryCandidates = orderedLegitimate.filter((r) => PRIMARY_KINDS.includes(r.action.kind));
+    const primaryCandidates = orderedLegitimate.filter((r) =>
+      PRIMARY_KINDS.includes(r.action.kind),
+    );
     const first = primaryCandidates[0];
     if (!first) return null;
 

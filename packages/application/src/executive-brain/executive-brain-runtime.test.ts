@@ -43,24 +43,151 @@ class SeqUuid implements UuidGenerator {
 }
 
 const CATALOG: readonly OperationalRuleSpec[] = [
-  { ref: 'RO-WAIT', title: 'wait', priority: 0, preconditions: [], blocks: [], action: { kind: 'wait', reasonCode: 'SEM_ACAO', untilHintMs: null }, fundamento: 'Art.9' },
-  { ref: 'RO-ESC-HUMAN', title: 'esc', priority: 100, preconditions: [{ fact: 'matterRequiresHuman', op: 'truthy' }], blocks: [], action: { kind: 'escalation', role: 'advogado', reasonCode: 'COMPETENCIA' }, fundamento: 'DF-09' },
-  { ref: 'RO-ESC-CANON', title: 'canon', priority: 95, preconditions: [{ fact: 'canonSilent', op: 'truthy' }], blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }], action: { kind: 'escalation', role: 'supervisor', reasonCode: 'CANON' }, fundamento: 'E10' },
-  { ref: 'RO-GREET', title: 'greet', priority: 60, preconditions: [{ fact: 'isFirstTurn', op: 'eq', value: true }, { fact: 'perceptKind', op: 'eq', value: 'text' }], blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }], action: { kind: 'conversation', directive: 'speak', speechAct: 'greet', topic: 'boas-vindas', references: [], urgency: 'normal' }, fundamento: 'Art.15' },
-  { ref: 'RO-DOC', title: 'doc', priority: 70, preconditions: [{ fact: 'hasPendingDocuments', op: 'truthy' }], blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }], action: { kind: 'conversation', directive: 'await_documents', speechAct: 'request_document', topic: 'documentos', references: [], urgency: 'normal' }, fundamento: 'RO-R4' },
-  { ref: 'RO-RECOGNIZE', title: 'uc', priority: 80, preconditions: [{ fact: 'hasArtifacts', op: 'truthy' }], blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }, { fact: 'canonSilent', op: 'truthy' }], action: { kind: 'use_case', useCase: 'RecognizeDocument', references: [] }, fundamento: 'Ent.03' },
-  { ref: 'RO-DEADLINE', title: 'warn', priority: 75, preconditions: [{ fact: 'hasDeadline', op: 'truthy' }, { fact: 'minDeadlineDays', op: 'lte', value: 3 }], blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }], action: { kind: 'conversation', directive: 'notify_deadline', speechAct: 'deadline_warning', topic: 'prazo', references: [], urgency: 'high' }, fundamento: 'RO-R6' },
-  { ref: 'RO-NOTIFY', title: 'notify', priority: 74, preconditions: [{ fact: 'hasDeadline', op: 'truthy' }, { fact: 'minDeadlineDays', op: 'lte', value: 1 }], blocks: [], action: { kind: 'notification', channel: 'portal', audience: 'operador', reasonCode: 'PRAZO_CRITICO' }, fundamento: 'RO-R6' },
-  { ref: 'RO-STOP', title: 'stop', priority: 90, preconditions: [{ fact: 'stateCode', op: 'eq', value: 'ENCERRADA' }], blocks: [], action: { kind: 'stop', reasonCode: 'ENCERRADA' }, fundamento: 'RO-R9' },
+  {
+    ref: 'RO-WAIT',
+    title: 'wait',
+    priority: 0,
+    preconditions: [],
+    blocks: [],
+    action: { kind: 'wait', reasonCode: 'SEM_ACAO', untilHintMs: null },
+    fundamento: 'Art.9',
+  },
+  {
+    ref: 'RO-ESC-HUMAN',
+    title: 'esc',
+    priority: 100,
+    preconditions: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
+    blocks: [],
+    action: { kind: 'escalation', role: 'advogado', reasonCode: 'COMPETENCIA' },
+    fundamento: 'DF-09',
+  },
+  {
+    ref: 'RO-ESC-CANON',
+    title: 'canon',
+    priority: 95,
+    preconditions: [{ fact: 'canonSilent', op: 'truthy' }],
+    blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
+    action: { kind: 'escalation', role: 'supervisor', reasonCode: 'CANON' },
+    fundamento: 'E10',
+  },
+  {
+    ref: 'RO-GREET',
+    title: 'greet',
+    priority: 60,
+    preconditions: [
+      { fact: 'isFirstTurn', op: 'eq', value: true },
+      { fact: 'perceptKind', op: 'eq', value: 'text' },
+    ],
+    blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
+    action: {
+      kind: 'conversation',
+      directive: 'speak',
+      speechAct: 'greet',
+      topic: 'boas-vindas',
+      references: [],
+      urgency: 'normal',
+    },
+    fundamento: 'Art.15',
+  },
+  {
+    ref: 'RO-DOC',
+    title: 'doc',
+    priority: 70,
+    preconditions: [{ fact: 'hasPendingDocuments', op: 'truthy' }],
+    blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
+    action: {
+      kind: 'conversation',
+      directive: 'await_documents',
+      speechAct: 'request_document',
+      topic: 'documentos',
+      references: [],
+      urgency: 'normal',
+    },
+    fundamento: 'RO-R4',
+  },
+  {
+    ref: 'RO-RECOGNIZE',
+    title: 'uc',
+    priority: 80,
+    preconditions: [{ fact: 'hasArtifacts', op: 'truthy' }],
+    blocks: [
+      { fact: 'matterRequiresHuman', op: 'truthy' },
+      { fact: 'canonSilent', op: 'truthy' },
+    ],
+    action: { kind: 'use_case', useCase: 'RecognizeDocument', references: [] },
+    fundamento: 'Ent.03',
+  },
+  {
+    ref: 'RO-DEADLINE',
+    title: 'warn',
+    priority: 75,
+    preconditions: [
+      { fact: 'hasDeadline', op: 'truthy' },
+      { fact: 'minDeadlineDays', op: 'lte', value: 3 },
+    ],
+    blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
+    action: {
+      kind: 'conversation',
+      directive: 'notify_deadline',
+      speechAct: 'deadline_warning',
+      topic: 'prazo',
+      references: [],
+      urgency: 'high',
+    },
+    fundamento: 'RO-R6',
+  },
+  {
+    ref: 'RO-NOTIFY',
+    title: 'notify',
+    priority: 74,
+    preconditions: [
+      { fact: 'hasDeadline', op: 'truthy' },
+      { fact: 'minDeadlineDays', op: 'lte', value: 1 },
+    ],
+    blocks: [],
+    action: {
+      kind: 'notification',
+      channel: 'portal',
+      audience: 'operador',
+      reasonCode: 'PRAZO_CRITICO',
+    },
+    fundamento: 'RO-R6',
+  },
+  {
+    ref: 'RO-STOP',
+    title: 'stop',
+    priority: 90,
+    preconditions: [{ fact: 'stateCode', op: 'eq', value: 'ENCERRADA' }],
+    blocks: [],
+    action: { kind: 'stop', reasonCode: 'ENCERRADA' },
+    fundamento: 'RO-R9',
+  },
 ];
 
 function brain(auditSink?: InMemoryBrainAuditSinkForTest): ExecutiveBrainRuntime {
-  return new ExecutiveBrainRuntime({ clock: new TestClock(), uuid: new SeqUuid(), ...(auditSink ? { auditSink } : {}) });
+  return new ExecutiveBrainRuntime({
+    clock: new TestClock(),
+    uuid: new SeqUuid(),
+    ...(auditSink ? { auditSink } : {}),
+  });
 }
 
-function ctx(percept: Partial<PerceptView>, snapshot: Partial<MissionSnapshot>, turnCount = 1, rules = CATALOG): BrainContext {
+function ctx(
+  percept: Partial<PerceptView>,
+  snapshot: Partial<MissionSnapshot>,
+  turnCount = 1,
+  rules = CATALOG,
+): BrainContext {
   return {
-    percept: { kind: 'text', sentiment: 'neutral', urgency: 'normal', hasArtifacts: false, artifactCount: 0, silenceMs: null, ...percept },
+    percept: {
+      kind: 'text',
+      sentiment: 'neutral',
+      urgency: 'normal',
+      hasArtifacts: false,
+      artifactCount: 0,
+      silenceMs: null,
+      ...percept,
+    },
     snapshot: { ...emptySnapshot('m1'), ...snapshot },
     memory: { turnCount, lastOutboundAgoMs: null },
     rules,
@@ -95,12 +222,16 @@ describe('ExecutiveBrainRuntime — decisões e proveniência', () => {
   });
 
   it('documento percebido ⇒ UseCaseIntent (invoca reconhecimento; sem falar)', async () => {
-    const outcome = await brain().decide(ctx({ kind: 'pdf', hasArtifacts: true, artifactCount: 1 }, {}, 2));
+    const outcome = await brain().decide(
+      ctx({ kind: 'pdf', hasArtifacts: true, artifactCount: 1 }, {}, 2),
+    );
     expect(outcome.intents.some((i) => i.kind === 'use_case')).toBe(true);
   });
 
   it('prazo crítico ⇒ avisar (conversation) E notificar (notification) no mesmo turno', async () => {
-    const outcome = await brain().decide(ctx({ kind: 'text' }, { deadlines: [{ code: 'd1', dueInDays: 1 }] }, 2));
+    const outcome = await brain().decide(
+      ctx({ kind: 'text' }, { deadlines: [{ code: 'd1', dueInDays: 1 }] }, 2),
+    );
     const kinds = outcome.intents.map((i) => i.kind);
     expect(kinds).toContain('conversation');
     expect(kinds).toContain('notification');
@@ -120,10 +251,14 @@ describe('ExecutiveBrainRuntime — decisões e proveniência', () => {
 
 describe('ExecutiveBrainRuntime — competência humana e Canon silente', () => {
   it('matéria humana ⇒ SÓ escalação (AHRI não atua)', async () => {
-    const outcome = await brain().decide(ctx({ kind: 'text' }, { matterRequiresHuman: true, pendingDocuments: ['rg'] }, 1));
+    const outcome = await brain().decide(
+      ctx({ kind: 'text' }, { matterRequiresHuman: true, pendingDocuments: ['rg'] }, 1),
+    );
     expect(outcome.intents).toHaveLength(1);
     expect(outcome.intents[0]?.kind).toBe('escalation');
-    expect(outcome.intents.some((i) => i.kind === 'conversation' || i.kind === 'use_case')).toBe(false);
+    expect(outcome.intents.some((i) => i.kind === 'conversation' || i.kind === 'use_case')).toBe(
+      false,
+    );
     expect(outcome.record.humanRequired).toBe(true);
   });
 
@@ -144,7 +279,9 @@ describe('ExecutiveBrainRuntime — determinismo, fail-closed e auditoria', () =
   });
 
   it('catálogo vazio ⇒ falha fechada (nenhuma decisão sem regra)', async () => {
-    await expect(brain().decide(ctx({ kind: 'text' }, {}, 2, []))).rejects.toBeInstanceOf(BrainCatalogError);
+    await expect(brain().decide(ctx({ kind: 'text' }, {}, 2, []))).rejects.toBeInstanceOf(
+      BrainCatalogError,
+    );
   });
 
   it('auditoria registra objetivo, avaliações, escolhidas, emitidas e impedidas', async () => {

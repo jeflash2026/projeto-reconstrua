@@ -6,7 +6,13 @@
 import { ProjectionAggregate, ProjectionId, ProjectionTruthRef } from '@reconstrua/domain';
 import { baseProvenance } from '../provenance.js';
 import { failedOutcome, type UseCaseOutcome } from '../types.js';
-import { persistNew, successOutcome, type MissionContext, type MissionUseCase, type UseCaseDeps } from '../use-case.js';
+import {
+  persistNew,
+  successOutcome,
+  type MissionContext,
+  type MissionUseCase,
+  type UseCaseDeps,
+} from '../use-case.js';
 
 export class ProduceProjectionUseCase implements MissionUseCase {
   readonly name = 'ProduceProjection';
@@ -15,7 +21,11 @@ export class ProduceProjectionUseCase implements MissionUseCase {
 
   async execute(ctx: MissionContext): Promise<UseCaseOutcome> {
     if (ctx.identity.latestTruthId === null) {
-      return failedOutcome(this.name, this.streamType, 'pré-condição ausente: Verdade de origem (INV-PJ-01)');
+      return failedOutcome(
+        this.name,
+        this.streamType,
+        'pré-condição ausente: Verdade de origem (INV-PJ-01)',
+      );
     }
     const projectionId = this.deps.uuid.next();
     const result = ProjectionAggregate.derive({
@@ -24,7 +34,8 @@ export class ProduceProjectionUseCase implements MissionUseCase {
       reading: 'Leitura projetada e recalculável da Verdade Operacional atual.',
       calculatedAt: ctx.now,
     });
-    if (result.isErr()) return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
+    if (result.isErr())
+      return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
 
     const appended = await persistNew(
       this.deps.appender,

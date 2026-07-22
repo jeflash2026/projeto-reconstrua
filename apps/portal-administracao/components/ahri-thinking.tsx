@@ -9,7 +9,8 @@ const AhriThinking = ({ label }: { label: string }): ReactElement => (
     <span className="ahri-orb" aria-hidden />
     <span className="ahri-thinking-label">
       {label}
-      <span className="ahri-dots" aria-hidden><i />
+      <span className="ahri-dots" aria-hidden>
+        <i />
         <i />
         <i />
       </span>

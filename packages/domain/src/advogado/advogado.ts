@@ -65,7 +65,9 @@ export class AdvogadoAggregate extends AggregateRoot<AdvogadoId> {
    * DF-12). NÃO executa decisão jurídica nem assina: assembla o marco imutável
    * (pessoa + missão + autoridade) e valida a boa-formação.
    */
-  static designate(input: AdvogadoDesignationInput): Result<AdvogadoAggregate, CanonViolationError> {
+  static designate(
+    input: AdvogadoDesignationInput,
+  ): Result<AdvogadoAggregate, CanonViolationError> {
     // item 1 — a pessoa que exerce o papel.
     if (input.person == null) {
       return Result.err(
@@ -115,7 +117,9 @@ export class AdvogadoAggregate extends AggregateRoot<AdvogadoId> {
       designatedAt: new Date(input.designatedAt.getTime()),
     });
 
-    advogado.addDomainEvent(new AdvogadoDesignated(input.id.toString(), advogado.props.designatedAt));
+    advogado.addDomainEvent(
+      new AdvogadoDesignated(input.id.toString(), advogado.props.designatedAt),
+    );
     return Result.ok(advogado);
   }
 

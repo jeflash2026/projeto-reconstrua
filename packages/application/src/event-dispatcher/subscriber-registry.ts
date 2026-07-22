@@ -45,7 +45,10 @@ export class SubscriberRegistry {
   interestedIn(event: StoredEvent): readonly string[] {
     const names: string[] = [];
     for (const { subscriber } of this.entries.values()) {
-      if (subscriber.interestedIn === undefined || subscriber.interestedIn.includes(event.eventType)) {
+      if (
+        subscriber.interestedIn === undefined ||
+        subscriber.interestedIn.includes(event.eventType)
+      ) {
         names.push(subscriber.name);
       }
     }

@@ -5,14 +5,27 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import type { ClientesList, ClienteResumo } from '../clientes/clientes-list.js';
-import { DespedidaRuntime, mensagemDespedida, type DespedidaRegistro, type DespedidaStore } from './despedida.js';
+import {
+  DespedidaRuntime,
+  mensagemDespedida,
+  type DespedidaRegistro,
+  type DespedidaStore,
+} from './despedida.js';
 
 const NOW = new Date('2026-07-18T12:00:00.000Z');
 
 function resumo(over: Partial<ClienteResumo>): ClienteResumo {
   return {
-    clienteId: 'cli-1', chatId: 'c1', missionId: 'm1', quem: 'Maria', status: 'VENDIDO',
-    modalidade: 'VENDA', pronto: true, faltando: [], saude: 'GREEN', ultimoContatoAt: NOW,
+    clienteId: 'cli-1',
+    chatId: 'c1',
+    missionId: 'm1',
+    quem: 'Maria',
+    status: 'VENDIDO',
+    modalidade: 'VENDA',
+    pronto: true,
+    faltando: [],
+    saude: 'GREEN',
+    ultimoContatoAt: NOW,
     pedidosConfirmadosEm: null,
     ...over,
   };
@@ -72,7 +85,10 @@ describe('DespedidaRuntime · a relação se encerra como começou: conversando'
   });
 
   it('NUNCA PREMATURA: só VENDIDO se despede — EM_PROCESSO/ENCERRADO não', async () => {
-    const h = harness([resumo({ status: 'EM_PROCESSO' }), resumo({ clienteId: 'cli-2', chatId: 'c2', status: 'ENCERRADO' })]);
+    const h = harness([
+      resumo({ status: 'EM_PROCESSO' }),
+      resumo({ clienteId: 'cli-2', chatId: 'c2', status: 'ENCERRADO' }),
+    ]);
     const r = await h.runtime.verificar(NOW);
     expect(r.despedidos).toEqual([]);
     expect(h.enviadas).toHaveLength(0);

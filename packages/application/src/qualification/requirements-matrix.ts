@@ -73,7 +73,11 @@ export interface CaseRequirements {
 
 const BASE_INFO: readonly ReadinessInfoKey[] = ['CASO_REGISTRADO', 'VERDADE_SINTETIZADA'];
 const BASE_BLOCKING: readonly ReadinessConditionKey[] = ['ENCERRADO', 'SEM_CASO'];
-const SUFFICIENT = ['documentos obrigatórios recebidos', 'verdade operacional sintetizada', 'sem condição impeditiva'];
+const SUFFICIENT = [
+  'documentos obrigatórios recebidos',
+  'verdade operacional sintetizada',
+  'sem condição impeditiva',
+];
 
 export const REQUIREMENTS: Readonly<Record<QualificationCaseType, CaseRequirements>> = {
   APOSENTADORIA_IDADE: {
@@ -110,7 +114,12 @@ export const REQUIREMENTS: Readonly<Record<QualificationCaseType, CaseRequiremen
   },
   PENSAO_MORTE: {
     caseType: 'PENSAO_MORTE',
-    requiredDocuments: ['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CERTIDAO_OBITO', 'COMPROVANTE_DEPENDENCIA'],
+    requiredDocuments: [
+      'IDENTIDADE',
+      'COMPROVANTE_RESIDENCIA',
+      'CERTIDAO_OBITO',
+      'COMPROVANTE_DEPENDENCIA',
+    ],
     optionalDocuments: ['CNIS', 'PROCURACAO'],
     requiredInfo: BASE_INFO,
     blockingConditions: BASE_BLOCKING,

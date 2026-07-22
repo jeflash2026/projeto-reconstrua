@@ -41,14 +41,25 @@ const AssignForm = ({
         <div className="empty">Nenhum advogado ativo cadastrado.</div>
       ) : (
         <div className="form-row">
-          <select value={advogadoId} onChange={(e) => { setAdvogadoId(e.target.value); }}>
+          <select
+            value={advogadoId}
+            onChange={(e) => {
+              setAdvogadoId(e.target.value);
+            }}
+          >
             {advogados.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
               </option>
             ))}
           </select>
-          <button className="primary" disabled={busy} onClick={() => { void submit(); }}>
+          <button
+            className="primary"
+            disabled={busy}
+            onClick={() => {
+              void submit();
+            }}
+          >
             Atribuir
           </button>
         </div>

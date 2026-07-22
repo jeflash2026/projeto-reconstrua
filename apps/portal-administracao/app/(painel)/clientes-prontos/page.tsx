@@ -14,13 +14,18 @@ const ClientesProntosPage = async (): Promise<ReactElement> => {
     <>
       <h1 className="page-title">Clientes prontos p/ Advogado</h1>
       <p className="page-sub">
-        Cadastro completo e pedido administrativo em curso — escolha quem vai representar cada cliente.
-        A AHRI avisa o advogado no WhatsApp cadastrado por ele.
+        Cadastro completo e pedido administrativo em curso — escolha quem vai representar cada
+        cliente. A AHRI avisa o advogado no WhatsApp cadastrado por ele.
       </p>
       {dados === null ? (
-        <div className="card empty">Integração com o Portal do Advogado indisponível (ADVOGADO_API_URL).</div>
+        <div className="card empty">
+          Integração com o Portal do Advogado indisponível (ADVOGADO_API_URL).
+        </div>
       ) : dados.prontos.length === 0 ? (
-        <div className="card empty">Nenhum cliente aguardando advogado agora — quando o perito confirmar os pedidos administrativos, eles aparecem aqui.</div>
+        <div className="card empty">
+          Nenhum cliente aguardando advogado agora — quando o perito confirmar os pedidos
+          administrativos, eles aparecem aqui.
+        </div>
       ) : (
         <AtribuirAdvogado prontos={dados.prontos} advogados={dados.advogados} />
       )}

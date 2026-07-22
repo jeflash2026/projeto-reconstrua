@@ -49,7 +49,14 @@ export const DEFAULT_RULE_CATALOG: readonly OperationalRuleSpec[] = [
       { fact: 'perceptKind', op: 'eq', value: 'text' },
     ],
     blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
-    action: { kind: 'conversation', directive: 'speak', speechAct: 'greet', topic: 'boas-vindas', references: [], urgency: 'normal' },
+    action: {
+      kind: 'conversation',
+      directive: 'speak',
+      speechAct: 'greet',
+      topic: 'boas-vindas',
+      references: [],
+      urgency: 'normal',
+    },
     fundamento: 'Art. 15º (assistiva) + RO-R8-001 (acolhimento)',
   },
   {
@@ -64,7 +71,14 @@ export const DEFAULT_RULE_CATALOG: readonly OperationalRuleSpec[] = [
       { fact: 'hasPendingDocuments', op: 'truthy' },
       { fact: 'matterRequiresHuman', op: 'truthy' },
     ],
-    action: { kind: 'conversation', directive: 'speak', speechAct: 'explain', topic: 'acompanhamento', references: [], urgency: 'normal' },
+    action: {
+      kind: 'conversation',
+      directive: 'speak',
+      speechAct: 'explain',
+      topic: 'acompanhamento',
+      references: [],
+      urgency: 'normal',
+    },
     fundamento: 'Art. 15º + RO-R8-002 (continuidade da conversa)',
   },
 
@@ -97,7 +111,11 @@ export const DEFAULT_RULE_CATALOG: readonly OperationalRuleSpec[] = [
       { fact: 'matterRequiresHuman', op: 'truthy' },
       { fact: 'canonSilent', op: 'truthy' },
     ],
-    action: { kind: 'use_case', useCase: 'RecognizeDocument', references: ['artefato-documental-percebido'] },
+    action: {
+      kind: 'use_case',
+      useCase: 'RecognizeDocument',
+      references: ['artefato-documental-percebido'],
+    },
     fundamento: 'Entidade 03 (DOCUMENTO) — reconhecimento é ato de domínio via fábrica; RO-R3-001',
   },
 
@@ -130,7 +148,12 @@ export const DEFAULT_RULE_CATALOG: readonly OperationalRuleSpec[] = [
       { fact: 'minDeadlineDays', op: 'lte', value: 1 },
     ],
     blocks: [],
-    action: { kind: 'notification', channel: 'portal-operacao', audience: 'operador', reasonCode: 'PRAZO_CRITICO' },
+    action: {
+      kind: 'notification',
+      channel: 'portal-operacao',
+      audience: 'operador',
+      reasonCode: 'PRAZO_CRITICO',
+    },
     fundamento: 'RO-R6-003 (alerta interno de prazo) — Notification; DF-12',
   },
 
@@ -141,7 +164,14 @@ export const DEFAULT_RULE_CATALOG: readonly OperationalRuleSpec[] = [
     priority: 50,
     preconditions: [{ fact: 'perceptKind', op: 'eq', value: 'silence' }],
     blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
-    action: { kind: 'conversation', directive: 'insist', speechAct: 'follow_up', topic: 'retomar contato', references: [], urgency: 'normal' },
+    action: {
+      kind: 'conversation',
+      directive: 'insist',
+      speechAct: 'follow_up',
+      topic: 'retomar contato',
+      references: [],
+      urgency: 'normal',
+    },
     fundamento: 'RO-R8-004 (reengajamento respeitoso) — assistiva; RO-R7-001',
   },
   {

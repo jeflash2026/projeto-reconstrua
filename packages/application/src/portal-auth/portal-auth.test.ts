@@ -9,7 +9,11 @@ import { describe, it, expect } from 'vitest';
 import type { StaffMember, StaffStore } from '../admin-portal/staff-directory.js';
 import { assinarTokenPortal, validarTokenPortal } from './auth-tokens.js';
 import { hashSenha, verificarSenha } from './senha.js';
-import { AdvogadoAuthRuntime, type CredencialPortal, type CredenciaisStore } from './advogado-auth.js';
+import {
+  AdvogadoAuthRuntime,
+  type CredencialPortal,
+  type CredenciaisStore,
+} from './advogado-auth.js';
 
 const NOW = new Date('2026-07-18T12:00:00.000Z');
 const SECRET = 'segredo-do-portal';
@@ -65,7 +69,16 @@ function harness(members: StaffMember[]) {
 }
 
 function member(over: Partial<StaffMember>): StaffMember {
-  return { id: 'adv-1', role: 'advogado', name: 'Ana Lima', email: null, active: true, createdAt: NOW, updatedAt: NOW, ...over };
+  return {
+    id: 'adv-1',
+    role: 'advogado',
+    name: 'Ana Lima',
+    email: null,
+    active: true,
+    createdAt: NOW,
+    updatedAt: NOW,
+    ...over,
+  };
 }
 
 describe('AdvogadoAuthRuntime · convite → senha → login (fail-closed em tudo)', () => {
@@ -90,7 +103,13 @@ describe('AdvogadoAuthRuntime · convite → senha → login (fail-closed em tud
   it('NUNCA criação pela URL: definir senha exige convite VÁLIDO', async () => {
     const { auth } = harness([member({})]);
     expect((await auth.definirSenha('token-forjado', 'senha-longa-123', NOW)).ok).toBe(false);
-    const expirado = assinarTokenPortal('adv-1', 'convite-advogado', 7, new Date(NOW.getTime() - 8 * 24 * 60 * 60 * 1000), SECRET);
+    const expirado = assinarTokenPortal(
+      'adv-1',
+      'convite-advogado',
+      7,
+      new Date(NOW.getTime() - 8 * 24 * 60 * 60 * 1000),
+      SECRET,
+    );
     expect((await auth.definirSenha(expirado, 'senha-longa-123', NOW)).ok).toBe(false);
     const curto = await auth.emitirConvite('adv-1', NOW);
     expect((await auth.definirSenha(curto ?? '', '1234567', NOW)).ok).toBe(false); // senha curta
@@ -116,7 +135,11 @@ describe('AdvogadoAuthRuntime · convite → senha → login (fail-closed em tud
     const convite = await auth.emitirConvite('adv-1', NOW);
     expect((await auth.definirSenha(convite ?? '', 'primeira-senha-123', NOW)).ok).toBe(true);
     // Reuso do MESMO convite (vazado) para trocar a senha ⇒ NEGA:
-    const reuso = await auth.definirSenha(convite ?? '', 'senha-do-atacante', new Date(NOW.getTime() + 60_000));
+    const reuso = await auth.definirSenha(
+      convite ?? '',
+      'senha-do-atacante',
+      new Date(NOW.getTime() + 60_000),
+    );
     expect(reuso.ok).toBe(false);
     if (!reuso.ok) expect(reuso.error).toContain('já foi utilizado');
     // A senha original permanece:

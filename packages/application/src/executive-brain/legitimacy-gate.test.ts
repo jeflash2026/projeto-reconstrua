@@ -16,7 +16,14 @@ function rule(over: Partial<OperationalRuleSpec>): OperationalRuleSpec {
     priority: 10,
     preconditions: [],
     blocks: [],
-    action: { kind: 'conversation', directive: 'speak', speechAct: 'inform', topic: 't', references: [], urgency: 'normal' },
+    action: {
+      kind: 'conversation',
+      directive: 'speak',
+      speechAct: 'inform',
+      topic: 't',
+      references: [],
+      urgency: 'normal',
+    },
     fundamento: 'FUND',
     ...over,
   };

@@ -6,20 +6,33 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import type { JuridicalEntry, JuridicalWorkStore } from './juridical-work.js';
-import { TraducaoClienteRuntime, precisaTraducao, traducaoPreservaVerdade } from './traducao-cliente.js';
+import {
+  TraducaoClienteRuntime,
+  precisaTraducao,
+  traducaoPreservaVerdade,
+} from './traducao-cliente.js';
 
 const NOW = new Date('2026-07-18T12:00:00.000Z');
 
 function entry(over: Partial<JuridicalEntry>): JuridicalEntry {
   return {
-    id: 'j1', advogadoId: 'adv-1', missionId: 'm1', kind: 'movimentacao',
+    id: 'j1',
+    advogadoId: 'adv-1',
+    missionId: 'm1',
+    kind: 'movimentacao',
     text: 'Juntada de contestação da autarquia. Prazo de réplica em curso.',
-    dueAt: null, attachmentRef: null, done: false, createdAt: NOW,
+    dueAt: null,
+    attachmentRef: null,
+    done: false,
+    createdAt: NOW,
     ...over,
   };
 }
 
-function storeCom(entries: JuridicalEntry[]): { store: JuridicalWorkStore; salvos: JuridicalEntry[] } {
+function storeCom(entries: JuridicalEntry[]): {
+  store: JuridicalWorkStore;
+  salvos: JuridicalEntry[];
+} {
   const salvos: JuridicalEntry[] = [];
   const store: JuridicalWorkStore = {
     save: (e) => {
@@ -37,11 +50,21 @@ function storeCom(entries: JuridicalEntry[]): { store: JuridicalWorkStore; salvo
 
 describe('traducaoPreservaVerdade · anti-invenção determinística', () => {
   it('aceita quando todos os números da tradução existem no original', () => {
-    expect(traducaoPreservaVerdade('Distribuído à 2ª Vara Federal.', 'Seu processo chegou à 2ª Vara Federal — agora é oficial.')).toBe(true);
+    expect(
+      traducaoPreservaVerdade(
+        'Distribuído à 2ª Vara Federal.',
+        'Seu processo chegou à 2ª Vara Federal — agora é oficial.',
+      ),
+    ).toBe(true);
     expect(traducaoPreservaVerdade('Sem números.', 'Também sem números.')).toBe(true);
   });
   it('REJEITA número inventado (prazo/valor/data que não está no original)', () => {
-    expect(traducaoPreservaVerdade('Juntada de contestação.', 'O INSS respondeu — em 15 dias teremos novidade.')).toBe(false);
+    expect(
+      traducaoPreservaVerdade(
+        'Juntada de contestação.',
+        'O INSS respondeu — em 15 dias teremos novidade.',
+      ),
+    ).toBe(false);
   });
 });
 
@@ -49,7 +72,16 @@ describe('TraducaoClienteRuntime · a verdade permanece; a linguagem muda', () =
   it('traduz na escrita e persiste textoCliente — o original fica intocado (Lei 10)', async () => {
     const e = entry({});
     const { store, salvos } = storeCom([e]);
-    const rt = new TraducaoClienteRuntime(store, { traduzir: () => Promise.resolve('O INSS apresentou a resposta dele — um passo normal do caminho. Agora é a nossa vez.') }, () => Promise.resolve(['m1']));
+    const rt = new TraducaoClienteRuntime(
+      store,
+      {
+        traduzir: () =>
+          Promise.resolve(
+            'O INSS apresentou a resposta dele — um passo normal do caminho. Agora é a nossa vez.',
+          ),
+      },
+      () => Promise.resolve(['m1']),
+    );
     const out = await rt.traduzir(e);
     expect(out.textoCliente).toContain('passo normal');
     expect(out.text).toBe(e.text); // o fato nunca muda
@@ -61,7 +93,11 @@ describe('TraducaoClienteRuntime · a verdade permanece; a linguagem muda', () =
     const { store, salvos } = storeCom([e]);
     const offline = new TraducaoClienteRuntime(store, null, () => Promise.resolve(['m1']));
     expect((await offline.traduzir(e)).textoCliente).toBeUndefined();
-    const falhando = new TraducaoClienteRuntime(store, { traduzir: () => Promise.reject(new Error('rede')) }, () => Promise.resolve(['m1']));
+    const falhando = new TraducaoClienteRuntime(
+      store,
+      { traduzir: () => Promise.reject(new Error('rede')) },
+      () => Promise.resolve(['m1']),
+    );
     expect((await falhando.traduzir(e)).textoCliente).toBeUndefined();
     expect(salvos).toHaveLength(0); // nada persistido
   });
@@ -69,7 +105,11 @@ describe('TraducaoClienteRuntime · a verdade permanece; a linguagem muda', () =
   it('tradução que INVENTA números é descartada (permanece pendente)', async () => {
     const e = entry({});
     const { store, salvos } = storeCom([e]);
-    const rt = new TraducaoClienteRuntime(store, { traduzir: () => Promise.resolve('Em 15 dias teremos a resposta.') }, () => Promise.resolve(['m1']));
+    const rt = new TraducaoClienteRuntime(
+      store,
+      { traduzir: () => Promise.resolve('Em 15 dias teremos a resposta.') },
+      () => Promise.resolve(['m1']),
+    );
     const out = await rt.traduzir(e);
     expect(out.textoCliente).toBeUndefined();
     expect(salvos).toHaveLength(0);
@@ -91,7 +131,12 @@ describe('TraducaoClienteRuntime · a verdade permanece; a linguagem muda', () =
     const chamadas: string[] = [];
     const rt = new TraducaoClienteRuntime(
       store,
-      { traduzir: (original) => { chamadas.push(original); return Promise.resolve('Novidade explicada com carinho.'); } },
+      {
+        traduzir: (original) => {
+          chamadas.push(original);
+          return Promise.resolve('Novidade explicada com carinho.');
+        },
+      },
       () => Promise.resolve(['m1']),
     );
     const n = await rt.reprocessarPendentes();

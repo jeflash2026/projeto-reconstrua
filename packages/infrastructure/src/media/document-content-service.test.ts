@@ -16,7 +16,12 @@ describe('DocumentContentService (CAT-02C)', () => {
     const links = new JsonDocumentLinkStore(json);
     const store = new InMemoryMediaStore();
     await store.put({ sha256: 'S1', mime: 'application/pdf', size: bytes.length, bytes });
-    await links.save({ documentId: 'DOC-1', messageId: 'M1', sha256: 'S1', mime: 'application/pdf' });
+    await links.save({
+      documentId: 'DOC-1',
+      messageId: 'M1',
+      sha256: 'S1',
+      mime: 'application/pdf',
+    });
 
     const content = await new DocumentContentService(links, store).byDocumentId('DOC-1');
     expect(content).toEqual({ bytes, mime: 'application/pdf', size: bytes.length });
@@ -24,14 +29,24 @@ describe('DocumentContentService (CAT-02C)', () => {
 
   it('sem vínculo ⇒ null', async () => {
     const json = new InMemoryJsonStore();
-    const svc = new DocumentContentService(new JsonDocumentLinkStore(json), new InMemoryMediaStore());
+    const svc = new DocumentContentService(
+      new JsonDocumentLinkStore(json),
+      new InMemoryMediaStore(),
+    );
     expect(await svc.byDocumentId('DESCONHECIDO')).toBeNull();
   });
 
   it('vínculo aponta para blob inexistente ⇒ null', async () => {
     const json = new InMemoryJsonStore();
     const links = new JsonDocumentLinkStore(json);
-    await links.save({ documentId: 'DOC-2', messageId: 'M2', sha256: 'AUSENTE', mime: 'application/pdf' });
-    expect(await new DocumentContentService(links, new InMemoryMediaStore()).byDocumentId('DOC-2')).toBeNull();
+    await links.save({
+      documentId: 'DOC-2',
+      messageId: 'M2',
+      sha256: 'AUSENTE',
+      mime: 'application/pdf',
+    });
+    expect(
+      await new DocumentContentService(links, new InMemoryMediaStore()).byDocumentId('DOC-2'),
+    ).toBeNull();
   });
 });

@@ -17,7 +17,12 @@ import {
 } from '@reconstrua/domain';
 import { foundedProvenance } from '../provenance.js';
 import { failedOutcome, skippedOutcome, type UseCaseOutcome } from '../types.js';
-import { persistNew, type MissionContext, type MissionUseCase, type UseCaseDeps } from '../use-case.js';
+import {
+  persistNew,
+  type MissionContext,
+  type MissionUseCase,
+  type UseCaseDeps,
+} from '../use-case.js';
 
 export class BuildKnowledgeUseCase implements MissionUseCase {
   readonly name = 'BuildKnowledge';
@@ -44,7 +49,8 @@ export class BuildKnowledgeUseCase implements MissionUseCase {
       recognizedAt: ctx.now,
       recognizedBy: CaseResponsibleRef.fromString(this.deps.config.ahriResponsibleId),
     });
-    if (caseResult.isErr()) return failedOutcome(this.name, this.streamType, caseResult.unwrapErr().message);
+    if (caseResult.isErr())
+      return failedOutcome(this.name, this.streamType, caseResult.unwrapErr().message);
     const caseAppend = await persistNew(
       this.deps.appender,
       'case',
@@ -64,7 +70,8 @@ export class BuildKnowledgeUseCase implements MissionUseCase {
       recognizedAt: ctx.now,
       recognizedBy: ProcessResponsibleRef.fromString(this.deps.config.ahriResponsibleId),
     });
-    if (processResult.isErr()) return failedOutcome(this.name, 'process', processResult.unwrapErr().message);
+    if (processResult.isErr())
+      return failedOutcome(this.name, 'process', processResult.unwrapErr().message);
     const processAppend = await persistNew(
       this.deps.appender,
       'process',
@@ -82,7 +89,10 @@ export class BuildKnowledgeUseCase implements MissionUseCase {
       streamType: 'case',
       streamId: caseId,
       appended: caseAppend.events.length + processAppend.events.length,
-      eventTypes: [...caseAppend.events.map((e) => e.eventType), ...processAppend.events.map((e) => e.eventType)],
+      eventTypes: [
+        ...caseAppend.events.map((e) => e.eventType),
+        ...processAppend.events.map((e) => e.eventType),
+      ],
       identityPatch: { caseId, processId },
       error: null,
     };

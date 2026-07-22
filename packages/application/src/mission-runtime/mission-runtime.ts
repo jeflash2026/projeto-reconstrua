@@ -13,7 +13,14 @@ import type { MissionContextLoader } from './mission-context-loader.js';
 import type { MissionUseCaseRegistry } from './mission-use-case-registry.js';
 import type { MissionAuditRuntime } from './mission-audit-runtime.js';
 import type { MissionResultBuilder } from './mission-result-builder.js';
-import { failedOutcome, type MissionFacts, type MissionIdentity, type MissionResult, type MissionUseCaseIntent, type UseCaseOutcome } from './types.js';
+import {
+  failedOutcome,
+  type MissionFacts,
+  type MissionIdentity,
+  type MissionResult,
+  type MissionUseCaseIntent,
+  type UseCaseOutcome,
+} from './types.js';
 
 export interface MissionRuntimeDeps {
   readonly loader: MissionContextLoader;
@@ -26,7 +33,10 @@ export interface MissionRuntimeDeps {
 export class MissionRuntime {
   constructor(private readonly deps: MissionRuntimeDeps) {}
 
-  async execute(facts: MissionFacts, intents: readonly MissionUseCaseIntent[]): Promise<MissionResult> {
+  async execute(
+    facts: MissionFacts,
+    intents: readonly MissionUseCaseIntent[],
+  ): Promise<MissionResult> {
     const chatId = facts.chatId;
     let identity: MissionIdentity = await this.deps.loader.load(chatId);
     const all: UseCaseOutcome[] = [];
@@ -34,7 +44,9 @@ export class MissionRuntime {
     for (const intent of intents) {
       const pipeline = this.deps.registry.resolve(intent.useCase);
       if (!pipeline) {
-        all.push(failedOutcome(intent.useCase, 'unknown', `Use Case não registrado: ${intent.useCase}`));
+        all.push(
+          failedOutcome(intent.useCase, 'unknown', `Use Case não registrado: ${intent.useCase}`),
+        );
         continue;
       }
       const now = this.deps.clock.now();

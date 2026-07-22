@@ -18,14 +18,28 @@ export interface TokenPortalValido {
 }
 
 /** Emite um token assinado para um sujeito e um USO específico. */
-export function assinarTokenPortal(sub: string, uso: string, validadeDias: number, now: Date, secret: string): string {
+export function assinarTokenPortal(
+  sub: string,
+  uso: string,
+  validadeDias: number,
+  now: Date,
+  secret: string,
+): string {
   const exp = now.getTime() + validadeDias * 24 * 60 * 60 * 1000;
-  const payload = Buffer.from(JSON.stringify({ s: sub, u: uso, exp, iat: now.getTime() }), 'utf8').toString('base64url');
+  const payload = Buffer.from(
+    JSON.stringify({ s: sub, u: uso, exp, iat: now.getTime() }),
+    'utf8',
+  ).toString('base64url');
   return `${payload}.${assinar(payload, secret)}`;
 }
 
 /** Valida token/uso/expiração com o momento de emissão. Null em qualquer falha. */
-export function validarTokenPortalDetalhado(token: string, uso: string, now: Date, secret: string): TokenPortalValido | null {
+export function validarTokenPortalDetalhado(
+  token: string,
+  uso: string,
+  now: Date,
+  secret: string,
+): TokenPortalValido | null {
   if (secret === '' || token === '') return null;
   const [payload, mac] = token.split('.');
   if (payload === undefined || mac === undefined || payload === '' || mac === '') return null;
@@ -51,6 +65,11 @@ export function validarTokenPortalDetalhado(token: string, uso: string, now: Dat
 }
 
 /** Valida token/uso/expiração. Devolve o sujeito ou null (nunca lança). */
-export function validarTokenPortal(token: string, uso: string, now: Date, secret: string): string | null {
+export function validarTokenPortal(
+  token: string,
+  uso: string,
+  now: Date,
+  secret: string,
+): string | null {
   return validarTokenPortalDetalhado(token, uso, now, secret)?.sub ?? null;
 }

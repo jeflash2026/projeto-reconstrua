@@ -20,25 +20,22 @@ export const supervisorEntityInvariants: ReadonlyArray<Invariant<SupervisorAggre
   defineInvariant<SupervisorAggregate>({
     id: 'INV-SU-02',
     canonReference: 'SUPERVISOR INV-SU-02; Lei Geral; item 13',
-    description: 'Responsabilidade de supervisão temporária; Pessoa e Missão referenciadas, jamais possuídas.',
+    description:
+      'Responsabilidade de supervisão temporária; Pessoa e Missão referenciadas, jamais possuídas.',
     check: (s) => s.person != null && s.mission != null,
   }),
   defineInvariant<SupervisorAggregate>({
     id: 'SU-AUTORIZADO',
     canonReference: 'SUPERVISOR item 7/8/11; DF-12',
-    description: 'A designação possui autoridade designante identificada (autorização da Governança).',
+    description:
+      'A designação possui autoridade designante identificada (autorização da Governança).',
     check: (s) => s.designatedBy != null,
   }),
 ];
 
 // (B) Manifesto completo das 3 invariantes do Canon e onde cada uma é garantida.
 export type EnforcementLocus =
-  | 'entity'
-  | 'event-store'
-  | 'projection'
-  | 'cqrs'
-  | 'use-case'
-  | 'cross-entity';
+  'entity' | 'event-store' | 'projection' | 'cqrs' | 'use-case' | 'cross-entity';
 
 export interface SupervisorInvariantSpec {
   readonly id: string;
@@ -48,7 +45,23 @@ export interface SupervisorInvariantSpec {
 }
 
 export const SUPERVISOR_INVARIANTS_MANIFEST: ReadonlyArray<SupervisorInvariantSpec> = [
-  { id: 'INV-SU-01', canonReference: 'DF-09', description: 'A supervisão jamais cria ato privativo (de advocacia/perícia) nem decide juridicamente.', enforcement: 'entity' },
-  { id: 'INV-SU-02', canonReference: 'Lei Geral', description: 'Responsabilidade de supervisão temporária; a missão pertence ao Projeto.', enforcement: 'entity' },
-  { id: 'INV-SU-03', canonReference: 'DF-12', description: 'Os critérios completos de supervisão são definidos na Governança.', enforcement: 'use-case' },
+  {
+    id: 'INV-SU-01',
+    canonReference: 'DF-09',
+    description:
+      'A supervisão jamais cria ato privativo (de advocacia/perícia) nem decide juridicamente.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-SU-02',
+    canonReference: 'Lei Geral',
+    description: 'Responsabilidade de supervisão temporária; a missão pertence ao Projeto.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-SU-03',
+    canonReference: 'DF-12',
+    description: 'Os critérios completos de supervisão são definidos na Governança.',
+    enforcement: 'use-case',
+  },
 ];

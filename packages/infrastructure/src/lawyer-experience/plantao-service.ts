@@ -29,15 +29,23 @@ export class PlantaoService {
     private readonly clock: Clock,
   ) {}
 
-  private async missionBoard(advogadoId: string, missionId: string, now: Date): Promise<MissionBoard> {
+  private async missionBoard(
+    advogadoId: string,
+    missionId: string,
+    now: Date,
+  ): Promise<MissionBoard> {
     const cursor = await this.cursorRuntime.get(advogadoId, now);
     const seenUpTo = this.cursorRuntime.seenUpTo(cursor, missionId);
     const all = this.op.projector.missionTimeline(missionId);
     const newEntries = all.filter((e) => e.globalSeq > seenUpTo);
     const progress = await this.op.workflow.progress(missionId);
     const currentStep = progress?.steps[progress.steps.length - 1] ?? null;
-    const awaiting = (await this.gate.awaiting(advogadoId)).filter((d) => d.missionId === missionId);
-    const deadlines = (await this.op.work.agenda(advogadoId)).filter((e) => e.missionId === missionId);
+    const awaiting = (await this.gate.awaiting(advogadoId)).filter(
+      (d) => d.missionId === missionId,
+    );
+    const deadlines = (await this.op.work.agenda(advogadoId)).filter(
+      (e) => e.missionId === missionId,
+    );
     return buildMissionBoard(
       { missionId, currentStep, newEntries, awaiting, deadlines, ahriResolvedCount: 0 },
       now,

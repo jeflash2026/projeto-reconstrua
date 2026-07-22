@@ -99,7 +99,8 @@ export class PeritoAggregate extends AggregateRoot<PeritoId> {
         new CanonViolationError({
           invariantId: EXPERTISE_ID,
           canonReference: EXPERTISE_REF,
-          message: 'O Perito atua numa fase pericial (PERÍCIA 13); a Perícia é obrigatória (item 11/18).',
+          message:
+            'O Perito atua numa fase pericial (PERÍCIA 13); a Perícia é obrigatória (item 11/18).',
         }),
       );
     }

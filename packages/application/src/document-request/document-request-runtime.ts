@@ -5,12 +5,21 @@
 // PUBLICA os eventos de domínio (porta). Nenhuma regra duplicada aqui.
 // ─────────────────────────────────────────────────────────────────────────────
 import { DocumentRequestAggregate, DocumentRequestId, Result } from '@reconstrua/domain';
-import type { ComoAssociado, CriarDocumentRequestInput, DocumentRequestState, DomainEvent } from '@reconstrua/domain';
+import type {
+  ComoAssociado,
+  CriarDocumentRequestInput,
+  DocumentRequestState,
+  DomainEvent,
+} from '@reconstrua/domain';
 import type { DocumentRequestStore } from './document-request.js';
 
 /** Porta de publicação dos eventos de domínio (Event Store na produção). */
 export interface DocumentRequestEventPublisher {
-  publicar(requestId: string, events: readonly DomainEvent[], estado: DocumentRequestState): Promise<void>;
+  publicar(
+    requestId: string,
+    events: readonly DomainEvent[],
+    estado: DocumentRequestState,
+  ): Promise<void>;
 }
 
 export class DocumentRequestRuntime {
@@ -19,8 +28,13 @@ export class DocumentRequestRuntime {
     private readonly eventos: DocumentRequestEventPublisher | null = null,
   ) {}
 
-  async criar(input: Omit<CriarDocumentRequestInput, 'requestId'> & { readonly requestId: string }): Promise<Result<DocumentRequestState, Error>> {
-    const criado = DocumentRequestAggregate.criar({ ...input, requestId: DocumentRequestId.fromString(input.requestId) });
+  async criar(
+    input: Omit<CriarDocumentRequestInput, 'requestId'> & { readonly requestId: string },
+  ): Promise<Result<DocumentRequestState, Error>> {
+    const criado = DocumentRequestAggregate.criar({
+      ...input,
+      requestId: DocumentRequestId.fromString(input.requestId),
+    });
     if (criado.isErr()) return Result.err(criado.unwrapErr());
     return this.persistir(criado.unwrap());
   }
@@ -29,7 +43,12 @@ export class DocumentRequestRuntime {
     return this.transicionar(requestId, (agg) => agg.registrarMensagemEnviada(now));
   }
 
-  associar(requestId: string, documentId: string, comoAssociado: ComoAssociado, now: Date): Promise<Result<DocumentRequestState, Error>> {
+  associar(
+    requestId: string,
+    documentId: string,
+    comoAssociado: ComoAssociado,
+    now: Date,
+  ): Promise<Result<DocumentRequestState, Error>> {
     return this.transicionar(requestId, (agg) => agg.associar(documentId, comoAssociado, now));
   }
 
@@ -37,15 +56,29 @@ export class DocumentRequestRuntime {
     return this.transicionar(requestId, (agg) => agg.aguardarConfirmacao(now));
   }
 
-  retornarPendente(requestId: string, now: Date, nota: string): Promise<Result<DocumentRequestState, Error>> {
+  retornarPendente(
+    requestId: string,
+    now: Date,
+    nota: string,
+  ): Promise<Result<DocumentRequestState, Error>> {
     return this.transicionar(requestId, (agg) => agg.retornarPendente(now, nota));
   }
 
-  reabrir(requestId: string, motivo: string, por: string, now: Date): Promise<Result<DocumentRequestState, Error>> {
+  reabrir(
+    requestId: string,
+    motivo: string,
+    por: string,
+    now: Date,
+  ): Promise<Result<DocumentRequestState, Error>> {
     return this.transicionar(requestId, (agg) => agg.reabrir(motivo, por, now));
   }
 
-  cancelar(requestId: string, motivo: string, por: string, now: Date): Promise<Result<DocumentRequestState, Error>> {
+  cancelar(
+    requestId: string,
+    motivo: string,
+    por: string,
+    now: Date,
+  ): Promise<Result<DocumentRequestState, Error>> {
     return this.transicionar(requestId, (agg) => agg.cancelar(motivo, por, now));
   }
 
@@ -68,7 +101,9 @@ export class DocumentRequestRuntime {
     return this.persistir(agg);
   }
 
-  private async persistir(agg: DocumentRequestAggregate): Promise<Result<DocumentRequestState, Error>> {
+  private async persistir(
+    agg: DocumentRequestAggregate,
+  ): Promise<Result<DocumentRequestState, Error>> {
     const estado = agg.toState();
     await this.store.salvar(estado);
     const events = agg.pullDomainEvents();

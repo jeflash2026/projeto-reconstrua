@@ -34,9 +34,15 @@ export type AdminQueryKind =
  * disponível" — jamais inventada.
  */
 export interface AdminIntelligenceSources {
-  readonly clientes?: () => Promise<ReadonlyArray<{ readonly status: string; readonly quem: string }>>;
+  readonly clientes?: () => Promise<
+    ReadonlyArray<{ readonly status: string; readonly quem: string }>
+  >;
   readonly porAdvogado?: () => Promise<
-    ReadonlyArray<{ readonly nome: string; readonly casos: number; readonly ultimaAtividadeAt: Date | null }>
+    ReadonlyArray<{
+      readonly nome: string;
+      readonly casos: number;
+      readonly ultimaAtividadeAt: Date | null;
+    }>
   >;
 }
 
@@ -65,9 +71,11 @@ export class AdministrationIntelligenceRuntime {
     const q = normalizeForMatch(question);
     const has = (...terms: string[]): boolean => terms.every((t) => q.includes(t));
     if (has('gargalo')) return 'bottlenecks';
-    if (has('setor') && (q.includes('atencao') || q.includes('atenc'))) return 'sector_needing_attention';
+    if (has('setor') && (q.includes('atencao') || q.includes('atenc')))
+      return 'sector_needing_attention';
     if (has('advogado') && q.includes('mais processos')) return 'lawyer_most_processes';
-    if (has('advogado') && (q.includes('sem movimenta') || q.includes('mais tempo'))) return 'lawyer_stalest';
+    if (has('advogado') && (q.includes('sem movimenta') || q.includes('mais tempo')))
+      return 'lawyer_stalest';
     if (q.includes('aguard') && q.includes('documento')) return 'clients_awaiting_documents';
     if (q.includes('aguard') && q.includes('advogado')) return 'clients_awaiting_lawyer';
     if (q.includes('aguard') && q.includes('pericia')) return 'clients_awaiting_expertise';
@@ -82,7 +90,8 @@ export class AdministrationIntelligenceRuntime {
     if (q.includes('cliente')) return 'client_count';
     if (q.includes('roi')) return 'roi';
     if (q.includes('campanha')) return 'best_campaign';
-    if (q.includes('honorario') || q.includes('financeiro') || q.includes('valor')) return 'financial_under_administration';
+    if (q.includes('honorario') || q.includes('financeiro') || q.includes('valor'))
+      return 'financial_under_administration';
     return null;
   }
 
@@ -92,15 +101,35 @@ export class AdministrationIntelligenceRuntime {
 
     switch (kind) {
       case 'client_count':
-        return this.numeric(kind, metrics.clientCount, `${String(metrics.clientCount)} clientes reconhecidos`, src);
+        return this.numeric(
+          kind,
+          metrics.clientCount,
+          `${String(metrics.clientCount)} clientes reconhecidos`,
+          src,
+        );
       case 'mission_count':
-        return this.numeric(kind, metrics.missionCount, `${String(metrics.missionCount)} missões`, src);
+        return this.numeric(
+          kind,
+          metrics.missionCount,
+          `${String(metrics.missionCount)} missões`,
+          src,
+        );
       case 'process_count':
-        return this.numeric(kind, metrics.processCount, `${String(metrics.processCount)} processos`, src);
+        return this.numeric(
+          kind,
+          metrics.processCount,
+          `${String(metrics.processCount)} processos`,
+          src,
+        );
       case 'documents_today': {
         const today = now.toISOString().slice(0, 10);
         const count = metrics.documentsByDay[today] ?? 0;
-        return this.numeric(kind, count, `${String(count)} documentos chegaram hoje (${today})`, src);
+        return this.numeric(
+          kind,
+          count,
+          `${String(count)} documentos chegaram hoje (${today})`,
+          src,
+        );
       }
       case 'clients_awaiting_documents': {
         const memories = await this.memoryStore.all();
@@ -116,9 +145,15 @@ export class AdministrationIntelligenceRuntime {
       }
       case 'bottlenecks': {
         const memories = await this.memoryStore.all();
-        const awaitingDocs = memories.filter((m) => m.documentsPending.length > 0).map((m) => m.chatId);
+        const awaitingDocs = memories
+          .filter((m) => m.documentsPending.length > 0)
+          .map((m) => m.chatId);
         const stale = memories
-          .filter((m) => m.lastContactAt !== null && now.getTime() - m.lastContactAt.getTime() > 7 * 24 * 60 * 60_000)
+          .filter(
+            (m) =>
+              m.lastContactAt !== null &&
+              now.getTime() - m.lastContactAt.getTime() > 7 * 24 * 60 * 60_000,
+          )
           .map((m) => m.chatId);
         const items = [...new Set([...awaitingDocs, ...stale])];
         return {
@@ -126,7 +161,10 @@ export class AdministrationIntelligenceRuntime {
           available: true,
           value: items.length,
           items,
-          fact: items.length === 0 ? 'nenhum gargalo detectado' : `${String(items.length)} gargalos: aguardando documentos ou sem contato há +7 dias`,
+          fact:
+            items.length === 0
+              ? 'nenhum gargalo detectado'
+              : `${String(items.length)} gargalos: aguardando documentos ou sem contato há +7 dias`,
           provenance: 'read-model:living-memory',
         };
       }
@@ -138,12 +176,20 @@ export class AdministrationIntelligenceRuntime {
           available: true,
           value: awaitingDocs,
           items: awaitingDocs > 0 ? ['atendimento/coleta de documentos'] : [],
-          fact: awaitingDocs > 0 ? `atendimento: ${String(awaitingDocs)} clientes aguardando documentos` : 'nenhum setor em atenção crítica',
+          fact:
+            awaitingDocs > 0
+              ? `atendimento: ${String(awaitingDocs)} clientes aguardando documentos`
+              : 'nenhum setor em atenção crítica',
           provenance: 'read-model:living-memory',
         };
       }
       case 'document_count':
-        return this.numeric(kind, metrics.documentCount, `${String(metrics.documentCount)} documentos reconhecidos no total`, src);
+        return this.numeric(
+          kind,
+          metrics.documentCount,
+          `${String(metrics.documentCount)} documentos reconhecidos no total`,
+          src,
+        );
 
       // ── GO-LIVE-03: fontes REAIS (lista única + atribuições) quando ligadas ───
       case 'clients_awaiting_lawyer': {
@@ -231,7 +277,12 @@ export class AdministrationIntelligenceRuntime {
     return { kind, available: false, value: null, items: [], fact: NOT_CAPTURED, provenance };
   }
 
-  private numeric(kind: AdminQueryKind, value: number, fact: string, provenance: string): AdminAnswer {
+  private numeric(
+    kind: AdminQueryKind,
+    value: number,
+    fact: string,
+    provenance: string,
+  ): AdminAnswer {
     return { kind, available: true, value, items: [], fact, provenance };
   }
 }

@@ -28,7 +28,12 @@ const T0 = new Date('2026-07-14T00:00:00.000Z');
 async function seeded(): Promise<RelationshipRuntime> {
   const memory = new MemoryRuntime(new FakeStore());
   await memory.observeInbound(CHAT, T0); // firstContact
-  await memory.rememberEvent(CHAT, 'M5', 'cliente falou do pai que está doente', new Date(T0.getTime() + 7 * 86_400_000));
+  await memory.rememberEvent(
+    CHAT,
+    'M5',
+    'cliente falou do pai que está doente',
+    new Date(T0.getTime() + 7 * 86_400_000),
+  );
   await memory.setPendingDocuments(CHAT, ['laudo médico', 'comprovante']);
   await memory.observeStageCompleted(CHAT, 'E9', 'PERICIA_AGENDADA', T0);
   return new RelationshipRuntime(memory);

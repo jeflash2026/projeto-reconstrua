@@ -81,7 +81,13 @@ export interface ALIRComposer {
   compose(chatId: string, options?: ALIRComposeOptions): Promise<ALIRComposition>;
 }
 
-const HANDOFF_ROLES: readonly HumanRole[] = ['perito', 'advogado', 'operador', 'supervisor', 'administrador'];
+const HANDOFF_ROLES: readonly HumanRole[] = [
+  'perito',
+  'advogado',
+  'operador',
+  'supervisor',
+  'administrador',
+];
 
 // ── utilidades puras ─────────────────────────────────────────────────────────
 
@@ -187,7 +193,14 @@ export class ALIRProjectionBuilder {
       alir = this.applyCore(alir, identity, memory, reconstructed, unavailable);
     }
     if (wantOperational) {
-      alir = await this.applyOperational(alir, identity, memory, sourcesConsulted, reconstructed, unavailable);
+      alir = await this.applyOperational(
+        alir,
+        identity,
+        memory,
+        sourcesConsulted,
+        reconstructed,
+        unavailable,
+      );
     }
     if (wantExtensions) {
       pushUnique(
@@ -320,13 +333,18 @@ export class ALIRProjectionBuilder {
       const responsaveis: ALIRResponsavel[] = [];
       if (assignment !== null) {
         const member = await this.sources.staff.byId(assignment.advogadoId);
-        if (member !== null) responsaveis.push({ id: member.id, role: member.role, name: member.name });
+        if (member !== null)
+          responsaveis.push({ id: member.id, role: member.role, name: member.name });
       }
       operacao = {
         handoffsAbertos,
         atribuicao:
           assignment !== null
-            ? { advogadoId: assignment.advogadoId, assignedBy: assignment.assignedBy, assignedAt: assignment.assignedAt }
+            ? {
+                advogadoId: assignment.advogadoId,
+                assignedBy: assignment.assignedBy,
+                assignedAt: assignment.assignedAt,
+              }
             : null,
         responsaveis,
       };
@@ -354,7 +372,11 @@ export class ALIRProjectionBuilder {
         processoRef: processoLatest !== undefined ? processoLatest.text : null,
         pendencias,
       };
-      pushUnique(reconstructed, 'operational.juridico.processoRef', 'operational.juridico.pendencias');
+      pushUnique(
+        reconstructed,
+        'operational.juridico.processoRef',
+        'operational.juridico.pendencias',
+      );
     }
 
     // documentos.pendentes é do cliente (memória), independe de missão

@@ -22,7 +22,11 @@ function rule(over: Partial<OperationalRuleSpec>): OperationalRuleSpec {
   };
 }
 
-const facts: BrainFacts = { perceptKind: 'text', hasPendingDocuments: true, matterRequiresHuman: false };
+const facts: BrainFacts = {
+  perceptKind: 'text',
+  hasPendingDocuments: true,
+  matterRequiresHuman: false,
+};
 
 describe('RuleEvaluator', () => {
   it('aplicável quando casa e não bloqueia', () => {
@@ -39,7 +43,10 @@ describe('RuleEvaluator', () => {
   it('bloqueia quando um bloqueio dispara (registra o índice)', () => {
     const r = rule({
       preconditions: [{ fact: 'perceptKind', op: 'eq', value: 'text' }],
-      blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }, { fact: 'hasPendingDocuments', op: 'truthy' }],
+      blocks: [
+        { fact: 'matterRequiresHuman', op: 'truthy' },
+        { fact: 'hasPendingDocuments', op: 'truthy' },
+      ],
     });
     const e = ev.evaluate(r, facts);
     expect(e.matched).toBe(true);

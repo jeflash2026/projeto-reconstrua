@@ -4,7 +4,12 @@
 // de 2A: o Dispatcher (2A.2) entrega cada evento de domínio e a projeção incrementa
 // as métricas (idempotente por globalSeq). CQRS: lê eventos, nunca muta domínio.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { AdminMetrics, AdminMetricsStore, EventSubscriber, StoredEvent } from '@reconstrua/application';
+import type {
+  AdminMetrics,
+  AdminMetricsStore,
+  EventSubscriber,
+  StoredEvent,
+} from '@reconstrua/application';
 import { emptyMetrics, projectEvent } from '@reconstrua/application';
 
 export class InMemoryAdminMetricsStore implements AdminMetricsStore {

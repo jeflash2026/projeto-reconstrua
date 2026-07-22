@@ -20,7 +20,9 @@ class FakeDb implements MigrationDb {
   }
 
   async exec(sql: string): Promise<void> {
-    this.execLog.push(sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' ? sql : `SQL:${sql.slice(0, 20)}`);
+    this.execLog.push(
+      sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' ? sql : `SQL:${sql.slice(0, 20)}`,
+    );
     if (sql === 'BEGIN') return Promise.resolve();
     if (sql === 'COMMIT') {
       if (this.pending) {
@@ -39,7 +41,9 @@ class FakeDb implements MigrationDb {
 
   rows<T = Record<string, unknown>>(text: string, params: readonly unknown[] = []): Promise<T[]> {
     if (text.startsWith('SELECT version, checksum')) {
-      return Promise.resolve([...this.ledger].map(([version, checksum]) => ({ version, checksum })) as unknown as T[]);
+      return Promise.resolve(
+        [...this.ledger].map(([version, checksum]) => ({ version, checksum })) as unknown as T[],
+      );
     }
     if (text.startsWith('INSERT INTO schema_migrations')) {
       this.pending = { version: String(params[0]), checksum: String(params[1]) };

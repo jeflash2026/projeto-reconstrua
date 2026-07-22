@@ -6,7 +6,11 @@
 import type { MissionIdentity, MissionResult, UseCaseOutcome } from './types.js';
 
 export class MissionResultBuilder {
-  build(chatId: string, outcomes: readonly UseCaseOutcome[], identity: MissionIdentity): MissionResult {
+  build(
+    chatId: string,
+    outcomes: readonly UseCaseOutcome[],
+    identity: MissionIdentity,
+  ): MissionResult {
     return {
       chatId,
       ok: outcomes.every((o) => o.ok),

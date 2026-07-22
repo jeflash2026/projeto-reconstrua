@@ -14,7 +14,12 @@ describe.skipIf(!DATABASE_URL)('PgMediaStore (integração Postgres)', () => {
     try {
       const store = new PgMediaStore(sql);
       const sha256 = `test-${String(Date.now())}`;
-      const blob = { sha256, mime: 'application/pdf', size: 4, bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]) };
+      const blob = {
+        sha256,
+        mime: 'application/pdf',
+        size: 4,
+        bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+      };
       expect(await store.has(sha256)).toBe(false);
       await store.put(blob);
       expect(await store.has(sha256)).toBe(true);

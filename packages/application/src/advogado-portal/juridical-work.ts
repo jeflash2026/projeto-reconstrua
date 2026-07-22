@@ -95,7 +95,12 @@ export class AdvogadoWorkRuntime {
 
   // ── Atribuição (ato do Administrador) ───────────────────────────────────────
   async assign(missionId: string, advogadoId: string, assignedBy: string): Promise<CaseAssignment> {
-    const assignment: CaseAssignment = { missionId, advogadoId, assignedBy, assignedAt: this.clock.now() };
+    const assignment: CaseAssignment = {
+      missionId,
+      advogadoId,
+      assignedBy,
+      assignedAt: this.clock.now(),
+    };
     await this.assignments.save(assignment);
     return assignment;
   }
@@ -148,7 +153,10 @@ export class AdvogadoWorkRuntime {
   }
 
   /** Entradas do advogado — SEMPRE só as dele (isolamento por construção). */
-  async myEntries(advogadoId: string, kind?: JuridicalEntryKind): Promise<readonly JuridicalEntry[]> {
+  async myEntries(
+    advogadoId: string,
+    kind?: JuridicalEntryKind,
+  ): Promise<readonly JuridicalEntry[]> {
     const all = await this.work.byAdvogado(advogadoId);
     return kind ? all.filter((e) => e.kind === kind) : all;
   }
@@ -163,7 +171,9 @@ export class AdvogadoWorkRuntime {
 
   /** Pendências: prazos e tarefas não concluídos. */
   async pending(advogadoId: string): Promise<readonly JuridicalEntry[]> {
-    return (await this.work.byAdvogado(advogadoId)).filter((e) => !e.done && (e.kind === 'prazo' || e.kind === 'protocolo'));
+    return (await this.work.byAdvogado(advogadoId)).filter(
+      (e) => !e.done && (e.kind === 'prazo' || e.kind === 'protocolo'),
+    );
   }
 
   /** Agenda: prazos com vencimento, ordenados. */

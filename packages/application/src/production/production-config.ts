@@ -60,12 +60,14 @@ export const DEFAULT_PRODUCTION_CONFIG: ProductionConfig = {
       'Você NUNCA decide (você percebe e frasea o que foi decidido). Nunca invente fatos. Nunca dê aconselhamento jurídico. ' +
       'FRONTEIRAS INVIOLÁVEIS: nunca revele informações internas da empresa, dados de outros clientes ou estratégias operacionais; ' +
       'nunca prometa resultados, valores ou decisões que dependem da equipe humana; nunca ultrapasse o que a pessoa tem permissão de saber sobre o próprio caso.',
-    founder: 'Narre os fatos administrativos fornecidos em linguagem natural e direta. Não acrescente dados.',
+    founder:
+      'Narre os fatos administrativos fornecidos em linguagem natural e direta. Não acrescente dados.',
     conversation:
       'Fraseie a intenção decidida em linguagem humana, calorosa e breve, em pt-BR — como uma conversa de verdade, nunca como notificação de sistema. ' +
       'Responda ao que a pessoa realmente disse; acolha a emoção percebida antes do assunto. ' +
       'Nunca repita frases anteriores. Nunca prometa nada que não esteja na intenção ou nos fatos fornecidos.',
-    memory: 'Extraia atributos pessoais explícitos do texto (nome, cidade, profissão, familiares). Devolva apenas o que está literalmente dito.',
+    memory:
+      'Extraia atributos pessoais explícitos do texto (nome, cidade, profissão, familiares). Devolva apenas o que está literalmente dito.',
     admin: 'Narre métricas administrativas com exatidão; nunca estime valores ausentes.',
   },
   publicUrl: '',
@@ -118,11 +120,17 @@ export function maskConfig(config: ProductionConfig): ProductionConfig {
 }
 
 /** Merge de edição: campos mascarados/vazios NÃO sobrescrevem segredos existentes. */
-export function mergeConfigUpdate(current: ProductionConfig, update: ProductionConfig): ProductionConfig {
+export function mergeConfigUpdate(
+  current: ProductionConfig,
+  update: ProductionConfig,
+): ProductionConfig {
   const keep = (incoming: string, existing: string): string =>
     incoming === '' || incoming.includes('••••') ? existing : incoming;
   return {
-    evolution: { ...update.evolution, apiKey: keep(update.evolution.apiKey, current.evolution.apiKey) },
+    evolution: {
+      ...update.evolution,
+      apiKey: keep(update.evolution.apiKey, current.evolution.apiKey),
+    },
     llm: {
       ...update.llm,
       openaiApiKey: keep(update.llm.openaiApiKey, current.llm.openaiApiKey),

@@ -13,7 +13,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { CatalogoDeEstrategias } from './strategic-reasoning.js';
 
-const BENEFICIO_INSS = { fact: 'beneficio', op: 'in', value: ['aposentadoria', 'pensao', 'bpc'] } as const;
+const BENEFICIO_INSS = {
+  fact: 'beneficio',
+  op: 'in',
+  value: ['aposentadoria', 'pensao', 'bpc'],
+} as const;
 const ENCERRADA = { fact: 'stateCode', op: 'eq', value: 'ENCERRADA' } as const; // usado como EXCLUSÃO
 
 export const ESTRATEGIAS_CONSIGNADO_INSS: CatalogoDeEstrategias = [
@@ -32,7 +36,8 @@ export const ESTRATEGIAS_CONSIGNADO_INSS: CatalogoDeEstrategias = [
     riscos: [
       {
         quando: [{ fact: 'multiplos_bancos', op: 'eq', value: 'true' }],
-        risco: 'Existem contratos em múltiplas instituições — mapear TODOS os vínculos antes de qualquer medida',
+        risco:
+          'Existem contratos em múltiplas instituições — mapear TODOS os vínculos antes de qualquer medida',
       },
       {
         quando: [{ fact: 'tempo_do_problema', op: 'eq', value: 'mais_de_2_anos' }],
@@ -49,7 +54,8 @@ export const ESTRATEGIAS_CONSIGNADO_INSS: CatalogoDeEstrategias = [
       {
         quando: [{ fact: 'multiplos_bancos', op: 'eq', value: 'true' }],
         acao: 'Solicitar extrato INSS para confirmar vínculos',
-        justificativa: 'múltiplos bancos exigem confirmação de todos os contratos ativos antes da revisão',
+        justificativa:
+          'múltiplos bancos exigem confirmação de todos os contratos ativos antes da revisão',
       },
       {
         quando: [{ fact: 'documentacao_mencionada', op: 'neq', value: 'hiscon' }],
@@ -61,12 +67,15 @@ export const ESTRATEGIAS_CONSIGNADO_INSS: CatalogoDeEstrategias = [
     documentosOpcionais: ['cópia dos contratos', 'extrato bancário'],
     criteriosDeExclusao: [ENCERRADA],
     prioridade: 60,
-    proximaAcao: 'Validar documentação complementar (HISCON + extrato INSS) e vincular os contratos por instituição',
-    fundamento: 'Revisão de consignado — Lei 10.820/2003 + CDC (cobrança indevida); prática do escritório',
+    proximaAcao:
+      'Validar documentação complementar (HISCON + extrato INSS) e vincular os contratos por instituição',
+    fundamento:
+      'Revisão de consignado — Lei 10.820/2003 + CDC (cobrança indevida); prática do escritório',
   },
   {
     ref: 'EST-CONSIG-NAO-CONTRATADO-001',
-    hipotese: 'Empréstimo não contratado — indício de contratação fraudulenta em nome do beneficiário',
+    hipotese:
+      'Empréstimo não contratado — indício de contratação fraudulenta em nome do beneficiário',
     requer: [{ fact: 'problema_principal', op: 'eq', value: 'emprestimo_nao_contratado' }],
     reforca: [
       { fact: 'tempo_do_problema', op: 'eq', value: 'recente' },
@@ -75,14 +84,16 @@ export const ESTRATEGIAS_CONSIGNADO_INSS: CatalogoDeEstrategias = [
     riscos: [
       {
         quando: [{ fact: 'tempo_do_problema', op: 'eq', value: 'mais_de_2_anos' }],
-        risco: 'Contratação antiga não contestada — reunir evidência de que o cliente nunca usufruiu do valor',
+        risco:
+          'Contratação antiga não contestada — reunir evidência de que o cliente nunca usufruiu do valor',
       },
     ],
     prioridades: [
       {
         quando: [],
         acao: 'Levantar o contrato contestado junto à instituição (cópia + assinatura)',
-        justificativa: 'a prova da não contratação nasce do confronto com o contrato apresentado pelo banco',
+        justificativa:
+          'a prova da não contratação nasce do confronto com o contrato apresentado pelo banco',
       },
     ],
     documentosEsperados: ['HISCON', 'contrato contestado (cópia + assinatura)'],
@@ -113,7 +124,8 @@ export const ESTRATEGIAS_CONSIGNADO_INSS: CatalogoDeEstrategias = [
   },
   {
     ref: 'EST-CONSIG-CARTAO-RMC-001',
-    hipotese: 'Cartão consignado / RMC vendido como empréstimo — desconto de reserva de margem indevido',
+    hipotese:
+      'Cartão consignado / RMC vendido como empréstimo — desconto de reserva de margem indevido',
     requer: [{ fact: 'problema_principal', op: 'eq', value: 'cartao_rmc' }],
     reforca: [
       BENEFICIO_INSS,
@@ -123,42 +135,45 @@ export const ESTRATEGIAS_CONSIGNADO_INSS: CatalogoDeEstrategias = [
     riscos: [
       {
         quando: [{ fact: 'tempo_do_problema', op: 'eq', value: 'mais_de_2_anos' }],
-        risco: 'RMC antiga — valores descontados acumulados podem ser altos; dimensionar o ressarcimento',
+        risco:
+          'RMC antiga — valores descontados acumulados podem ser altos; dimensionar o ressarcimento',
       },
     ],
     prioridades: [
       {
         quando: [],
         acao: 'Confirmar se há contrato de CARTÃO consignado (RMC) vinculado ao benefício, e não empréstimo',
-        justificativa: 'o desvio típico é o desconto de reserva de margem apresentado ao cliente como empréstimo',
+        justificativa:
+          'o desvio típico é o desconto de reserva de margem apresentado ao cliente como empréstimo',
       },
     ],
     documentosEsperados: ['HISCON', 'extrato da RMC / cartão consignado', 'contrato do cartão'],
     documentosOpcionais: ['faturas do cartão consignado'],
     criteriosDeExclusao: [ENCERRADA],
     prioridade: 70,
-    proximaAcao: 'Reunir HISCON + extrato de RMC e demonstrar o desvio de empréstimo para cartão consignado',
-    fundamento: 'Venda casada de cartão RMC como empréstimo — CDC art. 39, V + entendimento consumerista',
+    proximaAcao:
+      'Reunir HISCON + extrato de RMC e demonstrar o desvio de empréstimo para cartão consignado',
+    fundamento:
+      'Venda casada de cartão RMC como empréstimo — CDC art. 39, V + entendimento consumerista',
   },
   {
     ref: 'EST-CONSIG-MARGEM-001',
     hipotese: 'Extrapolação de margem consignável — descontos além do limite legal do benefício',
     requer: [{ fact: 'problema_principal', op: 'eq', value: 'margem_extrapolada' }],
-    reforca: [
-      { fact: 'multiplos_bancos', op: 'eq', value: 'true' },
-      BENEFICIO_INSS,
-    ],
+    reforca: [{ fact: 'multiplos_bancos', op: 'eq', value: 'true' }, BENEFICIO_INSS],
     riscos: [
       {
         quando: [{ fact: 'multiplos_bancos', op: 'eq', value: 'true' }],
-        risco: 'Vários contratos somados podem comprometer a subsistência — avaliar superendividamento',
+        risco:
+          'Vários contratos somados podem comprometer a subsistência — avaliar superendividamento',
       },
     ],
     prioridades: [
       {
         quando: [],
         acao: 'Calcular o total descontado vs. a margem legal (35% + 5% de cartão) sobre o benefício',
-        justificativa: 'a extrapolação se demonstra pelo somatório dos descontos contra a margem consignável',
+        justificativa:
+          'a extrapolação se demonstra pelo somatório dos descontos contra a margem consignável',
       },
     ],
     documentosEsperados: ['HISCON', 'extrato de margem consignável (Meu INSS)'],
@@ -184,7 +199,8 @@ export const ESTRATEGIAS_CONSIGNADO_INSS: CatalogoDeEstrategias = [
     documentosOpcionais: ['HISCON', 'extrato bancário'],
     criteriosDeExclusao: [ENCERRADA],
     prioridade: 35,
-    proximaAcao: 'Obter o contrato e destacar encargos não contratados (seguro prestamista/tarifas)',
+    proximaAcao:
+      'Obter o contrato e destacar encargos não contratados (seguro prestamista/tarifas)',
     fundamento: 'Cobrança de serviços não solicitados — CDC art. 39, III e art. 51',
   },
   {
@@ -195,14 +211,16 @@ export const ESTRATEGIAS_CONSIGNADO_INSS: CatalogoDeEstrategias = [
     riscos: [
       {
         quando: [{ fact: 'multiplos_bancos', op: 'eq', value: 'true' }],
-        risco: 'Cadeia de portabilidades entre bancos — reconstituir a ordem cronológica dos contratos',
+        risco:
+          'Cadeia de portabilidades entre bancos — reconstituir a ordem cronológica dos contratos',
       },
     ],
     prioridades: [
       {
         quando: [],
         acao: 'Comparar o contrato de ORIGEM com o de DESTINO (taxa, prazo, saldo devedor)',
-        justificativa: 'a irregularidade aparece no confronto entre a operação original e a portada/refinanciada',
+        justificativa:
+          'a irregularidade aparece no confronto entre a operação original e a portada/refinanciada',
       },
     ],
     documentosEsperados: ['HISCON', 'contratos de origem e destino da portabilidade'],
@@ -216,14 +234,12 @@ export const ESTRATEGIAS_CONSIGNADO_INSS: CatalogoDeEstrategias = [
     ref: 'EST-CONSIG-SUPERENDIVIDAMENTO-001',
     hipotese: 'Superendividamento — comprometimento do benefício ameaça o mínimo existencial',
     requer: [{ fact: 'problema_principal', op: 'eq', value: 'superendividamento' }],
-    reforca: [
-      { fact: 'multiplos_bancos', op: 'eq', value: 'true' },
-      BENEFICIO_INSS,
-    ],
+    reforca: [{ fact: 'multiplos_bancos', op: 'eq', value: 'true' }, BENEFICIO_INSS],
     riscos: [
       {
         quando: [],
-        risco: 'Comprometimento da subsistência — preservar o mínimo existencial é prioridade absoluta',
+        risco:
+          'Comprometimento da subsistência — preservar o mínimo existencial é prioridade absoluta',
       },
     ],
     prioridades: [

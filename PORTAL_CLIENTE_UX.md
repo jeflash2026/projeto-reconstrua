@@ -1,4 +1,5 @@
 # PORTAL DO CLIENTE — UX BLUEPRINT (v1, para congelamento)
+
 ### A conversa silenciosa da AHRI. Nunca um sistema jurídico.
 
 > Conceito central: **uma carta viva**. A página inteira lê-se de cima para baixo como um
@@ -13,7 +14,7 @@
 Fundo claro e quente (papel, não branco-hospital). Muito espaço vazio. **Uma saudação pessoal
 em letras grandes** — nada de logotipo dominante, menu, sino de notificação ou grid. Um único
 sinal de vida: um **ponto de presença que "respira"** ao lado do nome da AHRI. A sensação
-buscada: *"alguém está cuidando disso — e está tudo sob controle."* Tranquilidade antes de
+buscada: _"alguém está cuidando disso — e está tudo sob controle."_ Tranquilidade antes de
 informação.
 
 ## 2. A primeira informação
@@ -62,37 +63,37 @@ ANÁLISE".)
 
 1. **O caminho do seu caso** — timeline vertical (§6).
 2. **O que vem depois** — `proximoPasso` como parágrafo.
-3. **Quanto tempo costuma levar** — `quantoTempo`; se houver `estimativaAte`: *"a previsão é
-   até 2 de agosto"* em linguagem corrida (nunca contador regressivo — contador gera ansiedade).
+3. **Quanto tempo costuma levar** — `quantoTempo`; se houver `estimativaAte`: _"a previsão é
+   até 2 de agosto"_ em linguagem corrida (nunca contador regressivo — contador gera ansiedade).
 4. **Novidades** — as `atualizacoes` como **mensagens da AHRI** (§8); vazio tem texto próprio (§ estados).
-5. **Quem está cuidando do seu processo** — só quando houver advogado: *"O advogado responsável
-   pelo seu processo é **Dra. Ana Lima**."* + nº do processo em UMA linha discreta ("número do
+5. **Quem está cuidando do seu processo** — só quando houver advogado: _"O advogado responsável
+   pelo seu processo é **Dra. Ana Lima**."_ + nº do processo em UMA linha discreta ("número do
    seu processo na Justiça: …" — é o único "número" permitido, porque pertence ao cliente).
 6. **Documentos que você já me enviou** — frase + lista leve de rótulos (chips suaves, não tabela).
-7. **Fecho da carta:** *"Qualquer dúvida, é só me chamar — estou no WhatsApp."* + **botão verde
+7. **Fecho da carta:** _"Qualquer dúvida, é só me chamar — estou no WhatsApp."_ + **botão verde
    WhatsApp** (única cor de ação da página; Princípio 8).
 
 ## 6. Timeline ("O caminho do seu caso")
 
-- **Vertical**, 4 momentos: *Documentação → Análise técnica → Processo → Conclusão*.
+- **Vertical**, 4 momentos: _Documentação → Análise técnica → Processo → Conclusão_.
 - Cada momento = ponto + título + **uma frase no passado/presente/futuro** (voz da AHRI):
-  - concluída: ponto preenchido ✓ · *"Recebi e organizei toda a sua documentação."*
+  - concluída: ponto preenchido ✓ · _"Recebi e organizei toda a sua documentação."_
   - **atual**: ponto maior com a MESMA animação de respiração da presença + rótulo "você está
     aqui" · frase = o `agora`
-  - futura: ponto vazio, texto esmaecido · frase no futuro (*"Depois, um advogado assume a
-    condução do seu processo."*)
+  - futura: ponto vazio, texto esmaecido · frase no futuro (_"Depois, um advogado assume a
+    condução do seu processo."_)
 - Linha fina conectando; o traço até a etapa atual é desenhado com animação sutil no load.
 - **Sem datas internas, sem duração por etapa, sem porcentagens** — é um caminho, não um Gantt.
 
 ## 7. Estados em linguagem humana (mapa fechado — nomes internos JAMAIS aparecem)
 
-| Momento interno | O que o cliente lê (do payload; exemplos já implementados na visão) |
-|---|---|
-| coleta | "Estou organizando a sua documentação com você pelo WhatsApp." |
+| Momento interno          | O que o cliente lê (do payload; exemplos já implementados na visão)                                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| coleta                   | "Estou organizando a sua documentação com você pelo WhatsApp."                                                                                                               |
 | análise (pronto/pedidos) | "Sua documentação está completa e a nossa equipe está analisando o seu caso." / "Já enviamos as solicitações administrativas do seu caso e estou acompanhando as respostas." |
-| análise em conclusão | "Estamos concluindo a análise técnica do seu caso." |
-| processo | "O advogado Dra. Ana Lima está conduzindo o seu processo." |
-| conclusão | "Esta etapa do seu caso foi concluída." *(redação final pendente de homologação)* |
+| análise em conclusão     | "Estamos concluindo a análise técnica do seu caso."                                                                                                                          |
+| processo                 | "O advogado Dra. Ana Lima está conduzindo o seu processo."                                                                                                                   |
+| conclusão                | "Esta etapa do seu caso foi concluída." _(redação final pendente de homologação)_                                                                                            |
 
 ## 8. Como a AHRI "fala" dentro do Portal
 
@@ -100,14 +101,14 @@ ANÁLISE".)
 - As **novidades** são renderizadas como **balões de mensagem da AHRI** (o mesmo formato visual
   de um chat, alinhados à esquerda, com data humana: "ontem", "17 de julho") — o cliente
   reconhece a linguagem do WhatsApp: é a MESMA entidade falando (Princípio 1). Sem campo de
-  resposta (Portal silencioso — D6): abaixo dos balões, *"para responder, me chame no WhatsApp"*.
+  resposta (Portal silencioso — D6): abaixo dos balões, _"para responder, me chame no WhatsApp"_.
 - Nenhum texto institucional ("a empresa informa…"), nenhum aviso legal frio no corpo.
 
 ## 9. Como evitar ansiedade (decisões deliberadas)
 
 1. "Você não precisa fazer nada" **acima da dobra** — a resposta que acalma vem primeiro.
 2. **Nunca contador regressivo**; prazos como conversa ("costuma levar…", "a previsão é até…").
-3. Vazio de novidades tem explicação: *"Ainda não há novidades — e isso é normal nesta fase."*
+3. Vazio de novidades tem explicação: _"Ainda não há novidades — e isso é normal nesta fase."_
 4. Sem vermelho de alerta: a paleta de estado usa neutros e verde suave; o vermelho da marca é
    só detalhe de identidade (nunca sinal de problema).
 5. Timeline mostra o **caminho inteiro** — saber o que vem depois reduz medo do desconhecido.
@@ -155,18 +156,18 @@ estático.** Nenhuma animação em loop além da respiração.
 **Microinterações:** botão WhatsApp com leve elevação no toque; nada de hovers elaborados;
 sem toasts, sem tooltips, sem modais — **zero cromo de aplicativo**.
 
-**Estado de carregamento (skeleton):** *"a AHRI escrevendo"* — três pontos pulsando no lugar da
-presença + 3 linhas suaves onde a saudação/frases entrarão + texto único: *"Um instante — estou
-organizando as informações do seu caso…"*. Sem spinners.
+**Estado de carregamento (skeleton):** _"a AHRI escrevendo"_ — três pontos pulsando no lugar da
+presença + 3 linhas suaves onde a saudação/frases entrarão + texto único: _"Um instante — estou
+organizando as informações do seu caso…"_. Sem spinners.
 
-**Estados vazios:** novidades → *"Ainda não há novidades — e isso é normal nesta fase. Eu te
-aviso na hora em que algo acontecer, aqui e no WhatsApp."*; sem advogado ainda → seção
+**Estados vazios:** novidades → _"Ainda não há novidades — e isso é normal nesta fase. Eu te
+aviso na hora em que algo acontecer, aqui e no WhatsApp."_; sem advogado ainda → seção
 simplesmente não aparece (nunca "N/A").
 
-**Estado de erro / link expirado (a MESMA voz):** página curta: *"Esse link já expirou — por
+**Estado de erro / link expirado (a MESMA voz):** página curta: _"Esse link já expirou — por
 segurança, eles duram um tempo limitado. Me chama no WhatsApp que eu te envio um novo agora
-mesmo."* + botão verde. Erro de rede: *"Não consegui carregar as informações agora. Tenta de
-novo em instantes — ou me chama no WhatsApp."* Nunca códigos de erro.
+mesmo."_ + botão verde. Erro de rede: _"Não consegui carregar as informações agora. Tenta de
+novo em instantes — ou me chama no WhatsApp."_ Nunca códigos de erro.
 
 **Atualização silenciosa:** revalidação automática discreta (~60s) **sem** flicker, spinner ou
 "atualizado às…"; se algo mudou, o bloco novo entra com o mesmo fade suave (o Portal parece
@@ -184,6 +185,7 @@ cor) para estado; `lang=pt-BR`; sem autoplay de nada.
 ---
 
 ## Critério de homologação deste blueprint
-Abrir o Portal e, em ≤5 segundos, um cliente leigo consegue responder em voz alta: *onde meu
-caso está, o que está acontecendo, se preciso fazer algo* — sem ter visto nenhum termo técnico
+
+Abrir o Portal e, em ≤5 segundos, um cliente leigo consegue responder em voz alta: _onde meu
+caso está, o que está acontecendo, se preciso fazer algo_ — sem ter visto nenhum termo técnico
 e com a sensação de que **a AHRI escreveu aquela página para ele**.

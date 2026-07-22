@@ -10,10 +10,21 @@ const MANHA = new Date('2026-07-19T09:00:00');
 
 function inputs(over: Partial<BriefingInputs> = {}): BriefingInputs {
   return {
-    founderName: 'Jessé', now: MANHA,
-    clientesAtivos: 40, novosClientesHoje: 0, dossiesProntos: 0, aguardandoDocumentos: 0, aguardandoAdvogado: 0,
-    casosCriticos: 0, casosPorAdvogado: {}, limiteCargaAdvogado: 10,
-    confiancaMediaCatalogo: null, confiancaMediaAnterior: null, taxaAcerto: null, estrategiaEmAlta: null, gargalo: null,
+    founderName: 'Jessé',
+    now: MANHA,
+    clientesAtivos: 40,
+    novosClientesHoje: 0,
+    dossiesProntos: 0,
+    aguardandoDocumentos: 0,
+    aguardandoAdvogado: 0,
+    casosCriticos: 0,
+    casosPorAdvogado: {},
+    limiteCargaAdvogado: 10,
+    confiancaMediaCatalogo: null,
+    confiancaMediaAnterior: null,
+    taxaAcerto: null,
+    estrategiaEmAlta: null,
+    gargalo: null,
     ...over,
   };
 }
@@ -28,29 +39,48 @@ describe('13A · o briefing dinâmico da AHRI', () => {
   });
 
   it('RANQUEIA por severidade: crítico → alerta → oportunidade → informação', () => {
-    const b = gerarBriefing(inputs({
-      casosCriticos: 1, // crítico
-      aguardandoDocumentos: 5, // alerta
-      dossiesProntos: 2, // oportunidade
-      novosClientesHoje: 3, // informação
-    }));
-    expect(b.insights.map((i) => i.severidade)).toEqual(['critico', 'alerta', 'oportunidade', 'informacao']);
+    const b = gerarBriefing(
+      inputs({
+        casosCriticos: 1, // crítico
+        aguardandoDocumentos: 5, // alerta
+        dossiesProntos: 2, // oportunidade
+        novosClientesHoje: 3, // informação
+      }),
+    );
+    expect(b.insights.map((i) => i.severidade)).toEqual([
+      'critico',
+      'alerta',
+      'oportunidade',
+      'informacao',
+    ]);
     expect(b.insights[0]?.categoria).toBe('caso-critico');
   });
 
   it('advogado SOBRECARREGADO só aparece acima do limite (e escolhe o mais carregado)', () => {
-    const semSobrecarga = gerarBriefing(inputs({ casosPorAdvogado: { ana: 8, bruno: 5 }, limiteCargaAdvogado: 10 }));
-    expect(semSobrecarga.insights.some((i) => i.categoria === 'advogado-sobrecarregado')).toBe(false);
+    const semSobrecarga = gerarBriefing(
+      inputs({ casosPorAdvogado: { ana: 8, bruno: 5 }, limiteCargaAdvogado: 10 }),
+    );
+    expect(semSobrecarga.insights.some((i) => i.categoria === 'advogado-sobrecarregado')).toBe(
+      false,
+    );
 
-    const comSobrecarga = gerarBriefing(inputs({ casosPorAdvogado: { ana: 14, bruno: 11 }, limiteCargaAdvogado: 10 }));
+    const comSobrecarga = gerarBriefing(
+      inputs({ casosPorAdvogado: { ana: 14, bruno: 11 }, limiteCargaAdvogado: 10 }),
+    );
     const insight = comSobrecarga.insights.find((i) => i.categoria === 'advogado-sobrecarregado');
     expect(insight?.detalhe).toContain('ana'); // o mais carregado
     expect(insight?.valor).toBe(14);
   });
 
   it('novo PADRÃO jurídico só a partir de 3 usos recentes (recomendação)', () => {
-    expect(gerarBriefing(inputs({ estrategiaEmAlta: { ref: 'EST-CONSIG-CARTAO-RMC-001', usos: 2 } })).insights.some((i) => i.categoria === 'padrao-detectado')).toBe(false);
-    const b = gerarBriefing(inputs({ estrategiaEmAlta: { ref: 'EST-CONSIG-CARTAO-RMC-001', usos: 5 } }));
+    expect(
+      gerarBriefing(
+        inputs({ estrategiaEmAlta: { ref: 'EST-CONSIG-CARTAO-RMC-001', usos: 2 } }),
+      ).insights.some((i) => i.categoria === 'padrao-detectado'),
+    ).toBe(false);
+    const b = gerarBriefing(
+      inputs({ estrategiaEmAlta: { ref: 'EST-CONSIG-CARTAO-RMC-001', usos: 5 } }),
+    );
     expect(b.insights.find((i) => i.categoria === 'padrao-detectado')?.titulo).toContain('RMC');
   });
 
@@ -89,16 +119,29 @@ describe('13A · o briefing dinâmico da AHRI', () => {
   });
 
   it('saudação muda pela hora do dia', () => {
-    expect(gerarBriefing(inputs({ now: new Date('2026-07-19T15:00:00') })).saudacao).toBe('Boa tarde, Jessé.');
-    expect(gerarBriefing(inputs({ now: new Date('2026-07-19T21:00:00') })).saudacao).toBe('Boa noite, Jessé.');
+    expect(gerarBriefing(inputs({ now: new Date('2026-07-19T15:00:00') })).saudacao).toBe(
+      'Boa tarde, Jessé.',
+    );
+    expect(gerarBriefing(inputs({ now: new Date('2026-07-19T21:00:00') })).saudacao).toBe(
+      'Boa noite, Jessé.',
+    );
   });
 });
 
 describe('13A · indicadores executivos (negócio, não técnico)', () => {
   const base = {
-    clientesAtivos: 40, novosClientesHoje: 3, dossiesGerados: 12, casosDistribuidos: 20, aguardandoDocumentos: 4,
-    casosCriticos: 1, tempoMedioAteDecisaoMs: 3_600_000, precisaoDecisoes: 0.85, confiancaMediaIA: 0.7,
-    documentosProcessados: 130, valorRecuperavel: 250000, receitaPrevista: 50000,
+    clientesAtivos: 40,
+    novosClientesHoje: 3,
+    dossiesGerados: 12,
+    casosDistribuidos: 20,
+    aguardandoDocumentos: 4,
+    casosCriticos: 1,
+    tempoMedioAteDecisaoMs: 3_600_000,
+    precisaoDecisoes: 0.85,
+    confiancaMediaIA: 0.7,
+    documentosProcessados: 130,
+    valorRecuperavel: 250000,
+    receitaPrevista: 50000,
   };
 
   it('traduz Read Models em indicadores apresentáveis, com fonte', () => {
@@ -112,7 +155,14 @@ describe('13A · indicadores executivos (negócio, não técnico)', () => {
   });
 
   it('valores ausentes viram estado explícito (—), nunca inventados', () => {
-    const ind = indicadoresExecutivos({ ...base, precisaoDecisoes: null, valorRecuperavel: null, receitaPrevista: null, confiancaMediaIA: null, tempoMedioAteDecisaoMs: null });
+    const ind = indicadoresExecutivos({
+      ...base,
+      precisaoDecisoes: null,
+      valorRecuperavel: null,
+      receitaPrevista: null,
+      confiancaMediaIA: null,
+      tempoMedioAteDecisaoMs: null,
+    });
     const byId = Object.fromEntries(ind.map((i) => [i.id, i]));
     expect(byId['precisao']?.valor).toBe('—');
     expect(byId['valor-recuperavel']?.valor).toBe('—');

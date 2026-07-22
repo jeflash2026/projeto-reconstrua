@@ -30,23 +30,48 @@ class SeqUuid implements UuidGenerator {
 }
 
 function intent(useCase: string): MissionUseCaseIntent {
-  return { useCase, references: [], decisor: 'AHRI', tipo: 'DECISAO_OPERACIONAL_AUTOMATIZADA', fundamento: 'RO + Canon', operationalRuleRef: 'RO-2D' };
+  return {
+    useCase,
+    references: [],
+    decisor: 'AHRI',
+    tipo: 'DECISAO_OPERACIONAL_AUTOMATIZADA',
+    fundamento: 'RO + Canon',
+    operationalRuleRef: 'RO-2D',
+  };
 }
 function facts(): MissionFacts {
-  return { chatId: CHAT, senderId: CHAT, messageId: 'M1', perceptKind: 'text', text: 'olá', mediaRef: null, fileName: null, mimeType: null, occurredAt: NOW };
+  return {
+    chatId: CHAT,
+    senderId: CHAT,
+    messageId: 'M1',
+    perceptKind: 'text',
+    text: 'olá',
+    mediaRef: null,
+    fileName: null,
+    mimeType: null,
+    occurredAt: NOW,
+  };
 }
 
 async function scenario() {
   const clock = new TestClock();
   const eventStore = new InMemoryEventStore(new CryptoHasher(), new SeqUuid(), clock);
-  const { runtime } = assembleMissionRuntime({ eventStore, hasher: new CryptoHasher(), uuid: new SeqUuid(), clock });
+  const { runtime } = assembleMissionRuntime({
+    eventStore,
+    hasher: new CryptoHasher(),
+    uuid: new SeqUuid(),
+    clock,
+  });
   const living = assembleLivingMemory({ clock, uuid: new SeqUuid() });
   const admin = assembleAdministration({ memoryStore: living.memoryStore });
 
   // 1) A AHRI executa o onboarding (2D) → eventos de domínio.
   const result = await runtime.execute(facts(), [intent('OnboardClient')]);
   // 2) A Memória Viva ingere o turno.
-  await living.ingestor.ingestTurn({ chatId: CHAT, messageId: 'M1', text: 'olá', perceptId: 'P1', sentiment: 'neutral', at: NOW }, result.outcomes);
+  await living.ingestor.ingestTurn(
+    { chatId: CHAT, messageId: 'M1', text: 'olá', perceptId: 'P1', sentiment: 'neutral', at: NOW },
+    result.outcomes,
+  );
   // 3) O Read Model administrativo projeta os eventos (via o subscriber).
   for (const event of await eventStore.readAll(0, 1000)) {
     await admin.projectionSubscriber.handle(event);
@@ -66,7 +91,12 @@ describe('Administration Intelligence + Founder Console (dados só de Read Model
 
   it('NUNCA inventa: dados não capturados retornam não disponível', async () => {
     const s = await scenario();
-    for (const kind of ['financial_under_administration', 'roi', 'best_campaign', 'lawyer_most_processes'] as const) {
+    for (const kind of [
+      'financial_under_administration',
+      'roi',
+      'best_campaign',
+      'lawyer_most_processes',
+    ] as const) {
       const answer = await s.admin.admin.answer(kind, NOW);
       expect(answer.available).toBe(false);
       expect(answer.value).toBeNull();

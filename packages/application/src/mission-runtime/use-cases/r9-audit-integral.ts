@@ -15,7 +15,11 @@ export class AuditIntegralUseCase implements MissionUseCase {
   async execute(ctx: MissionContext): Promise<UseCaseOutcome> {
     const report = await this.auditor.verify(ctx.identity);
     if (!report.ok) {
-      return failedOutcome(this.name, this.streamType, report.error ?? 'integridade da cadeia violada (R9)');
+      return failedOutcome(
+        this.name,
+        this.streamType,
+        report.error ?? 'integridade da cadeia violada (R9)',
+      );
     }
     return {
       useCase: this.name,

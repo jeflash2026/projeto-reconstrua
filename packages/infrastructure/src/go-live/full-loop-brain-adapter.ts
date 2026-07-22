@@ -63,7 +63,10 @@ export function toPerceptView(percept: Percept): PerceptView {
 
 function toMemoryView(context: ConversationContextView, now: Date): BrainMemoryView {
   const lastOut = context.session.lastOutboundAt;
-  return { turnCount: context.session.turns, lastOutboundAgoMs: lastOut ? now.getTime() - lastOut.getTime() : null };
+  return {
+    turnCount: context.session.turns,
+    lastOutboundAgoMs: lastOut ? now.getTime() - lastOut.getTime() : null,
+  };
 }
 
 function toMissionFacts(percept: Percept): MissionFacts {
@@ -86,7 +89,11 @@ function toMissionFacts(percept: Percept): MissionFacts {
           perceivedRelevance: {
             kind: 'event-relevance' as const,
             value: relevance,
-            provenance: { perceivedBy: 'perception', perceivedAt: percept.perceivedAt, evidenceRef: e.messageId },
+            provenance: {
+              perceivedBy: 'perception',
+              perceivedAt: percept.perceivedAt,
+              evidenceRef: e.messageId,
+            },
           },
         }
       : {}),
@@ -103,13 +110,53 @@ function toConversationIntents(intent: BrainIntent): readonly ConversationIntent
   };
   switch (intent.kind) {
     case 'conversation':
-      return [{ ...common, directive: intent.directive, speechAct: intent.speechAct, topic: intent.topic, references: intent.references, urgency: intent.urgency, timingHintMs: null }];
+      return [
+        {
+          ...common,
+          directive: intent.directive,
+          speechAct: intent.speechAct,
+          topic: intent.topic,
+          references: intent.references,
+          urgency: intent.urgency,
+          timingHintMs: null,
+        },
+      ];
     case 'wait':
-      return [{ ...common, directive: 'wait', speechAct: null, topic: null, references: [], urgency: 'low', timingHintMs: intent.untilHintMs }];
+      return [
+        {
+          ...common,
+          directive: 'wait',
+          speechAct: null,
+          topic: null,
+          references: [],
+          urgency: 'low',
+          timingHintMs: intent.untilHintMs,
+        },
+      ];
     case 'stop':
-      return [{ ...common, directive: 'stop', speechAct: null, topic: null, references: [intent.reasonCode], urgency: 'low', timingHintMs: null }];
+      return [
+        {
+          ...common,
+          directive: 'stop',
+          speechAct: null,
+          topic: null,
+          references: [intent.reasonCode],
+          urgency: 'low',
+          timingHintMs: null,
+        },
+      ];
     case 'escalation':
-      return [{ ...common, directive: 'handoff', speechAct: null, topic: null, references: [intent.role, intent.reasonCode], urgency: 'normal', timingHintMs: null }];
+      return [
+        {
+          ...common,
+          directive: 'handoff',
+          speechAct: null,
+          topic: null,
+          references: [intent.role, intent.reasonCode],
+          urgency: 'normal',
+          timingHintMs: null,
+        },
+      ];
     case 'use_case':
     case 'notification':
       return [];
@@ -162,7 +209,10 @@ export class FullLoopBrainAdapter implements ExecutiveBrainPort {
     // use cases falhando viravam failedOutcome silencioso e o diagnóstico em
     // produção ficou cego. (a) documento SEM nenhuma use_case emitida é anômalo
     // e loga as regras escolhidas; (b) TODO outcome falho loga o erro literal.
-    if (missionIntents.length === 0 && ['pdf', 'document', 'image'].includes(input.percept.envelope.kind)) {
+    if (
+      missionIntents.length === 0 &&
+      ['pdf', 'document', 'image'].includes(input.percept.envelope.kind)
+    ) {
       d.observability.error(
         'full-loop',
         'documento-sem-use-case',
@@ -171,10 +221,17 @@ export class FullLoopBrainAdapter implements ExecutiveBrainPort {
       );
     }
     const missionResult =
-      missionIntents.length > 0 ? await d.mission.execute(toMissionFacts(input.percept), missionIntents) : null;
+      missionIntents.length > 0
+        ? await d.mission.execute(toMissionFacts(input.percept), missionIntents)
+        : null;
     for (const o of missionResult?.outcomes ?? []) {
       if (!o.ok && !o.skipped) {
-        d.observability.error('mission', o.useCase, now, `chat=${chatId} stream=${o.streamType} erro=${o.error ?? 'sem detalhe'}`);
+        d.observability.error(
+          'mission',
+          o.useCase,
+          now,
+          `chat=${chatId} stream=${o.streamType} erro=${o.error ?? 'sem detalhe'}`,
+        );
       }
     }
 

@@ -43,26 +43,38 @@ describe('mapEvolutionUpsert', () => {
   });
 
   it('áudio', () => {
-    const env = mapEvolutionUpsert(upsert({ audioMessage: { mimetype: 'audio/ogg', url: 'enc://a', ptt: true } }));
+    const env = mapEvolutionUpsert(
+      upsert({ audioMessage: { mimetype: 'audio/ogg', url: 'enc://a', ptt: true } }),
+    );
     expect(env?.kind).toBe('audio');
     expect(env?.mediaMimeType).toBe('audio/ogg');
   });
 
   it('pdf vs documento genérico pelo mimetype', () => {
     const pdf = mapEvolutionUpsert(
-      upsert({ documentMessage: { fileName: 'rg.pdf', mimetype: 'application/pdf', url: 'enc://d' } }),
+      upsert({
+        documentMessage: { fileName: 'rg.pdf', mimetype: 'application/pdf', url: 'enc://d' },
+      }),
     );
     expect(pdf?.kind).toBe('pdf');
     expect(pdf?.fileName).toBe('rg.pdf');
     const doc = mapEvolutionUpsert(
-      upsert({ documentMessage: { fileName: 'planilha.xlsx', mimetype: 'application/vnd.ms-excel', url: 'enc://d' } }),
+      upsert({
+        documentMessage: {
+          fileName: 'planilha.xlsx',
+          mimetype: 'application/vnd.ms-excel',
+          url: 'enc://d',
+        },
+      }),
     );
     expect(doc?.kind).toBe('document');
   });
 
   it('localização', () => {
     const env = mapEvolutionUpsert(
-      upsert({ locationMessage: { degreesLatitude: -23.5, degreesLongitude: -46.6, name: 'Fórum' } }),
+      upsert({
+        locationMessage: { degreesLatitude: -23.5, degreesLongitude: -46.6, name: 'Fórum' },
+      }),
     );
     expect(env?.kind).toBe('location');
     expect(env?.location).toEqual({ latitude: -23.5, longitude: -46.6, name: 'Fórum' });
@@ -77,14 +89,18 @@ describe('mapEvolutionUpsert', () => {
   });
 
   it('reação', () => {
-    const env = mapEvolutionUpsert(upsert({ reactionMessage: { text: '👍', key: { id: 'MSG0' } } }));
+    const env = mapEvolutionUpsert(
+      upsert({ reactionMessage: { text: '👍', key: { id: 'MSG0' } } }),
+    );
     expect(env?.kind).toBe('reaction');
     expect(env?.reactionEmoji).toBe('👍');
     expect(env?.reactionToMessageId).toBe('MSG0');
   });
 
   it('exclusão (protocolMessage REVOKE)', () => {
-    const env = mapEvolutionUpsert(upsert({ protocolMessage: { type: 'REVOKE', key: { id: 'MSG0' } } }));
+    const env = mapEvolutionUpsert(
+      upsert({ protocolMessage: { type: 'REVOKE', key: { id: 'MSG0' } } }),
+    );
     expect(env?.kind).toBe('delete');
     expect(env?.deletedMessageId).toBe('MSG0');
   });
@@ -92,7 +108,11 @@ describe('mapEvolutionUpsert', () => {
   it('edição (protocolMessage MESSAGE_EDIT) ⇒ entra como TEXT (regressão GO-LIVE: editada ficava MUDA)', () => {
     const env = mapEvolutionUpsert(
       upsert({
-        protocolMessage: { type: 'MESSAGE_EDIT', key: { id: 'MSG0' }, editedMessage: { conversation: 'texto corrigido' } },
+        protocolMessage: {
+          type: 'MESSAGE_EDIT',
+          key: { id: 'MSG0' },
+          editedMessage: { conversation: 'texto corrigido' },
+        },
       }),
     );
     // A cliente editou o nome e a AHRI silenciou: nenhuma regra atende 'edit'.
@@ -125,13 +145,21 @@ describe('Regressão GO-LIVE · from NUNCA vazio (a causa real do HISCON travado
     expect(env?.from).toBe('5511999999999@s.whatsapp.net');
   });
   it('participant REAL (grupo) ⇒ from = participant', () => {
-    const env = mapEvolutionUpsert(upsert({ conversation: 'oi' }, { participant: '5511888888888@s.whatsapp.net' }));
+    const env = mapEvolutionUpsert(
+      upsert({ conversation: 'oi' }, { participant: '5511888888888@s.whatsapp.net' }),
+    );
     expect(env?.from).toBe('5511888888888@s.whatsapp.net');
   });
   it('o PDF do cenário real sai com from preenchido', () => {
     const env = mapEvolutionUpsert(
       upsert(
-        { documentMessage: { fileName: 'extrato_emprestimo_consignado_completo_030726.pdf', mimetype: 'application/pdf', url: 'enc://d' } },
+        {
+          documentMessage: {
+            fileName: 'extrato_emprestimo_consignado_completo_030726.pdf',
+            mimetype: 'application/pdf',
+            url: 'enc://d',
+          },
+        },
         { participant: '' },
       ),
     );

@@ -5,7 +5,11 @@
 import { describe, it, expect } from 'vitest';
 import { emptyALIR, type ALIR } from '../alir/alir-contract.js';
 import { evaluateReadiness } from './readiness.js';
-import { REQUIREMENTS, requirementsFor, type QualificationCaseType } from './requirements-matrix.js';
+import {
+  REQUIREMENTS,
+  requirementsFor,
+  type QualificationCaseType,
+} from './requirements-matrix.js';
 
 const NOW = new Date('2026-07-18T12:00:00.000Z');
 const ENVIADOS_INDISP = ['operational.documentos.enviados'];
@@ -54,40 +58,68 @@ describe('Matriz de requisitos', () => {
 
 describe('evaluateReadiness · vereditos determinísticos', () => {
   it('PRONTO quando docs satisfeitos e verdade sintetizada', () => {
-    const r = evaluateReadiness({ alir: alirWith({ pendentes: [] }), caseType: 'GENERICO', now: NOW });
+    const r = evaluateReadiness({
+      alir: alirWith({ pendentes: [] }),
+      caseType: 'GENERICO',
+      now: NOW,
+    });
     expect(r.ready).toBe(true);
     expect(r.missingRequirements).toEqual([]);
     expect(r.reason).toContain('Pronto');
   });
 
   it('NÃO PRONTO com documento obrigatório pendente (informa o que falta)', () => {
-    const r = evaluateReadiness({ alir: alirWith({ pendentes: ['CNIS'] }), caseType: 'APOSENTADORIA_IDADE', now: NOW });
+    const r = evaluateReadiness({
+      alir: alirWith({ pendentes: ['CNIS'] }),
+      caseType: 'APOSENTADORIA_IDADE',
+      now: NOW,
+    });
     expect(r.ready).toBe(false);
-    expect(r.missingRequirements).toContainEqual({ kind: 'document', code: 'CNIS', label: 'extrato previdenciário (CNIS/HISCON)' });
+    expect(r.missingRequirements).toContainEqual({
+      kind: 'document',
+      code: 'CNIS',
+      label: 'extrato previdenciário (CNIS/HISCON)',
+    });
     expect(r.confidence).toBe(1);
   });
 
   it('NÃO PRONTO quando a verdade não foi sintetizada', () => {
-    const r = evaluateReadiness({ alir: alirWith({ truthEstablished: false }), caseType: 'GENERICO', now: NOW });
+    const r = evaluateReadiness({
+      alir: alirWith({ truthEstablished: false }),
+      caseType: 'GENERICO',
+      now: NOW,
+    });
     expect(r.ready).toBe(false);
     expect(r.missingRequirements.some((x) => x.code === 'VERDADE_SINTETIZADA')).toBe(true);
   });
 
   it('impeditiva ENCERRADO bloqueia mesmo com tudo satisfeito', () => {
-    const r = evaluateReadiness({ alir: alirWith({ terminalState: 'ENCERRADA' }), caseType: 'GENERICO', now: NOW });
+    const r = evaluateReadiness({
+      alir: alirWith({ terminalState: 'ENCERRADA' }),
+      caseType: 'GENERICO',
+      now: NOW,
+    });
     expect(r.ready).toBe(false);
     expect(r.missingRequirements[0]?.code).toBe('ENCERRADO');
     expect(r.reason).toContain('encerrado');
   });
 
   it('impeditiva SEM_CASO quando não há missão', () => {
-    const r = evaluateReadiness({ alir: alirWith({ missionId: null }), caseType: 'GENERICO', now: NOW });
+    const r = evaluateReadiness({
+      alir: alirWith({ missionId: null }),
+      caseType: 'GENERICO',
+      now: NOW,
+    });
     expect(r.ready).toBe(false);
     expect(r.missingRequirements.some((x) => x.code === 'SEM_CASO')).toBe(true);
   });
 
   it('exige documentos específicos do tipo (BENEFICIO_INCAPACIDADE → LAUDO_MEDICO)', () => {
-    const r = evaluateReadiness({ alir: alirWith({ pendentes: ['LAUDO_MEDICO'] }), caseType: 'BENEFICIO_INCAPACIDADE', now: NOW });
+    const r = evaluateReadiness({
+      alir: alirWith({ pendentes: ['LAUDO_MEDICO'] }),
+      caseType: 'BENEFICIO_INCAPACIDADE',
+      now: NOW,
+    });
     expect(r.ready).toBe(false);
     expect(r.missingRequirements.some((x) => x.code === 'LAUDO_MEDICO')).toBe(true);
   });
@@ -95,25 +127,43 @@ describe('evaluateReadiness · vereditos determinísticos', () => {
 
 describe('evaluateReadiness · confiança (determinística, não IA)', () => {
   it('recebimento inferido (enviados indisponível) reduz a confiança do PRONTO', () => {
-    const r = evaluateReadiness({ alir: alirWith({ pendentes: [] }), caseType: 'GENERICO', unavailable: ENVIADOS_INDISP, now: NOW });
+    const r = evaluateReadiness({
+      alir: alirWith({ pendentes: [] }),
+      caseType: 'GENERICO',
+      unavailable: ENVIADOS_INDISP,
+      now: NOW,
+    });
     expect(r.ready).toBe(true);
     expect(r.confidence).toBe(0.75);
   });
 
   it('recebimento observável → confiança plena', () => {
-    const r = evaluateReadiness({ alir: alirWith({ pendentes: [] }), caseType: 'GENERICO', unavailable: [], now: NOW });
+    const r = evaluateReadiness({
+      alir: alirWith({ pendentes: [] }),
+      caseType: 'GENERICO',
+      unavailable: [],
+      now: NOW,
+    });
     expect(r.confidence).toBe(1);
   });
 
   it('condição impeditiva não observável (perícia) reduz confiança do PRONTO', () => {
-    const r = evaluateReadiness({ alir: alirWith({ pendentes: [] }), caseType: 'BENEFICIO_INCAPACIDADE', unavailable: [], now: NOW });
+    const r = evaluateReadiness({
+      alir: alirWith({ pendentes: [] }),
+      caseType: 'BENEFICIO_INCAPACIDADE',
+      unavailable: [],
+      now: NOW,
+    });
     expect(r.ready).toBe(true);
     expect(r.confidence).toBe(0.6);
   });
 
   it('é determinístico: mesma entrada → mesmo resultado', () => {
-    const input = { alir: alirWith({ pendentes: ['CNIS'] }), caseType: 'APOSENTADORIA_IDADE' as const, now: NOW };
+    const input = {
+      alir: alirWith({ pendentes: ['CNIS'] }),
+      caseType: 'APOSENTADORIA_IDADE' as const,
+      now: NOW,
+    };
     expect(evaluateReadiness(input)).toEqual(evaluateReadiness(input));
   });
 });
-

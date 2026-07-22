@@ -32,7 +32,9 @@ const PainelPage = async (): Promise<ReactElement> => {
     <>
       <AutoRefresh seconds={8} />
       <h1 className="page-title">Painel</h1>
-      <p className="page-sub">Somente seus processos e seu trabalho. A comunicação com clientes é da AHRI.</p>
+      <p className="page-sub">
+        Somente seus processos e seu trabalho. A comunicação com clientes é da AHRI.
+      </p>
       <div className="grid stats" style={{ marginBottom: 16 }}>
         <Stat label="Processos atribuídos" value={data.processCount} />
         <Stat label="Pendências" value={data.pendingCount} />

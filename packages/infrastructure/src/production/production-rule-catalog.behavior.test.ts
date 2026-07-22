@@ -40,12 +40,24 @@ function brain(): ExecutiveBrainRuntime {
 }
 
 function perceptOf(over: Partial<PerceptView>): PerceptView {
-  return { kind: 'text', sentiment: 'neutral', urgency: 'normal', hasArtifacts: false, artifactCount: 0, silenceMs: null, ...over };
+  return {
+    kind: 'text',
+    sentiment: 'neutral',
+    urgency: 'normal',
+    hasArtifacts: false,
+    artifactCount: 0,
+    silenceMs: null,
+    ...over,
+  };
 }
 function snapshotOf(over: Partial<MissionSnapshot>): MissionSnapshot {
   return { ...emptySnapshot('m1'), ...over };
 }
-function ctx(percept: Partial<PerceptView>, snapshot: Partial<MissionSnapshot>, turnCount = 2): BrainContext {
+function ctx(
+  percept: Partial<PerceptView>,
+  snapshot: Partial<MissionSnapshot>,
+  turnCount = 2,
+): BrainContext {
   return {
     percept: perceptOf(percept),
     snapshot: snapshotOf(snapshot),
@@ -57,8 +69,15 @@ function ctx(percept: Partial<PerceptView>, snapshot: Partial<MissionSnapshot>, 
 }
 
 /** Regra vencedora = maior prioridade entre as APLICÁVEIS (espelha a seleção do Brain). */
-function winner(percept: Partial<PerceptView>, snapshot: Partial<MissionSnapshot>, turnCount = 2): string | null {
-  const facts = buildFacts(perceptOf(percept), snapshotOf(snapshot), { turnCount, lastOutboundAgoMs: null });
+function winner(
+  percept: Partial<PerceptView>,
+  snapshot: Partial<MissionSnapshot>,
+  turnCount = 2,
+): string | null {
+  const facts = buildFacts(perceptOf(percept), snapshotOf(snapshot), {
+    turnCount,
+    lastOutboundAgoMs: null,
+  });
   const evals = new RuleEvaluator().evaluateAll(PRODUCTION_RULE_CATALOG, facts);
   const applicable = evals.filter((e) => e.applicable).sort((a, b) => b.priority - a.priority);
   return applicable[0]?.ref ?? null;
@@ -93,14 +112,22 @@ describe('CAT-01 · RO-DEADLINE-WARN-001 (avisar prazo ≤3 dias)', () => {
   const snapshot = { deadlines: [{ code: 'd1', dueInDays: 2 }] };
 
   it('1) fatos: hasDeadline=true, minDeadlineDays=2', () => {
-    const facts = buildFacts(perceptOf(percept), snapshotOf(snapshot), { turnCount: 2, lastOutboundAgoMs: null });
+    const facts = buildFacts(perceptOf(percept), snapshotOf(snapshot), {
+      turnCount: 2,
+      lastOutboundAgoMs: null,
+    });
     expect(facts['hasDeadline']).toBe(true);
     expect(facts['minDeadlineDays']).toBe(2);
     expect(facts['matterRequiresHuman']).toBe(false);
   });
   it('2) avaliação: a regra é aplicável', () => {
-    const facts = buildFacts(perceptOf(percept), snapshotOf(snapshot), { turnCount: 2, lastOutboundAgoMs: null });
-    const evalWarn = new RuleEvaluator().evaluateAll(PRODUCTION_RULE_CATALOG, facts).find((e) => e.ref === 'RO-DEADLINE-WARN-001');
+    const facts = buildFacts(perceptOf(percept), snapshotOf(snapshot), {
+      turnCount: 2,
+      lastOutboundAgoMs: null,
+    });
+    const evalWarn = new RuleEvaluator()
+      .evaluateAll(PRODUCTION_RULE_CATALOG, facts)
+      .find((e) => e.ref === 'RO-DEADLINE-WARN-001');
     expect(evalWarn?.matched).toBe(true);
     expect(evalWarn?.applicable).toBe(true);
   });
@@ -121,12 +148,20 @@ describe('CAT-01 · RO-META-ESCALATE-CANON-001 (Canon silente → supervisor)', 
   const snapshot = { canonSilent: true };
 
   it('1) fatos: canonSilent=true', () => {
-    const facts = buildFacts(perceptOf(percept), snapshotOf(snapshot), { turnCount: 2, lastOutboundAgoMs: null });
+    const facts = buildFacts(perceptOf(percept), snapshotOf(snapshot), {
+      turnCount: 2,
+      lastOutboundAgoMs: null,
+    });
     expect(facts['canonSilent']).toBe(true);
   });
   it('2) avaliação: aplicável e não bloqueada', () => {
-    const facts = buildFacts(perceptOf(percept), snapshotOf(snapshot), { turnCount: 2, lastOutboundAgoMs: null });
-    const e = new RuleEvaluator().evaluateAll(PRODUCTION_RULE_CATALOG, facts).find((x) => x.ref === 'RO-META-ESCALATE-CANON-001');
+    const facts = buildFacts(perceptOf(percept), snapshotOf(snapshot), {
+      turnCount: 2,
+      lastOutboundAgoMs: null,
+    });
+    const e = new RuleEvaluator()
+      .evaluateAll(PRODUCTION_RULE_CATALOG, facts)
+      .find((x) => x.ref === 'RO-META-ESCALATE-CANON-001');
     expect(e?.applicable).toBe(true);
   });
   it('3) regra vencedora = RO-META-ESCALATE-CANON-001', () => {
@@ -146,11 +181,17 @@ describe('B4.1 · RO-STOP-CONCLUDED-001 (missão ENCERRADA → PARA, sem acompan
   const encerrada = { stateCode: 'ENCERRADA' };
 
   it('1) fatos: stateCode=ENCERRADA', () => {
-    const facts = buildFacts(perceptOf({ kind: 'timeout' }), snapshotOf(encerrada), { turnCount: 5, lastOutboundAgoMs: null });
+    const facts = buildFacts(perceptOf({ kind: 'timeout' }), snapshotOf(encerrada), {
+      turnCount: 5,
+      lastOutboundAgoMs: null,
+    });
     expect(facts['stateCode']).toBe('ENCERRADA');
   });
   it('2) avaliação: RO-STOP-CONCLUDED-001 aplicável; follow-ups BLOQUEADOS', () => {
-    const facts = buildFacts(perceptOf({ kind: 'timeout' }), snapshotOf(encerrada), { turnCount: 5, lastOutboundAgoMs: null });
+    const facts = buildFacts(perceptOf({ kind: 'timeout' }), snapshotOf(encerrada), {
+      turnCount: 5,
+      lastOutboundAgoMs: null,
+    });
     const evals = new RuleEvaluator().evaluateAll(PRODUCTION_RULE_CATALOG, facts);
     expect(evals.find((e) => e.ref === 'RO-STOP-CONCLUDED-001')?.applicable).toBe(true);
     expect(evals.find((e) => e.ref === 'RO-4C-FOLLOWUP-TIMEOUT')?.applicable).toBe(false);
@@ -195,12 +236,19 @@ describe('CAT-01 · regressão — regras existentes ainda disparam quando devem
     expect(outcome.record.chosenRefs).not.toContain('RO-4C-FOLLOWUP-TIMEOUT');
   });
   it('documento percebido ⇒ RO-2D-INGEST-DOC (use_case)', async () => {
-    const outcome = await brain().decide(ctx({ kind: 'pdf', hasArtifacts: true, artifactCount: 1 }, {}));
+    const outcome = await brain().decide(
+      ctx({ kind: 'pdf', hasArtifacts: true, artifactCount: 1 }, {}),
+    );
     expect(outcome.record.chosenRefs).toContain('RO-2D-INGEST-DOC');
     expect(outcome.intents.some((i) => i.kind === 'use_case')).toBe(true);
   });
   it('matéria humana ⇒ SÓ RO-2D-ESCALATE-HUMAN — a nova regra de prazo é BLOQUEADA', async () => {
-    const outcome = await brain().decide(ctx({ kind: 'text' }, { matterRequiresHuman: true, deadlines: [{ code: 'd', dueInDays: 2 }] }));
+    const outcome = await brain().decide(
+      ctx(
+        { kind: 'text' },
+        { matterRequiresHuman: true, deadlines: [{ code: 'd', dueInDays: 2 }] },
+      ),
+    );
     expect(outcome.record.chosenRefs).toContain('RO-2D-ESCALATE-HUMAN');
     expect(outcome.intents).toHaveLength(1);
     expect(outcome.intents[0]?.kind).toBe('escalation');

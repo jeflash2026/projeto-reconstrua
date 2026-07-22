@@ -44,7 +44,8 @@ export class AutomatedDecisionRecord extends ValueObject<{ fundamento: string }>
         new CanonViolationError({
           invariantId: 'INV-AH-02',
           canonReference: 'Entidade 14; INV-AH-02; DF-09 (registro DECISOR/TIPO/FUNDAMENTO)',
-          message: 'Atuação da AHRI sem FUNDAMENTO citado (Regra Constitucional + Regra Operacional) — DF-09.',
+          message:
+            'Atuação da AHRI sem FUNDAMENTO citado (Regra Constitucional + Regra Operacional) — DF-09.',
         }),
       );
     }

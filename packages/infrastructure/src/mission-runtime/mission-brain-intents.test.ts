@@ -21,7 +21,12 @@ function useCaseIntent(useCase: string, ref: string): BrainIntent {
     chatId: CHAT,
     useCase,
     references: [],
-    provenance: { decisor: 'AHRI', tipo: 'Decisão Operacional Automatizada', fundamento: 'F', operationalRuleRef: ref },
+    provenance: {
+      decisor: 'AHRI',
+      tipo: 'Decisão Operacional Automatizada',
+      fundamento: 'F',
+      operationalRuleRef: ref,
+    },
     formedAt: NOW,
   } as unknown as BrainIntent;
 }
@@ -53,15 +58,23 @@ describe('e2e — o PRIMEIRO documento de um cliente novo cria a missão E é in
     let state: MissionIdentity | null = null;
     const identityMap: MissionIdentityMap = {
       load: () => Promise.resolve(state),
-      save: (i) => { state = i; return Promise.resolve(); },
+      save: (i) => {
+        state = i;
+        return Promise.resolve();
+      },
     };
     const { runtime } = assembleMissionRuntime({ eventStore, hasher, uuid, clock, identityMap });
 
     const facts = {
-      chatId: CHAT, senderId: CHAT, messageId: '3AE87DBE4E5850C0775E', perceptKind: 'pdf',
-      text: null, mediaRef: 'https://mmg.whatsapp.net/x',
+      chatId: CHAT,
+      senderId: CHAT,
+      messageId: '3AE87DBE4E5850C0775E',
+      perceptKind: 'pdf',
+      text: null,
+      mediaRef: 'https://mmg.whatsapp.net/x',
       fileName: 'extrato_emprestimo_consignado_completo_030726.pdf',
-      mimeType: 'application/pdf', occurredAt: NOW,
+      mimeType: 'application/pdf',
+      occurredAt: NOW,
     } as never;
     // A ordem CRUA do Brain (prioridade): IngestDocument antes de OnboardClient.
     const intents = toMissionUseCaseIntents([

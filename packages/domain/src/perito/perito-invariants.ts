@@ -20,25 +20,22 @@ export const peritoEntityInvariants: ReadonlyArray<Invariant<PeritoAggregate>> =
   defineInvariant<PeritoAggregate>({
     id: 'INV-PT-03',
     canonReference: 'PERITO INV-PT-03; Lei Geral; item 13',
-    description: 'Responsabilidade temporária sobre a Missão (que pertence ao Projeto); Pessoa e Missão referenciadas, jamais possuídas.',
+    description:
+      'Responsabilidade temporária sobre a Missão (que pertence ao Projeto); Pessoa e Missão referenciadas, jamais possuídas.',
     check: (p) => p.person != null && p.mission != null,
   }),
   defineInvariant<PeritoAggregate>({
     id: 'PT-ATUA-NA-PERICIA',
     canonReference: 'PERITO item 11/18; INV-PT-02; DF-17',
-    description: 'O Perito atua numa fase PERÍCIA (13) referenciada — atua na etapa, não é a etapa.',
+    description:
+      'O Perito atua numa fase PERÍCIA (13) referenciada — atua na etapa, não é a etapa.',
     check: (p) => p.expertise != null,
   }),
 ];
 
 // (B) Manifesto completo das 3 invariantes do Canon e onde cada uma é garantida.
 export type EnforcementLocus =
-  | 'entity'
-  | 'event-store'
-  | 'projection'
-  | 'cqrs'
-  | 'use-case'
-  | 'cross-entity';
+  'entity' | 'event-store' | 'projection' | 'cqrs' | 'use-case' | 'cross-entity';
 
 export interface PeritoInvariantSpec {
   readonly id: string;
@@ -48,7 +45,23 @@ export interface PeritoInvariantSpec {
 }
 
 export const PERITO_INVARIANTS_MANIFEST: ReadonlyArray<PeritoInvariantSpec> = [
-  { id: 'INV-PT-01', canonReference: 'DF-09', description: 'Atos privativos de perícia só podem ser praticados pelo Perito; a AHRI e não-peritos jamais.', enforcement: 'cross-entity' },
-  { id: 'INV-PT-02', canonReference: 'DF-17', description: 'Distinto da PERÍCIA (etapa); jamais se confunde com ela.', enforcement: 'entity' },
-  { id: 'INV-PT-03', canonReference: 'Lei Geral', description: 'Responsabilidade temporária; a missão pertence ao Projeto, jamais ao Perito.', enforcement: 'entity' },
+  {
+    id: 'INV-PT-01',
+    canonReference: 'DF-09',
+    description:
+      'Atos privativos de perícia só podem ser praticados pelo Perito; a AHRI e não-peritos jamais.',
+    enforcement: 'cross-entity',
+  },
+  {
+    id: 'INV-PT-02',
+    canonReference: 'DF-17',
+    description: 'Distinto da PERÍCIA (etapa); jamais se confunde com ela.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-PT-03',
+    canonReference: 'Lei Geral',
+    description: 'Responsabilidade temporária; a missão pertence ao Projeto, jamais ao Perito.',
+    enforcement: 'entity',
+  },
 ];

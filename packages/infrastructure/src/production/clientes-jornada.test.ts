@@ -43,17 +43,38 @@ async function wire() {
     staffStore: new JsonStaffStore(json),
     juridicalStore: new JsonJuridicalWorkStore(json),
   });
-  const clientes = new ClientesList({ memory: memoryStore, alir: alir.builder, modalidade: modalidadeStore, venda: vendaStore, pedidos: pedidosStore });
+  const clientes = new ClientesList({
+    memory: memoryStore,
+    alir: alir.builder,
+    modalidade: modalidadeStore,
+    venda: vendaStore,
+    pedidos: pedidosStore,
+  });
 
   // Cliente reconhecido, caso pronto (verdade sintetizada, sem docs pendentes).
   await identityMap.save({
-    chatId: 'c1', personId: 'p1', clienteId: 'cli-1', missionId: 'm1', caseId: null,
-    processId: null, latestTruthId: null, latestStateId: null, latestStageId: null,
-    lastDocumentId: null, lastEventId: null,
+    chatId: 'c1',
+    personId: 'p1',
+    clienteId: 'cli-1',
+    missionId: 'm1',
+    caseId: null,
+    processId: null,
+    latestTruthId: null,
+    latestStateId: null,
+    latestStageId: null,
+    lastDocumentId: null,
+    lastEventId: null,
   });
   await memoryStore.save({
     ...emptyMemory('c1'),
-    attributes: [{ key: 'nome', value: 'Maria', source: { kind: 'conversation', ref: 'x', at: NOW }, confidence: 0.9 }],
+    attributes: [
+      {
+        key: 'nome',
+        value: 'Maria',
+        source: { kind: 'conversation', ref: 'x', at: NOW },
+        confidence: 0.9,
+      },
+    ],
     lastContactAt: NOW,
   });
   await decisionState.save({ missionId: 'm1', truthEstablished: true, updatedAt: NOW });
@@ -76,7 +97,12 @@ describe('ClientesList · wiring de produção (Json stores)', () => {
     expect(await clientes.prontosParaVenda(NOW)).toHaveLength(0);
 
     // Admin decide VENDA (marcador por clienteId) → entra na fila do Modelo A.
-    await modalidadeStore.save({ clienteId: 'cli-1', modalidade: 'VENDA', decididaEm: NOW, decididaPor: 'admin' });
+    await modalidadeStore.save({
+      clienteId: 'cli-1',
+      modalidade: 'VENDA',
+      decididaEm: NOW,
+      decididaPor: 'admin',
+    });
     lista = await clientes.list(NOW);
     expect(lista.find((c) => c.clienteId === 'cli-1')?.status).toBe('PRONTO_AGUARDANDO_VENDA');
     const fila = await clientes.prontosParaVenda(NOW);
@@ -86,21 +112,35 @@ describe('ClientesList · wiring de produção (Json stores)', () => {
 
   it('B-R3 — fato confirmado + relógio derivam as filas da Jornada B (stores reais)', async () => {
     const { clientes, modalidadeStore, pedidosStore } = await wire();
-    await modalidadeStore.save({ clienteId: 'cli-1', modalidade: 'SOCIEDADE', decididaEm: NOW, decididaPor: 'admin' });
+    await modalidadeStore.save({
+      clienteId: 'cli-1',
+      modalidade: 'SOCIEDADE',
+      decididaEm: NOW,
+      decididaPor: 'admin',
+    });
 
     // Antes do fato: fila da perícia.
     let lista = await clientes.list(NOW);
     expect(lista.find((c) => c.clienteId === 'cli-1')?.status).toBe('PRONTO_AGUARDANDO_PERICIA');
 
     // Fato confirmado (round-trip com Date revivida) → prazo correndo.
-    await pedidosStore.save({ clienteId: 'cli-1', chatId: 'c1', confirmadoEm: NOW, confirmadoPor: 'perito', bancos: ['BANCO BMG S/A'], contratos: 2 });
+    await pedidosStore.save({
+      clienteId: 'cli-1',
+      chatId: 'c1',
+      confirmadoEm: NOW,
+      confirmadoPor: 'perito',
+      bancos: ['BANCO BMG S/A'],
+      contratos: 2,
+    });
     const fato = await pedidosStore.load('cli-1');
     expect(fato?.confirmadoEm).toBeInstanceOf(Date);
     expect(fato?.bancos).toEqual(['BANCO BMG S/A']);
 
     lista = await clientes.list(NOW);
     expect(lista.find((c) => c.clienteId === 'cli-1')?.status).toBe('AGUARDANDO_10_DIAS');
-    expect(lista.find((c) => c.clienteId === 'cli-1')?.pedidosConfirmadosEm?.toISOString()).toBe(NOW.toISOString());
+    expect(lista.find((c) => c.clienteId === 'cli-1')?.pedidosConfirmadosEm?.toISOString()).toBe(
+      NOW.toISOString(),
+    );
 
     // 11 dias depois: prazo vencido → aguardando sócio (só o relógio mudou; Lei 8).
     const DEPOIS = new Date(NOW.getTime() + 11 * 24 * 60 * 60 * 1000);
@@ -110,8 +150,19 @@ describe('ClientesList · wiring de produção (Json stores)', () => {
 
   it('R3 — venda registrada → status VENDIDO e fila de venda esvazia', async () => {
     const { clientes, modalidadeStore, vendaStore } = await wire();
-    await modalidadeStore.save({ clienteId: 'cli-1', modalidade: 'VENDA', decididaEm: NOW, decididaPor: 'admin' });
-    await vendaStore.save({ clienteId: 'cli-1', chatId: 'c1', comprador: 'Escritório X', vendidaEm: NOW, vendidaPor: 'admin' });
+    await modalidadeStore.save({
+      clienteId: 'cli-1',
+      modalidade: 'VENDA',
+      decididaEm: NOW,
+      decididaPor: 'admin',
+    });
+    await vendaStore.save({
+      clienteId: 'cli-1',
+      chatId: 'c1',
+      comprador: 'Escritório X',
+      vendidaEm: NOW,
+      vendidaPor: 'admin',
+    });
 
     const lista = await clientes.list(NOW);
     expect(lista.find((c) => c.clienteId === 'cli-1')?.status).toBe('VENDIDO');
@@ -126,7 +177,12 @@ describe('ClientesList · wiring de produção (Json stores)', () => {
   it('marcador persiste com Date revivida (round-trip Json)', async () => {
     const json = new InMemoryJsonStore();
     const store = new JsonModalidadeStore(json);
-    await store.save({ clienteId: 'cli-9', modalidade: 'SOCIEDADE', decididaEm: NOW, decididaPor: 'admin' });
+    await store.save({
+      clienteId: 'cli-9',
+      modalidade: 'SOCIEDADE',
+      decididaEm: NOW,
+      decididaPor: 'admin',
+    });
     const loaded = await store.load('cli-9');
     expect(loaded?.modalidade).toBe('SOCIEDADE');
     expect(loaded?.decididaEm).toBeInstanceOf(Date);

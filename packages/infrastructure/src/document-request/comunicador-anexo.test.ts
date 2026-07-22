@@ -15,12 +15,19 @@ import { DocumentRequestComunicador } from './document-request-comunicador.js';
 const NOW = new Date('2026-07-20T10:00:00.000Z');
 const CHAT = '5517996332346@s.whatsapp.net';
 class TestClock implements Clock {
-  now(): Date { return NOW; }
+  now(): Date {
+    return NOW;
+  }
 }
 
 const NOVA = {
-  requestId: '00000000-0000-4000-8000-0000000000b1', caseId: 'M-1', clientId: CHAT,
-  lawyerId: 'ADV-1', documentName: 'Procuração', requestedBy: 'Dr. João Silva', createdAt: NOW,
+  requestId: '00000000-0000-4000-8000-0000000000b1',
+  caseId: 'M-1',
+  clientId: CHAT,
+  lawyerId: 'ADV-1',
+  documentName: 'Procuração',
+  requestedBy: 'Dr. João Silva',
+  createdAt: NOW,
 } as const;
 
 function harness(opts: { comAnexo?: boolean; semEnviador?: boolean } = {}) {
@@ -31,7 +38,12 @@ function harness(opts: { comAnexo?: boolean; semEnviador?: boolean } = {}) {
   const textos: string[] = [];
   const arquivos: { chatId: string; anexo: AnexoParaAssinatura; caption: string }[] = [];
   const comunicador = new DocumentRequestComunicador({
-    gateway: { sendText: (_c: string, t: string) => { textos.push(t); return Promise.resolve({ providerMessageId: 'wa-1', sentAt: NOW }); } } as never,
+    gateway: {
+      sendText: (_c: string, t: string) => {
+        textos.push(t);
+        return Promise.resolve({ providerMessageId: 'wa-1', sentAt: NOW });
+      },
+    } as never,
     memory: { recordOutbound: () => Promise.resolve() } as never,
     runtime,
     nomeDoCliente: () => Promise.resolve('Isabel'),
@@ -40,7 +52,12 @@ function harness(opts: { comAnexo?: boolean; semEnviador?: boolean } = {}) {
     anexos,
     documentos: opts.semEnviador
       ? null
-      : { sendDocument: (chatId, anexo, caption) => { arquivos.push({ chatId, anexo, caption }); return Promise.resolve(); } },
+      : {
+          sendDocument: (chatId, anexo, caption) => {
+            arquivos.push({ chatId, anexo, caption });
+            return Promise.resolve();
+          },
+        },
   });
   return { runtime, anexos, comunicador, textos, arquivos, store };
 }
@@ -49,7 +66,11 @@ describe('B1 · anúncio com ANEXO do advogado', () => {
   it('anexo presente ⇒ mensagem de ASSINATURA + arquivo enviado ao cliente', async () => {
     const h = harness();
     const criada = (await h.runtime.criar(NOVA)).unwrap();
-    await h.anexos.salvar(criada.requestId, { fileName: 'procuracao.pdf', mimeType: 'application/pdf', base64: 'QUJD' });
+    await h.anexos.salvar(criada.requestId, {
+      fileName: 'procuracao.pdf',
+      mimeType: 'application/pdf',
+      base64: 'QUJD',
+    });
     const r = await h.comunicador.anunciar(criada);
     expect(r.ok).toBe(true);
     expect(h.textos[0]).toContain('enviou um documento que precisa da sua assinatura');
@@ -74,7 +95,11 @@ describe('B1 · anúncio com ANEXO do advogado', () => {
   it('anexo presente mas gateway SEM envio de documento ⇒ mensagem vai, falha observada, nada lança', async () => {
     const h = harness({ semEnviador: true });
     const criada = (await h.runtime.criar(NOVA)).unwrap();
-    await h.anexos.salvar(criada.requestId, { fileName: 'p.pdf', mimeType: 'application/pdf', base64: 'QUJD' });
+    await h.anexos.salvar(criada.requestId, {
+      fileName: 'p.pdf',
+      mimeType: 'application/pdf',
+      base64: 'QUJD',
+    });
     const r = await h.comunicador.anunciar(criada);
     expect(r.ok).toBe(true);
     expect(h.textos[0]).toContain('assinatura');

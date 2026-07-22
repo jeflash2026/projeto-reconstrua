@@ -10,7 +10,12 @@
 // Sem decisão (undefined/null) ⇒ fluxo LEGADO idêntico. A projeção é pura: NÃO
 // consulta Strategic Reasoning nem catálogos — só carimba o que já foi decidido.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { BrainIntent, MissionStrategicOrigin, MissionUseCaseIntent, StrategicDecision } from '@reconstrua/application';
+import type {
+  BrainIntent,
+  MissionStrategicOrigin,
+  MissionUseCaseIntent,
+  StrategicDecision,
+} from '@reconstrua/application';
 
 function toStrategicOrigin(decision: StrategicDecision): MissionStrategicOrigin {
   return {
@@ -25,7 +30,8 @@ export function toMissionUseCaseIntents(
   intents: readonly BrainIntent[],
   decision?: StrategicDecision | null,
 ): readonly MissionUseCaseIntent[] {
-  const origin = decision === undefined || decision === null ? undefined : toStrategicOrigin(decision);
+  const origin =
+    decision === undefined || decision === null ? undefined : toStrategicOrigin(decision);
   const result: MissionUseCaseIntent[] = [];
   for (const intent of intents) {
     if (intent.kind !== 'use_case') continue;
@@ -47,6 +53,10 @@ export function toMissionUseCaseIntents(
   // OnboardClient roda SEMPRE primeiro: é a ordem que o próprio INV-D08 impõe
   // (a missão precede o documento). Sort estável: o resto preserva a ordem.
   return [...result].sort((a, b) =>
-    a.useCase === 'OnboardClient' && b.useCase !== 'OnboardClient' ? -1 : b.useCase === 'OnboardClient' && a.useCase !== 'OnboardClient' ? 1 : 0,
+    a.useCase === 'OnboardClient' && b.useCase !== 'OnboardClient'
+      ? -1
+      : b.useCase === 'OnboardClient' && a.useCase !== 'OnboardClient'
+        ? 1
+        : 0,
   );
 }

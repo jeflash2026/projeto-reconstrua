@@ -78,12 +78,18 @@ class TinyStore implements EventStore {
     this.streams.set(this.key(streamType, streamId), [...list, ...appended]);
     return Promise.resolve({ events: appended, version });
   }
-  readStream(streamType: string, streamId: string, fromVersion = 0): Promise<readonly StoredEvent[]> {
+  readStream(
+    streamType: string,
+    streamId: string,
+    fromVersion = 0,
+  ): Promise<readonly StoredEvent[]> {
     const list = this.streams.get(this.key(streamType, streamId)) ?? [];
     return Promise.resolve(list.filter((e) => e.version > fromVersion));
   }
   readAll(): Promise<readonly StoredEvent[]> {
-    return Promise.resolve([...this.streams.values()].flat().sort((a, b) => a.globalSeq - b.globalSeq));
+    return Promise.resolve(
+      [...this.streams.values()].flat().sort((a, b) => a.globalSeq - b.globalSeq),
+    );
   }
   streamVersion(streamType: string, streamId: string): Promise<number> {
     return Promise.resolve((this.streams.get(this.key(streamType, streamId)) ?? []).length);
@@ -99,7 +105,9 @@ class TinySnapshots implements SnapshotStore {
     return Promise.resolve();
   }
   load<S>(streamType: string, streamId: string): Promise<Snapshot<S> | null> {
-    return Promise.resolve((this.snaps.get(`${streamType}:${streamId}`) as Snapshot<S> | undefined) ?? null);
+    return Promise.resolve(
+      (this.snaps.get(`${streamType}:${streamId}`) as Snapshot<S> | undefined) ?? null,
+    );
   }
 }
 
@@ -164,7 +172,9 @@ describe('EventSourcedRepository', () => {
     await expect(r.appendEvents('c3', { kind: 'no-stream' }, [ev(2)])).rejects.toBeInstanceOf(
       ConcurrencyConflictError,
     );
-    await expect(r.appendEvents('c3', { kind: 'exact', version: 1 }, [ev(2)])).resolves.toBeDefined();
+    await expect(
+      r.appendEvents('c3', { kind: 'exact', version: 1 }, [ev(2)]),
+    ).resolves.toBeDefined();
   });
 
   it('verifica integridade da cadeia (R9)', async () => {

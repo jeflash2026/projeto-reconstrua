@@ -45,7 +45,10 @@ describe('OperationalStateAggregate — derivação (item 7; INV-EO-02)', () => 
   });
 
   it('deriva um Estado terminal CONCLUÍDA (DF-11)', () => {
-    const result = OperationalStateAggregate.derive({ ...validInput(), terminalState: 'CONCLUIDA' });
+    const result = OperationalStateAggregate.derive({
+      ...validInput(),
+      terminalState: 'CONCLUIDA',
+    });
     expect(result.isOk()).toBe(true);
     const s = result.unwrap();
     expect(s.isTerminal).toBe(true);
@@ -53,21 +56,30 @@ describe('OperationalStateAggregate — derivação (item 7; INV-EO-02)', () => 
   });
 
   it('deriva um Estado terminal ENCERRADA (DF-11)', () => {
-    const result = OperationalStateAggregate.derive({ ...validInput(), terminalState: 'ENCERRADA' });
+    const result = OperationalStateAggregate.derive({
+      ...validInput(),
+      terminalState: 'ENCERRADA',
+    });
     expect(result.isOk()).toBe(true);
     expect(result.unwrap().terminalState?.isClosed()).toBe(true);
   });
 
   it('EO-ESTADO-TERMINAL — terminal fora do conjunto {CONCLUÍDA, ENCERRADA} é recusado (DF-11)', () => {
-    // @ts-expect-error DF-11: não há terceiro estado terminal.
-    const result = OperationalStateAggregate.derive({ ...validInput(), terminalState: 'ARQUIVADA' });
+    const result = OperationalStateAggregate.derive({
+      ...validInput(),
+      // @ts-expect-error DF-11: não há terceiro estado terminal.
+      terminalState: 'ARQUIVADA',
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('EO-ESTADO-TERMINAL');
   });
 
   it('INV-EO-02 — Estado sem Verdade de origem é recusado (deriva só da Verdade; DF-08)', () => {
-    // @ts-expect-error INV-EO-02: a Verdade de origem é obrigatória.
-    const result = OperationalStateAggregate.derive({ ...validInput(), derivedFromTruth: undefined });
+    const result = OperationalStateAggregate.derive({
+      ...validInput(),
+      // @ts-expect-error INV-EO-02: a Verdade de origem é obrigatória.
+      derivedFromTruth: undefined,
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('INV-EO-02');
   });

@@ -65,7 +65,8 @@ export class ProcessAggregate extends AggregateRoot<ProcessId> {
         new CanonViolationError({
           invariantId: 'INV-PR-01',
           canonReference: `${CANON_REF}; INV-PR-01; DF-10`,
-          message: 'O Processo deve pertencer a uma Missão (INV-PR-01; não existe Processo fora de Missão).',
+          message:
+            'O Processo deve pertencer a uma Missão (INV-PR-01; não existe Processo fora de Missão).',
         }),
       );
     }
@@ -75,7 +76,8 @@ export class ProcessAggregate extends AggregateRoot<ProcessId> {
         new CanonViolationError({
           invariantId: TRACE_ID,
           canonReference: TRACE_REF,
-          message: 'Reconhecimento de Processo sem responsável autorizado identificado (DF-09; Art. 14º).',
+          message:
+            'Reconhecimento de Processo sem responsável autorizado identificado (DF-09; Art. 14º).',
         }),
       );
     }

@@ -1,4 +1,5 @@
 # PROJETO RECONSTRUA — ENTERPRISE OS
+
 ### A Constituição Empresarial (como a empresa existe)
 
 > **Não descreve software, telas ou banco.** Descreve a **empresa como um organismo vivo**.
@@ -19,6 +20,7 @@ informação, medo, burocracia e falta de acesso a um bom escritório. O Reconst
 para si mesmo — sem que a pessoa jamais pague para descobrir se tem direito.
 
 **Qual problema resolve.**
+
 - Para a **pessoa**: "eu tenho direito a algo? como provo? em quem confio?" → resolvido com
   acolhimento humano (AHRI), qualificação técnica (perícia) e encaminhamento a um escritório sério.
 - Para o **escritório**: "onde encontro casos reais, já triados e com documento?" → resolvido com
@@ -46,6 +48,7 @@ advocacia. A AHRI **nunca** advoga.
 equipe que sustenta o organismo.
 
 **Como todos se relacionam (em uma frase).**
+
 > A **pessoa** traz um direito → **operadores + AHRI** o qualificam dentro do **ALIR** → o
 > **CEO** decide vender (**A**) ou associar (**B**) a um **escritório parceiro** → o
 > **advogado** conduz → o **financeiro** realiza a receita → o **investidor** é remunerado →
@@ -60,25 +63,32 @@ Valor gerado · Valor recebido**.
 
 ### Atores humanos e cognitivos
 
-**PESSOA** *(o ser humano antes de ser cliente)*
+**PESSOA** _(o ser humano antes de ser cliente)_
+
 - Objetivo: entender se tem direito e ser tratada com dignidade. · Resp.: relatar sua situação com verdade. · Direitos: acolhimento, verdade, privacidade (LGPD), nunca pagar para descobrir. · Deveres: fornecer documentos verdadeiros. · Eventos: chega, relata, envia documento, some, retorna. · Relacion.: AHRI, operador. · Gera: a matéria‑prima (o direito). · Recebe: clareza, resolução do seu direito.
 
-**CLIENTE** *(pessoa com missão/ALIR ativo)*
+**CLIENTE** _(pessoa com missão/ALIR ativo)_
+
 - Objetivo: recuperar o que é seu. · Resp.: acompanhar, responder, assinar procuração. · Direitos: transparência do andamento, escolha de seguir, exclusão de dados. · Deveres: veracidade. · Eventos: qualificado, vendido (A) ou conduzido (B), encerrado. · Relacion.: AHRI, advogado, escritório. · Gera: R$400 (A) ou honorário (B). · Recebe: o direito realizado (benefício/valor).
 
-**AHRI** *(inteligência de atendimento e condução)*
+**AHRI** _(inteligência de atendimento e condução)_
+
 - Objetivo: conduzir cada caso ao próximo passo sem inventar e sem advogar. · Resp.: acolher, triar, pedir documento, acompanhar, comunicar, escalar. · Direitos: escalar ao humano quando a matéria é humana; silenciar quando o Canon não autoriza. · Deveres: verdade, tom humano, jamais praticar ato jurídico, respeitar encerramento/LGPD. · Eventos: recebe mensagem, decide, comunica, agenda, escala. · Relacion.: pessoa/cliente, operador, advogado (ponte). · Gera: escala (atende milhares sem custo linear). · Recebe: dados e correções que a aprimoram.
 
-**OPERADOR** *(linha de frente humana)*
+**OPERADOR** _(linha de frente humana)_
+
 - Objetivo: transformar conversa em caso qualificado. · Resp.: conferir documentos, encaminhar perícia, qualificar. · Direitos: ver seus casos e filas. · Deveres: seguir critério de qualificação; registrar tudo. · Eventos: assume handoff, qualifica, destrava. · Relacion.: AHRI, perito, supervisor, cliente. · Gera: casos qualificados. · Recebe: remuneração/metas.
 
-**PERITO** *(análise técnica)*
+**PERITO** _(análise técnica)_
+
 - Objetivo: confirmar ou afastar o direito. · Resp.: emitir laudo. · Direitos: acesso aos documentos do caso. · Deveres: rigor técnico, imparcialidade. · Eventos: recebe caso, conclui laudo. · Relacion.: operador, advogado. · Gera: certeza técnica (define o produto). · Recebe: remuneração por análise.
 
-**ADVOGADO** *(condução jurídica — Modelo B / validação)*
+**ADVOGADO** _(condução jurídica — Modelo B / validação)_
+
 - Objetivo: conduzir o processo ao êxito. · Resp.: peticionar, cumprir prazos, registrar andamento, encerrar. · Direitos: isolamento (só seus casos), honorários combinados. · Deveres: ética/OAB, sigilo, veracidade dos registros. · Eventos: recebe atribuição, movimenta, retorna à AHRI, encerra, reabre. · Relacion.: cliente, AHRI, escritório, Judiciário. · Gera: êxito → honorário. · Recebe: participação nos honorários.
 
-**ESCRITÓRIO PARCEIRO** *(comprador A / sócio B)*
+**ESCRITÓRIO PARCEIRO** _(comprador A / sócio B)_
+
 - Objetivo: receber casos reais e rentáveis. · Resp.: pagar a venda (A) ou partilhar honorários (B), conduzir com qualidade. · Direitos: casos qualificados e isolados; dados necessários. · Deveres: pagar em dia, tratar o cliente com dignidade, cumprir o acordo. · Eventos: cadastrado, recebe oferta, compra/associa, paga, distribui. · Relacion.: CEO/comercial, advogado, financeiro. · Gera: receita (R$400 e honorários). · Recebe: casos qualificados, reputação, resultado.
 
 **SUPERVISOR** — Objetivo: qualidade e capacidade da operação. · Resp.: auditar conversas (Shadow), balancear carga, formar equipe. · Direitos: ver tudo da operação. · Deveres: proteger reputação e cliente. · Eventos: audita, corrige, escala. · Gera: consistência. · Recebe: remuneração.
@@ -87,11 +97,11 @@ Valor gerado · Valor recebido**.
 
 **FINANCEIRO** — Objetivo: realizar caixa e proteger a saúde financeira. · Resp.: contas a receber/pagar, conciliação, cobrança, previsão, impostos. · Direitos: ver todo o financeiro. · Deveres: exatidão, conformidade fiscal. · Eventos: registra receita, concilia, cobra, provisiona imposto. · Relacion.: escritórios, contabilidade, banco, CEO. · Gera: caixa realizado. · Recebe: remuneração.
 
-**CONTABILIDADE** *(externa)* — Objetivo: conformidade contábil/fiscal. · Resp.: apuração, obrigações, NF. · Direitos: dados financeiros. · Deveres: prazos legais. · Eventos: fecha mês, apura imposto, emite guias. · Relacion.: financeiro, Receita Federal. · Gera: conformidade. · Recebe: honorário contábil.
+**CONTABILIDADE** _(externa)_ — Objetivo: conformidade contábil/fiscal. · Resp.: apuração, obrigações, NF. · Direitos: dados financeiros. · Deveres: prazos legais. · Eventos: fecha mês, apura imposto, emite guias. · Relacion.: financeiro, Receita Federal. · Gera: conformidade. · Recebe: honorário contábil.
 
-**INVESTIDOR** *(futuro)* — Objetivo: retorno sobre capital. · Resp.: aportar capital/crédito. · Direitos: participação em receita/resultado, transparência. · Deveres: cumprir o acordo de investimento. · Eventos: aporta, acompanha, recebe distribuição. · Relacion.: CEO, financeiro. · Gera: capital para escala. · Recebe: participação nos resultados.
+**INVESTIDOR** _(futuro)_ — Objetivo: retorno sobre capital. · Resp.: aportar capital/crédito. · Direitos: participação em receita/resultado, transparência. · Deveres: cumprir o acordo de investimento. · Eventos: aporta, acompanha, recebe distribuição. · Relacion.: CEO, financeiro. · Gera: capital para escala. · Recebe: participação nos resultados.
 
-**FORNECEDOR** *(tecnologia/infra: hospedagem, WhatsApp/Evolution, IA, banco de dados)* — Objetivo: prestar serviço. · Deveres: disponibilidade. · Eventos: fatura, entrega serviço, falha. · Gera: capacidade operacional. · Recebe: pagamento recorrente. *(No SO aparecem como custo + semáforo de saúde, nunca como tecnologia exposta.)*
+**FORNECEDOR** _(tecnologia/infra: hospedagem, WhatsApp/Evolution, IA, banco de dados)_ — Objetivo: prestar serviço. · Deveres: disponibilidade. · Eventos: fatura, entrega serviço, falha. · Gera: capacidade operacional. · Recebe: pagamento recorrente. _(No SO aparecem como custo + semáforo de saúde, nunca como tecnologia exposta.)_
 
 ### Atores institucionais (o mundo externo)
 
@@ -107,6 +117,7 @@ dos atores acima, não atores autônomos. Existem para dar a cada papel exatamen
 que lhe cabem (Lei da Navegação por Contexto). O SO Admin é o **cérebro operacional** do CEO.
 
 **Mapa de relações (resumo):**
+
 ```
 INSS/direito → PESSOA → [AHRI + OPERADOR + PERITO] → ALIR(qualificado) → CEO decide
         ├─ MODELO A → ESCRITÓRIO compra → FINANCEIRO recebe R$400
@@ -202,17 +213,18 @@ modelo, por escritório. **É o que responde "quanto entra este mês?" e "o que 
 
 ## PARTE IV — A GOVERNANÇA (nada depende de memória humana)
 
-| Poder | Quem | Registro obrigatório |
-|---|---|---|
-| **Decide** rota A/B, preço, parceiro, capital, produto | CEO/Fundador | evento de decisão auditável |
-| **Aprova** venda, atribuição, distribuição, novo escritório | CEO (ou papel delegado) | ato com autor, data, motivo |
-| **Altera** dados de cliente/caso/financeiro | papel autorizado por perfil | append‑only (correção, não apagamento) |
-| **Cancela** oferta, venda não paga, atribuição | CEO/comercial | evento de cancelamento com motivo |
-| **Reabre** caso encerrado | CEO/advogado | evento append‑only + fundamento |
-| **Audita** conversas, financeiro, decisões | Supervisor/CEO | trilha navegável (quem fez o quê) |
-| **Exclui** dados (LGPD) | papel de conformidade | pedido do titular + registro legal da exclusão |
+| Poder                                                       | Quem                        | Registro obrigatório                           |
+| ----------------------------------------------------------- | --------------------------- | ---------------------------------------------- |
+| **Decide** rota A/B, preço, parceiro, capital, produto      | CEO/Fundador                | evento de decisão auditável                    |
+| **Aprova** venda, atribuição, distribuição, novo escritório | CEO (ou papel delegado)     | ato com autor, data, motivo                    |
+| **Altera** dados de cliente/caso/financeiro                 | papel autorizado por perfil | append‑only (correção, não apagamento)         |
+| **Cancela** oferta, venda não paga, atribuição              | CEO/comercial               | evento de cancelamento com motivo              |
+| **Reabre** caso encerrado                                   | CEO/advogado                | evento append‑only + fundamento                |
+| **Audita** conversas, financeiro, decisões                  | Supervisor/CEO              | trilha navegável (quem fez o quê)              |
+| **Exclui** dados (LGPD)                                     | papel de conformidade       | pedido do titular + registro legal da exclusão |
 
 **Princípios de governança (constitucionais):**
+
 1. **Toda decisão é um ato registrado** — autor, data, motivo, efeito. Nada "na cabeça de alguém".
 2. **Correção nunca é apagamento** — o histórico é imutável; corrige‑se por novo evento.
 3. **Autoridade é por papel, não por pessoa** — se a pessoa sai, o papel continua.
@@ -242,8 +254,8 @@ modelo, por escritório. **É o que responde "quanto entra este mês?" e "o que 
 
 O organismo cresce por **extensão**, não por reconstrução:
 
-- **Novos produtos / novas áreas do Direito** — o modelo é genérico: *pessoa → direito recuperável
-  → qualificação → A/B*. Um novo direito é **um novo tipo de missão + critério de qualificação +
+- **Novos produtos / novas áreas do Direito** — o modelo é genérico: _pessoa → direito recuperável
+  → qualificação → A/B_. Um novo direito é **um novo tipo de missão + critério de qualificação +
   documentos exigidos**, não um novo sistema. (Ex.: FGTS, revisão de contrato, tributário.)
 - **Novos escritórios** — cadastro + acordo (A/B) + regras de participação parametrizáveis. A rede
   cresce sem tocar no núcleo.
@@ -254,44 +266,51 @@ O organismo cresce por **extensão**, não por reconstrução:
   idioma é adicionar camada de linguagem, não reescrever a cognição.
 - **Novos papéis/atores** — a governança é por papel; um papel novo é uma definição, não uma migração.
 
-> **Lei da extensibilidade:** toda decisão de arquitetura deve perguntar *"isto suporta um novo
-> direito, escritório, país, moeda e idioma sem reescrita?"*. Se não, está errada.
+> **Lei da extensibilidade:** toda decisão de arquitetura deve perguntar _"isto suporta um novo
+> direito, escritório, país, moeda e idioma sem reescrita?"_. Se não, está errada.
 
 ---
 
 ## PARTE VII — RISCOS ESTRUTURAIS DA EMPRESA
-### *(Se o fundador desaparecer por 5 anos, o que impede o Reconstrua de continuar crescendo?)*
+
+### _(Se o fundador desaparecer por 5 anos, o que impede o Reconstrua de continuar crescendo?)_
 
 > Legenda: 🔴 crítico (paralisa) · 🟠 grave (degrada) · 🟡 limita crescimento.
 
 **Dependência do fundador (pessoa insubstituível)**
+
 - 🔴 **Decisões de rota A/B, preço e aprovação de parceiros** hoje moram no CEO — sem regras/delegação explícitas no SO, param.
 - 🔴 **Conexão do WhatsApp e acessos** dependem do Fundador (segredo/QR); sem sucessão de credenciais, a operação morre ao expirar.
 - 🟠 **Relacionamento com escritórios e investidores** está na pessoa, não na empresa (sem CRM/contratos formais).
 
 **Continuidade técnica e de dados**
+
 - 🔴 **Backups automáticos + restauração testada** não são rotina do SO → um incidente pode apagar o patrimônio (ALIR/histórico).
 - 🔴 **Monitoramento + alertas** não notificam ninguém → falha silenciosa pode durar dias sem o fundador.
 - 🟠 **Dependência de fornecedor único** (WhatsApp/Evolution, IA, hospedagem) sem plano de substituição.
 - 🟡 **Instância única** (sem escala horizontal) limita crescimento a partir de certo volume.
 
 **Governança e conhecimento**
+
 - 🔴 **Autenticação por segredo único** (sem contas/papéis/sucessão) → não há como um sucessor operar com segurança.
 - 🟠 **Trilha de auditoria não navegável** → um novo gestor não consegue entender "quem fez o quê".
 - 🟠 **Conhecimento de qualificação** parcialmente na cabeça de operadores/peritos, não no Canon/SO.
 - 🟡 **Delegação e alçadas** não formalizadas (quem pode aprovar o quê na ausência do CEO).
 
 **Comercial e financeiro (a maior lacuna para autonomia)**
+
 - 🔴 **Módulo financeiro real inexistente** (a receber/pagar, conciliação, previsão, inadimplência) → a empresa não sabe sozinha se está saudável.
 - 🔴 **Contratos, NF e cobrança automatizados ausentes** → receita depende de alguém "lembrar".
 - 🟠 **Entidades comerciais (escritório, venda, sociedade, honorário, distribuição) não existem** como objetos governáveis.
 - 🟠 **Regras de participação/comissão** não parametrizadas → cada acordo vira negociação manual.
 
 **Conformidade e reputação**
+
 - 🟠 **LGPD operacional** (consentimento, exportação, exclusão) ausente → risco legal crescente sem supervisão.
 - 🟡 **Portais de cliente e de parceiro** inexistentes → tudo depende do canal único (WhatsApp) e de intervenção humana.
 
 **Síntese — o que precisa existir para a empresa viver 5 anos sozinha (por prioridade):**
+
 1. **Governança executável no SO** — regras de decisão A/B, alçadas e delegação, sucessão de acessos (auth real com papéis).
 2. **Autonomia técnica** — backups testados, monitoramento com alertas, gestão de acessos/segredos dentro do SO, plano de fornecedor.
 3. **Financeiro completo** — a receber/pagar, conciliação, previsão, contratos, NF, cobrança (A e B).
@@ -306,6 +325,7 @@ O organismo cresce por **extensão**, não por reconstrução:
 ---
 
 ## FECHAMENTO — A CONSTITUIÇÃO EMPRESARIAL
+
 Este documento é a **camada mais alta** do Projeto Reconstrua. Abaixo dele estão, nesta ordem:
 **Enterprise (esta) → Operational OS (operações) → Admin OS (o SO/telas como projeção) →
 Product Model → Canon técnico**. Qualquer decisão futura que contrarie esta Constituição só é

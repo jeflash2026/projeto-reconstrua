@@ -15,9 +15,12 @@ export const DEMO_ANALISE: AcompanhamentoCliente = {
   presenca: 'serena',
   fraseAbertura: 'Seu caso está em análise técnica — e eu estou acompanhando cada passo.',
   ondeEsta: 'Análise técnica',
-  agora: 'Já enviamos as solicitações administrativas do seu caso e estou acompanhando as respostas.',
-  proximoPasso: 'Com as respostas em mãos, definimos os próximos passos — e eu te aviso por aqui e pelo WhatsApp.',
-  precisaFazerAlgo: 'Nada por enquanto — estou cuidando de tudo. Se eu precisar de algo, falo com você no WhatsApp.',
+  agora:
+    'Já enviamos as solicitações administrativas do seu caso e estou acompanhando as respostas.',
+  proximoPasso:
+    'Com as respostas em mãos, definimos os próximos passos — e eu te aviso por aqui e pelo WhatsApp.',
+  precisaFazerAlgo:
+    'Nada por enquanto — estou cuidando de tudo. Se eu precisar de algo, falo com você no WhatsApp.',
   quantoTempo: 'Essa fase costuma levar aproximadamente 12 dias. A previsão é até 27 de julho.',
   etapas: [
     { titulo: 'Documentação', situacao: 'concluida' },
@@ -43,7 +46,8 @@ export const DEMO_PROCESSO: AcompanhamentoCliente = {
   ondeEsta: 'Processo em andamento',
   agora: 'Quem está conduzindo o seu processo é Ana Lima.',
   proximoPasso: 'Cada movimentação importante aparece aqui — e eu também aviso você no WhatsApp.',
-  quantoTempo: 'Cada processo tem o seu próprio ritmo — mas você não precisa vigiar prazos: eu acompanho tudo e te aviso a cada novidade.',
+  quantoTempo:
+    'Cada processo tem o seu próprio ritmo — mas você não precisa vigiar prazos: eu acompanho tudo e te aviso a cada novidade.',
   etapas: [
     { titulo: 'Documentação', situacao: 'concluida' },
     { titulo: 'Análise técnica', situacao: 'concluida' },
@@ -54,8 +58,15 @@ export const DEMO_PROCESSO: AcompanhamentoCliente = {
   advogado: { nome: 'Ana Lima' },
   processo: { numero: '0001234-55.2026.4.04.7000' },
   atualizacoes: [
-    { quando: new Date(AGORA - 2 * 60 * 60 * 1000).toISOString(), texto: 'O seu processo foi distribuído para a 2ª Vara Federal — agora é oficial: a Justiça já está cuidando do seu caso.' },
-    { quando: new Date(AGORA - 1 * dia).toISOString(), texto: 'Protocolamos a petição inicial do seu processo. Está tudo encaminhado.' },
+    {
+      quando: new Date(AGORA - 2 * 60 * 60 * 1000).toISOString(),
+      texto:
+        'O seu processo foi distribuído para a 2ª Vara Federal — agora é oficial: a Justiça já está cuidando do seu caso.',
+    },
+    {
+      quando: new Date(AGORA - 1 * dia).toISOString(),
+      texto: 'Protocolamos a petição inicial do seu processo. Está tudo encaminhado.',
+    },
   ],
 };
 

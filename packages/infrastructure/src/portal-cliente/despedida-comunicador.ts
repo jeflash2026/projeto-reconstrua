@@ -34,7 +34,8 @@ export const DESPEDIDA_RULE_CATALOG: readonly OperationalRuleSpec[] = [
       references: ['etapa-concluida', 'despedida'],
       urgency: 'normal',
     },
-    fundamento: 'Art. 15º (assistiva) — a relação se encerra como começou: conversando; GO-LIVE-02 (texto homologado)',
+    fundamento:
+      'Art. 15º (assistiva) — a relação se encerra como começou: conversando; GO-LIVE-02 (texto homologado)',
   },
   {
     ref: 'RO-DESPEDIDA-WAIT',
@@ -82,7 +83,12 @@ export class BrainDespedidaComunicador implements ComunicadorNascimento {
     });
     const decided = outcome.intents.find((i) => i.kind === 'conversation');
     if (decided === undefined) {
-      d.observability.degraded('despedida', 'brain-veto', now, `despedida sem fala para ${clienteId} (silêncio/veto do Brain)`);
+      d.observability.degraded(
+        'despedida',
+        'brain-veto',
+        now,
+        `despedida sem fala para ${clienteId} (silêncio/veto do Brain)`,
+      );
       return false;
     }
 
@@ -109,7 +115,12 @@ export class BrainDespedidaComunicador implements ComunicadorNascimento {
       await d.delivery.drain(view); // cadência humana (nunca instantânea)
       return true;
     } catch (error) {
-      d.observability.error('despedida', 'entrega', now, error instanceof Error ? error.message : 'falha na entrega');
+      d.observability.error(
+        'despedida',
+        'entrega',
+        now,
+        error instanceof Error ? error.message : 'falha na entrega',
+      );
       return false;
     }
   }

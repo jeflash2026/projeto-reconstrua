@@ -27,7 +27,11 @@ export interface WhatsAppStatus {
   readonly pending: { readonly instance: string; readonly number: string } | null;
   readonly hasPendingApply: boolean;
   /** Estado ao vivo da Evolution para a instância corrente (pendente ou ativa). */
-  readonly live: { readonly state: string; readonly ownerJid: string | null; readonly number: string } | null;
+  readonly live: {
+    readonly state: string;
+    readonly ownerJid: string | null;
+    readonly number: string;
+  } | null;
   readonly matchesOfficial: boolean;
   readonly officialNumber: string;
   readonly webhookUrl: string;
@@ -99,7 +103,12 @@ export class WhatsAppConnectionRuntime {
 
   private audit(action: string, actor: WhatsAppActor, detail: string): void {
     // Auditoria durável (B5.3): quem (perfil), quando, o quê. Sem segredos.
-    this.deps.observability.event('whatsapp-connection', `${action}:${actor.role}`, this.deps.clock.now(), detail);
+    this.deps.observability.event(
+      'whatsapp-connection',
+      `${action}:${actor.role}`,
+      this.deps.clock.now(),
+      detail,
+    );
   }
 
   private async storedConfig(): Promise<ProductionConfig> {
@@ -107,7 +116,11 @@ export class WhatsAppConnectionRuntime {
   }
 
   /** Persiste a config PENDENTE (instância/apiKey/número) sem tocar nos outros campos. */
-  private async persistEvolution(patch: { instance?: string; apiKey?: string; whatsappNumber?: string }): Promise<void> {
+  private async persistEvolution(patch: {
+    instance?: string;
+    apiKey?: string;
+    whatsappNumber?: string;
+  }): Promise<void> {
     const current = await this.storedConfig();
     await this.deps.configStore.save({
       ...current,
@@ -133,7 +146,11 @@ export class WhatsAppConnectionRuntime {
       const snap = await this.deps.client.fetchInstance(current);
       if (snap !== null) {
         this.lastSyncAt = this.deps.clock.now();
-        live = { state: snap.state, ownerJid: snap.ownerJid, number: numberFromOwnerJid(snap.ownerJid) };
+        live = {
+          state: snap.state,
+          ownerJid: snap.ownerJid,
+          number: numberFromOwnerJid(snap.ownerJid),
+        };
       }
     }
     // GO-LIVE-06 (BUG 2): se a instância configurada não está conectada ao número
@@ -143,7 +160,11 @@ export class WhatsAppConnectionRuntime {
       const byNumber = await this.deps.client.findInstanceByNumber(this.deps.officialNumber);
       if (byNumber !== null) {
         this.lastSyncAt = this.deps.clock.now();
-        live = { state: byNumber.state, ownerJid: byNumber.ownerJid, number: numberFromOwnerJid(byNumber.ownerJid) };
+        live = {
+          state: byNumber.state,
+          ownerJid: byNumber.ownerJid,
+          number: numberFromOwnerJid(byNumber.ownerJid),
+        };
         resolvedInstance = byNumber.name;
       }
     }
@@ -160,14 +181,16 @@ export class WhatsAppConnectionRuntime {
       pending: hasPendingApply ? { instance: pendingInstance, number: pendingNumber } : null,
       hasPendingApply,
       live,
-      matchesOfficial: live !== null && live.number === this.deps.officialNumber && live.state === 'open',
+      matchesOfficial:
+        live !== null && live.number === this.deps.officialNumber && live.state === 'open',
       officialNumber: this.deps.officialNumber,
       webhookUrl: this.deps.webhookUrl,
       lastSyncAt: this.lastSyncAt?.toISOString() ?? null,
       capabilities: { canManageInstances: missing.length === 0, missing },
       // GO-LIVE-06 (BUG 2): a instância REALMENTE detectada pelo número oficial
       // (pode diferir da configurada). null quando não há nenhuma conectada ao número.
-      resolvedInstance: live !== null && live.number === this.deps.officialNumber ? resolvedInstance : null,
+      resolvedInstance:
+        live !== null && live.number === this.deps.officialNumber ? resolvedInstance : null,
     };
   }
 
@@ -176,14 +199,20 @@ export class WhatsAppConnectionRuntime {
     const created = await this.deps.client.createInstance(instanceName);
     await this.deps.client.setWebhook(instanceName, this.deps.webhookUrl, this.deps.webhookSecret);
     // Persiste como PENDENTE (instância + apiKey por-instância). Número só após confirmar o QR.
-    await this.persistEvolution({ instance: instanceName, apiKey: created.apiKey, whatsappNumber: '' });
+    await this.persistEvolution({
+      instance: instanceName,
+      apiKey: created.apiKey,
+      whatsappNumber: '',
+    });
     this.audit('create', actor, `instancia=${instanceName}`);
     const qr = await this.deps.client.connect(instanceName);
     return { instanceName, qr };
   }
 
   /** (Re)gera o QR de uma instância aguardando leitura. */
-  async getQr(instanceName: string): Promise<{ base64: string | null; pairingCode: string | null }> {
+  async getQr(
+    instanceName: string,
+  ): Promise<{ base64: string | null; pairingCode: string | null }> {
     return this.deps.client.connect(instanceName);
   }
 
@@ -197,11 +226,14 @@ export class WhatsAppConnectionRuntime {
     const matchesOfficial = open && number === this.deps.officialNumber;
 
     if (!matchesOfficial) {
-      this.audit('confirm-rejected', actor, `instancia=${instanceName} numero=${number || '-'} estado=${snap?.state ?? '-'}`);
-      const error =
-        !open
-          ? 'A instância ainda não está conectada. Leia o QR Code e tente novamente.'
-          : 'O número conectado não corresponde ao número oficial da empresa.';
+      this.audit(
+        'confirm-rejected',
+        actor,
+        `instancia=${instanceName} numero=${number || '-'} estado=${snap?.state ?? '-'}`,
+      );
+      const error = !open
+        ? 'A instância ainda não está conectada. Leia o QR Code e tente novamente.'
+        : 'O número conectado não corresponde ao número oficial da empresa.';
       return { connected: false, ownerJid, number, matchesOfficial: false, error };
     }
 
@@ -218,26 +250,43 @@ export class WhatsAppConnectionRuntime {
    */
   async diagnose(): Promise<DiagnosticReport> {
     const steps: DiagnosticStep[] = [];
-    const add = (step: string, ok: boolean, detail: string): void => { steps.push({ step, ok, detail }); };
+    const add = (step: string, ok: boolean, detail: string): void => {
+      steps.push({ step, ok, detail });
+    };
     const d = this.deps.diagnostics;
 
     // 1) VARIÁVEIS obrigatórias.
     const baseUrl = d?.baseUrl ?? '';
-    add('Variáveis de ambiente', baseUrl !== '' && this.deps.management.hasGlobalKey,
-      [baseUrl === '' ? 'EVOLUTION_BASE_URL ausente' : `EVOLUTION_BASE_URL=${baseUrl}`,
-       this.deps.management.hasGlobalKey ? 'EVOLUTION_GLOBAL_API_KEY presente' : 'EVOLUTION_GLOBAL_API_KEY ausente',
-       this.deps.management.hasFounderGate ? 'FOUNDER_ACCESS_SECRET presente' : 'FOUNDER_ACCESS_SECRET ausente',
-      ].join(' · '));
+    add(
+      'Variáveis de ambiente',
+      baseUrl !== '' && this.deps.management.hasGlobalKey,
+      [
+        baseUrl === '' ? 'EVOLUTION_BASE_URL ausente' : `EVOLUTION_BASE_URL=${baseUrl}`,
+        this.deps.management.hasGlobalKey
+          ? 'EVOLUTION_GLOBAL_API_KEY presente'
+          : 'EVOLUTION_GLOBAL_API_KEY ausente',
+        this.deps.management.hasFounderGate
+          ? 'FOUNDER_ACCESS_SECRET presente'
+          : 'FOUNDER_ACCESS_SECRET ausente',
+      ].join(' · '),
+    );
 
     // 2/3) CONEXÃO + AUTENTICAÇÃO com a Evolution (sonda crua: status/erro reais).
     const probe = await this.deps.client.probe();
-    add('Conexão com a Evolution', probe.reached || probe.status !== null,
-      probe.error ?? `alcançada (HTTP ${String(probe.status)})`);
-    add('Autenticação (chave global)',
+    add(
+      'Conexão com a Evolution',
+      probe.reached || probe.status !== null,
+      probe.error ?? `alcançada (HTTP ${String(probe.status)})`,
+    );
+    add(
+      'Autenticação (chave global)',
       probe.status !== 401 && probe.status !== 403,
       probe.status === 401 || probe.status === 403
         ? `Evolution recusou a chave global (HTTP ${String(probe.status)}) — verifique EVOLUTION_GLOBAL_API_KEY`
-        : probe.reached ? 'chave global aceita' : 'não avaliada (Evolution inacessível)');
+        : probe.reached
+          ? 'chave global aceita'
+          : 'não avaliada (Evolution inacessível)',
+    );
 
     // 4) INSTÂNCIA — GO-LIVE-06 (BUG 2): o que importa é o NÚMERO oficial estar
     // conectado; o nome pode divergir do configurado. Descobrimos a instância real
@@ -246,35 +295,60 @@ export class WhatsAppConnectionRuntime {
     const byNumber = await this.deps.client.findInstanceByNumber(this.deps.officialNumber);
     if (byNumber !== null) {
       const divergente = configured !== '' && configured !== byNumber.name;
-      add('Instância', true,
+      add(
+        'Instância',
+        true,
         `número oficial ${this.deps.officialNumber} conectado na instância "${byNumber.name}" (estado: ${byNumber.state})` +
-        (divergente ? ` — configurado como "${configured}"; ajuste EVOLUTION_INSTANCE para "${byNumber.name}"` : ''));
+          (divergente
+            ? ` — configurado como "${configured}"; ajuste EVOLUTION_INSTANCE para "${byNumber.name}"`
+            : ''),
+      );
     } else {
-      add('Instância', false,
+      add(
+        'Instância',
+        false,
         probe.reached
           ? `nenhuma instância conectada ao número oficial ${this.deps.officialNumber} (configurado: "${configured || '—'}"; encontradas: ${probe.instanceNames.join(', ') || 'nenhuma'})`
-          : 'não avaliada (Evolution inacessível)');
+          : 'não avaliada (Evolution inacessível)',
+      );
     }
 
     // 5) WEBHOOK configurado (URL + segredo presentes).
-    add('Webhook', this.deps.webhookUrl !== '' && this.deps.webhookSecret !== '',
-      this.deps.webhookUrl === '' ? 'webhookUrl ausente'
-      : this.deps.webhookSecret === '' ? 'WEBHOOK_SECRET ausente'
-      : `${this.deps.webhookUrl}`);
+    add(
+      'Webhook',
+      this.deps.webhookUrl !== '' && this.deps.webhookSecret !== '',
+      this.deps.webhookUrl === ''
+        ? 'webhookUrl ausente'
+        : this.deps.webhookSecret === ''
+          ? 'WEBHOOK_SECRET ausente'
+          : `${this.deps.webhookUrl}`,
+    );
 
     // 6) BANCO (toca o Postgres via configStore).
     if (d?.db) {
-      try { await d.db(); add('Banco de dados', true, 'Postgres acessível'); }
-      catch (e) { add('Banco de dados', false, e instanceof Error ? e.message : 'falha ao consultar o banco'); }
+      try {
+        await d.db();
+        add('Banco de dados', true, 'Postgres acessível');
+      } catch (e) {
+        add('Banco de dados', false, e instanceof Error ? e.message : 'falha ao consultar o banco');
+      }
     }
 
     // 7) FILAS (outbox/dispatcher).
     if (d?.queue) {
-      try { const pending = await d.queue(); add('Filas (outbox)', true, `${String(pending)} entrega(s) pendente(s)`); }
-      catch (e) { add('Filas (outbox)', false, e instanceof Error ? e.message : 'falha ao consultar a fila'); }
+      try {
+        const pending = await d.queue();
+        add('Filas (outbox)', true, `${String(pending)} entrega(s) pendente(s)`);
+      } catch (e) {
+        add('Filas (outbox)', false, e instanceof Error ? e.message : 'falha ao consultar a fila');
+      }
     }
 
-    this.audit('diagnose', { role: 'admin' }, `passos=${String(steps.length)} ok=${String(steps.every((s) => s.ok))}`);
+    this.audit(
+      'diagnose',
+      { role: 'admin' },
+      `passos=${String(steps.length)} ok=${String(steps.every((s) => s.ok))}`,
+    );
     return { ok: steps.every((s) => s.ok), steps, at: this.deps.clock.now().toISOString() };
   }
 

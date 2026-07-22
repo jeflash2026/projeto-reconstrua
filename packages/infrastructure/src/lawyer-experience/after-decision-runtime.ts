@@ -48,7 +48,12 @@ export class AfterDecisionRuntime {
 
     // Recusa: registra e para (a recusa também é decisão do advogado, auditada).
     if (!accepted) {
-      this.op.observability.event('after-decision', `rejected:${decision.type}`, now, decision.missionId);
+      this.op.observability.event(
+        'after-decision',
+        `rejected:${decision.type}`,
+        now,
+        decision.missionId,
+      );
       return { decision, missionContinued: false, clientInformed: false, ruleRefs: [] };
     }
 
@@ -67,7 +72,8 @@ export class AfterDecisionRuntime {
     }
 
     // 3) Atualizar a memória viva: fato datado, com fonte (a decisão).
-    const chatId = this.op.projector.missions().find((m) => m.missionId === decision.missionId)?.chatId ?? null;
+    const chatId =
+      this.op.projector.missions().find((m) => m.missionId === decision.missionId)?.chatId ?? null;
     if (chatId !== null) {
       const memory = await this.op.memoryStore.load(chatId);
       if (memory) {
@@ -85,8 +91,18 @@ export class AfterDecisionRuntime {
     }
 
     // 4) Auditoria (workflow/timeline já refletem por construção: registro 3B + eventos).
-    this.op.observability.event('after-decision', `accepted:${decision.type}`, now, decision.missionId);
+    this.op.observability.event(
+      'after-decision',
+      `accepted:${decision.type}`,
+      now,
+      decision.missionId,
+    );
 
-    return { decision, missionContinued: true, clientInformed: ahri.decidedToSpeak, ruleRefs: ahri.ruleRefs };
+    return {
+      decision,
+      missionContinued: true,
+      clientInformed: ahri.decidedToSpeak,
+      ruleRefs: ahri.ruleRefs,
+    };
   }
 }

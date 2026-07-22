@@ -66,10 +66,18 @@ const OperacaoPage = async (): Promise<ReactElement> => {
         ) : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Advogado</th><th>Casos</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Advogado</th>
+                  <th>Casos</th>
+                </tr>
+              </thead>
               <tbody>
                 {Object.entries(m.casosPorAdvogado).map(([nome, n]) => (
-                  <tr key={nome}><td>{nome}</td><td>{n}</td></tr>
+                  <tr key={nome}>
+                    <td>{nome}</td>
+                    <td>{n}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -84,10 +92,18 @@ const OperacaoPage = async (): Promise<ReactElement> => {
         ) : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Etapa</th><th>Casos</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Etapa</th>
+                  <th>Casos</th>
+                </tr>
+              </thead>
               <tbody>
                 {Object.entries(m.casosPorEtapa).map(([etapa, n]) => (
-                  <tr key={etapa}><td>{etapa}</td><td>{n}</td></tr>
+                  <tr key={etapa}>
+                    <td>{etapa}</td>
+                    <td>{n}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>

@@ -98,8 +98,11 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessResult {
   let confidence = 1;
   if (ready) {
     const receiptObservable = !unavailable.includes('operational.documentos.enviados');
-    if (!receiptObservable && req.requiredDocuments.length > 0) confidence = Math.min(confidence, 0.75);
-    const unobservableBlocking = req.blockingConditions.filter((c) => !OBSERVABLE_CONDITIONS.includes(c));
+    if (!receiptObservable && req.requiredDocuments.length > 0)
+      confidence = Math.min(confidence, 0.75);
+    const unobservableBlocking = req.blockingConditions.filter(
+      (c) => !OBSERVABLE_CONDITIONS.includes(c),
+    );
     if (unobservableBlocking.length > 0) confidence = Math.min(confidence, 0.6);
   }
 
@@ -113,6 +116,9 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessResult {
 }
 
 /** Documento obrigatório? (utilitário para consumidores.) */
-export function isRequiredDocument(caseType: QualificationCaseType, doc: ReadinessDocumentCode): boolean {
+export function isRequiredDocument(
+  caseType: QualificationCaseType,
+  doc: ReadinessDocumentCode,
+): boolean {
   return requirementsFor(caseType).requiredDocuments.includes(doc);
 }

@@ -21,7 +21,10 @@ export class LegitimacyGate {
   check(rule: OperationalRuleSpec, facts: BrainFacts): LegitimacyVerdict {
     // REGISTRO + REGRA: sem fundamento e referência não há registro DF-09 possível.
     if (rule.fundamento.trim() === '' || rule.ref.trim() === '') {
-      return { legitimate: false, cause: 'REGISTRO_AUSENTE: fundamento/regra obrigatórios (INV-AH-02)' };
+      return {
+        legitimate: false,
+        cause: 'REGISTRO_AUSENTE: fundamento/regra obrigatórios (INV-AH-02)',
+      };
     }
     // COMPETÊNCIA: matéria humana só pode gerar escalação — nunca atuação da AHRI.
     if (facts['matterRequiresHuman'] === true && rule.action.kind !== 'escalation') {

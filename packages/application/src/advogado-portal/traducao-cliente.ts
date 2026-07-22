@@ -13,7 +13,11 @@
 //  • ANTI-INVENÇÃO determinística: nenhum número na versão do cliente que não
 //    exista no original — tradução que inventa é DESCARTADA (fica pendente).
 // ─────────────────────────────────────────────────────────────────────────────
-import { CLIENT_FACING_KINDS, type JuridicalEntry, type JuridicalWorkStore } from './juridical-work.js';
+import {
+  CLIENT_FACING_KINDS,
+  type JuridicalEntry,
+  type JuridicalWorkStore,
+} from './juridical-work.js';
 
 /** A voz que re-diz (adapter LLM na infraestrutura). Lança em falha. */
 export interface TradutorClientePort {
@@ -75,7 +79,9 @@ export class TraducaoClienteRuntime {
       await this.work.save(traduzida);
       return traduzida;
     } catch (error) {
-      this.log?.(`tradução falhou para ${entry.id}: ${error instanceof Error ? error.message : 'erro'}`);
+      this.log?.(
+        `tradução falhou para ${entry.id}: ${error instanceof Error ? error.message : 'erro'}`,
+      );
       return entry;
     }
   }
@@ -88,7 +94,11 @@ export class TraducaoClienteRuntime {
       for (const entry of await this.work.byMission(missionId)) {
         if (!precisaTraducao(entry)) continue;
         const resultado = await this.traduzir(entry);
-        if (resultado.textoCliente !== undefined && resultado.textoCliente !== null && resultado.textoCliente !== '') {
+        if (
+          resultado.textoCliente !== undefined &&
+          resultado.textoCliente !== null &&
+          resultado.textoCliente !== ''
+        ) {
           traduzidas += 1;
         }
       }

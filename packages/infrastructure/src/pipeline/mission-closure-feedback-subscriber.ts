@@ -66,7 +66,10 @@ export const defaultEncerramentoResolver: EncerramentoResolver = (event) => {
   if (correlationId === null || cliente === null) return null;
 
   const confRaw = str('confidence');
-  const confianca = confRaw !== null && CONFIANCAS.has(confRaw) ? (confRaw as EncerramentoAutomatico['confianca']) : 'media';
+  const confianca =
+    confRaw !== null && CONFIANCAS.has(confRaw)
+      ? (confRaw as EncerramentoAutomatico['confianca'])
+      : 'media';
   return {
     missionId: str('missionId') ?? event.streamId,
     decisionId: str('decisionId'),
@@ -92,7 +95,8 @@ export class MissionClosureFeedbackSubscriber implements EventSubscriber {
 
   async handle(event: StoredEvent): Promise<void> {
     // Só reage ao instante do ENCERRAMENTO — ignora qualquer outro evento.
-    if (event.streamType !== 'operational-state' || event.payload['terminalState'] !== 'ENCERRADA') return;
+    if (event.streamType !== 'operational-state' || event.payload['terminalState'] !== 'ENCERRADA')
+      return;
 
     const auto = this.deps.resolver(event);
     if (auto === null) return; // sem dados suficientes já existentes ⇒ no-op silencioso

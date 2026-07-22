@@ -21,7 +21,8 @@ import type { MemoryAttributeExtractorPort, MemoryStore } from './ports.js';
 function styleFor(avgResponseMs: number | null, messageCount: number): string | null {
   if (messageCount === 0) return null;
   if (avgResponseMs !== null && avgResponseMs < 30_000) return 'ágil e direto';
-  if (avgResponseMs !== null && avgResponseMs > 10 * 60_000) return 'reflexivo, responde quando pode';
+  if (avgResponseMs !== null && avgResponseMs > 10 * 60_000)
+    return 'reflexivo, responde quando pode';
   return 'atento';
 }
 
@@ -66,11 +67,22 @@ export class MemoryRuntime {
   }
 
   /** Emoção percebida (do enriquecimento do percept). Com fonte. */
-  async observeEmotion(chatId: string, perceptId: string, sentiment: string, at: Date): Promise<void> {
+  async observeEmotion(
+    chatId: string,
+    perceptId: string,
+    sentiment: string,
+    at: Date,
+  ): Promise<void> {
     if (sentiment === 'neutral' || sentiment === 'unknown') return;
     const memory = await this.load(chatId);
-    const observation: EmotionObservation = { sentiment, source: { kind: 'percept', ref: perceptId, at } };
-    await this.store.save({ ...memory, emotionsObserved: [...memory.emotionsObserved, observation] });
+    const observation: EmotionObservation = {
+      sentiment,
+      source: { kind: 'percept', ref: perceptId, at },
+    };
+    await this.store.save({
+      ...memory,
+      emotionsObserved: [...memory.emotionsObserved, observation],
+    });
   }
 
   /** Texto do cliente: o extrator (opcional) PROPÕE atributos (nome/profissão/cidade…). */
@@ -97,11 +109,24 @@ export class MemoryRuntime {
   }
 
   /** Documento reconhecido (evento de domínio projetado). Factual, com fonte. */
-  async observeDocumentSent(chatId: string, eventId: string, label: string, at: Date): Promise<void> {
+  async observeDocumentSent(
+    chatId: string,
+    eventId: string,
+    label: string,
+    at: Date,
+  ): Promise<void> {
     const memory = await this.load(chatId);
-    const doc: DocumentMemory = { ref: eventId, label, source: { kind: 'domain_event', ref: eventId, at } };
+    const doc: DocumentMemory = {
+      ref: eventId,
+      label,
+      source: { kind: 'domain_event', ref: eventId, at },
+    };
     const pending = memory.documentsPending.filter((p) => p !== label);
-    await this.store.save({ ...memory, documentsSent: [...memory.documentsSent, doc], documentsPending: pending });
+    await this.store.save({
+      ...memory,
+      documentsSent: [...memory.documentsSent, doc],
+      documentsPending: pending,
+    });
   }
 
   /** Documentos que a AHRI pediu e ainda aguarda. */
@@ -111,7 +136,12 @@ export class MemoryRuntime {
   }
 
   /** Etapa concluída (evento de domínio projetado). Com fonte. */
-  async observeStageCompleted(chatId: string, eventId: string, stageRef: string, at: Date): Promise<void> {
+  async observeStageCompleted(
+    chatId: string,
+    eventId: string,
+    stageRef: string,
+    at: Date,
+  ): Promise<void> {
     const memory = await this.load(chatId);
     const stage: StageMemory = { stageRef, source: { kind: 'domain_event', ref: eventId, at } };
     await this.store.save({ ...memory, stagesCompleted: [...memory.stagesCompleted, stage] });

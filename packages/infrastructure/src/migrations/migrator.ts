@@ -38,8 +38,13 @@ export function checksumOf(content: string): string {
  * (o entrypoint o cria antes). Suporta banco NOVO (ledger vazio ⇒ aplica tudo) e
  * banco EXISTENTE (ledger com versões ⇒ pula as já aplicadas). Idempotente.
  */
-export async function runMigrations(db: MigrationDb, migrations: readonly Migration[]): Promise<MigrationRunResult> {
-  const rows = await db.rows<{ version: string; checksum: string }>('SELECT version, checksum FROM schema_migrations');
+export async function runMigrations(
+  db: MigrationDb,
+  migrations: readonly Migration[],
+): Promise<MigrationRunResult> {
+  const rows = await db.rows<{ version: string; checksum: string }>(
+    'SELECT version, checksum FROM schema_migrations',
+  );
   const applied = new Map(rows.map((r) => [r.version, r.checksum] as const));
 
   const appliedNow: string[] = [];
@@ -58,7 +63,10 @@ export async function runMigrations(db: MigrationDb, migrations: readonly Migrat
     await db.exec('BEGIN');
     try {
       await db.exec(migration.sql);
-      await db.rows('INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2)', [migration.version, sum]);
+      await db.rows('INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2)', [
+        migration.version,
+        sum,
+      ]);
       await db.exec('COMMIT');
     } catch (error) {
       await db.exec('ROLLBACK');

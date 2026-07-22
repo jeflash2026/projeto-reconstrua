@@ -42,8 +42,11 @@ describe('OperationalStageAggregate — representação (item 1; INV-ET-01)', ()
   });
 
   it('INV-ET-01 — Etapa sem Estado representado é recusada (1:1 obrigatório)', () => {
-    // @ts-expect-error INV-ET-01: o Estado representado é obrigatório.
-    const result = OperationalStageAggregate.represent({ ...validInput(), representedState: undefined });
+    const result = OperationalStageAggregate.represent({
+      ...validInput(),
+      // @ts-expect-error INV-ET-01: o Estado representado é obrigatório.
+      representedState: undefined,
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('INV-ET-01');
   });
@@ -55,7 +58,10 @@ describe('OperationalStageAggregate — representação (item 1; INV-ET-01)', ()
   });
 
   it('ET-DATADA — datação inválida é recusada', () => {
-    const result = OperationalStageAggregate.represent({ ...validInput(), presentedAt: new Date('x') });
+    const result = OperationalStageAggregate.represent({
+      ...validInput(),
+      presentedAt: new Date('x'),
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('ET-DATADA');
   });

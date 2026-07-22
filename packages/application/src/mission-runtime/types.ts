@@ -80,7 +80,10 @@ export function emptyIdentity(chatId: string): MissionIdentity {
 }
 
 /** Aplica um patch de identidade (ids produzidos por um passo) sobre a identidade. */
-export function mergeIdentity(identity: MissionIdentity, patch: Partial<MissionIdentity>): MissionIdentity {
+export function mergeIdentity(
+  identity: MissionIdentity,
+  patch: Partial<MissionIdentity>,
+): MissionIdentity {
   return { ...identity, ...patch, chatId: identity.chatId };
 }
 
@@ -98,11 +101,36 @@ export interface UseCaseOutcome {
 }
 
 export function failedOutcome(useCase: string, streamType: string, error: string): UseCaseOutcome {
-  return { useCase, ok: false, skipped: false, streamType, streamId: null, appended: 0, eventTypes: [], identityPatch: {}, error };
+  return {
+    useCase,
+    ok: false,
+    skipped: false,
+    streamType,
+    streamId: null,
+    appended: 0,
+    eventTypes: [],
+    identityPatch: {},
+    error,
+  };
 }
 
-export function skippedOutcome(useCase: string, streamType: string, streamId: string, patch: Partial<MissionIdentity>): UseCaseOutcome {
-  return { useCase, ok: true, skipped: true, streamType, streamId, appended: 0, eventTypes: [], identityPatch: patch, error: null };
+export function skippedOutcome(
+  useCase: string,
+  streamType: string,
+  streamId: string,
+  patch: Partial<MissionIdentity>,
+): UseCaseOutcome {
+  return {
+    useCase,
+    ok: true,
+    skipped: true,
+    streamType,
+    streamId,
+    appended: 0,
+    eventTypes: [],
+    identityPatch: patch,
+    error: null,
+  };
 }
 
 /** Resultado da execução de um turno de missão (uma ou mais intenções). */

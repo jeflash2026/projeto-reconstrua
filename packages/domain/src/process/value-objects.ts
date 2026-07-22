@@ -42,7 +42,8 @@ export class ProcessLegalFoundation extends ValueObject<{ value: string }> {
         new CanonViolationError({
           invariantId: WELL_CONSTITUTED_ID,
           canonReference: `${CANON_REF} (itens 11, 19); DF-01`,
-          message: 'Processo sem fundamento jurídico: o Projeto só atua havendo fundamento (DF-01).',
+          message:
+            'Processo sem fundamento jurídico: o Projeto só atua havendo fundamento (DF-01).',
         }),
       );
     }

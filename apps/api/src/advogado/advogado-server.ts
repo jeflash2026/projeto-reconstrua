@@ -30,7 +30,10 @@ function isEntryKind(value: string): value is JuridicalEntryKind {
   return (ENTRY_KINDS as readonly string[]).includes(value);
 }
 
-export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { readonly accessSecret?: string } = {}): FastifyInstance {
+export function buildAdvogadoServer(
+  op: AssembledAdvogadoOperation,
+  opts: { readonly accessSecret?: string } = {},
+): FastifyInstance {
   const app = Fastify({ logger: false });
 
   app.addHook('onSend', (_request, reply, _payload, done) => {
@@ -47,7 +50,10 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
   // Advogado (Bearer). REUSA o guard do BL-2.1 (sem auth paralela, sem duplicação).
   // O isolamento por atribuição (x-advogado-id + isAssigned) permanece INTOCADO,
   // agora atrás da autenticação real. Multiescritório: o segredo pode ser por escritório.
-  requireBearer(app, { secret: opts.accessSecret ?? '', protect: (path) => path.startsWith('/advogado') });
+  requireBearer(app, {
+    secret: opts.accessSecret ?? '',
+    protect: (path) => path.startsWith('/advogado'),
+  });
 
   /** Resolve o advogado autenticado (ativo) ou null. */
   async function advogadoOf(request: FastifyRequest): Promise<string | null> {
@@ -69,7 +75,8 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
     const body = request.body as { advogadoId?: string };
     if (!body.advogadoId) return reply.code(400).send({ error: 'advogadoId obrigatório' });
     const token = await op.auth.emitirConvite(body.advogadoId, new Date());
-    if (token === null) return reply.code(404).send({ error: 'advogado não encontrado ou inativo' });
+    if (token === null)
+      return reply.code(404).send({ error: 'advogado não encontrado ou inativo' });
     return { advogadoId: body.advogadoId, token, validadeDias: 7 };
   });
 
@@ -77,7 +84,8 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
   app.post('/advogado-auth/definir-senha', async (request, reply) => {
     if (!op.auth) return reply.code(503).send({ error: 'autenticação indisponível' });
     const body = request.body as { token?: string; senha?: string };
-    if (!body.token || !body.senha) return reply.code(400).send({ error: 'token e senha são obrigatórios' });
+    if (!body.token || !body.senha)
+      return reply.code(400).send({ error: 'token e senha são obrigatórios' });
     const result = await op.auth.definirSenha(body.token, body.senha, new Date());
     if (!result.ok) return reply.code(400).send({ error: result.error });
     return { ok: true, advogadoId: result.advogadoId, nome: result.nome };
@@ -87,7 +95,8 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
   app.post('/advogado-auth/login', async (request, reply) => {
     if (!op.auth) return reply.code(503).send({ error: 'autenticação indisponível' });
     const body = request.body as { advogadoId?: string; senha?: string };
-    if (!body.advogadoId || !body.senha) return reply.code(400).send({ error: 'advogadoId e senha são obrigatórios' });
+    if (!body.advogadoId || !body.senha)
+      return reply.code(400).send({ error: 'advogadoId e senha são obrigatórios' });
     const result = await op.auth.login(body.advogadoId, body.senha);
     if (!result.ok) return reply.code(401).send({ error: result.error });
     return { ok: true, advogadoId: result.advogadoId, nome: result.nome };
@@ -98,7 +107,9 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
   const nomeDoClientePorChat = async (chatId: string): Promise<string> => {
     try {
       const mem = await op.memoryStore.load(chatId);
-      const attr = mem?.attributes.find((a) => a.key === 'nome' && typeof a.value === 'string' && a.value.trim() !== '');
+      const attr = mem?.attributes.find(
+        (a) => a.key === 'nome' && typeof a.value === 'string' && a.value.trim() !== '',
+      );
       if (attr) return String(attr.value);
     } catch {
       /* memória indisponível ⇒ fallback */
@@ -119,10 +130,13 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
     if (op.notificationChannels) {
       try {
         const canais = await op.notificationChannels.canaisDe(body.advogadoId);
-        const canal = canais.find((c) => c.tipo === 'whatsapp' && c.preferido) ?? canais.find((c) => c.tipo === 'whatsapp');
+        const canal =
+          canais.find((c) => c.tipo === 'whatsapp' && c.preferido) ??
+          canais.find((c) => c.tipo === 'whatsapp');
         if (canal) {
           await op.projector.refresh().catch(() => undefined);
-          const chatId = op.projector.missions().find((m) => m.missionId === body.missionId)?.chatId ?? null;
+          const chatId =
+            op.projector.missions().find((m) => m.missionId === body.missionId)?.chatId ?? null;
           const nome = chatId !== null ? await nomeDoClientePorChat(chatId) : body.missionId;
           await op.gateway.sendText(
             canal.endereco,
@@ -141,7 +155,8 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
   // Prontos = prazo administrativo em curso/vencido (AGUARDANDO_10_DIAS /
   // AGUARDANDO_SOCIO) e AINDA sem advogado atribuído.
   app.get('/advogado-admin/clientes-prontos', async (_request, reply) => {
-    if (!op.clientes) return reply.code(503).send({ error: 'lista de clientes indisponível nesta montagem' });
+    if (!op.clientes)
+      return reply.code(503).send({ error: 'lista de clientes indisponível nesta montagem' });
     const lista = await op.clientes.list(new Date());
     const prontos = [];
     for (const c of lista) {
@@ -157,7 +172,9 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
         pedidosConfirmadosEm: c.pedidosConfirmadosEm,
       });
     }
-    const advogados = (await op.staff.list('advogado')).filter((s) => s.active).map((s) => ({ id: s.id, name: s.name }));
+    const advogados = (await op.staff.list('advogado'))
+      .filter((s) => s.active)
+      .map((s) => ({ id: s.id, name: s.name }));
     return { prontos, advogados };
   });
 
@@ -182,24 +199,40 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
   // apenas executa. caseId é a identidade funcional (Decisão 5). O disparo da
   // mensagem ao cliente é do 15C-3 (a criação registra a necessidade).
   app.post('/advogado/casos/:caseId/document-requests', async (request, reply) => {
-    if (!op.documentRequests) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    if (!op.documentRequests)
+      return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
     const { caseId } = request.params as { caseId: string };
     const body = request.body as {
-      documentName?: string; optionalMessage?: string; clientId?: string; advogadoId?: string;
-      requestedBy?: string; priority?: 'normal' | 'alta'; dueAt?: string;
+      documentName?: string;
+      optionalMessage?: string;
+      clientId?: string;
+      advogadoId?: string;
+      requestedBy?: string;
+      priority?: 'normal' | 'alta';
+      dueAt?: string;
       reminderPolicy?: 'nenhum' | '24h' | '48h' | '72h' | 'semanal';
       // Decreto Tráfego Pago · B1: documento ANEXADO pelo advogado para ASSINATURA
       // (procuração/contrato de honorários) — a AHRI envia o arquivo ao cliente.
       anexo?: { fileName?: string; mimeType?: string; base64?: string };
     };
-    if (!body.documentName?.trim()) return reply.code(400).send({ error: 'documentName é obrigatório' });
-    if (!body.clientId?.trim()) return reply.code(400).send({ error: 'clientId é obrigatório (canal do cliente)' });
-    if (!body.advogadoId?.trim()) return reply.code(400).send({ error: 'advogadoId é obrigatório' });
+    if (!body.documentName?.trim())
+      return reply.code(400).send({ error: 'documentName é obrigatório' });
+    if (!body.clientId?.trim())
+      return reply.code(400).send({ error: 'clientId é obrigatório (canal do cliente)' });
+    if (!body.advogadoId?.trim())
+      return reply.code(400).send({ error: 'advogadoId é obrigatório' });
     if (body.anexo !== undefined) {
-      if (!body.anexo.fileName?.trim() || !body.anexo.mimeType?.trim() || !body.anexo.base64?.trim()) {
-        return reply.code(400).send({ error: 'anexo incompleto: fileName, mimeType e base64 são obrigatórios' });
+      if (
+        !body.anexo.fileName?.trim() ||
+        !body.anexo.mimeType?.trim() ||
+        !body.anexo.base64?.trim()
+      ) {
+        return reply
+          .code(400)
+          .send({ error: 'anexo incompleto: fileName, mimeType e base64 são obrigatórios' });
       }
-      if (!op.documentRequestAnexos) return reply.code(503).send({ error: 'anexos indisponíveis nesta montagem' });
+      if (!op.documentRequestAnexos)
+        return reply.code(503).send({ error: 'anexos indisponíveis nesta montagem' });
     }
 
     const criado = await op.documentRequests.criar({
@@ -228,14 +261,17 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
     }
     // 15C-3 · Parte 3 — DISPARO PROATIVO: a AHRI anuncia ao cliente (best-effort;
     // a criação já está persistida — falha de envio nunca desfaz a solicitação).
-    const anuncio = op.documentRequestComunicador ? await op.documentRequestComunicador.anunciar(estado) : { ok: false, erro: 'comunicador indisponível nesta montagem' };
+    const anuncio = op.documentRequestComunicador
+      ? await op.documentRequestComunicador.anunciar(estado)
+      : { ok: false, erro: 'comunicador indisponível nesta montagem' };
     return reply.code(201).send({ ...estado, anuncio });
   });
 
   // Decreto Tráfego Pago · B2 — o NÚMERO do advogado (canal de notificação):
   // a AHRI avisa documentos recebidos pelo WhatsApp cadastrado aqui.
   app.get('/advogado/perfil/canal', async (request, reply) => {
-    if (!op.notificationChannels) return reply.code(503).send({ error: 'canais indisponíveis nesta montagem' });
+    if (!op.notificationChannels)
+      return reply.code(503).send({ error: 'canais indisponíveis nesta montagem' });
     const advogadoId = (request.headers['x-advogado-id'] as string | undefined)?.trim() ?? '';
     if (advogadoId === '') return reply.code(400).send({ error: 'x-advogado-id é obrigatório' });
     const canais = await op.notificationChannels.canaisDe(advogadoId);
@@ -244,27 +280,38 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
   });
 
   app.put('/advogado/perfil/canal', async (request, reply) => {
-    if (!op.notificationChannels) return reply.code(503).send({ error: 'canais indisponíveis nesta montagem' });
+    if (!op.notificationChannels)
+      return reply.code(503).send({ error: 'canais indisponíveis nesta montagem' });
     const advogadoId = (request.headers['x-advogado-id'] as string | undefined)?.trim() ?? '';
     if (advogadoId === '') return reply.code(400).send({ error: 'x-advogado-id é obrigatório' });
     const body = request.body as { whatsapp?: string };
     const digitos = (body.whatsapp ?? '').replace(/\D/g, '');
-    if (digitos.length < 10) return reply.code(400).send({ error: 'whatsapp inválido: informe DDI+DDD+número (só dígitos)' });
+    if (digitos.length < 10)
+      return reply
+        .code(400)
+        .send({ error: 'whatsapp inválido: informe DDI+DDD+número (só dígitos)' });
     await op.notificationChannels.definir(advogadoId, [
-      { tipo: 'whatsapp', endereco: `${digitos}@s.whatsapp.net`, preferido: true, verificadoEm: null },
+      {
+        tipo: 'whatsapp',
+        endereco: `${digitos}@s.whatsapp.net`,
+        preferido: true,
+        verificadoEm: null,
+      },
     ]);
     return { ok: true, whatsapp: digitos };
   });
 
   app.get('/advogado/casos/:caseId/document-requests', async (request, reply) => {
-    if (!op.documentRequestStore) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    if (!op.documentRequestStore)
+      return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
     const { caseId } = request.params as { caseId: string };
     return { solicitacoes: await op.documentRequestStore.doCaso(caseId) };
   });
 
   // 15C-2 — a LISTA do painel (todas as solicitações do advogado autenticado).
   app.get('/advogado/document-requests', async (request, reply) => {
-    if (!op.documentRequestStore) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    if (!op.documentRequestStore)
+      return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
     const advogadoId = (request.headers['x-advogado-id'] as string | undefined)?.trim() ?? '';
     if (advogadoId === '') return reply.code(400).send({ error: 'x-advogado-id é obrigatório' });
     return { solicitacoes: await op.documentRequestStore.doAdvogado(advogadoId) };
@@ -272,7 +319,8 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
 
   // 15C-2 — o DETALHE de uma solicitação (cabeçalho + history completo).
   app.get('/advogado/document-requests/:id', async (request, reply) => {
-    if (!op.documentRequestStore) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    if (!op.documentRequestStore)
+      return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
     const { id } = request.params as { id: string };
     const solicitacao = await op.documentRequestStore.porId(id);
     if (solicitacao === null) return reply.code(404).send({ error: 'solicitação não encontrada' });
@@ -280,21 +328,35 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
   });
 
   app.post('/advogado/document-requests/:id/cancelar', async (request, reply) => {
-    if (!op.documentRequests) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    if (!op.documentRequests)
+      return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
     const { id } = request.params as { id: string };
     const body = request.body as { motivo?: string; advogadoId?: string };
-    if (!body.advogadoId?.trim()) return reply.code(400).send({ error: 'advogadoId é obrigatório' });
-    const r = await op.documentRequests.cancelar(id, body.motivo?.trim() ? body.motivo : 'cancelada pelo advogado', body.advogadoId, new Date());
+    if (!body.advogadoId?.trim())
+      return reply.code(400).send({ error: 'advogadoId é obrigatório' });
+    const r = await op.documentRequests.cancelar(
+      id,
+      body.motivo?.trim() ? body.motivo : 'cancelada pelo advogado',
+      body.advogadoId,
+      new Date(),
+    );
     if (r.isErr()) return reply.code(409).send({ error: r.unwrapErr().message });
     return r.unwrap();
   });
 
   app.post('/advogado/document-requests/:id/reabrir', async (request, reply) => {
-    if (!op.documentRequests) return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
+    if (!op.documentRequests)
+      return reply.code(503).send({ error: 'document requests indisponível nesta montagem' });
     const { id } = request.params as { id: string };
     const body = request.body as { motivo?: string; advogadoId?: string };
-    if (!body.advogadoId?.trim()) return reply.code(400).send({ error: 'advogadoId é obrigatório' });
-    const r = await op.documentRequests.reabrir(id, body.motivo?.trim() ? body.motivo : 'documento incorreto', body.advogadoId, new Date());
+    if (!body.advogadoId?.trim())
+      return reply.code(400).send({ error: 'advogadoId é obrigatório' });
+    const r = await op.documentRequests.reabrir(
+      id,
+      body.motivo?.trim() ? body.motivo : 'documento incorreto',
+      body.advogadoId,
+      new Date(),
+    );
     if (r.isErr()) return reply.code(409).send({ error: r.unwrapErr().message });
     return r.unwrap();
   });
@@ -323,7 +385,9 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
       protocolsWaiting: entries.filter((e) => e.kind === 'protocolo' && !e.done).length,
       newDocuments,
       queue: (await op.handoff.openFor('advogado')).length,
-      alerts: agenda.filter((e) => (e.dueAt?.getTime() ?? Infinity) < now.getTime()).map((e) => `prazo vencido: ${e.text}`),
+      alerts: agenda
+        .filter((e) => (e.dueAt?.getTime() ?? Infinity) < now.getTime())
+        .map((e) => `prazo vencido: ${e.text}`),
     };
   });
 
@@ -364,7 +428,12 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
     const advogadoId = await advogadoOf(request);
     if (!advogadoId) return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
     const { missionId } = request.params as { missionId: string };
-    const body = request.body as { kind?: string; text?: string; dueAt?: string; attachmentRef?: string };
+    const body = request.body as {
+      kind?: string;
+      text?: string;
+      dueAt?: string;
+      attachmentRef?: string;
+    };
     if (!body.kind || !isEntryKind(body.kind) || !body.text) {
       return reply.code(400).send({ error: 'kind válido e text são obrigatórios' });
     }
@@ -408,7 +477,8 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
   const listRoute = (path: string, kind: JuridicalEntryKind | null): void => {
     app.get(path, async (request, reply) => {
       const advogadoId = await advogadoOf(request);
-      if (!advogadoId) return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
+      if (!advogadoId)
+        return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
       return kind === null ? op.work.myEntries(advogadoId) : op.work.myEntries(advogadoId, kind);
     });
   };
@@ -434,7 +504,9 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
     if (!advogadoId) return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
     await op.projector.refresh();
     const myMissionIds = new Set((await op.work.myMissions(advogadoId)).map((m) => m.missionId));
-    return op.projector.allDocuments().filter((d) => d.missionId !== null && myMissionIds.has(d.missionId));
+    return op.projector
+      .allDocuments()
+      .filter((d) => d.missionId !== null && myMissionIds.has(d.missionId));
   });
 
   // ── BL-3.3 — CONTEÚDO REAL do documento, ISOLADO POR ATRIBUIÇÃO ───────────────
@@ -442,20 +514,28 @@ export function buildAdvogadoServer(op: AssembledAdvogadoOperation, opts: { read
   // OBRIGATORIAMENTE que o processo é do advogado (isAssigned) e que o documento
   // pertence a esse processo. Sem parser novo, sem rota paralela, sem alterar
   // autenticação, persistência, regras jurídicas nem o isolamento.
-  app.get('/advogado/processos/:missionId/documentos/:documentId/content', async (request, reply) => {
-    const advogadoId = await advogadoOf(request);
-    if (!advogadoId) return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
-    const { missionId, documentId } = request.params as { missionId: string; documentId: string };
-    if (!(await op.work.isAssigned(advogadoId, missionId))) {
-      return reply.code(403).send({ error: 'processo não atribuído a este advogado' });
-    }
-    await op.projector.refresh();
-    const belongs = op.projector.allDocuments().some((d) => d.documentId === documentId && d.missionId === missionId);
-    if (!belongs) return reply.code(404).send({ error: 'documento não pertence a este processo' });
-    const content = op.documentContent ? await op.documentContent.byDocumentId(documentId) : null;
-    if (content === null) return reply.code(404).send({ error: 'documento sem conteúdo disponível' });
-    return reply.header('content-type', content.mime).send(Buffer.from(content.bytes));
-  });
+  app.get(
+    '/advogado/processos/:missionId/documentos/:documentId/content',
+    async (request, reply) => {
+      const advogadoId = await advogadoOf(request);
+      if (!advogadoId)
+        return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
+      const { missionId, documentId } = request.params as { missionId: string; documentId: string };
+      if (!(await op.work.isAssigned(advogadoId, missionId))) {
+        return reply.code(403).send({ error: 'processo não atribuído a este advogado' });
+      }
+      await op.projector.refresh();
+      const belongs = op.projector
+        .allDocuments()
+        .some((d) => d.documentId === documentId && d.missionId === missionId);
+      if (!belongs)
+        return reply.code(404).send({ error: 'documento não pertence a este processo' });
+      const content = op.documentContent ? await op.documentContent.byDocumentId(documentId) : null;
+      if (content === null)
+        return reply.code(404).send({ error: 'documento sem conteúdo disponível' });
+      return reply.header('content-type', content.mime).send(Buffer.from(content.bytes));
+    },
+  );
 
   app.get('/advogado/perfil', async (request, reply) => {
     const advogadoId = await advogadoOf(request);

@@ -10,7 +10,13 @@
 import { describe, it, expect } from 'vitest';
 import type { Clock, Uuid, UuidGenerator } from '@reconstrua/domain';
 import { toUuid } from '@reconstrua/domain';
-import type { BrainContext, BrainFacts, MissionFacts, PerceptView, StrategicDecision } from '@reconstrua/application';
+import type {
+  BrainContext,
+  BrainFacts,
+  MissionFacts,
+  PerceptView,
+  StrategicDecision,
+} from '@reconstrua/application';
 import {
   ExecutiveBrainRuntime,
   emptySnapshot,
@@ -28,19 +34,49 @@ const NOW = new Date('2026-07-19T00:00:00.000Z');
 const CHAT = '5511988887777@s.whatsapp.net';
 
 class TestClock implements Clock {
-  now(): Date { return NOW; }
+  now(): Date {
+    return NOW;
+  }
 }
 class SeqUuid implements UuidGenerator {
   private n = 0;
-  next(): Uuid { this.n += 1; return toUuid(`00000000-0000-4000-8000-${String(this.n).padStart(12, '0')}`); }
+  next(): Uuid {
+    this.n += 1;
+    return toUuid(`00000000-0000-4000-8000-${String(this.n).padStart(12, '0')}`);
+  }
 }
 
 function facts(perceptKind: string): MissionFacts {
-  return { chatId: CHAT, senderId: CHAT, messageId: 'M1', perceptKind, text: 'olá, preciso de ajuda com meu consignado', mediaRef: null, fileName: null, mimeType: null, occurredAt: NOW };
+  return {
+    chatId: CHAT,
+    senderId: CHAT,
+    messageId: 'M1',
+    perceptKind,
+    text: 'olá, preciso de ajuda com meu consignado',
+    mediaRef: null,
+    fileName: null,
+    mimeType: null,
+    occurredAt: NOW,
+  };
 }
 function brainContext(): BrainContext {
-  const percept: PerceptView = { kind: 'text', sentiment: 'neutral', urgency: 'normal', hasArtifacts: false, artifactCount: 0, silenceMs: null, purpose: 'service_request' };
-  return { percept, snapshot: emptySnapshot(CHAT), memory: { turnCount: 1, lastOutboundAgoMs: null }, rules: MISSION_RULE_CATALOG, chatId: CHAT, now: NOW };
+  const percept: PerceptView = {
+    kind: 'text',
+    sentiment: 'neutral',
+    urgency: 'normal',
+    hasArtifacts: false,
+    artifactCount: 0,
+    silenceMs: null,
+    purpose: 'service_request',
+  };
+  return {
+    percept,
+    snapshot: emptySnapshot(CHAT),
+    memory: { turnCount: 1, lastOutboundAgoMs: null },
+    rules: MISSION_RULE_CATALOG,
+    chatId: CHAT,
+    now: NOW,
+  };
 }
 
 /** O cliente do decreto 10A → decisão do Executive Mind (revisão contratual, ALTA). */
@@ -61,7 +97,12 @@ function harness() {
   const clock = new TestClock();
   const eventStore = new InMemoryEventStore(new CryptoHasher(), new SeqUuid(), clock);
   const brain = new ExecutiveBrainRuntime({ clock, uuid: new SeqUuid() });
-  const { runtime } = assembleMissionRuntime({ eventStore, hasher: new CryptoHasher(), uuid: new SeqUuid(), clock });
+  const { runtime } = assembleMissionRuntime({
+    eventStore,
+    hasher: new CryptoHasher(),
+    uuid: new SeqUuid(),
+    clock,
+  });
   return { eventStore, brain, runtime };
 }
 
@@ -80,7 +121,11 @@ describe('GO-LIVE 10C · uma StrategicDecision gera exatamente UMA Mission rastr
     expect(result.ok).toBe(true);
     expect(result.identity.missionId).not.toBeNull();
 
-    const missionEvents = await eventStore.readStream('mission', result.identity.missionId as string, 0);
+    const missionEvents = await eventStore.readStream(
+      'mission',
+      result.identity.missionId as string,
+      0,
+    );
     expect(missionEvents).toHaveLength(1); // exatamente UMA missão
     const fundamento = missionEvents[0]?.provenance.fundamento ?? '';
     // Rastreável até a estratégia (e, por ela, até os fatos que a originaram):
@@ -96,7 +141,9 @@ describe('GO-LIVE 10C · o Planner EXECUTA, jamais compara/escolhe estratégias'
     const outcome = await brain.decide(brainContext());
 
     const revisao = decisaoDoDecreto();
-    const fraude = deliberar(raciocinar({ problema_principal: 'emprestimo_nao_contratado' }, ESTRATEGIAS_CONSIGNADO_INSS));
+    const fraude = deliberar(
+      raciocinar({ problema_principal: 'emprestimo_nao_contratado' }, ESTRATEGIAS_CONSIGNADO_INSS),
+    );
 
     const comRevisao = toMissionUseCaseIntents(outcome.intents, revisao);
     const comFraude = toMissionUseCaseIntents(outcome.intents, fraude);
@@ -122,7 +169,11 @@ describe('GO-LIVE 10C · compatibilidade — sem Executive Mind, o fluxo LEGADO 
     expect(result.ok).toBe(true);
     expect(result.identity.missionId).not.toBeNull();
 
-    const missionEvents = await eventStore.readStream('mission', result.identity.missionId as string, 0);
+    const missionEvents = await eventStore.readStream(
+      'mission',
+      result.identity.missionId as string,
+      0,
+    );
     expect(missionEvents).toHaveLength(1);
     expect(missionEvents[0]?.provenance.fundamento ?? '').not.toContain('StrategicDecision');
   });

@@ -9,9 +9,25 @@ import type { Clock } from '@reconstrua/domain';
 
 export type GatewayAction =
   | { readonly type: 'text'; readonly chatId: string; readonly text: string; readonly at: Date }
-  | { readonly type: 'presence'; readonly chatId: string; readonly state: PresenceState; readonly at: Date }
-  | { readonly type: 'reaction'; readonly chatId: string; readonly messageId: string; readonly emoji: string; readonly at: Date }
-  | { readonly type: 'read'; readonly chatId: string; readonly messageId: string; readonly at: Date };
+  | {
+      readonly type: 'presence';
+      readonly chatId: string;
+      readonly state: PresenceState;
+      readonly at: Date;
+    }
+  | {
+      readonly type: 'reaction';
+      readonly chatId: string;
+      readonly messageId: string;
+      readonly emoji: string;
+      readonly at: Date;
+    }
+  | {
+      readonly type: 'read';
+      readonly chatId: string;
+      readonly messageId: string;
+      readonly at: Date;
+    };
 
 export class InMemoryConversationGateway implements ConversationGateway {
   private readonly log: GatewayAction[] = [];
@@ -22,7 +38,10 @@ export class InMemoryConversationGateway implements ConversationGateway {
   sendText(chatId: string, text: string): Promise<OutboundReceipt> {
     this.log.push({ type: 'text', chatId, text, at: this.clock.now() });
     this.counter += 1;
-    return Promise.resolve({ providerMessageId: `out-${String(this.counter)}`, sentAt: this.clock.now() });
+    return Promise.resolve({
+      providerMessageId: `out-${String(this.counter)}`,
+      sentAt: this.clock.now(),
+    });
   }
 
   setPresence(chatId: string, state: PresenceState): Promise<void> {
@@ -45,6 +64,8 @@ export class InMemoryConversationGateway implements ConversationGateway {
   }
 
   texts(): readonly string[] {
-    return this.log.filter((a): a is Extract<GatewayAction, { type: 'text' }> => a.type === 'text').map((a) => a.text);
+    return this.log
+      .filter((a): a is Extract<GatewayAction, { type: 'text' }> => a.type === 'text')
+      .map((a) => a.text);
   }
 }

@@ -38,7 +38,13 @@ class FakeWhatsApp {
   }
   confirm(_name: string) {
     this.calls.push('confirm');
-    return Promise.resolve({ connected: false, ownerJid: '5511989904824@s.whatsapp.net', number: '5511989904824', matchesOfficial: false, error: 'O número conectado não corresponde ao número oficial da empresa.' });
+    return Promise.resolve({
+      connected: false,
+      ownerJid: '5511989904824@s.whatsapp.net',
+      number: '5511989904824',
+      matchesOfficial: false,
+      error: 'O número conectado não corresponde ao número oficial da empresa.',
+    });
   }
   discard(name: string) {
     this.calls.push(`discard:${name}`);
@@ -49,13 +55,24 @@ class FakeWhatsApp {
 function harness() {
   const wa = new FakeWhatsApp();
   const op = { whatsapp: wa } as unknown as AssembledAdminOperation;
-  const app: FastifyInstance = buildAdminServer(op, { accessSecret: ADMIN, founderSecret: FOUNDER });
-  const admin = (opts: { method: 'GET' | 'POST'; url: string; payload?: object; founder?: boolean }) =>
+  const app: FastifyInstance = buildAdminServer(op, {
+    accessSecret: ADMIN,
+    founderSecret: FOUNDER,
+  });
+  const admin = (opts: {
+    method: 'GET' | 'POST';
+    url: string;
+    payload?: object;
+    founder?: boolean;
+  }) =>
     app.inject({
       method: opts.method,
       url: opts.url,
       ...(opts.payload !== undefined ? { payload: opts.payload } : {}),
-      headers: { authorization: `Bearer ${ADMIN}`, ...(opts.founder ? { 'x-founder-secret': FOUNDER } : {}) },
+      headers: {
+        authorization: `Bearer ${ADMIN}`,
+        ...(opts.founder ? { 'x-founder-secret': FOUNDER } : {}),
+      },
     });
   return { app, wa, admin };
 }
@@ -63,7 +80,9 @@ function harness() {
 describe('Conexão WhatsApp — rotas admin', () => {
   it('status sem Bearer ⇒ 401 (BL-2.1)', async () => {
     const { app } = harness();
-    expect((await app.inject({ method: 'GET', url: '/admin/whatsapp/status' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/admin/whatsapp/status' })).statusCode).toBe(
+      401,
+    );
   });
 
   it('status com Bearer ⇒ 200 e SEM segredos', async () => {
@@ -79,20 +98,33 @@ describe('Conexão WhatsApp — rotas admin', () => {
 
   it('criar instância SEM x-founder-secret ⇒ 403', async () => {
     const { admin } = harness();
-    const res = await admin({ method: 'POST', url: '/admin/whatsapp/instances', payload: { instanceName: 'reconstrua-prod' } });
+    const res = await admin({
+      method: 'POST',
+      url: '/admin/whatsapp/instances',
+      payload: { instanceName: 'reconstrua-prod' },
+    });
     expect(res.statusCode).toBe(403);
   });
 
   it('criar instância COM perfil Founder ⇒ 200', async () => {
     const { admin, wa } = harness();
-    const res = await admin({ method: 'POST', url: '/admin/whatsapp/instances', payload: { instanceName: 'reconstrua-prod' }, founder: true });
+    const res = await admin({
+      method: 'POST',
+      url: '/admin/whatsapp/instances',
+      payload: { instanceName: 'reconstrua-prod' },
+      founder: true,
+    });
     expect(res.statusCode).toBe(200);
     expect(wa.calls).toContain('create:reconstrua-prod');
   });
 
   it('confirmar número DIVERGENTE ⇒ 200 com connected:false e o erro exato', async () => {
     const { admin } = harness();
-    const res = await admin({ method: 'POST', url: '/admin/whatsapp/confirm', payload: { instanceName: 'x' } });
+    const res = await admin({
+      method: 'POST',
+      url: '/admin/whatsapp/confirm',
+      payload: { instanceName: 'x' },
+    });
     expect(res.statusCode).toBe(200);
     const body: { connected: boolean; error: string } = res.json();
     expect(body.connected).toBe(false);
@@ -101,16 +133,30 @@ describe('Conexão WhatsApp — rotas admin', () => {
 
   it('descartar SEM confirmação explícita ⇒ 400; COM Founder+confirm ⇒ 200', async () => {
     const { admin, wa } = harness();
-    const semConfirm = await admin({ method: 'POST', url: '/admin/whatsapp/discard', payload: { instanceName: 'velha' }, founder: true });
+    const semConfirm = await admin({
+      method: 'POST',
+      url: '/admin/whatsapp/discard',
+      payload: { instanceName: 'velha' },
+      founder: true,
+    });
     expect(semConfirm.statusCode).toBe(400);
-    const ok = await admin({ method: 'POST', url: '/admin/whatsapp/discard', payload: { instanceName: 'velha', confirm: true }, founder: true });
+    const ok = await admin({
+      method: 'POST',
+      url: '/admin/whatsapp/discard',
+      payload: { instanceName: 'velha', confirm: true },
+      founder: true,
+    });
     expect(ok.statusCode).toBe(200);
     expect(wa.calls).toContain('discard:velha');
   });
 
   it('descartar SEM Founder ⇒ 403 (mesmo com confirm)', async () => {
     const { admin } = harness();
-    const res = await admin({ method: 'POST', url: '/admin/whatsapp/discard', payload: { instanceName: 'velha', confirm: true } });
+    const res = await admin({
+      method: 'POST',
+      url: '/admin/whatsapp/discard',
+      payload: { instanceName: 'velha', confirm: true },
+    });
     expect(res.statusCode).toBe(403);
   });
 });

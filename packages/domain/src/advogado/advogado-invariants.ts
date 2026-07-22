@@ -20,25 +20,22 @@ export const advogadoEntityInvariants: ReadonlyArray<Invariant<AdvogadoAggregate
   defineInvariant<AdvogadoAggregate>({
     id: 'INV-AD-03',
     canonReference: 'ADVOGADO INV-AD-03; Lei Geral; item 13',
-    description: 'Responsabilidade temporária sobre a Missão (que pertence ao Projeto); Pessoa e Missão referenciadas, jamais possuídas.',
+    description:
+      'Responsabilidade temporária sobre a Missão (que pertence ao Projeto); Pessoa e Missão referenciadas, jamais possuídas.',
     check: (a) => a.person != null && a.mission != null,
   }),
   defineInvariant<AdvogadoAggregate>({
     id: 'AD-AUTORIZADO',
     canonReference: 'ADVOGADO item 7/8/11; DF-12',
-    description: 'A designação possui autoridade designante identificada (autorização da Governança).',
+    description:
+      'A designação possui autoridade designante identificada (autorização da Governança).',
     check: (a) => a.designatedBy != null,
   }),
 ];
 
 // (B) Manifesto completo das 3 invariantes do Canon e onde cada uma é garantida.
 export type EnforcementLocus =
-  | 'entity'
-  | 'event-store'
-  | 'projection'
-  | 'cqrs'
-  | 'use-case'
-  | 'cross-entity';
+  'entity' | 'event-store' | 'projection' | 'cqrs' | 'use-case' | 'cross-entity';
 
 export interface AdvogadoInvariantSpec {
   readonly id: string;
@@ -48,7 +45,23 @@ export interface AdvogadoInvariantSpec {
 }
 
 export const ADVOGADO_INVARIANTS_MANIFEST: ReadonlyArray<AdvogadoInvariantSpec> = [
-  { id: 'INV-AD-01', canonReference: 'DF-09', description: 'A decisão jurídica definitiva só pode ser do Advogado (profissional humano competente).', enforcement: 'cross-entity' },
-  { id: 'INV-AD-02', canonReference: 'DF-09', description: 'Os atos privativos de advocacia só podem ser praticados pelo Advogado.', enforcement: 'cross-entity' },
-  { id: 'INV-AD-03', canonReference: 'Lei Geral', description: 'Responsabilidade temporária; a missão pertence ao Projeto, jamais ao Advogado.', enforcement: 'entity' },
+  {
+    id: 'INV-AD-01',
+    canonReference: 'DF-09',
+    description:
+      'A decisão jurídica definitiva só pode ser do Advogado (profissional humano competente).',
+    enforcement: 'cross-entity',
+  },
+  {
+    id: 'INV-AD-02',
+    canonReference: 'DF-09',
+    description: 'Os atos privativos de advocacia só podem ser praticados pelo Advogado.',
+    enforcement: 'cross-entity',
+  },
+  {
+    id: 'INV-AD-03',
+    canonReference: 'Lei Geral',
+    description: 'Responsabilidade temporária; a missão pertence ao Projeto, jamais ao Advogado.',
+    enforcement: 'entity',
+  },
 ];

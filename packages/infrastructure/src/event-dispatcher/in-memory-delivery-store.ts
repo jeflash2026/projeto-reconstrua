@@ -116,7 +116,12 @@ export class InMemoryDeliveryStore implements DeliveryStore {
     return Promise.resolve();
   }
 
-  reschedule(deliveryId: string, nextAttemptAt: Date, attempts: number, error: string): Promise<void> {
+  reschedule(
+    deliveryId: string,
+    nextAttemptAt: Date,
+    attempts: number,
+    error: string,
+  ): Promise<void> {
     const d = this.deliveries.get(deliveryId);
     if (d) {
       d.attempts = attempts;

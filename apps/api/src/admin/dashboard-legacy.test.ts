@@ -77,7 +77,9 @@ describe('/admin/dashboard com registros legados (formas reais de builds antigos
     const metricsStore = new JsonMetricsStore(json);
     const memoryStore = new JsonMemoryStore(json);
     const op = {
-      projector: new TimelineProjector(new InMemoryEventStore(new CryptoHasher(), new UuidV4Generator(), clock)),
+      projector: new TimelineProjector(
+        new InMemoryEventStore(new CryptoHasher(), new UuidV4Generator(), clock),
+      ),
       metricsStore,
       memoryStore,
       observability: new ObservabilityRuntime(),

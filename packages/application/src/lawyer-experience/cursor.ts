@@ -20,7 +20,13 @@ export interface CursorStore {
 }
 
 export function emptyCursor(advogadoId: string, now: Date): LawyerCursor {
-  return { advogadoId, lastAccessAt: null, lastMissionOpened: null, seenByMission: {}, updatedAt: now };
+  return {
+    advogadoId,
+    lastAccessAt: null,
+    lastMissionOpened: null,
+    seenByMission: {},
+    updatedAt: now,
+  };
 }
 
 export class CursorRuntime {
@@ -39,7 +45,12 @@ export class CursorRuntime {
   }
 
   /** Marca a missão como vista até `globalSeq` (a abertura do quadro do processo). */
-  async markSeen(advogadoId: string, missionId: string, globalSeq: number, now: Date): Promise<LawyerCursor> {
+  async markSeen(
+    advogadoId: string,
+    missionId: string,
+    globalSeq: number,
+    now: Date,
+  ): Promise<LawyerCursor> {
     const current = await this.get(advogadoId, now);
     const previous = current.seenByMission[missionId] ?? 0;
     const next: LawyerCursor = {

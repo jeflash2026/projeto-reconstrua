@@ -57,7 +57,11 @@ export function evaluateCondition(condition: Condition, facts: BrainFacts): bool
 
   switch (condition.op) {
     case 'truthy':
-      return actual === true || (typeof actual === 'number' && actual !== 0) || (typeof actual === 'string' && actual !== '');
+      return (
+        actual === true ||
+        (typeof actual === 'number' && actual !== 0) ||
+        (typeof actual === 'string' && actual !== '')
+      );
     case 'falsy':
       return actual === false || actual === null || actual === 0 || actual === '';
     case 'in':

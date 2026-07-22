@@ -30,20 +30,39 @@ export class ResilientHttpClient implements HttpClient {
     private readonly options: RetryOptions = DEFAULT_RETRY,
   ) {}
 
-  async postJson(url: string, headers: Readonly<Record<string, string>>, body: unknown): Promise<HttpResponse> {
+  async postJson(
+    url: string,
+    headers: Readonly<Record<string, string>>,
+    body: unknown,
+  ): Promise<HttpResponse> {
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= this.options.maxAttempts; attempt += 1) {
       const t0 = this.clock.now().getTime();
       try {
         const response = await this.inner.postJson(url, headers, body);
-        this.observability.latency(this.component, 'http', this.clock.now().getTime() - t0, this.clock.now());
+        this.observability.latency(
+          this.component,
+          'http',
+          this.clock.now().getTime() - t0,
+          this.clock.now(),
+        );
         if (!retryable(response.status) || attempt === this.options.maxAttempts) {
           if (response.status >= 400) {
-            this.observability.error(this.component, 'http-status', this.clock.now(), `status ${String(response.status)}`);
+            this.observability.error(
+              this.component,
+              'http-status',
+              this.clock.now(),
+              `status ${String(response.status)}`,
+            );
           }
           return response;
         }
-        this.observability.error(this.component, 'http-retry', this.clock.now(), `status ${String(response.status)} (tentativa ${String(attempt)})`);
+        this.observability.error(
+          this.component,
+          'http-retry',
+          this.clock.now(),
+          `status ${String(response.status)} (tentativa ${String(attempt)})`,
+        );
       } catch (error) {
         lastError = error;
         this.observability.error(
@@ -54,7 +73,9 @@ export class ResilientHttpClient implements HttpClient {
         );
         if (attempt === this.options.maxAttempts) break;
       }
-      await this.sleeper.sleep(this.options.baseDelayMs * Math.pow(this.options.factor, attempt - 1));
+      await this.sleeper.sleep(
+        this.options.baseDelayMs * Math.pow(this.options.factor, attempt - 1),
+      );
     }
     throw lastError instanceof Error ? lastError : new Error('falha de rede após retries');
   }

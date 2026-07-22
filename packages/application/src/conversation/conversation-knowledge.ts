@@ -49,7 +49,10 @@ function curto(s: string, max = 70): string {
 
 function ultimaPerguntaDe(texto: string | null): string | null {
   if (texto === null) return null;
-  const qs = texto.split(/(?<=[.!?…])\s+/).map((s) => s.trim()).filter((s) => s.endsWith('?'));
+  const qs = texto
+    .split(/(?<=[.!?…])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.endsWith('?'));
   return qs[qs.length - 1] ?? null;
 }
 

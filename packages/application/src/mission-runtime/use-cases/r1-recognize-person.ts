@@ -6,7 +6,13 @@
 import { EvidenceRef, Person, PersonId, RecognitionResponsibleRef } from '@reconstrua/domain';
 import { foundedProvenance } from '../provenance.js';
 import { skippedOutcome, failedOutcome, type UseCaseOutcome } from '../types.js';
-import { persistNew, successOutcome, type MissionContext, type MissionUseCase, type UseCaseDeps } from '../use-case.js';
+import {
+  persistNew,
+  successOutcome,
+  type MissionContext,
+  type MissionUseCase,
+  type UseCaseDeps,
+} from '../use-case.js';
 
 export class RecognizePersonUseCase implements MissionUseCase {
   readonly name = 'RecognizePerson';
@@ -15,7 +21,9 @@ export class RecognizePersonUseCase implements MissionUseCase {
 
   async execute(ctx: MissionContext): Promise<UseCaseOutcome> {
     if (ctx.identity.personId !== null) {
-      return skippedOutcome(this.name, this.streamType, ctx.identity.personId, { personId: ctx.identity.personId });
+      return skippedOutcome(this.name, this.streamType, ctx.identity.personId, {
+        personId: ctx.identity.personId,
+      });
     }
     const personId = this.deps.uuid.next();
     const evidenceId = this.deps.uuid.next();
@@ -27,7 +35,8 @@ export class RecognizePersonUseCase implements MissionUseCase {
       responsible: RecognitionResponsibleRef.fromString(this.deps.config.ahriResponsibleId),
       evidences: [EvidenceRef.fromUuid(evidenceId)],
     });
-    if (result.isErr()) return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
+    if (result.isErr())
+      return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
 
     const appended = await persistNew(
       this.deps.appender,
@@ -36,7 +45,11 @@ export class RecognizePersonUseCase implements MissionUseCase {
       result.unwrap(),
       true,
       foundedProvenance(ctx.intent, ctx.facts.messageId),
-      { civilIdentity: ctx.facts.senderId, origin: `WhatsApp:${ctx.facts.chatId}`, senderId: ctx.facts.senderId },
+      {
+        civilIdentity: ctx.facts.senderId,
+        origin: `WhatsApp:${ctx.facts.chatId}`,
+        senderId: ctx.facts.senderId,
+      },
     );
     return successOutcome(this.name, this.streamType, personId, appended, { personId });
   }

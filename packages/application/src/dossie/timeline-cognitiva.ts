@@ -13,9 +13,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type CategoriaTimeline =
-  | 'cliente' | 'beneficio' | 'documento' | 'reader' | 'contrato'
-  | 'knowledge' | 'reasoning' | 'mind' | 'missao' | 'advogado'
-  | 'dossie' | 'encerramento' | 'feedback';
+  | 'cliente'
+  | 'beneficio'
+  | 'documento'
+  | 'reader'
+  | 'contrato'
+  | 'knowledge'
+  | 'reasoning'
+  | 'mind'
+  | 'missao'
+  | 'advogado'
+  | 'dossie'
+  | 'encerramento'
+  | 'feedback';
 
 export interface TimelineCognitivaItem {
   readonly ordem: number;
@@ -43,9 +53,22 @@ export interface TimelineCognitivaInputs {
   readonly fatosAprendidos: readonly string[]; // key=valor
   readonly documentos: readonly TCDocumento[];
   readonly contratos: readonly string[];
-  readonly raciocinio: { readonly totalHipoteses: number; readonly principal: string | null; readonly fatosDaPrincipal: readonly string[] } | null;
-  readonly decisao: { readonly strategyRef: string; readonly confianca: string; readonly em: Date | null } | null;
-  readonly missao: { readonly missionId: string; readonly criadaEm: Date | null; readonly advogado: string | null; readonly recebidaEm: Date | null } | null;
+  readonly raciocinio: {
+    readonly totalHipoteses: number;
+    readonly principal: string | null;
+    readonly fatosDaPrincipal: readonly string[];
+  } | null;
+  readonly decisao: {
+    readonly strategyRef: string;
+    readonly confianca: string;
+    readonly em: Date | null;
+  } | null;
+  readonly missao: {
+    readonly missionId: string;
+    readonly criadaEm: Date | null;
+    readonly advogado: string | null;
+    readonly recebidaEm: Date | null;
+  } | null;
   readonly dossieAtualizadoEm: Date | null;
   readonly encerradoEm: Date | null;
   readonly feedback: { readonly em: Date | null; readonly decisao: string } | null;
@@ -54,7 +77,9 @@ export interface TimelineCognitivaInputs {
 const HISCON_RX = /hiscon/i;
 
 /** Monta a timeline cognitiva (ordem NARRATIVA do caso). Determinística. */
-export function montarTimelineCognitiva(input: TimelineCognitivaInputs): readonly TimelineCognitivaItem[] {
+export function montarTimelineCognitiva(
+  input: TimelineCognitivaInputs,
+): readonly TimelineCognitivaItem[] {
   const itens: Array<Omit<TimelineCognitivaItem, 'ordem'>> = [];
   const push = (i: Omit<TimelineCognitivaItem, 'ordem'>): void => {
     itens.push(i);
@@ -67,7 +92,8 @@ export function montarTimelineCognitiva(input: TimelineCognitivaInputs): readonl
       responsavel: 'Cliente',
       origem: 'Conversa (WhatsApp)',
       titulo: 'Cliente iniciou o atendimento',
-      descricao: input.totalMensagens > 0 ? `${String(input.totalMensagens)} mensagem(ns) trocadas.` : null,
+      descricao:
+        input.totalMensagens > 0 ? `${String(input.totalMensagens)} mensagem(ns) trocadas.` : null,
       fonte: 'read-model:conversation',
       categoria: 'cliente',
       fatosUtilizados: null,
@@ -150,7 +176,8 @@ export function montarTimelineCognitiva(input: TimelineCognitivaInputs): readonl
       descricao: `${String(input.raciocinio.totalHipoteses)} tese(s) avaliada(s)${input.raciocinio.principal ? `; principal: ${input.raciocinio.principal}` : ''}.`,
       fonte: 'read-model:strategic-reasoning',
       categoria: 'reasoning',
-      fatosUtilizados: input.raciocinio.fatosDaPrincipal.length > 0 ? input.raciocinio.fatosDaPrincipal : null,
+      fatosUtilizados:
+        input.raciocinio.fatosDaPrincipal.length > 0 ? input.raciocinio.fatosDaPrincipal : null,
     });
   }
 

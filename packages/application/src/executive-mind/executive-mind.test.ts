@@ -71,29 +71,26 @@ describe('Executive Mind · as demais permanecem registradas (com motivo da derr
 
   it('duas hipóteses sustentadas: a perdedora registra o motivo e vira fallback', () => {
     // Catálogo sintético com DUAS hipóteses sobre os mesmos fatos, confianças distintas.
-    const r = raciocinar(
-      { p: 'x', reforco1: 'sim', reforco2: 'sim' },
-      [
-        {
-          ref: 'EST-FORTE',
-          hipotese: 'hipótese forte',
-          requer: [{ fact: 'p', op: 'eq', value: 'x' }],
-          reforca: [
-            { fact: 'reforco1', op: 'eq', value: 'sim' },
-            { fact: 'reforco2', op: 'eq', value: 'sim' },
-          ],
-          proximaAcao: 'agir forte',
-          fundamento: 'f1',
-        },
-        {
-          ref: 'EST-FRACA',
-          hipotese: 'hipótese fraca',
-          requer: [{ fact: 'p', op: 'eq', value: 'x' }],
-          proximaAcao: 'agir fraco',
-          fundamento: 'f2',
-        },
-      ],
-    );
+    const r = raciocinar({ p: 'x', reforco1: 'sim', reforco2: 'sim' }, [
+      {
+        ref: 'EST-FORTE',
+        hipotese: 'hipótese forte',
+        requer: [{ fact: 'p', op: 'eq', value: 'x' }],
+        reforca: [
+          { fact: 'reforco1', op: 'eq', value: 'sim' },
+          { fact: 'reforco2', op: 'eq', value: 'sim' },
+        ],
+        proximaAcao: 'agir forte',
+        fundamento: 'f1',
+      },
+      {
+        ref: 'EST-FRACA',
+        hipotese: 'hipótese fraca',
+        requer: [{ fact: 'p', op: 'eq', value: 'x' }],
+        proximaAcao: 'agir fraco',
+        fundamento: 'f2',
+      },
+    ]);
     const d = deliberar(r);
     expect(d?.strategyRef).toBe('EST-FORTE');
     expect(d?.confidence).toBe('alta');
@@ -108,13 +105,26 @@ describe('Executive Mind · as demais permanecem registradas (com motivo da derr
 
 describe('Executive Mind · justificativa completamente auditável', () => {
   it('why explica por que VENCEU e por que as outras PERDERAM; auditoria completa', () => {
-    const r = raciocinar(
-      { p: 'x', reforco1: 'sim', reforco2: 'sim' },
-      [
-        { ref: 'EST-FORTE', hipotese: 'forte', requer: [{ fact: 'p', op: 'eq', value: 'x' }], reforca: [{ fact: 'reforco1', op: 'eq', value: 'sim' }, { fact: 'reforco2', op: 'eq', value: 'sim' }], proximaAcao: 'a', fundamento: 'f1' },
-        { ref: 'EST-FRACA', hipotese: 'fraca', requer: [{ fact: 'p', op: 'eq', value: 'x' }], proximaAcao: 'b', fundamento: 'f2' },
-      ],
-    );
+    const r = raciocinar({ p: 'x', reforco1: 'sim', reforco2: 'sim' }, [
+      {
+        ref: 'EST-FORTE',
+        hipotese: 'forte',
+        requer: [{ fact: 'p', op: 'eq', value: 'x' }],
+        reforca: [
+          { fact: 'reforco1', op: 'eq', value: 'sim' },
+          { fact: 'reforco2', op: 'eq', value: 'sim' },
+        ],
+        proximaAcao: 'a',
+        fundamento: 'f1',
+      },
+      {
+        ref: 'EST-FRACA',
+        hipotese: 'fraca',
+        requer: [{ fact: 'p', op: 'eq', value: 'x' }],
+        proximaAcao: 'b',
+        fundamento: 'f2',
+      },
+    ]);
     const d = deliberar(r);
     expect(d?.why).toContain('EST-FORTE venceu');
     expect(d?.why).toContain('sustentada por [p=x]');

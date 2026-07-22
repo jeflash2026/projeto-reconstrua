@@ -97,7 +97,9 @@ export class OperationAggregate extends AggregateRoot<OperationId> {
       conductedAt: new Date(input.conductedAt.getTime()),
     });
 
-    operation.addDomainEvent(new OperationConducted(input.id.toString(), operation.props.conductedAt));
+    operation.addDomainEvent(
+      new OperationConducted(input.id.toString(), operation.props.conductedAt),
+    );
     return Result.ok(operation);
   }
 

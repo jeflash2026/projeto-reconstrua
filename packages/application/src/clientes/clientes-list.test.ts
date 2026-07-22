@@ -39,7 +39,10 @@ function alirOf(c: Cli): ALIR {
   const b = emptyALIR(c.clienteId ?? c.chatId, c.chatId, NOW);
   return {
     ...b,
-    core: c.nome !== undefined ? { pessoa: { ...b.core.pessoa, atributos: [{ key: 'nome', value: c.nome }] } } : b.core,
+    core:
+      c.nome !== undefined
+        ? { pessoa: { ...b.core.pessoa, atributos: [{ key: 'nome', value: c.nome }] } }
+        : b.core,
     operational: {
       ...b.operational,
       missao: {
@@ -56,9 +59,15 @@ function alirOf(c: Cli): ALIR {
 
 function metricsOf(alir: ALIR): ALIRCompositionMetrics {
   return {
-    clienteId: alir.clienteId, chatId: alir.chatId, schemaVersion: alir.schemaVersion,
-    contentHash: '0', compositionMs: 0, groups: ['CORE', 'OPERATIONAL'],
-    sourcesConsulted: [], fieldsReconstructed: [], fieldsUnavailable: [],
+    clienteId: alir.clienteId,
+    chatId: alir.chatId,
+    schemaVersion: alir.schemaVersion,
+    contentHash: '0',
+    compositionMs: 0,
+    groups: ['CORE', 'OPERATIONAL'],
+    sourcesConsulted: [],
+    fieldsReconstructed: [],
+    fieldsUnavailable: [],
   };
 }
 
@@ -71,9 +80,15 @@ class FakeComposer implements ALIRComposer {
 }
 class FakeMemory implements MemoryStore {
   constructor(private readonly chats: readonly string[]) {}
-  load(chatId: string): Promise<ClientMemory | null> { return Promise.resolve(emptyMemory(chatId)); }
-  save(): Promise<void> { return Promise.resolve(); }
-  all(): Promise<readonly ClientMemory[]> { return Promise.resolve(this.chats.map((c) => emptyMemory(c))); }
+  load(chatId: string): Promise<ClientMemory | null> {
+    return Promise.resolve(emptyMemory(chatId));
+  }
+  save(): Promise<void> {
+    return Promise.resolve();
+  }
+  all(): Promise<readonly ClientMemory[]> {
+    return Promise.resolve(this.chats.map((c) => emptyMemory(c)));
+  }
 }
 class FakeModalidade implements ModalidadeStore {
   public consultas: string[] = [];
@@ -81,9 +96,13 @@ class FakeModalidade implements ModalidadeStore {
   load(clienteId: string): Promise<ModalidadeRecord | null> {
     this.consultas.push(clienteId);
     const m = this.byCliente.get(clienteId);
-    return Promise.resolve(m !== undefined ? { clienteId, modalidade: m, decididaEm: NOW, decididaPor: 'admin' } : null);
+    return Promise.resolve(
+      m !== undefined ? { clienteId, modalidade: m, decididaEm: NOW, decididaPor: 'admin' } : null,
+    );
   }
-  save(): Promise<void> { return Promise.resolve(); }
+  save(): Promise<void> {
+    return Promise.resolve();
+  }
 }
 class FakeVenda implements VendaStore {
   constructor(private readonly vendidos: readonly string[] = []) {}
@@ -94,7 +113,9 @@ class FakeVenda implements VendaStore {
         : null,
     );
   }
-  save(): Promise<void> { return Promise.resolve(); }
+  save(): Promise<void> {
+    return Promise.resolve();
+  }
 }
 class FakePedidos implements PedidosAdministrativosStore {
   constructor(private readonly byCliente: Record<string, Date> = {}) {}
@@ -102,14 +123,28 @@ class FakePedidos implements PedidosAdministrativosStore {
     const em = this.byCliente[clienteId];
     return Promise.resolve(
       em !== undefined
-        ? { clienteId, chatId: 'c', confirmadoEm: em, confirmadoPor: 'perito', bancos: ['BANCO X'], contratos: 1 }
+        ? {
+            clienteId,
+            chatId: 'c',
+            confirmadoEm: em,
+            confirmadoPor: 'perito',
+            bancos: ['BANCO X'],
+            contratos: 1,
+          }
         : null,
     );
   }
-  save(): Promise<void> { return Promise.resolve(); }
+  save(): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
-function listOf(clis: Cli[], modalidades: Record<string, Modalidade> = {}, vendidos: string[] = [], pedidos: Record<string, Date> = {}) {
+function listOf(
+  clis: Cli[],
+  modalidades: Record<string, Modalidade> = {},
+  vendidos: string[] = [],
+  pedidos: Record<string, Date> = {},
+) {
   const byChat = new Map(clis.map((c) => [c.chatId, alirOf(c)]));
   const modalidade = new FakeModalidade(new Map(Object.entries(modalidades)));
   const list = new ClientesList({
@@ -126,40 +161,65 @@ describe('deriveClienteStatus · a tabela de filas congelada', () => {
   const ready = (alir: ALIR) => evaluateReadiness({ alir, caseType: 'GENERICO', now: NOW });
 
   const PEDIDO_RECENTE: PedidosAdministrativosRecord = {
-    clienteId: 'cli-1', chatId: 'c', confirmadoEm: new Date('2026-07-15T12:00:00.000Z'),
-    confirmadoPor: 'perito', bancos: ['BANCO X'], contratos: 1,
+    clienteId: 'cli-1',
+    chatId: 'c',
+    confirmadoEm: new Date('2026-07-15T12:00:00.000Z'),
+    confirmadoPor: 'perito',
+    bancos: ['BANCO X'],
+    contratos: 1,
   };
   const PEDIDO_VENCIDO: PedidosAdministrativosRecord = {
-    ...PEDIDO_RECENTE, confirmadoEm: new Date('2026-07-01T12:00:00.000Z'),
+    ...PEDIDO_RECENTE,
+    confirmadoEm: new Date('2026-07-01T12:00:00.000Z'),
   };
 
   it('deriva cada status sem nada persistido', () => {
     const atendimento = alirOf({ chatId: 'c1', missionId: null });
-    expect(deriveClienteStatus(atendimento, ready(atendimento), null, false, null, NOW)).toBe('ATENDIMENTO');
+    expect(deriveClienteStatus(atendimento, ready(atendimento), null, false, null, NOW)).toBe(
+      'ATENDIMENTO',
+    );
 
     const coletando = alirOf({ chatId: 'c2', pendentes: ['IDENTIDADE'] });
-    expect(deriveClienteStatus(coletando, ready(coletando), null, false, null, NOW)).toBe('COLETANDO_DOCUMENTOS');
+    expect(deriveClienteStatus(coletando, ready(coletando), null, false, null, NOW)).toBe(
+      'COLETANDO_DOCUMENTOS',
+    );
 
     const pronto = alirOf({ chatId: 'c3' });
-    expect(deriveClienteStatus(pronto, ready(pronto), null, false, null, NOW)).toBe('PRONTO_AGUARDANDO_MODALIDADE');
-    expect(deriveClienteStatus(pronto, ready(pronto), 'VENDA', false, null, NOW)).toBe('PRONTO_AGUARDANDO_VENDA');
-    expect(deriveClienteStatus(pronto, ready(pronto), 'SOCIEDADE', false, null, NOW)).toBe('PRONTO_AGUARDANDO_PERICIA');
+    expect(deriveClienteStatus(pronto, ready(pronto), null, false, null, NOW)).toBe(
+      'PRONTO_AGUARDANDO_MODALIDADE',
+    );
+    expect(deriveClienteStatus(pronto, ready(pronto), 'VENDA', false, null, NOW)).toBe(
+      'PRONTO_AGUARDANDO_VENDA',
+    );
+    expect(deriveClienteStatus(pronto, ready(pronto), 'SOCIEDADE', false, null, NOW)).toBe(
+      'PRONTO_AGUARDANDO_PERICIA',
+    );
 
     const encerrado = alirOf({ chatId: 'c4', terminal: true });
-    expect(deriveClienteStatus(encerrado, ready(encerrado), 'VENDA', false, null, NOW)).toBe('ENCERRADO');
+    expect(deriveClienteStatus(encerrado, ready(encerrado), 'VENDA', false, null, NOW)).toBe(
+      'ENCERRADO',
+    );
 
     // R3 — venda registrada precede o terminal genérico.
-    expect(deriveClienteStatus(encerrado, ready(encerrado), 'VENDA', true, null, NOW)).toBe('VENDIDO');
+    expect(deriveClienteStatus(encerrado, ready(encerrado), 'VENDA', true, null, NOW)).toBe(
+      'VENDIDO',
+    );
   });
 
   it('B-R3 — o FATO + relógio derivam as filas da Jornada B (Lei 8)', () => {
     const pronto = alirOf({ chatId: 'c3' });
     // Confirmado há 3 dias → dentro do prazo.
-    expect(deriveClienteStatus(pronto, ready(pronto), 'SOCIEDADE', false, PEDIDO_RECENTE, NOW)).toBe('AGUARDANDO_10_DIAS');
+    expect(
+      deriveClienteStatus(pronto, ready(pronto), 'SOCIEDADE', false, PEDIDO_RECENTE, NOW),
+    ).toBe('AGUARDANDO_10_DIAS');
     // Confirmado há 17 dias → prazo vencido, aguardando sócio.
-    expect(deriveClienteStatus(pronto, ready(pronto), 'SOCIEDADE', false, PEDIDO_VENCIDO, NOW)).toBe('AGUARDANDO_SOCIO');
+    expect(
+      deriveClienteStatus(pronto, ready(pronto), 'SOCIEDADE', false, PEDIDO_VENCIDO, NOW),
+    ).toBe('AGUARDANDO_SOCIO');
     // Prazo calculado do fato: 10 dias exatos.
-    expect(prazoDosPedidos(PEDIDO_RECENTE.confirmadoEm).toISOString()).toBe('2026-07-25T12:00:00.000Z');
+    expect(prazoDosPedidos(PEDIDO_RECENTE.confirmadoEm).toISOString()).toBe(
+      '2026-07-25T12:00:00.000Z',
+    );
 
     // Atribuição ao sócio (no ALIR) precede as filas de prazo → EM_PROCESSO.
     const emProcesso = alirOf({ chatId: 'c5' });
@@ -167,13 +227,40 @@ describe('deriveClienteStatus · a tabela de filas congelada', () => {
       ...emProcesso,
       operational: {
         ...emProcesso.operational,
-        operacao: { ...emProcesso.operational.operacao, atribuicao: { advogadoId: 'adv-1', assignedBy: 'admin', assignedAt: NOW } },
+        operacao: {
+          ...emProcesso.operational.operacao,
+          atribuicao: { advogadoId: 'adv-1', assignedBy: 'admin', assignedAt: NOW },
+        },
       },
     };
-    expect(deriveClienteStatus(comAtribuicao, ready(comAtribuicao), 'SOCIEDADE', false, PEDIDO_VENCIDO, NOW)).toBe('EM_PROCESSO');
+    expect(
+      deriveClienteStatus(
+        comAtribuicao,
+        ready(comAtribuicao),
+        'SOCIEDADE',
+        false,
+        PEDIDO_VENCIDO,
+        NOW,
+      ),
+    ).toBe('EM_PROCESSO');
     // Encerrado prevalece sobre EM_PROCESSO (terminal).
-    const encerradoComAtribuicao = { ...comAtribuicao, operational: { ...comAtribuicao.operational, missao: { ...comAtribuicao.operational.missao, terminalState: 'ENCERRADA' as const } } };
-    expect(deriveClienteStatus(encerradoComAtribuicao, ready(encerradoComAtribuicao), 'SOCIEDADE', false, PEDIDO_VENCIDO, NOW)).toBe('ENCERRADO');
+    const encerradoComAtribuicao = {
+      ...comAtribuicao,
+      operational: {
+        ...comAtribuicao.operational,
+        missao: { ...comAtribuicao.operational.missao, terminalState: 'ENCERRADA' as const },
+      },
+    };
+    expect(
+      deriveClienteStatus(
+        encerradoComAtribuicao,
+        ready(encerradoComAtribuicao),
+        'SOCIEDADE',
+        false,
+        PEDIDO_VENCIDO,
+        NOW,
+      ),
+    ).toBe('ENCERRADO');
   });
 });
 

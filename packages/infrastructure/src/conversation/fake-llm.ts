@@ -17,10 +17,21 @@ import type {
 // Saudação PURA (sem conteúdo além do cumprimento/apresentação curta) ⇒ greeting;
 // pergunta ⇒ question; qualquer conteúdo substantivo ⇒ service_request (mantém os
 // fluxos homologados: "olá, sou o José" segue abrindo atendimento nos harnesses).
-function fakePurpose(kind: string, text: string): NonNullable<PerceptEnrichment['perceivedPurpose']> {
+function fakePurpose(
+  kind: string,
+  text: string,
+): NonNullable<PerceptEnrichment['perceivedPurpose']> {
   if (kind !== 'text' || text === '') return 'unknown';
-  const t = text.trim().toLowerCase().replace(/[!.…\s]+$/g, '');
-  if (/^(oi|ol[áa]|opa|hey|e a[íi]|bom dia|boa tarde|boa noite)([,!.\s]*(tudo bem|td bem|tudo bom))?[?!.]*$/.test(t)) return 'greeting';
+  const t = text
+    .trim()
+    .toLowerCase()
+    .replace(/[!.…\s]+$/g, '');
+  if (
+    /^(oi|ol[áa]|opa|hey|e a[íi]|bom dia|boa tarde|boa noite)([,!.\s]*(tudo bem|td bem|tudo bom))?[?!.]*$/.test(
+      t,
+    )
+  )
+    return 'greeting';
   if (t.includes('?')) return 'question';
   return 'service_request';
 }
@@ -39,7 +50,10 @@ export class FakeLlmPerception implements LlmPerceptionPort {
       artifacts.push(`artefato documental percebido: ${envelope.fileName ?? 'documento'}`);
     }
     return Promise.resolve({
-      summary: text !== '' ? `cliente comunicou: ${text.slice(0, 80)}` : `entrada percebida: ${envelope.kind}`,
+      summary:
+        text !== ''
+          ? `cliente comunicou: ${text.slice(0, 80)}`
+          : `entrada percebida: ${envelope.kind}`,
       sentiment,
       urgency,
       detectedIntentSignal: null,

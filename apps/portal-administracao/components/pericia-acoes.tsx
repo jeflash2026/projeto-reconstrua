@@ -49,20 +49,43 @@ export const PericiaAcoes = ({ clienteId }: { clienteId: string }): ReactElement
 
   return (
     <div className="form-row" style={{ margin: 0 }}>
-      <button disabled={busy} onClick={() => { void baixar(); }}>
+      <button
+        disabled={busy}
+        onClick={() => {
+          void baixar();
+        }}
+      >
         Baixar planilha
       </button>
       {confirming ? (
         <>
-          <button className="primary" disabled={busy} onClick={() => { void confirmar(); }}>
+          <button
+            className="primary"
+            disabled={busy}
+            onClick={() => {
+              void confirmar();
+            }}
+          >
             Confirmar envio dos pedidos
           </button>
-          <button disabled={busy} onClick={() => { setConfirming(false); }}>
+          <button
+            disabled={busy}
+            onClick={() => {
+              setConfirming(false);
+            }}
+          >
             Cancelar
           </button>
         </>
       ) : (
-        <button className="primary" disabled={busy} onClick={() => { setConfirming(true); setErro(null); }}>
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() => {
+            setConfirming(true);
+            setErro(null);
+          }}
+        >
           Pedidos enviados
         </button>
       )}
@@ -93,7 +116,12 @@ export const BaixarLote = (): ReactElement => {
 
   return (
     <div className="form-row" style={{ margin: 0 }}>
-      <button disabled={busy} onClick={() => { void baixarTodas(); }}>
+      <button
+        disabled={busy}
+        onClick={() => {
+          void baixarTodas();
+        }}
+      >
         Baixar todas (uma por cliente)
       </button>
       {status ? <span style={{ color: 'var(--text-dim)' }}>{status}</span> : null}

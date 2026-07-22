@@ -1,4 +1,5 @@
 # ALIR_RUNTIME_READINESS.md
+
 ### Auditoria técnica do ALIR — 4 perguntas, nada além.
 
 ---
@@ -42,8 +43,8 @@
   identidade civil/origem, qualidade (Shadow), timeline, decisões, **próxima ação**, e todas as
   extensões (perícia/comercial/financeiro/escritório/portal). Cada uma se liga **quando uma
   capacidade exigir** (roadmap interno suspenso).
-- *(Não pré‑requisito para consumo básico read‑only: cache/invalidação (B‑3), reconstrução em lote
-  (B‑5), emissão das métricas ao sink de observabilidade (B‑7).)*
+- _(Não pré‑requisito para consumo básico read‑only: cache/invalidação (B‑3), reconstrução em lote
+  (B‑5), emissão das métricas ao sink de observabilidade (B‑7).)_
 
 ---
 
@@ -68,12 +69,12 @@
 
 ## 4. Dependências que bloqueiam a primeira capacidade empresarial
 
-| Dep. | Descrição | Bloqueia? | Tamanho |
-|---|---|---|---|
-| **DEP‑1** | `build-alir` (instanciar o Builder com adapters concretos, incl. o snapshot adapter certo) | **Sim** (para qualquer consumo em produção) | Pequeno |
-| **DEP‑2** | Ponto de acesso estável de leitura (serviço/rota interna autenticada) | **Sim** (para um módulo consumir) | Pequeno |
-| **DEP‑3** | Enumerar clientes (se a capacidade precisar de lista) via `MemoryStore.all()` | Não (já existe) | — |
-| **DEP‑4** | Órbitas indisponíveis (próxima ação, timeline, docs enviados, extensões) | **Só** bloqueia capacidades que dependam delas | Variável |
+| Dep.      | Descrição                                                                                  | Bloqueia?                                      | Tamanho  |
+| --------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------- | -------- |
+| **DEP‑1** | `build-alir` (instanciar o Builder com adapters concretos, incl. o snapshot adapter certo) | **Sim** (para qualquer consumo em produção)    | Pequeno  |
+| **DEP‑2** | Ponto de acesso estável de leitura (serviço/rota interna autenticada)                      | **Sim** (para um módulo consumir)              | Pequeno  |
+| **DEP‑3** | Enumerar clientes (se a capacidade precisar de lista) via `MemoryStore.all()`              | Não (já existe)                                | —        |
+| **DEP‑4** | Órbitas indisponíveis (próxima ação, timeline, docs enviados, extensões)                   | **Só** bloqueia capacidades que dependam delas | Variável |
 
 **Conclusão:** **nenhuma** dependência bloqueia uma capacidade de **leitura consolidada** que use
 apenas as órbitas já conectadas. Basta **DEP‑1 + DEP‑2** (ambas pequenas e de baixo risco). As

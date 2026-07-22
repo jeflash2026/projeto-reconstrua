@@ -12,10 +12,21 @@
 // o encerramento é um EVENTO append-only; um evento posterior pode revertê-lo sem
 // reescrever a história.
 // ─────────────────────────────────────────────────────────────────────────────
-import { DerivedFromTruthRef, OperationalStateAggregate, OperationalStateId, OperationalStateMissionRef } from '@reconstrua/domain';
+import {
+  DerivedFromTruthRef,
+  OperationalStateAggregate,
+  OperationalStateId,
+  OperationalStateMissionRef,
+} from '@reconstrua/domain';
 import { foundedProvenance } from '../provenance.js';
 import { failedOutcome, type UseCaseOutcome } from '../types.js';
-import { persistNew, successOutcome, type MissionContext, type MissionUseCase, type UseCaseDeps } from '../use-case.js';
+import {
+  persistNew,
+  successOutcome,
+  type MissionContext,
+  type MissionUseCase,
+  type UseCaseDeps,
+} from '../use-case.js';
 
 export class CloseMissionUseCase implements MissionUseCase {
   readonly name = 'CloseMission';
@@ -27,7 +38,11 @@ export class CloseMissionUseCase implements MissionUseCase {
       return failedOutcome(this.name, this.streamType, 'pré-condição ausente: Missão (Lei 2)');
     }
     if (ctx.identity.latestTruthId === null) {
-      return failedOutcome(this.name, this.streamType, 'pré-condição ausente: Verdade de origem (INV-EO-02)');
+      return failedOutcome(
+        this.name,
+        this.streamType,
+        'pré-condição ausente: Verdade de origem (INV-EO-02)',
+      );
     }
     const stateId = this.deps.uuid.next();
     const result = OperationalStateAggregate.derive({
@@ -37,9 +52,13 @@ export class CloseMissionUseCase implements MissionUseCase {
       terminalState: 'ENCERRADA', // terminalidade oficial (DF-11)
       derivedAt: ctx.now,
     });
-    if (result.isErr()) return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
+    if (result.isErr())
+      return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
 
-    const reason = ctx.facts.text !== null && ctx.facts.text.trim() !== '' ? ctx.facts.text.trim() : 'encerramento operacional';
+    const reason =
+      ctx.facts.text !== null && ctx.facts.text.trim() !== ''
+        ? ctx.facts.text.trim()
+        : 'encerramento operacional';
 
     // GO-LIVE 12A — ENRIQUECIMENTO DO EVENTO. O evento de encerramento passa a
     // carregar, SEMPRE QUE DISPONÍVEIS, os dados que a missão e sua proveniência
@@ -58,7 +77,9 @@ export class CloseMissionUseCase implements MissionUseCase {
       correlationId: ctx.facts.messageId,
       cliente: ctx.identity.clienteId ?? ctx.facts.chatId,
       advogado: this.deps.config.ahriResponsibleId,
-      ...(sd ? { decisionId: sd.decisionId, strategyRef: sd.strategyRef, confidence: sd.confidence } : {}),
+      ...(sd
+        ? { decisionId: sd.decisionId, strategyRef: sd.strategyRef, confidence: sd.confidence }
+        : {}),
     };
     const appended = await persistNew(
       this.deps.appender,
@@ -69,6 +90,8 @@ export class CloseMissionUseCase implements MissionUseCase {
       foundedProvenance(ctx.intent, ctx.identity.latestTruthId),
       payload,
     );
-    return successOutcome(this.name, this.streamType, stateId, appended, { latestStateId: stateId });
+    return successOutcome(this.name, this.streamType, stateId, appended, {
+      latestStateId: stateId,
+    });
   }
 }

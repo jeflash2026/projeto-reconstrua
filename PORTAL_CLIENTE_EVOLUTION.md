@@ -1,4 +1,5 @@
 # PORTAL DO CLIENTE — ESTRATÉGIA EVOLUTIVA (CONGELADA)
+
 ### O que PODE e o que NUNCA PODE acontecer com o Portal ao longo dos anos
 
 > Este documento não descreve funcionalidades. Ele protege uma identidade.
@@ -81,7 +82,7 @@ cuidado — jamais como espetáculo ("veja o que a IA faz").
 Propostas que toquem: exibição do conteúdo de documentos · áudio/voz da AHRI · presença em
 outros dispositivos (widget, app) · compartilhamento do acompanhamento com familiares.
 Caminho obrigatório: **Teste das 5 Perguntas por escrito + verificação contra os 4
-invariantes + decisão registrada do Fundador.** Na dúvida, a resposta padrão é *não* — a
+invariantes + decisão registrada do Fundador.** Na dúvida, a resposta padrão é _não_ — a
 identidade vale mais do que qualquer recurso.
 
 ## Governança da evolução (processo permanente)

@@ -1,4 +1,5 @@
 # PROJETO RECONSTRUA — ADMIN OS
+
 ### A Constituição do Sistema Operacional do Reconstrua
 
 > **Este documento é a Constituição do Portal.** Ele descreve, por inteiro, a experiência
@@ -40,18 +41,18 @@ Estas entidades passam a ser **oficiais** e entrarão no Canon via Decisão do F
 - **CLIENTE** — a condição contratual/comercial que a Pessoa assume perante o Reconstrua.
 - **MISSÃO** — a jornada de reconstrução de um direito daquela pessoa (Canon). Estados:
   nascida → em evolução → (bloqueada) → **CONCLUÍDA/ENCERRADA** (terminais). Reabertura possível.
-- **ALIR — DOSSIÊ INTELIGENTE DO CLIENTE** *(entidade oficial NOVA)*. É o **prontuário vivo
+- **ALIR — DOSSIÊ INTELIGENTE DO CLIENTE** _(entidade oficial NOVA)_. É o **prontuário vivo
   e auditável** que consolida, num só lugar, tudo sobre o cliente e seus casos: identidade da
   pessoa, todas as missões, documentos, perícia, verdade do caso, histórico de conversas com a
   AHRI, estágio comercial (A/B), situação financeira e a **próxima ação**. O ALIR é o que o
   administrador abre para "conhecer o cliente por inteiro" e é a fonte das telas de Clientes.
   A AHRI mantém o ALIR atualizado automaticamente; o humano decide sobre ele.
 - **DOCUMENTO** · **PERÍCIA** · **CASO** · **PROCESSO** — o material jurídico do caso (Canon).
-- **ESCRITÓRIO PARCEIRO** *(entidade oficial NOVA)* — o comprador (A) / sócio (B): cadastro,
+- **ESCRITÓRIO PARCEIRO** _(entidade oficial NOVA)_ — o comprador (A) / sócio (B): cadastro,
   contato, casos recebidos, financeiro por parceiro.
-- **VENDA** *(entidade oficial NOVA)* — o ato de entregar um caso qualificado a um escritório
+- **VENDA** _(entidade oficial NOVA)_ — o ato de entregar um caso qualificado a um escritório
   por preço fixo (Modelo A). Registra caso, escritório, valor, data, recebimento.
-- **SOCIEDADE / HONORÁRIO / DISTRIBUIÇÃO** *(entidades oficiais NOVAS)* — a parceria do
+- **SOCIEDADE / HONORÁRIO / DISTRIBUIÇÃO** _(entidades oficiais NOVAS)_ — a parceria do
   Modelo B: processo em andamento, honorário apurado no encerramento, participação do Reconstrua.
 - **EQUIPE** — OPERADOR, PERITO, ADVOGADO, SUPERVISOR, ADMINISTRADOR (Canon).
 - **AHRI** — o motor cognitivo invisível que atende, organiza e acompanha (Canon).
@@ -73,6 +74,7 @@ Estas entidades passam a ser **oficiais** e entrarão no Canon via Decisão do F
                 11B Encerrado (êxito/acordo/improcedência) → 12B Honorário distribuído
    (Reabertura por fato jurídico novo → volta ao eixo B)
 ```
+
 Cada estágio tem: **próxima ação**, **responsável**, **tempo no estágio** e **alertas** (parado,
 em risco de abandono, documento pendente há N dias). Este funil é a espinha dorsal do SO.
 
@@ -83,7 +85,8 @@ em risco de abandono, documento pendente há N dias). Este funil é a espinha do
 Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz**, **Vê**,
 **Telas**, **Ligação com A/B/ALIR**.
 
-### 1. DASHBOARD EXECUTIVO *(a home do CEO)*
+### 1. DASHBOARD EXECUTIVO _(a home do CEO)_
+
 - **Objetivo:** em 10 segundos, o CEO sabe como a empresa está hoje.
 - **Vê (só negócio):** Receita **prevista** · Receita **realizada** · Clientes **em
   qualificação** · Clientes **prontos para venda** · Clientes **em sociedade** · **Valor
@@ -95,7 +98,8 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
 - **NUNCA mostra:** uptime, tokens, webhook, container, fila técnica.
 - **Telas:** Home (cartões + briefing + alertas) → drill-down em cada indicador.
 
-### 2. OPERAÇÃO *(o pipeline vivo)*
+### 2. OPERAÇÃO _(o pipeline vivo)_
+
 - **Objetivo:** mover cada cliente pelo funil (Parte II) sem nada travar.
 - **Vê:** Kanban por estágio (1→12) com contadores; cada card = um cliente com próxima ação,
   responsável, tempo no estágio e alerta.
@@ -103,7 +107,8 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
   reengaja clientes em silêncio; destrava bloqueios.
 - **Telas:** Pipeline (Kanban) → Card do Caso (mini-ALIR + ações).
 
-### 3. CLIENTES *(o ALIR)*
+### 3. CLIENTES _(o ALIR)_
+
 - **Objetivo:** conhecer e conduzir o cliente por inteiro.
 - **Vê:** busca de clientes → **ALIR completo**: pessoa (dados, dignidade), todas as missões e
   estágios, documentos, perícia, verdade do caso, **linha do tempo humana** (não "event
@@ -113,6 +118,7 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
 - **Telas:** Lista de Clientes → **ALIR** (perfil 360°) → Ações.
 
 ### 4. ESCRITÓRIOS PARCEIROS
+
 - **Objetivo:** gerir quem compra (A) e quem faz sociedade (B).
 - **Vê:** lista de escritórios, contato, casos recebidos, situação financeira por parceiro,
   desempenho (quantos casos, quanto pagou/deve, honorários gerados).
@@ -121,6 +127,7 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
 - **Telas:** Lista de Escritórios → Ficha do Parceiro (dados + casos + financeiro).
 
 ### 5. MODELO A — VENDA
+
 - **Objetivo:** transformar caso qualificado em **receita imediata** (R$400/CPF).
 - **Vê:** fila de **qualificados prontos para venda**; ofertas em aberto; vendas do mês;
   receita A realizada.
@@ -130,6 +137,7 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
 - **ALIR:** a venda usa o ALIR como "pacote" entregue ao escritório.
 
 ### 6. MODELO B — SOCIEDADE
+
 - **Objetivo:** transformar caso qualificado em **receita futura recorrente** (honorários).
 - **Vê:** casos em sociedade por escritório/advogado; processos em andamento; encerramentos;
   honorários a apurar/distribuir.
@@ -141,6 +149,7 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
   Honorário → Distribuir.
 
 ### 7. FINANCEIRO
+
 - **Objetivo:** o dinheiro da empresa num só lugar, sem planilha.
 - **Vê:** Receita A (nº × preço) · Honorários B (a apurar / a receber / recebido / distribuído)
   · **valor estimado da carteira** (soma dos casos em sociedade × expectativa) · receita
@@ -150,6 +159,7 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
 - **Honestidade:** o que o sistema ainda não captura aparece como "não disponível".
 
 ### 8. JURÍDICO
+
 - **Objetivo:** a saúde jurídica dos casos e o trabalho dos advogados/peritos.
 - **Vê:** processos em andamento, prazos, movimentações, perícias; casos por advogado; plantão.
 - **Faz:** acompanhar prazos e andamentos; ver o retorno do advogado que a AHRI comunica ao
@@ -157,6 +167,7 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
 - **Telas:** Painel Jurídico → Processo → Perícias → Plantão do Advogado.
 
 ### 9. DOCUMENTOS
+
 - **Objetivo:** nada trava por falta de documento.
 - **Vê:** documentos pendentes por cliente (há quantos dias), recebidos, reconhecidos; conteúdo
   do documento acessível à equipe.
@@ -164,6 +175,7 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
 - **Telas:** Documentos Pendentes → Documento (visualização + status) → Fila de Perícia.
 
 ### 10. AHRI
+
 - **Objetivo:** enxergar e confiar no atendimento automático — **sem falar em IA/tokens**.
 - **Vê:** quantos clientes a AHRI está acompanhando; **missões bloqueadas** (o que a AHRI não
   consegue resolver sozinha e precisa de humano); qualidade das conversas (clientes confusos/
@@ -174,12 +186,14 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
 - **Telas:** Painel da AHRI → Missões Bloqueadas → Qualidade das Conversas → **Conexão WhatsApp**.
 
 ### 11. EQUIPE
+
 - **Objetivo:** as pessoas certas nos lugares certos, sem sobrecarga.
 - **Vê:** operadores, peritos, advogados, supervisores; carga de cada um; produtividade.
 - **Faz:** cadastrar/ativar/desativar; distribuir trabalho; ver quem está sobrecarregado.
 - **Telas:** Equipe → Ficha do Colaborador (papel + carga + produtividade).
 
 ### 12. RELATÓRIOS
+
 - **Objetivo:** decidir com dados ao longo do tempo (semana/mês).
 - **Vê:** funil e conversões por período; receita A/B por mês; tempo médio por estágio;
   conversão por origem/campanha; desempenho por escritório e por colaborador.
@@ -187,6 +201,7 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
 - **Telas:** Relatórios (funil, financeiro, origem, equipe, escritórios).
 
 ### 13. CONFIGURAÇÕES
+
 - **Objetivo:** controlar o SO sem terminal.
 - **Vê/Faz:** acessos e senhas (perfis do time), preço da Venda (A) e % de participação (B),
   parâmetros de acompanhamento (cadência/limite), identidade/dados institucionais (OAB, CNPJ),
@@ -202,10 +217,10 @@ Para cada módulo: **Objetivo** (necessidade da empresa), **O administrador faz*
 2. **Home (Dashboard Executivo):** lê o **briefing do dia** ("Ontem: 12 novos, 3 qualificados,
    1 venda de R$400, 2 casos parados") + os números de negócio + **3 alertas acionáveis**.
 3. Vê **"5 prontos para venda"** → entra no **Modelo A** → oferta ao escritório parceiro →
-   confirma a venda → recebe. *(receita imediata)*
+   confirma a venda → recebe. _(receita imediata)_
 4. Vê **"2 casos parados"** → **Operação** → destrava (cobra documento / manda para perícia).
 5. Vê **"caso qualificado grande"** → decide **Modelo B** → **atribui** ao advogado parceiro →
-   acompanha o processo; a AHRI mantém o cliente informado. *(receita futura)*
+   acompanha o processo; a AHRI mantém o cliente informado. _(receita futura)_
 6. Abre um **cliente** → o **ALIR** mostra tudo; ele age com contexto total.
 7. Confere o **Financeiro** ("quanto entrou hoje, quanto vou receber de honorários").
 8. Olha a **AHRI** → vê **missões bloqueadas** e resolve; confirma que o **WhatsApp está
@@ -219,15 +234,15 @@ para **administrar a empresa inteira** está no SO, em linguagem de negócio.
 
 ## PARTE V — COMO A TECNOLOGIA DESAPARECE (mapa de abstração)
 
-| Realidade técnica (hoje) | Como o admin vê no SO |
-|---|---|
-| Container/Docker/uptime | **Saúde do sistema:** verde / atenção / parado |
-| Evolution / instância / webhook | **Conexão WhatsApp:** online, número oficial, "reconectar" |
-| LLM / tokens / latência | *(oculto)* — só aparece como "qualidade das conversas" se afetar o cliente |
-| Event Store / read models / filas | **Linha do tempo humana** e **contadores de negócio** |
-| Logs / erros | **Alertas de atenção** com ação sugerida (nunca stack trace) |
-| `.env` / segredos | **Configurações → Acessos** (senha do time, sem terminal) |
-| Missão bloqueada (INV-07) | card **"Casos parados / Missões bloqueadas"** com responsável e próxima ação |
+| Realidade técnica (hoje)          | Como o admin vê no SO                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------- |
+| Container/Docker/uptime           | **Saúde do sistema:** verde / atenção / parado                               |
+| Evolution / instância / webhook   | **Conexão WhatsApp:** online, número oficial, "reconectar"                   |
+| LLM / tokens / latência           | _(oculto)_ — só aparece como "qualidade das conversas" se afetar o cliente   |
+| Event Store / read models / filas | **Linha do tempo humana** e **contadores de negócio**                        |
+| Logs / erros                      | **Alertas de atenção** com ação sugerida (nunca stack trace)                 |
+| `.env` / segredos                 | **Configurações → Acessos** (senha do time, sem terminal)                    |
+| Missão bloqueada (INV-07)         | card **"Casos parados / Missões bloqueadas"** com responsável e próxima ação |
 
 ---
 
@@ -235,6 +250,7 @@ para **administrar a empresa inteira** está no SO, em linguagem de negócio.
 
 Como o negócio prevalece, estas mudanças entram no Canon por **Decisão do Fundador** (a
 arquitetura acompanha o negócio, não o contrário):
+
 1. **ALIR** — formalizado como entidade oficial (dossiê inteligente do cliente).
 2. **Modelos A e B** — oficiais (não exceção); reconhecidos como pilares de receita.
 3. **Entidades comerciais** — ESCRITÓRIO PARCEIRO, VENDA, SOCIEDADE/HONORÁRIO/DISTRIBUIÇÃO,
@@ -242,7 +258,7 @@ arquitetura acompanha o negócio, não o contrário):
 4. **Parâmetros** — preço da Venda (R$400 a confirmar), % de participação (B), regra de
    qualificação (3 docs + perícia).
 
-*(Estas entram no Canon como evolução — não como violação. O Canon serve o negócio.)*
+_(Estas entram no Canon como evolução — não como violação. O Canon serve o negócio.)_
 
 ---
 
@@ -273,8 +289,9 @@ onda entrega valor de negócio verificável.
 ---
 
 ## CRITÉRIO DE APROVAÇÃO DESTE DOCUMENTO
-Aprove se, ao ler, você consegue responder **sim** a: *"Com este portal, e só com ele, eu
+
+Aprove se, ao ler, você consegue responder **sim** a: _"Com este portal, e só com ele, eu
 consigo administrar o Reconstrua inteiro — ver o dinheiro, mover cada cliente, vender (A),
 fazer sociedade (B), acompanhar o jurídico, gerir a equipe e a AHRI, tudo sem abrir nada
-técnico?"* Se **sim**, autorizo a **Onda 1**. Se **não**, aponte o que falta e eu reviso antes
+técnico?"_ Se **sim**, autorizo a **Onda 1**. Se **não**, aponte o que falta e eu reviso antes
 de qualquer tela.

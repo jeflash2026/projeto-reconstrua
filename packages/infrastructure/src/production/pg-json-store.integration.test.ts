@@ -27,7 +27,12 @@ describe.skipIf(url === '')('PgJsonStore (integração — requer DATABASE_URL)'
 
   it('put grava jsonb e get/list releem como OBJETO (não string) — o cerne do BUG 1', async () => {
     const key = `it-${suffix}`;
-    const value = { role: 'administrador', name: 'Jessé Fundador', active: true, when: new Date().toISOString() };
+    const value = {
+      role: 'administrador',
+      name: 'Jessé Fundador',
+      active: true,
+      when: new Date().toISOString(),
+    };
     await json.put('staff', key, value);
 
     const back = await json.get('staff', key);
@@ -42,7 +47,15 @@ describe.skipIf(url === '')('PgJsonStore (integração — requer DATABASE_URL)'
     const store = new JsonStaffStore(json);
     const id = `adm-${suffix}`;
     const now = new Date();
-    await store.save({ id, role: 'administrador', name: 'Admin Prod', email: null, active: true, createdAt: now, updatedAt: now });
+    await store.save({
+      id,
+      role: 'administrador',
+      name: 'Admin Prod',
+      email: null,
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    });
 
     const admins = await store.byRole('administrador');
     expect(admins.some((m) => m.id === id && m.active)).toBe(true);

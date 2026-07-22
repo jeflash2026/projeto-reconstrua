@@ -59,7 +59,9 @@ export class DocumentAggregate extends AggregateRoot<DocumentId> {
    * Reconhece oficialmente um Documento preexistente (INV-D01; Lei do Reconhecimento).
    * Reconhecer NÃO valida nem atesta veracidade (INV-D06).
    */
-  static recognize(input: DocumentRecognitionInput): Result<DocumentAggregate, CanonViolationError> {
+  static recognize(
+    input: DocumentRecognitionInput,
+  ): Result<DocumentAggregate, CanonViolationError> {
     // INV-D03 — responsável pela efetivação presente.
     if (input.recognizedBy == null) {
       return Result.err(
@@ -110,7 +112,9 @@ export class DocumentAggregate extends AggregateRoot<DocumentId> {
       recognizedBy: input.recognizedBy,
     });
 
-    document.addDomainEvent(new DocumentRecognized(input.id.toString(), document.props.recognizedAt));
+    document.addDomainEvent(
+      new DocumentRecognized(input.id.toString(), document.props.recognizedAt),
+    );
     return Result.ok(document);
   }
 

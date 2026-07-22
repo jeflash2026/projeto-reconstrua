@@ -3,10 +3,23 @@
 // Fato (INV-EV-03), em função da Missão (INV-EV-04). Executa `EventAggregate.recognize`
 // e persiste EventRecognized. Pré-condições: Missão + Documento (Fato).
 // ─────────────────────────────────────────────────────────────────────────────
-import { EventAggregate, EventId, EventMissionRef, EventRecognitionResponsibleRef, FactRef, type EventClassificationValue } from '@reconstrua/domain';
+import {
+  EventAggregate,
+  EventId,
+  EventMissionRef,
+  EventRecognitionResponsibleRef,
+  FactRef,
+  type EventClassificationValue,
+} from '@reconstrua/domain';
 import { foundedProvenance } from '../provenance.js';
 import { failedOutcome, type UseCaseOutcome } from '../types.js';
-import { persistNew, successOutcome, type MissionContext, type MissionUseCase, type UseCaseDeps } from '../use-case.js';
+import {
+  persistNew,
+  successOutcome,
+  type MissionContext,
+  type MissionUseCase,
+  type UseCaseDeps,
+} from '../use-case.js';
 
 export class RecognizeEventUseCase implements MissionUseCase {
   readonly name = 'RecognizeEvent';
@@ -18,12 +31,17 @@ export class RecognizeEventUseCase implements MissionUseCase {
       return failedOutcome(this.name, this.streamType, 'pré-condição ausente: Missão (INV-EV-04)');
     }
     if (ctx.identity.lastDocumentId === null) {
-      return failedOutcome(this.name, this.streamType, 'pré-condição ausente: Documento como Fato (INV-EV-03)');
+      return failedOutcome(
+        this.name,
+        this.streamType,
+        'pré-condição ausente: Documento como Fato (INV-EV-03)',
+      );
     }
     const eventId = this.deps.uuid.next();
     // RFC-0044: a relevância vem de UMA instância de PerceivedFact (fonte única);
     // classification, isRelevant e payload.classification derivam TODOS dela. Ausente ⇒ RELEVANT.
-    const classification: EventClassificationValue = ctx.facts.perceivedRelevance?.value ?? 'RELEVANT';
+    const classification: EventClassificationValue =
+      ctx.facts.perceivedRelevance?.value ?? 'RELEVANT';
     const result = EventAggregate.recognize({
       id: EventId.fromUuid(eventId),
       classification,
@@ -33,7 +51,8 @@ export class RecognizeEventUseCase implements MissionUseCase {
       recognizedAt: ctx.now,
       recognizedBy: EventRecognitionResponsibleRef.fromString(this.deps.config.ahriResponsibleId),
     });
-    if (result.isErr()) return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
+    if (result.isErr())
+      return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
 
     const appended = await persistNew(
       this.deps.appender,

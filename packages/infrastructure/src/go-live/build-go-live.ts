@@ -59,8 +59,16 @@ import { assembleExecutiveBrain } from '../executive-brain/build-executive-brain
 import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
 import { MISSION_RULE_CATALOG } from '../mission-runtime/mission-rule-catalog.js';
 import { AutonomousBrainAdapter } from '../pipeline/autonomous-brain-adapter.js';
-import { MissionClosureFeedbackSubscriber, defaultEncerramentoResolver } from '../pipeline/mission-closure-feedback-subscriber.js';
-import { CATALOGO_CONSIGNADO_INSS, ESTRATEGIAS_CONSIGNADO_INSS, InMemoryAtendimentoStore, ProductionFeedbackLoop } from '@reconstrua/application';
+import {
+  MissionClosureFeedbackSubscriber,
+  defaultEncerramentoResolver,
+} from '../pipeline/mission-closure-feedback-subscriber.js';
+import {
+  CATALOGO_CONSIGNADO_INSS,
+  ESTRATEGIAS_CONSIGNADO_INSS,
+  InMemoryAtendimentoStore,
+  ProductionFeedbackLoop,
+} from '@reconstrua/application';
 import { InMemoryRuleCatalog } from '../executive-brain/in-memory-adapters.js';
 import { assembleLivingMemory } from '../living-memory/build-living-memory.js';
 import { assembleAdministration } from '../administration/build-administration.js';
@@ -137,7 +145,13 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
     deliveries: new InMemoryDeliveryStore(),
     idempotency: new InMemoryIdempotencyStore(),
     registry,
-    retryPolicy: new ExponentialBackoffRetryPolicy({ baseMs: 1000, factor: 2, maxMs: 60_000, maxAttempts: 5, jitter: 0 }),
+    retryPolicy: new ExponentialBackoffRetryPolicy({
+      baseMs: 1000,
+      factor: 2,
+      maxMs: 60_000,
+      maxAttempts: 5,
+      jitter: 0,
+    }),
     clock,
   });
 
@@ -160,7 +174,11 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
   // Read Models e Workflow assinam o Dispatcher (CQRS: eventos → projeções).
   // Serializados: o Dispatcher entrega streams distintos em paralelo e estes
   // subscribers fazem read-modify-write em documento único (ver SerializedSubscriber).
-  registry.register(new SerializedSubscriber(new AdminProjectionSubscriber(administration.metricsStore)), 1, clock.now());
+  registry.register(
+    new SerializedSubscriber(new AdminProjectionSubscriber(administration.metricsStore)),
+    1,
+    clock.now(),
+  );
   registry.register(new SerializedSubscriber(workflow), 1, clock.now());
 
   // ── GO-LIVE 11D — HOOK DE PRODUÇÃO: no encerramento (operational-state →
@@ -170,13 +188,23 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
   const atendimentoStore = new InMemoryAtendimentoStore();
   const feedbackLoop = new ProductionFeedbackLoop(atendimentoStore);
   registry.register(
-    new MissionClosureFeedbackSubscriber({ loop: feedbackLoop, resolver: defaultEncerramentoResolver, observability, uuid, clock }),
+    new MissionClosureFeedbackSubscriber({
+      loop: feedbackLoop,
+      resolver: defaultEncerramentoResolver,
+      observability,
+      uuid,
+      clock,
+    }),
     1,
     clock.now(),
   );
 
   // ── 2C: Executive Brain (catálogo de missão 2D injetado) ────────────────────
-  const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(MISSION_RULE_CATALOG) });
+  const brainAssembly = assembleExecutiveBrain({
+    clock,
+    uuid,
+    rules: new InMemoryRuleCatalog(MISSION_RULE_CATALOG),
+  });
 
   // ── 2D: Mission Runtime ─────────────────────────────────────────────────────
   const missionAssembly = assembleMissionRuntime({ eventStore, hasher, uuid, clock });
@@ -238,12 +266,21 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
   });
 
   const temporal = new TemporalSignalDispatcher(scheduler, conversation);
-  const portals = new PortalIntegrationRuntime(administration.metricsStore, handoff, progressStore, health);
+  const portals = new PortalIntegrationRuntime(
+    administration.metricsStore,
+    handoff,
+    progressStore,
+    health,
+  );
   const boot = new BootRuntime(health, observability, clock);
   const auditor = new EventStoreIntegrityAuditor(eventStore, hasher);
 
   // ── BOOT: componentes em ordem de dependência ───────────────────────────────
-  const component = (name: string, dependsOn: readonly string[], probe: () => Promise<void>): BootableComponent => ({
+  const component = (
+    name: string,
+    dependsOn: readonly string[],
+    probe: () => Promise<void>,
+  ): BootableComponent => ({
     name,
     dependsOn,
     start: probe,
@@ -258,7 +295,8 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
       await Promise.resolve();
     }),
     component('brain', [], async () => {
-      if ((await brainAssembly.rules.all()).length === 0) throw new Error('catálogo de regras vazio');
+      if ((await brainAssembly.rules.all()).length === 0)
+        throw new Error('catálogo de regras vazio');
     }),
     component('mission', ['event-store', 'brain'], () => Promise.resolve()),
     component('memory', [], async () => {
@@ -280,9 +318,16 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
   ];
 
   // ── GO LIVE CHECKLIST: verificações reais ───────────────────────────────────
-  const check = (item: GoLiveCheck['item'], run: () => Promise<boolean>): GoLiveCheck => ({ item, run });
+  const check = (item: GoLiveCheck['item'], run: () => Promise<boolean>): GoLiveCheck => ({
+    item,
+    run,
+  });
   const checks: readonly GoLiveCheck[] = [
-    check('event-store', async () => (await eventStore.streamVersion('probe', '00000000-0000-4000-8000-0000000000ff')) === 0),
+    check(
+      'event-store',
+      async () =>
+        (await eventStore.streamVersion('probe', '00000000-0000-4000-8000-0000000000ff')) === 0,
+    ),
     check('dispatcher', () => Promise.resolve(registry.all().length >= 2)),
     check('brain', async () => (await brainAssembly.rules.all()).length > 0),
     check('conversation', async () => {
@@ -293,8 +338,15 @@ export function assembleGoLive(wiring: GoLiveWiring): AssembledGoLive {
       await living.memoryStore.all();
       return true;
     }),
-    check('relationship', async () => (await living.relationship.context('golive-probe')).summary.length > 0),
-    check('founder-console', async () => (await administration.founderConsole.briefing(null, clock.now())).greeting.length > 0),
+    check(
+      'relationship',
+      async () => (await living.relationship.context('golive-probe')).summary.length > 0,
+    ),
+    check(
+      'founder-console',
+      async () =>
+        (await administration.founderConsole.briefing(null, clock.now())).greeting.length > 0,
+    ),
     check('workflow', async () => {
       await progressStore.all();
       return true;

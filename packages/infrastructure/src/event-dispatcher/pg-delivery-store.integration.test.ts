@@ -20,48 +20,51 @@ function ev(): UncommittedEvent {
   return { eventType: 'it.happened', isRelevant: false, payload: {}, occurredAt: new Date() };
 }
 
-describe.skipIf(url === '')('PgDeliveryStore/PgIdempotencyStore (integração — requer DATABASE_URL)', () => {
-  let client!: PostgresSqlClient;
-  let events!: PgEventStore;
-  let deliveries!: PgDeliveryStore;
-  let idempotency!: PgIdempotencyStore;
+describe.skipIf(url === '')(
+  'PgDeliveryStore/PgIdempotencyStore (integração — requer DATABASE_URL)',
+  () => {
+    let client!: PostgresSqlClient;
+    let events!: PgEventStore;
+    let deliveries!: PgDeliveryStore;
+    let idempotency!: PgIdempotencyStore;
 
-  beforeAll(() => {
-    client = PostgresSqlClient.connect(url);
-    events = new PgEventStore(client, new CryptoHasher(), uuid);
-    deliveries = new PgDeliveryStore(client);
-    idempotency = new PgIdempotencyStore(client);
-  });
+    beforeAll(() => {
+      client = PostgresSqlClient.connect(url);
+      events = new PgEventStore(client, new CryptoHasher(), uuid);
+      deliveries = new PgDeliveryStore(client);
+      idempotency = new PgIdempotencyStore(client);
+    });
 
-  afterAll(async () => {
-    await client.close();
-  });
+    afterAll(async () => {
+      await client.close();
+    });
 
-  it('enqueue idempotente + claimDue com lock + markDelivered', async () => {
-    const streamId = uuid.next();
-    const now = new Date();
-    const appended = await events.append('it-mission', streamId, NO_STREAM, [ev()]);
-    const stored = appended.events[0]!;
+    it('enqueue idempotente + claimDue com lock + markDelivered', async () => {
+      const streamId = uuid.next();
+      const now = new Date();
+      const appended = await events.append('it-mission', streamId, NO_STREAM, [ev()]);
+      const stored = appended.events[0]!;
 
-    await deliveries.enqueue(stored, ['cqrs'], now);
-    await deliveries.enqueue(stored, ['cqrs'], now); // idempotente
+      await deliveries.enqueue(stored, ['cqrs'], now);
+      await deliveries.enqueue(stored, ['cqrs'], now); // idempotente
 
-    const claimed = await deliveries.claimDue(10, now, 'w1');
-    const mine = claimed.filter((c) => c.delivery.eventId === stored.id);
-    expect(mine).toHaveLength(1);
-    await deliveries.markDelivered([mine[0]!.delivery.id], now);
+      const claimed = await deliveries.claimDue(10, now, 'w1');
+      const mine = claimed.filter((c) => c.delivery.eventId === stored.id);
+      expect(mine).toHaveLength(1);
+      await deliveries.markDelivered([mine[0]!.delivery.id], now);
 
-    const counts = await deliveries.countByStatus();
-    expect(counts.delivered).toBeGreaterThanOrEqual(1);
-  });
+      const counts = await deliveries.countByStatus();
+      expect(counts.delivered).toBeGreaterThanOrEqual(1);
+    });
 
-  it('idempotency store registra e detecta', async () => {
-    const streamId = uuid.next();
-    const appended = await events.append('it-mission', streamId, NO_STREAM, [ev()]);
-    const eventId = appended.events[0]!.id;
-    expect(await idempotency.wasProcessed('cqrs', eventId)).toBe(false);
-    await idempotency.recordProcessed('cqrs', eventId, new Date());
-    expect(await idempotency.wasProcessed('cqrs', eventId)).toBe(true);
-    await idempotency.recordProcessed('cqrs', eventId, new Date()); // ON CONFLICT DO NOTHING
-  });
-});
+    it('idempotency store registra e detecta', async () => {
+      const streamId = uuid.next();
+      const appended = await events.append('it-mission', streamId, NO_STREAM, [ev()]);
+      const eventId = appended.events[0]!.id;
+      expect(await idempotency.wasProcessed('cqrs', eventId)).toBe(false);
+      await idempotency.recordProcessed('cqrs', eventId, new Date());
+      expect(await idempotency.wasProcessed('cqrs', eventId)).toBe(true);
+      await idempotency.recordProcessed('cqrs', eventId, new Date()); // ON CONFLICT DO NOTHING
+    });
+  },
+);

@@ -11,7 +11,9 @@ export class PgMediaStore implements MediaStorePort {
   constructor(private readonly sql: SqlClient) {}
 
   async has(sha256: string): Promise<boolean> {
-    const rows = await this.sql.query('SELECT 1 FROM production.media_blobs WHERE sha256 = $1', [sha256]);
+    const rows = await this.sql.query('SELECT 1 FROM production.media_blobs WHERE sha256 = $1', [
+      sha256,
+    ]);
     return rows.length > 0;
   }
 
@@ -23,9 +25,17 @@ export class PgMediaStore implements MediaStorePort {
   }
 
   async read(sha256: string): Promise<StoredBlob | null> {
-    const rows = await this.sql.query('SELECT mime, size, bytes FROM production.media_blobs WHERE sha256 = $1', [sha256]);
+    const rows = await this.sql.query(
+      'SELECT mime, size, bytes FROM production.media_blobs WHERE sha256 = $1',
+      [sha256],
+    );
     const row = rows[0];
     if (!row) return null;
-    return { sha256, mime: String(row['mime']), size: Number(row['size']), bytes: new Uint8Array(row['bytes'] as Uint8Array) };
+    return {
+      sha256,
+      mime: String(row['mime']),
+      size: Number(row['size']),
+      bytes: new Uint8Array(row['bytes'] as Uint8Array),
+    };
   }
 }

@@ -10,8 +10,20 @@ const NOW = new Date('2026-07-14T00:00:00.000Z');
 describe('InMemoryMessageQueueStore', () => {
   it('atribui seq monotônico por conversa e drena em ordem FIFO', async () => {
     const store = new InMemoryMessageQueueStore();
-    const a = await store.enqueue({ id: 'a', chatId: 'c1', intentId: 'i1', text: 'um', enqueuedAt: NOW });
-    const b = await store.enqueue({ id: 'b', chatId: 'c1', intentId: 'i2', text: 'dois', enqueuedAt: NOW });
+    const a = await store.enqueue({
+      id: 'a',
+      chatId: 'c1',
+      intentId: 'i1',
+      text: 'um',
+      enqueuedAt: NOW,
+    });
+    const b = await store.enqueue({
+      id: 'b',
+      chatId: 'c1',
+      intentId: 'i2',
+      text: 'dois',
+      enqueuedAt: NOW,
+    });
     expect(a.seq).toBe(1);
     expect(b.seq).toBe(2);
 

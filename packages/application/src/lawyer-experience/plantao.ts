@@ -61,9 +61,11 @@ function priorityOf(m: MissionInputs, now: Date): { score: number; reason: strin
     .map((d) => d.dueAt?.getTime() ?? Number.POSITIVE_INFINITY)
     .reduce((min, t) => Math.min(min, t), Number.POSITIVE_INFINITY);
   if (nextDue < now.getTime()) return { score: 1000, reason: 'prazo VENCIDO' };
-  if (nextDue - now.getTime() <= 3 * 24 * 60 * 60_000) return { score: 900, reason: 'prazo em ≤ 3 dias' };
+  if (nextDue - now.getTime() <= 3 * 24 * 60 * 60_000)
+    return { score: 900, reason: 'prazo em ≤ 3 dias' };
   if (m.awaiting.length > 0) return { score: 700, reason: 'aguarda sua decisão' };
-  if (m.newEntries.some((e) => e.isRelevant)) return { score: 500, reason: 'mudanças relevantes novas' };
+  if (m.newEntries.some((e) => e.isRelevant))
+    return { score: 500, reason: 'mudanças relevantes novas' };
   return { score: 0, reason: 'sem novidade' };
 }
 
@@ -86,8 +88,15 @@ export function buildMissionBoard(m: MissionInputs, now: Date): MissionBoard {
   };
 }
 
-export function buildPlantao(advogadoId: string, boards: readonly MissionBoard[], ahriComms: number, now: Date): PlantaoBoard {
-  const ordered = [...boards].sort((a, b) => b.priorityScore - a.priorityScore || a.missionId.localeCompare(b.missionId));
+export function buildPlantao(
+  advogadoId: string,
+  boards: readonly MissionBoard[],
+  ahriComms: number,
+  now: Date,
+): PlantaoBoard {
+  const ordered = [...boards].sort(
+    (a, b) => b.priorityScore - a.priorityScore || a.missionId.localeCompare(b.missionId),
+  );
   const active = ordered.filter((b) => !b.quiet);
   const quietCount = ordered.length - active.length;
   const totalNew = ordered.reduce((sum, b) => sum + b.rawNewEvents, 0);

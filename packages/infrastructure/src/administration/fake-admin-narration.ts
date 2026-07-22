@@ -13,7 +13,9 @@ function str(value: string | number | boolean | null | undefined): string {
 export class TemplateAdminNarration implements AdminNarrationPort {
   narrate(input: NarrationInput): Promise<string> {
     if (!input.available && input.topic !== 'briefing' && input.topic !== 'recommendation') {
-      return Promise.resolve('Ainda não tenho esse dado — não vou inventar. Posso capturá-lo quando a fonte existir.');
+      return Promise.resolve(
+        'Ainda não tenho esse dado — não vou inventar. Posso capturá-lo quando a fonte existir.',
+      );
     }
     const f = input.facts;
     switch (input.topic) {
@@ -30,7 +32,9 @@ export class TemplateAdminNarration implements AdminNarrationPort {
             `${str(f['aviso'])}.`,
         );
       default:
-        return Promise.resolve(str(f['fact']) !== '' ? str(f['fact']) : 'Sem dados para esta pergunta.');
+        return Promise.resolve(
+          str(f['fact']) !== '' ? str(f['fact']) : 'Sem dados para esta pergunta.',
+        );
     }
   }
 }

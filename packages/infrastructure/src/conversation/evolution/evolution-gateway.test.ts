@@ -15,8 +15,14 @@ interface Call {
 
 class RecordingHttp implements HttpClient {
   readonly calls: Call[] = [];
-  constructor(private readonly response: HttpResponse = { status: 200, body: { key: { id: 'srv-1' } } }) {}
-  postJson(url: string, headers: Readonly<Record<string, string>>, body: unknown): Promise<HttpResponse> {
+  constructor(
+    private readonly response: HttpResponse = { status: 200, body: { key: { id: 'srv-1' } } },
+  ) {}
+  postJson(
+    url: string,
+    headers: Readonly<Record<string, string>>,
+    body: unknown,
+  ): Promise<HttpResponse> {
     this.calls.push({ url, headers, body });
     return Promise.resolve(this.response);
   }

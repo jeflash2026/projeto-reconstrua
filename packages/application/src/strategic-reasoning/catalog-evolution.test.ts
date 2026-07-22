@@ -10,21 +10,73 @@ import { gerarRelatorioDeEvolucao, type AtendimentoEncerrado } from './catalog-e
 
 function atendimento(over: Partial<AtendimentoEncerrado>): AtendimentoEncerrado {
   return {
-    ref: 'A', estrategiaEscolhida: 'EST-CONSIG-REVISAO-001', confianca: 'alta',
-    documentosRecebidos: ['HISCON'], decisaoAdvogado: 'confirmada',
-    estrategiaCorreta: null, estrategiaIncorreta: null, documentosFaltantes: [],
-    motivoCorrecao: null, fatosDificeis: [], tempoAteDecisaoMs: 60_000,
+    ref: 'A',
+    estrategiaEscolhida: 'EST-CONSIG-REVISAO-001',
+    confianca: 'alta',
+    documentosRecebidos: ['HISCON'],
+    decisaoAdvogado: 'confirmada',
+    estrategiaCorreta: null,
+    estrategiaIncorreta: null,
+    documentosFaltantes: [],
+    motivoCorrecao: null,
+    fatosDificeis: [],
+    tempoAteDecisaoMs: 60_000,
     ...over,
   };
 }
 
 /** Uma bateria realista de atendimentos encerrados do consignado. */
 const ATENDIMENTOS: readonly AtendimentoEncerrado[] = [
-  atendimento({ ref: 'A1', estrategiaEscolhida: 'EST-CONSIG-REVISAO-001', confianca: 'alta', decisaoAdvogado: 'confirmada', tempoAteDecisaoMs: 40_000 }),
-  atendimento({ ref: 'A2', estrategiaEscolhida: 'EST-CONSIG-REVISAO-001', confianca: 'media', decisaoAdvogado: 'confirmada', documentosFaltantes: ['extrato de empréstimos consignados do INSS'], fatosDificeis: ['multiplos_bancos'], tempoAteDecisaoMs: 80_000 }),
-  atendimento({ ref: 'A3', estrategiaEscolhida: 'EST-CONSIG-REVISAO-001', confianca: 'media', decisaoAdvogado: 'corrigida', estrategiaIncorreta: 'EST-CONSIG-REVISAO-001', estrategiaCorreta: 'EST-CONSIG-CARTAO-RMC-001', motivoCorrecao: 'era cartão RMC, não empréstimo comum', documentosFaltantes: ['extrato da RMC / cartão consignado'], fatosDificeis: ['problema_principal'], tempoAteDecisaoMs: 120_000 }),
-  atendimento({ ref: 'A4', estrategiaEscolhida: 'EST-CONSIG-JUROS-001', confianca: 'media', decisaoAdvogado: 'confirmada', tempoAteDecisaoMs: 60_000 }),
-  atendimento({ ref: 'A5', estrategiaEscolhida: 'EST-CONSIG-JUROS-001', confianca: 'media', decisaoAdvogado: 'corrigida', estrategiaIncorreta: 'EST-CONSIG-JUROS-001', estrategiaCorreta: 'EST-CONSIG-TARIFAS-001', motivoCorrecao: 'eram tarifas embutidas, não juros', documentosFaltantes: ['contrato com discriminação de tarifas/seguros', 'extrato da RMC / cartão consignado'], fatosDificeis: ['problema_principal'], tempoAteDecisaoMs: 100_000 }),
+  atendimento({
+    ref: 'A1',
+    estrategiaEscolhida: 'EST-CONSIG-REVISAO-001',
+    confianca: 'alta',
+    decisaoAdvogado: 'confirmada',
+    tempoAteDecisaoMs: 40_000,
+  }),
+  atendimento({
+    ref: 'A2',
+    estrategiaEscolhida: 'EST-CONSIG-REVISAO-001',
+    confianca: 'media',
+    decisaoAdvogado: 'confirmada',
+    documentosFaltantes: ['extrato de empréstimos consignados do INSS'],
+    fatosDificeis: ['multiplos_bancos'],
+    tempoAteDecisaoMs: 80_000,
+  }),
+  atendimento({
+    ref: 'A3',
+    estrategiaEscolhida: 'EST-CONSIG-REVISAO-001',
+    confianca: 'media',
+    decisaoAdvogado: 'corrigida',
+    estrategiaIncorreta: 'EST-CONSIG-REVISAO-001',
+    estrategiaCorreta: 'EST-CONSIG-CARTAO-RMC-001',
+    motivoCorrecao: 'era cartão RMC, não empréstimo comum',
+    documentosFaltantes: ['extrato da RMC / cartão consignado'],
+    fatosDificeis: ['problema_principal'],
+    tempoAteDecisaoMs: 120_000,
+  }),
+  atendimento({
+    ref: 'A4',
+    estrategiaEscolhida: 'EST-CONSIG-JUROS-001',
+    confianca: 'media',
+    decisaoAdvogado: 'confirmada',
+    tempoAteDecisaoMs: 60_000,
+  }),
+  atendimento({
+    ref: 'A5',
+    estrategiaEscolhida: 'EST-CONSIG-JUROS-001',
+    confianca: 'media',
+    decisaoAdvogado: 'corrigida',
+    estrategiaIncorreta: 'EST-CONSIG-JUROS-001',
+    estrategiaCorreta: 'EST-CONSIG-TARIFAS-001',
+    motivoCorrecao: 'eram tarifas embutidas, não juros',
+    documentosFaltantes: [
+      'contrato com discriminação de tarifas/seguros',
+      'extrato da RMC / cartão consignado',
+    ],
+    fatosDificeis: ['problema_principal'],
+    tempoAteDecisaoMs: 100_000,
+  }),
 ];
 
 describe('11B · o relatório mede o catálogo (não o altera)', () => {
@@ -32,8 +84,14 @@ describe('11B · o relatório mede o catálogo (não o altera)', () => {
 
   it('estratégias MAIS utilizadas (desc) e total de atendimentos', () => {
     expect(rel.totalAtendimentos).toBe(5);
-    expect(rel.estrategiasMaisUtilizadas[0]).toEqual({ chave: 'EST-CONSIG-REVISAO-001', ocorrencias: 3 });
-    expect(rel.estrategiasMaisUtilizadas[1]).toEqual({ chave: 'EST-CONSIG-JUROS-001', ocorrencias: 2 });
+    expect(rel.estrategiasMaisUtilizadas[0]).toEqual({
+      chave: 'EST-CONSIG-REVISAO-001',
+      ocorrencias: 3,
+    });
+    expect(rel.estrategiasMaisUtilizadas[1]).toEqual({
+      chave: 'EST-CONSIG-JUROS-001',
+      ocorrencias: 2,
+    });
   });
 
   it('estratégias NUNCA utilizadas = catálogo menos as escolhidas', () => {
@@ -51,7 +109,10 @@ describe('11B · o relatório mede o catálogo (não o altera)', () => {
   });
 
   it('documentos que MAIS faltam (desc)', () => {
-    expect(rel.documentosQueMaisFaltam[0]).toEqual({ chave: 'extrato da RMC / cartão consignado', ocorrencias: 2 });
+    expect(rel.documentosQueMaisFaltam[0]).toEqual({
+      chave: 'extrato da RMC / cartão consignado',
+      ocorrencias: 2,
+    });
   });
 
   it('fatos mais DIFÍCEIS de descobrir (desc)', () => {
@@ -91,9 +152,17 @@ describe('11B · bordas', () => {
 
   it('rejeição também conta como correção da estratégia escolhida', () => {
     const rel = gerarRelatorioDeEvolucao(ESTRATEGIAS_CONSIGNADO_INSS, [
-      atendimento({ ref: 'R1', estrategiaEscolhida: 'EST-CONSIG-MARGEM-001', decisaoAdvogado: 'rejeitada', estrategiaIncorreta: null }),
+      atendimento({
+        ref: 'R1',
+        estrategiaEscolhida: 'EST-CONSIG-MARGEM-001',
+        decisaoAdvogado: 'rejeitada',
+        estrategiaIncorreta: null,
+      }),
     ]);
-    expect(rel.estrategiasFrequentementeCorrigidas[0]).toMatchObject({ ref: 'EST-CONSIG-MARGEM-001', correcoes: 1 });
+    expect(rel.estrategiasFrequentementeCorrigidas[0]).toMatchObject({
+      ref: 'EST-CONSIG-MARGEM-001',
+      correcoes: 1,
+    });
     expect(rel.taxaAcerto).toBe(0);
   });
 });

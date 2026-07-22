@@ -1,4 +1,13 @@
-*.sh text eol=lf
-*.sql text eol=lf
-Dockerfile text eol=lf
-*.yml text eol=lf
+# Normalização de fim de linha (correção 2026-07-22): centenas de arquivos
+# foram commitados com CRLF (autocrlf=false no Windows) e o Format check do CI
+# (prettier endOfLine lf) falhava em TODO push. Texto é sempre LF no repo.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.woff binary
+*.woff2 binary

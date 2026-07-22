@@ -30,7 +30,12 @@ const ActivityForm = ({ missionId }: { missionId: string }): ReactElement => {
     if (text.trim() === '' || busy) return;
     setBusy(true);
     setStatus(null);
-    const result = await registerActivity(missionId, kind, text, dueAt !== '' ? new Date(dueAt).toISOString() : null);
+    const result = await registerActivity(
+      missionId,
+      kind,
+      text,
+      dueAt !== '' ? new Date(dueAt).toISOString() : null,
+    );
     if (!result) {
       setStatus('Falha ao registrar (verifique sua atribuição).');
     } else {
@@ -50,23 +55,49 @@ const ActivityForm = ({ missionId }: { missionId: string }): ReactElement => {
     <div className="card" style={{ marginBottom: 16 }}>
       <h3>Registrar atividade jurídica</h3>
       <div className="form-row">
-        <select value={kind} onChange={(e) => { setKind(e.target.value); }}>
+        <select
+          value={kind}
+          onChange={(e) => {
+            setKind(e.target.value);
+          }}
+        >
           {KINDS.map((k) => (
             <option key={k.value} value={k.value}>
               {k.label}
             </option>
           ))}
         </select>
-        <input placeholder="Descrição da atividade…" value={text} onChange={(e) => { setText(e.target.value); }} style={{ flex: 2 }} />
-        {kind === 'prazo' ? <input type="date" value={dueAt} onChange={(e) => { setDueAt(e.target.value); }} /> : null}
-        <button className="primary" disabled={busy} onClick={() => { void submit(); }}>
+        <input
+          placeholder="Descrição da atividade…"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+          }}
+          style={{ flex: 2 }}
+        />
+        {kind === 'prazo' ? (
+          <input
+            type="date"
+            value={dueAt}
+            onChange={(e) => {
+              setDueAt(e.target.value);
+            }}
+          />
+        ) : null}
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() => {
+            void submit();
+          }}
+        >
           Registrar
         </button>
       </div>
       {status ? <p style={{ margin: 0, color: 'var(--text-dim)' }}>{status}</p> : null}
       <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>
-        Toda atividade informa a AHRI automaticamente. Quem decide comunicar o cliente é o Executive Brain — você nunca
-        conversa diretamente com o cliente.
+        Toda atividade informa a AHRI automaticamente. Quem decide comunicar o cliente é o Executive
+        Brain — você nunca conversa diretamente com o cliente.
       </p>
     </div>
   );

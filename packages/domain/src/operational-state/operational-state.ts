@@ -76,7 +76,8 @@ export class OperationalStateAggregate extends AggregateRoot<OperationalStateId>
         new CanonViolationError({
           invariantId: DERIVE_ID,
           canonReference: DERIVE_REF,
-          message: 'O Estado deriva exclusivamente da Verdade Operacional; a Verdade de origem é obrigatória (INV-EO-02).',
+          message:
+            'O Estado deriva exclusivamente da Verdade Operacional; a Verdade de origem é obrigatória (INV-EO-02).',
         }),
       );
     }

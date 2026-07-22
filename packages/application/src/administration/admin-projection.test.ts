@@ -8,7 +8,13 @@ import { projectEvent } from './admin-projection.js';
 import type { StoredEvent } from '../event-store/index.js';
 
 const NOW = new Date('2026-07-14T00:00:00.000Z');
-const NOPROV = { factRef: null, actor: 'AHRI', decisionType: null, fundamento: null, operationalRuleRef: 'RO-X' };
+const NOPROV = {
+  factRef: null,
+  actor: 'AHRI',
+  decisionType: null,
+  fundamento: null,
+  operationalRuleRef: 'RO-X',
+};
 
 function event(streamType: string, globalSeq: number, occurredAt: Date = NOW): StoredEvent {
   return {

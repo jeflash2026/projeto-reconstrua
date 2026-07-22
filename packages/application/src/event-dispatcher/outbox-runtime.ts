@@ -148,7 +148,12 @@ export class OutboxRuntime {
           const decision = this.retryPolicy.decide(attempts);
           if (decision.retry) {
             const nextAttemptAt = new Date(this.clock.now().getTime() + decision.delayMs);
-            await this.deliveries.reschedule(delivery.id, nextAttemptAt, attempts, errorMessage(error));
+            await this.deliveries.reschedule(
+              delivery.id,
+              nextAttemptAt,
+              attempts,
+              errorMessage(error),
+            );
             this.metrics.onRetried(sub);
             retried += 1;
           } else {
@@ -188,7 +193,8 @@ export class OutboxRuntime {
     for (let i = 0; i < maxIterations; i += 1) {
       const fannedOut = await this.fanOutOnce();
       const deliver = await this.deliverOnce();
-      const progress = fannedOut > 0 || deliver.delivered > 0 || deliver.skipped > 0 || deliver.deadLettered > 0;
+      const progress =
+        fannedOut > 0 || deliver.delivered > 0 || deliver.skipped > 0 || deliver.deadLettered > 0;
       if (!progress) return;
     }
   }

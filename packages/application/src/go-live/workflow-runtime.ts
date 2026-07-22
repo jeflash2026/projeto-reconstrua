@@ -49,16 +49,31 @@ export const DEFAULT_WORKFLOW_TIMINGS: WorkflowTimings = {
 
 interface EventReaction {
   readonly step: WorkflowStep;
-  readonly schedule: { readonly kind: ScheduledTaskKind; readonly delayMs: keyof WorkflowTimings } | null;
+  readonly schedule: {
+    readonly kind: ScheduledTaskKind;
+    readonly delayMs: keyof WorkflowTimings;
+  } | null;
 }
 
 const REACTIONS: Readonly<Record<string, EventReaction>> = {
-  'document.recognized': { step: 'documento_reconhecido', schedule: { kind: 'follow_deadline', delayMs: 'adminDeadlineMs' } },
-  'pericia.framed': { step: 'pericia_disponivel', schedule: { kind: 'follow_perito', delayMs: 'followUpMs' } },
-  'advogado.designated': { step: 'advogado', schedule: { kind: 'follow_advogado', delayMs: 'followUpMs' } },
+  'document.recognized': {
+    step: 'documento_reconhecido',
+    schedule: { kind: 'follow_deadline', delayMs: 'adminDeadlineMs' },
+  },
+  'pericia.framed': {
+    step: 'pericia_disponivel',
+    schedule: { kind: 'follow_perito', delayMs: 'followUpMs' },
+  },
+  'advogado.designated': {
+    step: 'advogado',
+    schedule: { kind: 'follow_advogado', delayMs: 'followUpMs' },
+  },
   'process.recognized': { step: 'distribuicao', schedule: null },
   'operational-stage.represented': { step: 'acompanhamento', schedule: null },
-  'mission.created': { step: 'acompanhamento', schedule: { kind: 'remind_client', delayMs: 'followUpMs' } },
+  'mission.created': {
+    step: 'acompanhamento',
+    schedule: { kind: 'remind_client', delayMs: 'followUpMs' },
+  },
 };
 
 // B4.3 — REABERTURA: um Estado derivado com `reopened:true` re-arma o acompanhamento
@@ -105,7 +120,11 @@ export class WorkflowRuntime implements EventSubscriber {
     if (missionId === null) return;
 
     // 1) Progresso da missão (read model; idempotente por passo).
-    const current = (await this.progressStore.load(missionId)) ?? { missionId, steps: [], updatedAt: event.recordedAt };
+    const current = (await this.progressStore.load(missionId)) ?? {
+      missionId,
+      steps: [],
+      updatedAt: event.recordedAt,
+    };
     if (!current.steps.includes(reaction.step)) {
       await this.progressStore.save({
         missionId,
@@ -116,7 +135,8 @@ export class WorkflowRuntime implements EventSubscriber {
 
     // 2) Agenda o acompanhamento futuro (o Brain decidirá a ação quando vencer).
     if (reaction.schedule) {
-      const chatId = typeof event.payload['chatId'] === 'string' ? event.payload['chatId'] : missionId;
+      const chatId =
+        typeof event.payload['chatId'] === 'string' ? event.payload['chatId'] : missionId;
       await this.scheduler.schedule({
         id: `wf:${event.id}:${reaction.schedule.kind}`,
         chatId,

@@ -72,7 +72,8 @@ export class PericiaAggregate extends AggregateRoot<PericiaId> {
         new CanonViolationError({
           invariantId: MISSION_ID,
           canonReference: MISSION_REF,
-          message: 'A Perícia é etapa de uma Missão; a Missão é obrigatória (INV-PE-03; não existe perícia sem missão).',
+          message:
+            'A Perícia é etapa de uma Missão; a Missão é obrigatória (INV-PE-03; não existe perícia sem missão).',
         }),
       );
     }
@@ -82,7 +83,8 @@ export class PericiaAggregate extends AggregateRoot<PericiaId> {
         new CanonViolationError({
           invariantId: STAGE_ID,
           canonReference: STAGE_REF,
-          message: 'A Perícia é espécie de Etapa Operacional; a Etapa especializada é obrigatória (INV-PE-01).',
+          message:
+            'A Perícia é espécie de Etapa Operacional; a Etapa especializada é obrigatória (INV-PE-01).',
         }),
       );
     }

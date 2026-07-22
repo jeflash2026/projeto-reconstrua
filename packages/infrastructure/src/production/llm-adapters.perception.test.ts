@@ -34,16 +34,33 @@ import { AnthropicCompletion } from './llm-adapters.js';
 describe('AnthropicCompletion — erro HTTP vira causa LITERAL (nunca texto vazio)', () => {
   it('429 rate limit ⇒ lança com status e corpo (o retry/track veem a verdade)', async () => {
     const completion = new AnthropicCompletion(
-      { postJson: () => Promise.resolve({ status: 429, body: { type: 'error', error: { type: 'rate_limit_error' } } }) },
+      {
+        postJson: () =>
+          Promise.resolve({
+            status: 429,
+            body: { type: 'error', error: { type: 'rate_limit_error' } },
+          }),
+      },
       'k',
       'claude-x',
     );
-    await expect(completion.complete('s', 'u')).rejects.toThrow(/anthropic HTTP 429.*rate_limit_error/);
+    await expect(completion.complete('s', 'u')).rejects.toThrow(
+      /anthropic HTTP 429.*rate_limit_error/,
+    );
   });
 
   it('2xx não-200 (variações de gateway) ⇒ ACEITO', async () => {
     const completion = new AnthropicCompletion(
-      { postJson: () => Promise.resolve({ status: 201, body: { content: [{ type: 'text', text: '{"summary":"ok"}' }], usage: { input_tokens: 1, output_tokens: 2 } } }) },
+      {
+        postJson: () =>
+          Promise.resolve({
+            status: 201,
+            body: {
+              content: [{ type: 'text', text: '{"summary":"ok"}' }],
+              usage: { input_tokens: 1, output_tokens: 2 },
+            },
+          }),
+      },
       'k',
       'claude-x',
     );

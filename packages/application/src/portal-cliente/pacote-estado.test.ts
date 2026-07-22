@@ -23,7 +23,10 @@ const VIEW: AcompanhamentoCliente = {
   advogado: { nome: 'Ana Lima' },
   processo: { numero: '0001234-55.2026.4.04.7000' },
   atualizacoes: [
-    { quando: new Date('2026-07-17T10:00:00.000Z'), texto: 'Protocolamos a petição inicial do seu processo.' },
+    {
+      quando: new Date('2026-07-17T10:00:00.000Z'),
+      texto: 'Protocolamos a petição inicial do seu processo.',
+    },
   ],
   documentosRecebidos: ['Documento de identidade'],
   whatsapp: '554137989737',
@@ -55,7 +58,15 @@ describe('pacoteDeEstado · fatos e limites', () => {
 
   it('NEGAÇÃO de vazamento: nada interno entra no pacote', () => {
     const p = pacoteDeEstado(VIEW, null);
-    for (const proibido of ['AGUARDANDO_', 'PRONTO_', 'EM_PROCESSO', 'modalidade', 'missionId', 'clienteId', 'cli-1']) {
+    for (const proibido of [
+      'AGUARDANDO_',
+      'PRONTO_',
+      'EM_PROCESSO',
+      'modalidade',
+      'missionId',
+      'clienteId',
+      'cli-1',
+    ]) {
       expect(p, `vazou: ${proibido}`).not.toContain(proibido);
     }
   });

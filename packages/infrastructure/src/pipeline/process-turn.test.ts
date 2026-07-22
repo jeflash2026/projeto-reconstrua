@@ -28,23 +28,34 @@ import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
 import { CryptoHasher } from '../event-store/crypto-hasher.js';
 import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
 import { MISSION_RULE_CATALOG } from '../mission-runtime/mission-rule-catalog.js';
-import { AutonomousTurnPipeline, type TurnConversationPort, type TurnInput } from './process-turn.js';
+import {
+  AutonomousTurnPipeline,
+  type TurnConversationPort,
+  type TurnInput,
+} from './process-turn.js';
 
 const NOW = new Date('2026-07-19T00:00:00.000Z');
 const CHAT = '5511977776666@s.whatsapp.net';
 
 class TestClock implements Clock {
-  now(): Date { return NOW; }
+  now(): Date {
+    return NOW;
+  }
 }
 class SeqUuid implements UuidGenerator {
   private n = 0;
-  next(): Uuid { this.n += 1; return toUuid(`00000000-0000-4000-8000-${String(this.n).padStart(12, '0')}`); }
+  next(): Uuid {
+    this.n += 1;
+    return toUuid(`00000000-0000-4000-8000-${String(this.n).padStart(12, '0')}`);
+  }
 }
 
 /** Truth Layer simulada: devolve o snapshot que lhe entregarem (ou vazio). */
 class FakeTruth implements MissionSnapshotPort {
   constructor(private readonly snap: MissionSnapshot | null) {}
-  load(): Promise<MissionSnapshot | null> { return Promise.resolve(this.snap); }
+  load(): Promise<MissionSnapshot | null> {
+    return Promise.resolve(this.snap);
+  }
 }
 
 /** Regras de produção do Mission Runtime (as mesmas do Brain de missão). */
@@ -54,35 +65,99 @@ const RULES = { all: () => Promise.resolve(MISSION_RULE_CATALOG) };
  *  NÃO reimplementa a Conversa real — é o port estreito do pipeline. */
 class FakeConversation implements TurnConversationPort {
   public recebido: readonly BrainIntent[] = [];
-  respond(intents: readonly BrainIntent[], _context: ConversationContextView): Promise<readonly string[]> {
+  respond(
+    intents: readonly BrainIntent[],
+    _context: ConversationContextView,
+  ): Promise<readonly string[]> {
     this.recebido = intents;
     const fala = intents.filter((i) => i.kind === 'conversation');
-    return Promise.resolve(fala.length > 0 ? ['Olá! Estou aqui para ajudar com seu consignado.'] : []);
+    return Promise.resolve(
+      fala.length > 0 ? ['Olá! Estou aqui para ajudar com seu consignado.'] : [],
+    );
   }
 }
 
 function percept(kind = 'text'): PerceptView {
-  return { kind, sentiment: 'neutral', urgency: 'normal', hasArtifacts: kind !== 'text', artifactCount: kind !== 'text' ? 1 : 0, silenceMs: null, purpose: 'service_request' };
+  return {
+    kind,
+    sentiment: 'neutral',
+    urgency: 'normal',
+    hasArtifacts: kind !== 'text',
+    artifactCount: kind !== 'text' ? 1 : 0,
+    silenceMs: null,
+    purpose: 'service_request',
+  };
 }
 function missionFacts(): MissionFacts {
-  return { chatId: CHAT, senderId: CHAT, messageId: 'M1', perceptKind: 'text', text: 'quero rever meu consignado', mediaRef: null, fileName: null, mimeType: null, occurredAt: NOW };
+  return {
+    chatId: CHAT,
+    senderId: CHAT,
+    messageId: 'M1',
+    perceptKind: 'text',
+    text: 'quero rever meu consignado',
+    mediaRef: null,
+    fileName: null,
+    mimeType: null,
+    occurredAt: NOW,
+  };
 }
-function memory(): BrainMemoryView { return { turnCount: 1, lastOutboundAgoMs: null }; }
+function memory(): BrainMemoryView {
+  return { turnCount: 1, lastOutboundAgoMs: null };
+}
 
 /** Contexto com o diálogo consignado já aprendido (9G) — alimenta Strategic Facts. */
 function contextoComConhecimento(): ConversationContextView {
   const entries = [
-    { id: 'e1', chatId: CHAT, kind: 'outbound' as const, at: new Date(2026, 6, 18, 12, 1), text: 'O que aconteceu com seu empréstimo consignado?', intentDirective: null, operationalRuleRef: null, meta: {} },
-    { id: 'e2', chatId: CHAT, kind: 'inbound' as const, at: new Date(2026, 6, 18, 12, 2), text: 'Descontam parcelas que eu não reconheço, há mais de dois anos.', intentDirective: null, operationalRuleRef: null, meta: {} },
-    { id: 'e3', chatId: CHAT, kind: 'outbound' as const, at: new Date(2026, 6, 18, 12, 3), text: 'Você recebe aposentadoria ou pensão?', intentDirective: null, operationalRuleRef: null, meta: {} },
-    { id: 'e4', chatId: CHAT, kind: 'inbound' as const, at: new Date(2026, 6, 18, 12, 4), text: 'Aposentadoria. Tenho o hiscon e contratos em mais de um banco.', intentDirective: null, operationalRuleRef: null, meta: {} },
+    {
+      id: 'e1',
+      chatId: CHAT,
+      kind: 'outbound' as const,
+      at: new Date(2026, 6, 18, 12, 1),
+      text: 'O que aconteceu com seu empréstimo consignado?',
+      intentDirective: null,
+      operationalRuleRef: null,
+      meta: {},
+    },
+    {
+      id: 'e2',
+      chatId: CHAT,
+      kind: 'inbound' as const,
+      at: new Date(2026, 6, 18, 12, 2),
+      text: 'Descontam parcelas que eu não reconheço, há mais de dois anos.',
+      intentDirective: null,
+      operationalRuleRef: null,
+      meta: {},
+    },
+    {
+      id: 'e3',
+      chatId: CHAT,
+      kind: 'outbound' as const,
+      at: new Date(2026, 6, 18, 12, 3),
+      text: 'Você recebe aposentadoria ou pensão?',
+      intentDirective: null,
+      operationalRuleRef: null,
+      meta: {},
+    },
+    {
+      id: 'e4',
+      chatId: CHAT,
+      kind: 'inbound' as const,
+      at: new Date(2026, 6, 18, 12, 4),
+      text: 'Aposentadoria. Tenho o hiscon e contratos em mais de um banco.',
+      intentDirective: null,
+      operationalRuleRef: null,
+      meta: {},
+    },
   ];
   return {
     chatId: CHAT,
     session: { chatId: CHAT, turns: 4, lastInboundAt: null, lastOutboundAt: null },
     recentEntries: entries,
     recentOutboundTexts: entries.filter((e) => e.kind === 'outbound').map((e) => e.text ?? ''),
-    lastPercept: { envelope: { text: 'quero rever meu consignado' }, enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null } } as never,
+    lastPercept: {
+      envelope: { text: 'quero rever meu consignado' },
+      enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null },
+    } as never,
     silenceMs: null,
   } as unknown as ConversationContextView;
 }
@@ -90,7 +165,12 @@ function contextoComConhecimento(): ConversationContextView {
 function pipeline(snap: MissionSnapshot | null) {
   const clock = new TestClock();
   const eventStore = new InMemoryEventStore(new CryptoHasher(), new SeqUuid(), clock);
-  const { runtime } = assembleMissionRuntime({ eventStore, hasher: new CryptoHasher(), uuid: new SeqUuid(), clock });
+  const { runtime } = assembleMissionRuntime({
+    eventStore,
+    hasher: new CryptoHasher(),
+    uuid: new SeqUuid(),
+    clock,
+  });
   const conversation = new FakeConversation();
   const p = new AutonomousTurnPipeline({
     truth: new FakeTruth(snap),
@@ -106,7 +186,14 @@ function pipeline(snap: MissionSnapshot | null) {
 }
 
 function input(): TurnInput {
-  return { correlationId: 'corr-turn-001', chatId: CHAT, percept: percept(), missionFacts: missionFacts(), memory: memory(), context: contextoComConhecimento() };
+  return {
+    correlationId: 'corr-turn-001',
+    chatId: CHAT,
+    percept: percept(),
+    missionFacts: missionFacts(),
+    memory: memory(),
+    context: contextoComConhecimento(),
+  };
 }
 
 describe('GO-LIVE 10D · um turno completo, derivado automaticamente por processTurn()', () => {
@@ -117,7 +204,15 @@ describe('GO-LIVE 10D · um turno completo, derivado automaticamente por process
     const out = await p.processTurn(input());
 
     const ordem = out.steps.map((s) => s.step);
-    expect(ordem).toEqual(['truth', 'strategic-facts', 'strategic-reasoning', 'executive-mind', 'planner', 'mission-runtime', 'conversation']);
+    expect(ordem).toEqual([
+      'truth',
+      'strategic-facts',
+      'strategic-reasoning',
+      'executive-mind',
+      'planner',
+      'mission-runtime',
+      'conversation',
+    ]);
     expect(out.steps.every((s) => s.ok)).toBe(true);
   });
 
@@ -145,7 +240,9 @@ describe('GO-LIVE 10D · um turno completo, derivado automaticamente por process
       expect(typeof s.ok).toBe('boolean');
     }
     // A trilha permite reconstruir do início ao fim: decisão + missão visíveis.
-    expect(out.steps.find((s) => s.step === 'executive-mind')?.detail).toContain('EST-CONSIG-REVISAO-001');
+    expect(out.steps.find((s) => s.step === 'executive-mind')?.detail).toContain(
+      'EST-CONSIG-REVISAO-001',
+    );
     expect(out.steps.find((s) => s.step === 'mission-runtime')?.detail).toContain('mission');
   });
 });
@@ -155,7 +252,12 @@ describe('GO-LIVE 10D · compatibilidade e garantias', () => {
     // Truth vazia + sem conhecimento ⇒ nenhuma hipótese sustentada.
     const clock = new TestClock();
     const eventStore = new InMemoryEventStore(new CryptoHasher(), new SeqUuid(), clock);
-    const { runtime } = assembleMissionRuntime({ eventStore, hasher: new CryptoHasher(), uuid: new SeqUuid(), clock });
+    const { runtime } = assembleMissionRuntime({
+      eventStore,
+      hasher: new CryptoHasher(),
+      uuid: new SeqUuid(),
+      clock,
+    });
     const p = new AutonomousTurnPipeline({
       truth: new FakeTruth(null),
       rules: RULES,
@@ -171,7 +273,10 @@ describe('GO-LIVE 10D · compatibilidade e garantias', () => {
       session: { chatId: CHAT, turns: 1, lastInboundAt: null, lastOutboundAt: null },
       recentEntries: [],
       recentOutboundTexts: [],
-      lastPercept: { envelope: { text: 'quero rever meu consignado' }, enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null } } as never,
+      lastPercept: {
+        envelope: { text: 'quero rever meu consignado' },
+        enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null },
+      } as never,
       silenceMs: null,
     } as unknown as ConversationContextView;
 

@@ -5,7 +5,11 @@ import AutoRefresh from '../../../components/auto-refresh';
 import { getJson, type LogsData } from '../../../lib/api';
 import { formatDate, shortId } from '../../../lib/format';
 
-const LogsPage = async ({ searchParams }: { searchParams: { q?: string } }): Promise<ReactElement> => {
+const LogsPage = async ({
+  searchParams,
+}: {
+  searchParams: { q?: string };
+}): Promise<ReactElement> => {
   const q = searchParams.q ?? '';
   const data = await getJson<LogsData>(`/admin/logs?q=${encodeURIComponent(q)}`);
   return (
@@ -16,7 +20,12 @@ const LogsPage = async ({ searchParams }: { searchParams: { q?: string } }): Pro
 
       {/* Sem `action` absoluto: submete à própria URL (funciona sob o basePath /admin). */}
       <form className="form-row" method="get">
-        <input type="text" name="q" placeholder="Pesquisar (evento, stream, ator, regra, componente)…" defaultValue={q} />
+        <input
+          type="text"
+          name="q"
+          placeholder="Pesquisar (evento, stream, ator, regra, componente)…"
+          defaultValue={q}
+        />
         <button type="submit" className="primary">
           Pesquisar
         </button>

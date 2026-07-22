@@ -10,7 +10,14 @@ import type { Clock, UuidGenerator } from '@reconstrua/domain';
 import type { DocumentContentService } from '../media/index.js';
 import type { DecisionStateStore } from '../executive-brain/decision-state-read-model.js';
 import type { WhatsAppConnectionRuntime } from '../whatsapp-connection/index.js';
-import type { AtendimentoStore, ClientesList, ModalidadeStore, PedidosAdministrativosStore, PeritoView, VendaStore } from '@reconstrua/application';
+import type {
+  AtendimentoStore,
+  ClientesList,
+  ModalidadeStore,
+  PedidosAdministrativosStore,
+  PeritoView,
+  VendaStore,
+} from '@reconstrua/application';
 import type {
   AdminMetricsStore,
   AdministrationIntelligenceRuntime,
@@ -62,7 +69,10 @@ import { InMemoryRuleCatalog } from '../executive-brain/in-memory-adapters.js';
 import { InMemoryDecisionStateStore } from '../executive-brain/decision-state-read-model.js';
 import { DecisionStateProjectionSubscriber } from '../executive-brain/decision-state-projection-subscriber.js';
 import { AdvogadoWorkRuntime } from '@reconstrua/application';
-import { InMemoryAssignmentStore, InMemoryJuridicalWorkStore } from '../advogado-portal/in-memory-adapters.js';
+import {
+  InMemoryAssignmentStore,
+  InMemoryJuridicalWorkStore,
+} from '../advogado-portal/in-memory-adapters.js';
 import { assembleMissionRuntime } from '../mission-runtime/build-mission-runtime.js';
 import { MISSION_RULE_CATALOG } from '../mission-runtime/mission-rule-catalog.js';
 import { assembleLivingMemory } from '../living-memory/build-living-memory.js';
@@ -149,7 +159,13 @@ export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledA
     deliveries: new InMemoryDeliveryStore(),
     idempotency: new InMemoryIdempotencyStore(),
     registry,
-    retryPolicy: new ExponentialBackoffRetryPolicy({ baseMs: 1000, factor: 2, maxMs: 60_000, maxAttempts: 5, jitter: 0 }),
+    retryPolicy: new ExponentialBackoffRetryPolicy({
+      baseMs: 1000,
+      factor: 2,
+      maxMs: 60_000,
+      maxAttempts: 5,
+      jitter: 0,
+    }),
     clock,
   });
 
@@ -163,17 +179,32 @@ export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledA
   const scheduler = new SchedulerRuntime(new InMemorySchedulerStore());
   const progressStore = new InMemoryWorkflowProgressStore();
   const workflow = new WorkflowRuntime(progressStore, scheduler, undefined, observability);
-  const notification = new NotificationRuntime(new RecordingNotificationChannel(), DEFAULT_NOTIFICATION_POLICY);
+  const notification = new NotificationRuntime(
+    new RecordingNotificationChannel(),
+    DEFAULT_NOTIFICATION_POLICY,
+  );
   const handoff = new HumanHandoffRuntime(new InMemoryHandoffStore());
 
   // B4.4: Read Model de Decisão (estado terminal por missão) — mesmo projetor da
   // produção, para as métricas operacionais lerem ativos/encerrados/tempos.
   const decisionState = new InMemoryDecisionStateStore();
-  registry.register(new SerializedSubscriber(new AdminProjectionSubscriber(administration.metricsStore)), 1, clock.now());
+  registry.register(
+    new SerializedSubscriber(new AdminProjectionSubscriber(administration.metricsStore)),
+    1,
+    clock.now(),
+  );
   registry.register(new SerializedSubscriber(workflow), 1, clock.now());
-  registry.register(new SerializedSubscriber(new DecisionStateProjectionSubscriber(decisionState)), 1, clock.now());
+  registry.register(
+    new SerializedSubscriber(new DecisionStateProjectionSubscriber(decisionState)),
+    1,
+    clock.now(),
+  );
 
-  const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(MISSION_RULE_CATALOG) });
+  const brainAssembly = assembleExecutiveBrain({
+    clock,
+    uuid,
+    rules: new InMemoryRuleCatalog(MISSION_RULE_CATALOG),
+  });
   const missionAssembly = assembleMissionRuntime({ eventStore, hasher, uuid, clock });
 
   const fullLoop = new FullLoopBrainAdapter({
@@ -207,7 +238,12 @@ export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledA
   const projector = new TimelineProjector(eventStore);
   const staff = new StaffDirectoryRuntime(new InMemoryStaffStore(), handoff, clock, uuid);
   // B4.4: atribuições/trabalho jurídico (casos por advogado) — mesmos stores da produção.
-  const work = new AdvogadoWorkRuntime(new InMemoryAssignmentStore(), new InMemoryJuridicalWorkStore(), clock, uuid);
+  const work = new AdvogadoWorkRuntime(
+    new InMemoryAssignmentStore(),
+    new InMemoryJuridicalWorkStore(),
+    clock,
+    uuid,
+  );
 
   return {
     conversation,
@@ -218,7 +254,12 @@ export function assembleAdminOperation(wiring: AdminOperationWiring): AssembledA
     temporal: new TemporalSignalDispatcher(scheduler, conversation),
     notification,
     handoff,
-    portals: new PortalIntegrationRuntime(administration.metricsStore, handoff, progressStore, health),
+    portals: new PortalIntegrationRuntime(
+      administration.metricsStore,
+      handoff,
+      progressStore,
+      health,
+    ),
     health,
     observability,
     boot: new BootRuntime(health, observability, clock),

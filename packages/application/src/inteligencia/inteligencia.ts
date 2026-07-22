@@ -7,7 +7,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Condition } from '../executive-brain/conditions.js';
 import type { AtendimentoEncerrado } from '../strategic-reasoning/catalog-evolution.js';
-import type { CatalogoDeEstrategias, Confianca, EstrategiaSpec } from '../strategic-reasoning/strategic-reasoning.js';
+import type {
+  CatalogoDeEstrategias,
+  Confianca,
+  EstrategiaSpec,
+} from '../strategic-reasoning/strategic-reasoning.js';
 import type { DossieJuridico } from '../dossie/dossie.js';
 
 // ── Condições legíveis (para a biblioteca de estratégias) ─────────────────────
@@ -23,7 +27,14 @@ const ROTULO_FATO: Readonly<Record<string, string>> = {
 function rotuloFato(fact: string): string {
   return ROTULO_FATO[fact] ?? fact.replace(/_/g, ' ');
 }
-const OP_TXT: Readonly<Record<string, string>> = { eq: 'é', neq: 'não é', gt: '>', gte: '≥', lt: '<', lte: '≤' };
+const OP_TXT: Readonly<Record<string, string>> = {
+  eq: 'é',
+  neq: 'não é',
+  gt: '>',
+  gte: '≥',
+  lt: '<',
+  lte: '≤',
+};
 
 export function descreverCondicao(c: Condition): string {
   if ('all' in c) return c.all.map(descreverCondicao).join(' e ');
@@ -48,10 +59,29 @@ export interface EstatisticaEstrategia {
   readonly casos: readonly string[]; // missionId/ref dos atendimentos
 }
 
-export function estatisticasPorEstrategia(atendimentos: readonly AtendimentoEncerrado[]): ReadonlyMap<string, EstatisticaEstrategia> {
-  const acc = new Map<string, { usos: number; correcoes: number; confirmadas: number; somaConf: number; ultima: Date | null; casos: string[] }>();
+export function estatisticasPorEstrategia(
+  atendimentos: readonly AtendimentoEncerrado[],
+): ReadonlyMap<string, EstatisticaEstrategia> {
+  const acc = new Map<
+    string,
+    {
+      usos: number;
+      correcoes: number;
+      confirmadas: number;
+      somaConf: number;
+      ultima: Date | null;
+      casos: string[];
+    }
+  >();
   for (const a of atendimentos) {
-    const cur = acc.get(a.estrategiaEscolhida) ?? { usos: 0, correcoes: 0, confirmadas: 0, somaConf: 0, ultima: null, casos: [] };
+    const cur = acc.get(a.estrategiaEscolhida) ?? {
+      usos: 0,
+      correcoes: 0,
+      confirmadas: 0,
+      somaConf: 0,
+      ultima: null,
+      casos: [],
+    };
     cur.usos += 1;
     if (a.decisaoAdvogado === 'confirmada') cur.confirmadas += 1;
     else cur.correcoes += 1;
@@ -102,7 +132,10 @@ function problemaDe(spec: EstrategiaSpec): string {
   return spec.requer.map(descreverCondicao).join('; ');
 }
 
-export function montarBibliotecaEstrategias(catalogo: CatalogoDeEstrategias, atendimentos: readonly AtendimentoEncerrado[]): readonly EstrategiaCard[] {
+export function montarBibliotecaEstrategias(
+  catalogo: CatalogoDeEstrategias,
+  atendimentos: readonly AtendimentoEncerrado[],
+): readonly EstrategiaCard[] {
   const stats = estatisticasPorEstrategia(atendimentos);
   return catalogo.map((spec) => {
     const s = stats.get(spec.ref);
@@ -148,7 +181,10 @@ export interface HipoteseView {
 }
 
 /** Extrai as hipóteses de um dossiê como linhas navegáveis. Puro. */
-export function hipotesesDoDossie(dossie: DossieJuridico, clienteNome: string): readonly HipoteseView[] {
+export function hipotesesDoDossie(
+  dossie: DossieJuridico,
+  clienteNome: string,
+): readonly HipoteseView[] {
   return dossie.hipoteses.map((h) => ({
     clienteId: dossie.clienteId,
     clienteNome,
@@ -193,11 +229,21 @@ export interface FatoAprendidoDeCliente {
 }
 
 /** Agrupa os fatos aprendidos por categoria (factKey). Só conhecimento — nunca mensagens. */
-export function agregarConhecimento(fatos: readonly FatoAprendidoDeCliente[]): readonly CategoriaConhecimento[] {
+export function agregarConhecimento(
+  fatos: readonly FatoAprendidoDeCliente[],
+): readonly CategoriaConhecimento[] {
   const grupos = new Map<string, FatoConhecimento[]>();
   for (const f of fatos) {
     const lista = grupos.get(f.factKey) ?? [];
-    lista.push({ clienteId: f.clienteId, clienteNome: f.clienteNome, factKey: f.factKey, valor: f.valor, origem: f.origem, confianca: f.confianca, fonte: 'read-model:conversation-knowledge' });
+    lista.push({
+      clienteId: f.clienteId,
+      clienteNome: f.clienteNome,
+      factKey: f.factKey,
+      valor: f.valor,
+      origem: f.origem,
+      confianca: f.confianca,
+      fonte: 'read-model:conversation-knowledge',
+    });
     grupos.set(f.factKey, lista);
   }
   return [...grupos.entries()]

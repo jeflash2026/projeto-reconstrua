@@ -72,7 +72,11 @@ function harness() {
   return { runtime, eventStore, auditSink, auditor, identityMap };
 }
 
-async function stream(eventStore: InMemoryEventStore, type: string, id: string | null): Promise<readonly StoredEvent[]> {
+async function stream(
+  eventStore: InMemoryEventStore,
+  type: string,
+  id: string | null,
+): Promise<readonly StoredEvent[]> {
   return id === null ? [] : eventStore.readStream(type, id, 0);
 }
 
@@ -83,7 +87,14 @@ describe('Mission Runtime — Fluxo 1: "Olá" → onboarding completo', () => {
 
     expect(result.ok).toBe(true);
     const kinds = result.outcomes.map((o) => o.useCase);
-    expect(kinds).toEqual(['RecognizePerson', 'RecognizeCliente', 'CreateMission', 'BuildTruth', 'DeriveState', 'RepresentStage']);
+    expect(kinds).toEqual([
+      'RecognizePerson',
+      'RecognizeCliente',
+      'CreateMission',
+      'BuildTruth',
+      'DeriveState',
+      'RepresentStage',
+    ]);
 
     const id = result.identity;
     expect(id.personId).not.toBeNull();
@@ -125,11 +136,20 @@ describe('Mission Runtime — Fluxo 2/3: documento → conhecimento → Verdade/
   it('ingesta documento após onboarding (R3→R4→R5→R6) e re-sintetiza a Verdade', async () => {
     const h = harness();
     await h.runtime.execute(facts('text'), [intent('OnboardClient')]);
-    const result = await h.runtime.execute(facts('pdf', { fileName: 'rg.pdf', messageId: 'M2' }), [intent('IngestDocument')]);
+    const result = await h.runtime.execute(facts('pdf', { fileName: 'rg.pdf', messageId: 'M2' }), [
+      intent('IngestDocument'),
+    ]);
 
     expect(result.ok).toBe(true);
     const kinds = result.outcomes.map((o) => o.useCase);
-    expect(kinds).toEqual(['RecognizeDocument', 'RecognizeEvent', 'BuildKnowledge', 'BuildTruth', 'DeriveState', 'RepresentStage']);
+    expect(kinds).toEqual([
+      'RecognizeDocument',
+      'RecognizeEvent',
+      'BuildKnowledge',
+      'BuildTruth',
+      'DeriveState',
+      'RepresentStage',
+    ]);
 
     const id = result.identity;
     expect(id.lastDocumentId).not.toBeNull();
@@ -161,7 +181,9 @@ describe('Mission Runtime — Fluxo 2/3: documento → conhecimento → Verdade/
   it('RFC-0044: sem perceivedRelevance ⇒ idêntico (RELEVANT + isRelevant true)', async () => {
     const h = harness();
     await h.runtime.execute(facts('text'), [intent('OnboardClient')]);
-    const result = await h.runtime.execute(facts('pdf', { fileName: 'rg.pdf', messageId: 'M2' }), [intent('IngestDocument')]);
+    const result = await h.runtime.execute(facts('pdf', { fileName: 'rg.pdf', messageId: 'M2' }), [
+      intent('IngestDocument'),
+    ]);
     const [ev] = await stream(h.eventStore, 'event', result.identity.lastEventId);
     expect(ev?.isRelevant).toBe(true);
     expect(ev?.payload['classification']).toBe('RELEVANT');
@@ -170,8 +192,12 @@ describe('Mission Runtime — Fluxo 2/3: documento → conhecimento → Verdade/
   it('Fluxo 3: novo documento re-sintetiza Verdade/Estado/Etapa e o Conhecimento base é idempotente', async () => {
     const h = harness();
     await h.runtime.execute(facts('text'), [intent('OnboardClient')]);
-    await h.runtime.execute(facts('pdf', { fileName: 'a.pdf', messageId: 'M2' }), [intent('IngestDocument')]);
-    const result = await h.runtime.execute(facts('pdf', { fileName: 'b.pdf', messageId: 'M3' }), [intent('IngestDocument')]);
+    await h.runtime.execute(facts('pdf', { fileName: 'a.pdf', messageId: 'M2' }), [
+      intent('IngestDocument'),
+    ]);
+    const result = await h.runtime.execute(facts('pdf', { fileName: 'b.pdf', messageId: 'M3' }), [
+      intent('IngestDocument'),
+    ]);
 
     const knowledge = result.outcomes.find((o) => o.useCase === 'BuildKnowledge');
     expect(knowledge?.skipped).toBe(true); // Caso/Processo já existem
@@ -195,7 +221,9 @@ describe('Mission Runtime — idempotência, regra obrigatória, integridade', (
 
   it('NENHUMA decisão sem regra: intenção sem operationalRuleRef é recusada', async () => {
     const h = harness();
-    const result = await h.runtime.execute(facts('text'), [intent('OnboardClient', { operationalRuleRef: '' })]);
+    const result = await h.runtime.execute(facts('text'), [
+      intent('OnboardClient', { operationalRuleRef: '' }),
+    ]);
     expect(result.ok).toBe(false);
     expect(result.outcomes[0]?.error).toContain('Regra Operacional');
   });
@@ -228,7 +256,10 @@ describe('Mission Runtime — B4.1: encerramento oficial (CloseMission)', () => 
   it('após onboarding, encerra derivando Estado terminal ENCERRADA (append-only, relevante, fundado)', async () => {
     const h = harness();
     await h.runtime.execute(facts('text'), [intent('OnboardClient')]);
-    const result = await h.runtime.execute(facts('closure', { messageId: 'M9', text: 'perícia concluída' }), [closeIntent]);
+    const result = await h.runtime.execute(
+      facts('closure', { messageId: 'M9', text: 'perícia concluída' }),
+      [closeIntent],
+    );
 
     expect(result.ok).toBe(true);
     const outcome = result.outcomes.find((o) => o.useCase === 'CloseMission');
@@ -275,7 +306,10 @@ describe('Mission Runtime — B4.3: reabertura oficial (ReopenMission)', () => {
     await h.runtime.execute(facts('text'), [intent('OnboardClient')]);
     const beforeCount = (await h.eventStore.readAll(0, 1000)).length;
 
-    const result = await h.runtime.execute(facts('reopening', { messageId: 'M9', text: 'novo fato jurídico' }), [reopenIntent]);
+    const result = await h.runtime.execute(
+      facts('reopening', { messageId: 'M9', text: 'novo fato jurídico' }),
+      [reopenIntent],
+    );
     expect(result.ok).toBe(true);
     const outcome = result.outcomes.find((o) => o.useCase === 'ReopenMission');
     expect(outcome?.ok).toBe(true);
@@ -295,7 +329,9 @@ describe('Mission Runtime — B4.3: reabertura oficial (ReopenMission)', () => {
     const h = harness();
     const result = await h.runtime.execute(facts('reopening', { messageId: 'M9' }), [reopenIntent]);
     expect(result.ok).toBe(false);
-    expect(result.outcomes.find((o) => o.useCase === 'ReopenMission')?.error).toContain('pré-condição');
+    expect(result.outcomes.find((o) => o.useCase === 'ReopenMission')?.error).toContain(
+      'pré-condição',
+    );
   });
 
   it('encerrar e reabrir mantêm a cadeia íntegra (R9) — histórico append-only', async () => {
@@ -304,7 +340,9 @@ describe('Mission Runtime — B4.3: reabertura oficial (ReopenMission)', () => {
     await h.runtime.execute(facts('closure', { messageId: 'M9' }), [
       intent('CloseMission', { decisor: 'operador', operationalRuleRef: 'RO-STOP-CONCLUDED-001' }),
     ]);
-    const reopened = await h.runtime.execute(facts('reopening', { messageId: 'M10' }), [reopenIntent]);
+    const reopened = await h.runtime.execute(facts('reopening', { messageId: 'M10' }), [
+      reopenIntent,
+    ]);
     const report = await h.auditor.verify(reopened.identity);
     expect(report.ok).toBe(true);
   });

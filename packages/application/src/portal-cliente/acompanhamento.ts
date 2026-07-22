@@ -81,13 +81,27 @@ export interface AcompanhamentoDeps {
 const ETAPAS = ['Documentação', 'Análise técnica', 'Processo', 'Conclusão'] as const;
 
 const MESES = [
-  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
 ] as const;
 
 /** "2 de agosto" no fuso do Brasil — a frase da previsão nasce AQUI (P3). */
 function dataPorExtenso(d: Date): string {
-  const fmt = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'numeric' });
+  const fmt = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: 'numeric',
+    month: 'numeric',
+  });
   const partes = Object.fromEntries(fmt.formatToParts(d).map((p) => [p.type, p.value]));
   const mes = MESES[Number(partes['month']) - 1] ?? '';
   return `${String(Number(partes['day']))} de ${mes}`;
@@ -146,17 +160,21 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
     case 'COLETANDO_DOCUMENTOS':
       return {
         ondeEsta: 'Documentação',
-        fraseAbertura: 'Estamos organizando a sua documentação — e eu estou com você em cada passo.',
+        fraseAbertura:
+          'Estamos organizando a sua documentação — e eu estou com você em cada passo.',
         agora: 'Estou organizando a sua documentação com você pelo WhatsApp.',
-        proximoPasso: 'Assim que tudo estiver completo, seu caso entra na análise técnica da nossa equipe — e eu te aviso.',
+        proximoPasso:
+          'Assim que tudo estiver completo, seu caso entra na análise técnica da nossa equipe — e eu te aviso.',
         quantoTempo: 'Depende só dos documentos — assim que chegarem, seguimos na hora.',
       };
     case 'AGUARDANDO_10_DIAS':
       return {
         ondeEsta: 'Análise técnica',
         fraseAbertura: 'Seu caso está em análise técnica — e eu estou acompanhando cada passo.',
-        agora: 'Já enviamos as solicitações administrativas do seu caso e estou acompanhando as respostas.',
-        proximoPasso: 'Com as respostas em mãos, definimos os próximos passos — e eu te aviso por aqui e pelo WhatsApp.',
+        agora:
+          'Já enviamos as solicitações administrativas do seu caso e estou acompanhando as respostas.',
+        proximoPasso:
+          'Com as respostas em mãos, definimos os próximos passos — e eu te aviso por aqui e pelo WhatsApp.',
         quantoTempo: analiseTempo,
       };
     case 'AGUARDANDO_SOCIO':
@@ -176,25 +194,34 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
           advogadoNome !== null
             ? `Quem está conduzindo o seu processo é ${advogadoNome}.`
             : 'Nosso time jurídico está conduzindo o seu processo.',
-        proximoPasso: 'Cada movimentação importante aparece aqui — e eu também aviso você no WhatsApp.',
-        quantoTempo: 'Cada processo tem o seu próprio ritmo — mas você não precisa vigiar prazos: eu acompanho tudo e te aviso a cada novidade.',
+        proximoPasso:
+          'Cada movimentação importante aparece aqui — e eu também aviso você no WhatsApp.',
+        quantoTempo:
+          'Cada processo tem o seu próprio ritmo — mas você não precisa vigiar prazos: eu acompanho tudo e te aviso a cada novidade.',
       };
     case 'VENDIDO':
       // Texto FINAL homologado (GO-LIVE-02) — a conclusão da etapa com a AHRI.
       return {
         ondeEsta: 'Conclusão',
-        fraseAbertura: 'Esta etapa do seu caso foi concluída — e foi um prazer acompanhar você até aqui.',
-        agora: 'Concluímos esta etapa do seu caso. Tudo o que construímos — seus documentos, cada passo do caminho — continua registrado aqui para você.',
-        proximoPasso: 'Se houver qualquer novidade, eu mesma falo com você pelo WhatsApp — você não precisa vigiar nada.',
-        quantoTempo: 'Esta etapa está concluída — não há mais prazos correndo para você acompanhar.',
+        fraseAbertura:
+          'Esta etapa do seu caso foi concluída — e foi um prazer acompanhar você até aqui.',
+        agora:
+          'Concluímos esta etapa do seu caso. Tudo o que construímos — seus documentos, cada passo do caminho — continua registrado aqui para você.',
+        proximoPasso:
+          'Se houver qualquer novidade, eu mesma falo com você pelo WhatsApp — você não precisa vigiar nada.',
+        quantoTempo:
+          'Esta etapa está concluída — não há mais prazos correndo para você acompanhar.',
       };
     case 'ENCERRADO':
       // Texto FINAL homologado (GO-LIVE-02) — o fim do caminho, nunca frio.
       return {
         ondeEsta: 'Conclusão',
-        fraseAbertura: 'Seu caso foi concluído — obrigada por confiar em mim durante todo o caminho.',
-        agora: 'Chegamos ao fim deste caminho. Seus documentos e todo o histórico continuam guardados aqui, sempre que quiser rever.',
-        proximoPasso: 'Este espaço fica em repouso, mas eu não vou embora: qualquer dúvida, qualquer novidade, é só me chamar no WhatsApp.',
+        fraseAbertura:
+          'Seu caso foi concluído — obrigada por confiar em mim durante todo o caminho.',
+        agora:
+          'Chegamos ao fim deste caminho. Seus documentos e todo o histórico continuam guardados aqui, sempre que quiser rever.',
+        proximoPasso:
+          'Este espaço fica em repouso, mas eu não vou embora: qualquer dúvida, qualquer novidade, é só me chamar no WhatsApp.',
         quantoTempo: 'Não há mais nada correndo — você pode ficar em paz.',
       };
     default:
@@ -202,7 +229,8 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
         ondeEsta: 'Análise técnica',
         fraseAbertura: 'Seu caso está em análise técnica — e eu estou acompanhando cada passo.',
         agora: 'Sua documentação está completa e a nossa equipe está analisando o seu caso.',
-        proximoPasso: 'Ao concluir a análise, damos entrada nas solicitações do seu caso — e eu te aviso.',
+        proximoPasso:
+          'Ao concluir a análise, damos entrada nas solicitações do seu caso — e eu te aviso.',
         quantoTempo: analiseTempo,
       };
   }
@@ -253,12 +281,16 @@ export class AcompanhamentoView {
       ? await this.deps.rotulosDocumentais(cliente.chatId).catch(() => null)
       : null;
     const documentosRecebidos =
-      rotulos !== null && rotulos.length > 0 ? [...rotulos] : (memoria?.documentsSent ?? []).map((d) => d.label);
+      rotulos !== null && rotulos.length > 0
+        ? [...rotulos]
+        : (memoria?.documentsSent ?? []).map((d) => d.label);
 
     const liberacao = await this.deps.liberacao(clienteId);
     const dias = this.deps.config.estimativaDias;
     const estimativaAte =
-      liberacao !== null ? new Date(liberacao.comunicadoEm.getTime() + dias * 24 * 60 * 60 * 1000) : null;
+      liberacao !== null
+        ? new Date(liberacao.comunicadoEm.getTime() + dias * 24 * 60 * 60 * 1000)
+        : null;
 
     const idx = etapaIndex(cliente.status);
     const etapas: EtapaTimeline[] = ETAPAS.map((titulo, i) => ({

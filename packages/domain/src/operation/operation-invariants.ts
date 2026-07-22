@@ -33,12 +33,7 @@ export const operationEntityInvariants: ReadonlyArray<Invariant<OperationAggrega
 
 // (B) Manifesto completo das 3 invariantes do Canon e onde cada uma é garantida.
 export type EnforcementLocus =
-  | 'entity'
-  | 'event-store'
-  | 'projection'
-  | 'cqrs'
-  | 'use-case'
-  | 'cross-entity';
+  'entity' | 'event-store' | 'projection' | 'cqrs' | 'use-case' | 'cross-entity';
 
 export interface OperationInvariantSpec {
   readonly id: string;
@@ -48,7 +43,23 @@ export interface OperationInvariantSpec {
 }
 
 export const OPERATION_INVARIANTS_MANIFEST: ReadonlyArray<OperationInvariantSpec> = [
-  { id: 'INV-OP-01', canonReference: 'DF-08', description: 'Toda operação existe em função de uma missão.', enforcement: 'entity' },
-  { id: 'INV-OP-02', canonReference: 'Volume 03 (R1–R9); DF-13', description: 'Rege-se integralmente pelo Volume 03; nenhuma operação fora das Regras Operacionais.', enforcement: 'use-case' },
-  { id: 'INV-OP-03', canonReference: 'R9; Lei 4', description: 'É sempre auditável; rastro operacional perpétuo.', enforcement: 'event-store' },
+  {
+    id: 'INV-OP-01',
+    canonReference: 'DF-08',
+    description: 'Toda operação existe em função de uma missão.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-OP-02',
+    canonReference: 'Volume 03 (R1–R9); DF-13',
+    description:
+      'Rege-se integralmente pelo Volume 03; nenhuma operação fora das Regras Operacionais.',
+    enforcement: 'use-case',
+  },
+  {
+    id: 'INV-OP-03',
+    canonReference: 'R9; Lei 4',
+    description: 'É sempre auditável; rastro operacional perpétuo.',
+    enforcement: 'event-store',
+  },
 ];

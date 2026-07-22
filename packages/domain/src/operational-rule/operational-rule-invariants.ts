@@ -34,12 +34,7 @@ export const operationalRuleEntityInvariants: ReadonlyArray<Invariant<Operationa
 
 // (B) Manifesto completo das 3 invariantes do Canon e onde cada uma é garantida.
 export type EnforcementLocus =
-  | 'entity'
-  | 'event-store'
-  | 'projection'
-  | 'cqrs'
-  | 'use-case'
-  | 'cross-entity';
+  'entity' | 'event-store' | 'projection' | 'cqrs' | 'use-case' | 'cross-entity';
 
 export interface OperationalRuleInvariantSpec {
   readonly id: string;
@@ -49,7 +44,24 @@ export interface OperationalRuleInvariantSpec {
 }
 
 export const OPERATIONAL_RULE_INVARIANTS_MANIFEST: ReadonlyArray<OperationalRuleInvariantSpec> = [
-  { id: 'INV-RO-01', canonReference: 'DF-13', description: 'Possui os dez elementos obrigatórios (identificador, nome, objetivo, critério de execução, critério de bloqueio, evento de entrada, evento de saída, evidências produzidas, responsável pela aprovação, histórico de versões).', enforcement: 'entity' },
-  { id: 'INV-RO-02', canonReference: 'Lei Geral das RO', description: 'Jamais contraria a Constituição, a Ontologia ou a Epistemologia; em conflito prevalece o nível superior do Canon.', enforcement: 'cross-entity' },
-  { id: 'INV-RO-03', canonReference: 'DF-09', description: 'Toda automação da AHRI referencia ao menos uma Regra Operacional.', enforcement: 'cross-entity' },
+  {
+    id: 'INV-RO-01',
+    canonReference: 'DF-13',
+    description:
+      'Possui os dez elementos obrigatórios (identificador, nome, objetivo, critério de execução, critério de bloqueio, evento de entrada, evento de saída, evidências produzidas, responsável pela aprovação, histórico de versões).',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-RO-02',
+    canonReference: 'Lei Geral das RO',
+    description:
+      'Jamais contraria a Constituição, a Ontologia ou a Epistemologia; em conflito prevalece o nível superior do Canon.',
+    enforcement: 'cross-entity',
+  },
+  {
+    id: 'INV-RO-03',
+    canonReference: 'DF-09',
+    description: 'Toda automação da AHRI referencia ao menos uma Regra Operacional.',
+    enforcement: 'cross-entity',
+  },
 ];

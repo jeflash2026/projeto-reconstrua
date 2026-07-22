@@ -96,7 +96,12 @@ export class ExecutiveBrainRuntime {
 
     // 4) Escolha das ações — SEMPRE a partir de regra.
     const chosen = human.requiresHuman
-      ? [this.requireRule(this.escalationPlanner.planFor(context.rules, human.role) ?? this.fallback(context.rules))]
+      ? [
+          this.requireRule(
+            this.escalationPlanner.planFor(context.rules, human.role) ??
+              this.fallback(context.rules),
+          ),
+        ]
       : this.chooseOperational(legitimate, strategy, goal, human.role, context.rules);
 
     // 5) Emite intenções e audita.
@@ -136,7 +141,9 @@ export class ExecutiveBrainRuntime {
 
     // Nada aplicável/legítimo → escalar (se o objetivo é escalar) ou esperar.
     const fallback =
-      goal === 'escalate_to_human' ? this.escalationPlanner.planFor(rules, role) : this.fallback(rules);
+      goal === 'escalate_to_human'
+        ? this.escalationPlanner.planFor(rules, role)
+        : this.fallback(rules);
     return [this.requireRule(fallback ?? this.fallback(rules))];
   }
 

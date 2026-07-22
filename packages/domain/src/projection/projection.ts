@@ -60,14 +60,17 @@ export class ProjectionAggregate extends AggregateRoot<ProjectionId> {
    * NÃO altera a Verdade/Estado: assembla o snapshot imutável e valida sua
    * boa-formação (derivação, leitura, datação).
    */
-  static derive(input: ProjectionDerivationInput): Result<ProjectionAggregate, CanonViolationError> {
+  static derive(
+    input: ProjectionDerivationInput,
+  ): Result<ProjectionAggregate, CanonViolationError> {
     // INV-PJ-01 — deriva da Verdade Operacional (fonte obrigatória e exclusiva).
     if (input.derivedFromTruth == null) {
       return Result.err(
         new CanonViolationError({
           invariantId: TRUTH_ID,
           canonReference: TRUTH_REF,
-          message: 'A Projeção deriva exclusivamente da Verdade; a Verdade de origem é obrigatória (INV-PJ-01).',
+          message:
+            'A Projeção deriva exclusivamente da Verdade; a Verdade de origem é obrigatória (INV-PJ-01).',
         }),
       );
     }
@@ -94,7 +97,9 @@ export class ProjectionAggregate extends AggregateRoot<ProjectionId> {
       calculatedAt: new Date(input.calculatedAt.getTime()),
     });
 
-    projection.addDomainEvent(new ProjectionDerived(input.id.toString(), projection.props.calculatedAt));
+    projection.addDomainEvent(
+      new ProjectionDerived(input.id.toString(), projection.props.calculatedAt),
+    );
     return Result.ok(projection);
   }
 

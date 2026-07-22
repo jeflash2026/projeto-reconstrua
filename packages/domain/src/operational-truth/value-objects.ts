@@ -39,7 +39,8 @@ export class ChainJustification extends ValueObject<{ value: string }> {
         new CanonViolationError({
           invariantId: CHAIN_ID,
           canonReference: `${CANON_REF}; INV-E8-02; E8-L06`,
-          message: 'Verdade Operacional sem cadeia demonstrável: toda Verdade é rastreável até a Cadeia (INV-E8-02).',
+          message:
+            'Verdade Operacional sem cadeia demonstrável: toda Verdade é rastreável até a Cadeia (INV-E8-02).',
         }),
       );
     }
@@ -68,7 +69,8 @@ export class DeclaredUncertainty extends ValueObject<{ value: string }> {
         new CanonViolationError({
           invariantId: UNCERTAINTY_ID,
           canonReference: `${CANON_REF}; INV-E8-07`,
-          message: 'Incerteza declarada vazia: a incerteza jamais é preenchida artificialmente (INV-E8-07).',
+          message:
+            'Incerteza declarada vazia: a incerteza jamais é preenchida artificialmente (INV-E8-07).',
         }),
       );
     }

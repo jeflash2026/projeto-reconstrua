@@ -1,4 +1,5 @@
 # PORTAL DO CLIENTE — ESPECIFICAÇÃO TÉCNICA (v2 — CONGELADA)
+
 ### Extensão do ecossistema AHRI — filosofia oficial + arquitetura. Base do PC‑R1.
 
 ## PRINCÍPIOS CONGELADOS (arquitetura oficial do produto)
@@ -12,8 +13,8 @@
    própria**: toda tradução para linguagem humana acontece na camada de aplicação (a visão);
    o app apenas renderiza strings autorizadas.
 4. **O Portal REDUZ ANSIEDADE** — o objetivo não é mostrar dados; é responder naturalmente às
-   perguntas do cliente: *onde meu caso está? · o que está acontecendo agora? · o que acontece
-   depois? · preciso fazer alguma coisa? · quanto tempo costuma levar?* A própria estrutura da
+   perguntas do cliente: _onde meu caso está? · o que está acontecendo agora? · o que acontece
+   depois? · preciso fazer alguma coisa? · quanto tempo costuma levar?_ A própria estrutura da
    projeção é organizada por essas perguntas (§3.1).
 5. **ZERO ERP** — nada de tabelas, códigos, jargão jurídico ou termos internos. Tudo em
    linguagem humana.
@@ -77,7 +78,7 @@ force‑dynamic); disciplina BL‑2.2 (browser nunca fala com API interna).
   prazo). Mudou a política → muda em todo lugar, sem tocar regra de negócio.
 - **Relógio do Portal:** `estimativaAte = liberacao-portal.comunicadoEm + PROCESSING_ESTIMATE_DAYS`
   — o **fato** é imutável (Lei 8/11); a **estimativa** é política vigente e pode ser recalculada
-  se a política mudar (comportamento desejado pela D1). Exibida sempre como *estimativa*
+  se a política mudar (comportamento desejado pela D1). Exibida sempre como _estimativa_
   ("previsão", nunca promessa — fronteira da AHRI: não prometer decisões humanas).
 - **Distinção documentada:** `PRAZO_PEDIDOS_DIAS=10` (interno, fila operacional da Jornada B,
   conta a partir de `pedidos-administrativos.confirmadoEm`) **não é** o prazo do cliente e não
@@ -86,30 +87,33 @@ force‑dynamic); disciplina BL‑2.2 (browser nunca fala com API interna).
 ## 3. Componentes
 
 ### 3.1 `VisaoAcompanhamento` (application — pura, PC‑R1)
+
 `acompanhamento(clienteId)` → compõe de fontes existentes (Regra 1; D3). **Princípios 3/4/5:**
 a estrutura É as respostas às perguntas do cliente, já em linguagem humana, na primeira pessoa
 da AHRI — o app renderiza strings autorizadas, sem nenhuma lógica:
 
 ```ts
 interface AcompanhamentoCliente {
-  clienteId; quem;                        // nome lembrado (ALIR)
+  clienteId;
+  quem; // nome lembrado (ALIR)
   // ── As 5 perguntas (Princípio 4) — textos prontos, voz da AHRI (Princípio 7) ─
-  ondeEsta: string;                       // "Onde meu caso está?" — nome humano da etapa
-  agora: string;                          // "O que está acontecendo agora?"
-  proximoPasso: string;                   // "O que acontece depois?"
-  precisaFazerAlgo: string;               // "Preciso fazer alguma coisa?" (via de regra: nada)
-  quantoTempo: string;                    // "Quanto tempo costuma levar?" (política D1)
+  ondeEsta: string; // "Onde meu caso está?" — nome humano da etapa
+  agora: string; // "O que está acontecendo agora?"
+  proximoPasso: string; // "O que acontece depois?"
+  precisaFazerAlgo: string; // "Preciso fazer alguma coisa?" (via de regra: nada)
+  quantoTempo: string; // "Quanto tempo costuma levar?" (política D1)
   // ── Suporte visual ───────────────────────────────────────────────────────────
-  etapas: EtapaTimeline[];                // jornada (concluída/atual/futura), rótulos humanos
-  estimativaDias: number;                 // PROCESSING_ESTIMATE_DAYS (política vigente)
-  estimativaAte: Date | null;             // liberacao.comunicadoEm + estimativa (D1)
-  advogado: { nome } | null;              // só o nome
+  etapas: EtapaTimeline[]; // jornada (concluída/atual/futura), rótulos humanos
+  estimativaDias: number; // PROCESSING_ESTIMATE_DAYS (política vigente)
+  estimativaAte: Date | null; // liberacao.comunicadoEm + estimativa (D1)
+  advogado: { nome } | null; // só o nome
   processo: { numero } | null;
-  atualizacoes: { quando; texto }[];      // SÓ CLIENT_FACING_KINDS
-  documentosRecebidos: string[];          // rótulos humanos
-  whatsapp: string;                       // volta ao relacionamento (Princípio 8)
+  atualizacoes: { quando; texto }[]; // SÓ CLIENT_FACING_KINDS
+  documentosRecebidos: string[]; // rótulos humanos
+  whatsapp: string; // volta ao relacionamento (Princípio 8)
 }
 ```
+
 **Nunca no payload:** outros clientes, kinds internos (`observacao`, `prazo` interno…),
 métricas, financeiro, códigos/status internos crus (Princípio 5 — nem `ClienteStatus` sai),
 equipe além do advogado do caso, qualquer campo sem fonte (Princípio 6).
@@ -118,14 +122,16 @@ consulta quando a conversa pede status — uma única definição do dizível pa
 Portal, sem divergência.
 
 ### 3.2 Token de acesso (application — puro, PC‑R1)
+
 - Formato: `base64url({clienteId, exp}) + "." + HMAC-SHA256(payload, CLIENTE_PORTAL_SECRET)`.
 - Stateless (Lei 13: sobrevive a qualquer restart); escopo = 1 cliente; validade proposta
-  **90 dias** *(pendência de homologação §9)*; renovação **somente por conversa** (D4).
+  **90 dias** _(pendência de homologação §9)_; renovação **somente por conversa** (D4).
 - O segredo vive **apenas na API** (assina no envio, verifica na rota). O portal **não** tem o
   segredo: guarda o token em cookie httpOnly e o repassa server‑side — a API é o único ponto de
   validação (mais forte que BL‑2.2: nem o servidor do portal conhece segredos).
 
 ### 3.3 Fato `liberacao-portal` (infra — o ÚNICO estado persistido novo)
+
 `{clienteId, chatId, comunicadoEm, estimativaDiasInformada}` — namespace no JsonStore, padrão
 de `modalidade`/`venda`/`pedidos-administrativos`. Garante **envio único** da mensagem de
 conclusão (sem ele, a reavaliação re‑enviaria) e ancora o relógio da estimativa.
@@ -133,24 +139,28 @@ conclusão (sem ele, a reavaliação re‑enviaria) e ancora o relógio da estim
 que a política mude depois.
 
 ### 3.4 Gatilho de completude (infra — subscriber, PC‑R3)
+
 Observa eventos de documento (padrão dos subscribers existentes); quando **Readiness = PRONTO**
 (determinístico, homologado) **e** não existe `liberacao-portal` → entrega percept
 `documentacao_completa` pela **entrada única serializada**. Nenhuma mudança na fronteira
 congelada do snapshot.
 
 ### 3.5 ROs novas (catálogo de produção — aditivas, PC‑R3/R4)
+
 - **`RO-CADASTRO-CONCLUIDO`** (percept `documentacao_completa`): conversar → conteúdo factual
   homologado (§5) com link; após entrega, grava o fato 3.3.
 - **`RO-LINK-PORTAL`** (intenção "quero o link/acessar o portal" na percepção): responder com
   link novo. Renovação é conversa (D4) — nunca "esqueci minha senha".
 
 ### 3.6 API de leitura (api — main server `:PORT`, PC‑R1)
+
 `GET /cliente/acompanhamento` — header `authorization: Bearer <token-do-cliente>`; valida
 assinatura+expiração → responde a visão 3.1 do `clienteId` do token. 401 token inválido/vencido
 (resposta neutra: "peça um novo link à AHRI"). Rota no servidor MAIN (já público para o
 webhook); o token é a autorização (escopo de 1 cliente).
 
 ### 3.7 App `portal-cliente` (Next, PC‑R2)
+
 `basePath /portal` · `:3300` · rota `/portal?t=…` seta cookie httpOnly e redireciona limpo →
 página única de acompanhamento (server component chama 3.6 server‑side) · `force-dynamic` ·
 `noindex` · sem token/expirado → página "Peça seu link de acesso conversando comigo no
@@ -159,15 +169,15 @@ relacionamento — D6). Auto‑refresh no padrão dos outros portais.
 
 ## 4. Estados exibidos ao cliente (mapeamento — derivado, jamais persistido)
 
-| Interno (`ClienteStatus`) | Etapa no Portal (linguagem do cliente) |
-|---|---|
-| pós‑liberação, antes de pedidos | **Análise técnica** — "nossa equipe está analisando seu caso" + estimativa (D1) |
-| `AGUARDANDO_10_DIAS` | **Solicitações enviadas** — "enviamos as solicitações administrativas do seu caso" (sem contagem interna) |
-| `AGUARDANDO_SOCIO` | **Análise técnica em conclusão** — neutro (fila interna não é exposta) |
-| `EM_PROCESSO` | **Processo em andamento** — advogado (nome), nº do processo, atualizações |
-| `VENDIDO` / `ENCERRADO` | **Caso encaminhado/concluído** — texto neutro definido na homologação |
+| Interno (`ClienteStatus`)       | Etapa no Portal (linguagem do cliente)                                                                    |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| pós‑liberação, antes de pedidos | **Análise técnica** — "nossa equipe está analisando seu caso" + estimativa (D1)                           |
+| `AGUARDANDO_10_DIAS`            | **Solicitações enviadas** — "enviamos as solicitações administrativas do seu caso" (sem contagem interna) |
+| `AGUARDANDO_SOCIO`              | **Análise técnica em conclusão** — neutro (fila interna não é exposta)                                    |
+| `EM_PROCESSO`                   | **Processo em andamento** — advogado (nome), nº do processo, atualizações                                 |
+| `VENDIDO` / `ENCERRADO`         | **Caso encaminhado/concluído** — texto neutro definido na homologação                                     |
 
-*(Portal só existe após a liberação; estados de coleta não são renderizados.)*
+_(Portal só existe após a liberação; estados de coleta não são renderizados.)_
 
 ## 5. Mensagem de conclusão (D2 — conteúdo factual homologado)
 
@@ -204,13 +214,13 @@ WhatsApp — posse do número — é a identidade primária, D4).
 
 ## 8. Plano de implementação e testes de homologação
 
-| Fase | Entrega | Testes de aceite |
-|---|---|---|
-| **PC‑R1** | Visão 3.1 + token 3.2 + rota 3.6 + config D1 | visão de cliente real contém SÓ o §3.1 (teste nega campos proibidos); filtro = `CLIENT_FACING_KINDS` (interno nunca vaza); token: válido/expirado/assinatura errada/cliente inexistente; **produção fria**: token emitido antes de restart valida depois (Lei 13); `PROCESSING_ESTIMATE_DAYS` refletida na resposta |
-| **PC‑R2** | App `/portal` + empacotamento + NPM | `/portal?t=válido` renderiza jornada real; expirado → página de orientação com `wa.me`; sem escrita; build dinâmico; URL limpa após set do cookie |
-| **PC‑R3** | Subscriber + `RO-CADASTRO-CONCLUIDO` + fato + mensagem §5 | completar docs de cliente teste → **UMA** mensagem (reavaliações não duplicam — fato); mensagem contém link válido + estimativa + frase final obrigatória; fato gravado com `estimativaDiasInformada` |
-| **PC‑R4** | `RO-LINK-PORTAL` + pacote de estado na conversa (D5) | "quero o link" em linguagem natural → link novo; pergunta de status → resposta combinando estado real (visão 3.1) e conversa humana |
-| **PC‑R5** | Homologação ponta a ponta (funde as fases 1–7 do plano geral) | jornada completa: "olá" → coleta → conclusão automática c/ link → portal acompanha → advogado movimenta → WhatsApp notifica → portal reflete → conversa livre com a AHRI em qualquer ponto |
+| Fase      | Entrega                                                       | Testes de aceite                                                                                                                                                                                                                                                                                                    |
+| --------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PC‑R1** | Visão 3.1 + token 3.2 + rota 3.6 + config D1                  | visão de cliente real contém SÓ o §3.1 (teste nega campos proibidos); filtro = `CLIENT_FACING_KINDS` (interno nunca vaza); token: válido/expirado/assinatura errada/cliente inexistente; **produção fria**: token emitido antes de restart valida depois (Lei 13); `PROCESSING_ESTIMATE_DAYS` refletida na resposta |
+| **PC‑R2** | App `/portal` + empacotamento + NPM                           | `/portal?t=válido` renderiza jornada real; expirado → página de orientação com `wa.me`; sem escrita; build dinâmico; URL limpa após set do cookie                                                                                                                                                                   |
+| **PC‑R3** | Subscriber + `RO-CADASTRO-CONCLUIDO` + fato + mensagem §5     | completar docs de cliente teste → **UMA** mensagem (reavaliações não duplicam — fato); mensagem contém link válido + estimativa + frase final obrigatória; fato gravado com `estimativaDiasInformada`                                                                                                               |
+| **PC‑R4** | `RO-LINK-PORTAL` + pacote de estado na conversa (D5)          | "quero o link" em linguagem natural → link novo; pergunta de status → resposta combinando estado real (visão 3.1) e conversa humana                                                                                                                                                                                 |
+| **PC‑R5** | Homologação ponta a ponta (funde as fases 1–7 do plano geral) | jornada completa: "olá" → coleta → conclusão automática c/ link → portal acompanha → advogado movimenta → WhatsApp notifica → portal reflete → conversa livre com a AHRI em qualquer ponto                                                                                                                          |
 
 Cada fase: ciclo Planejar→Implementar→Testar→Homologar + auditoria das 10 perguntas.
 

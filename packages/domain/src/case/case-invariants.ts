@@ -25,12 +25,7 @@ export const caseEntityInvariants: ReadonlyArray<Invariant<CaseAggregate>> = [
 
 // (B) Manifesto completo das 3 invariantes do Canon e onde cada uma é garantida.
 export type EnforcementLocus =
-  | 'entity'
-  | 'event-store'
-  | 'projection'
-  | 'cqrs'
-  | 'use-case'
-  | 'cross-entity';
+  'entity' | 'event-store' | 'projection' | 'cqrs' | 'use-case' | 'cross-entity';
 
 export interface CaseInvariantSpec {
   readonly id: string;
@@ -40,7 +35,22 @@ export interface CaseInvariantSpec {
 }
 
 export const CASE_INVARIANTS_MANIFEST: ReadonlyArray<CaseInvariantSpec> = [
-  { id: 'INV-CA-01', canonReference: 'DF-08', description: 'Todo Caso pertence a exatamente uma Missão; não existe Caso fora de Missão.', enforcement: 'entity' },
-  { id: 'INV-CA-02', canonReference: 'Art. 7º', description: 'O Caso não é Processo (o Processo é instrumento; consequência da Missão).', enforcement: 'entity' },
-  { id: 'INV-CA-03', canonReference: 'Lei 3', description: 'O histórico do Caso é preservado; nenhuma versão é apagada.', enforcement: 'event-store' },
+  {
+    id: 'INV-CA-01',
+    canonReference: 'DF-08',
+    description: 'Todo Caso pertence a exatamente uma Missão; não existe Caso fora de Missão.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-CA-02',
+    canonReference: 'Art. 7º',
+    description: 'O Caso não é Processo (o Processo é instrumento; consequência da Missão).',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-CA-03',
+    canonReference: 'Lei 3',
+    description: 'O histórico do Caso é preservado; nenhuma versão é apagada.',
+    enforcement: 'event-store',
+  },
 ];

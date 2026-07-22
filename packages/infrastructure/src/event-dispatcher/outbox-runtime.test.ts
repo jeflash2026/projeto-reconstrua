@@ -80,7 +80,12 @@ function harness(retry?: { maxAttempts: number }) {
 }
 
 function ev(version: number): UncommittedEvent {
-  return { eventType: 'thing.happened', isRelevant: false, payload: { version }, occurredAt: new Date(0) };
+  return {
+    eventType: 'thing.happened',
+    isRelevant: false,
+    payload: { version },
+    occurredAt: new Date(0),
+  };
 }
 
 const MID = '00000000-0000-4000-8000-000000000001';
@@ -258,7 +263,13 @@ describe('OutboxRuntime — stress e concorrência', () => {
         deliveries: h.deliveries,
         idempotency: h.idempotency,
         registry: h.registry,
-        retryPolicy: new ExponentialBackoffRetryPolicy({ baseMs: 1000, factor: 2, maxMs: 60_000, maxAttempts: 3, jitter: 0 }),
+        retryPolicy: new ExponentialBackoffRetryPolicy({
+          baseMs: 1000,
+          factor: 2,
+          maxMs: 60_000,
+          maxAttempts: 3,
+          jitter: 0,
+        }),
         clock: h.clock,
         metrics: h.metrics,
       },

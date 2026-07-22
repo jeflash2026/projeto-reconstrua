@@ -11,7 +11,9 @@ const MissionsPage = async (): Promise<ReactElement> => {
     <>
       <AutoRefresh seconds={8} />
       <h1 className="page-title">Missões</h1>
-      <p className="page-sub">Cada missão com sua história completa no Event Store, projetada aqui.</p>
+      <p className="page-sub">
+        Cada missão com sua história completa no Event Store, projetada aqui.
+      </p>
       {!missions ? (
         <div className="error-box">API indisponível.</div>
       ) : missions.length === 0 ? (
@@ -36,7 +38,11 @@ const MissionsPage = async (): Promise<ReactElement> => {
               {missions.map((m) => (
                 <tr key={m.missionId}>
                   <td>
-                    <Link href={`/missoes/${m.missionId}`} className="mono" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                    <Link
+                      href={`/missoes/${m.missionId}`}
+                      className="mono"
+                      style={{ color: 'var(--accent)', fontWeight: 600 }}
+                    >
                       {shortId(m.missionId, 12)}
                     </Link>
                   </td>

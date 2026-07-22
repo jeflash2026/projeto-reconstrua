@@ -6,7 +6,12 @@
 import { describe, it, expect } from 'vitest';
 import type { Clock, Uuid, UuidGenerator } from '@reconstrua/domain';
 import { toUuid } from '@reconstrua/domain';
-import type { BrainContext, BrainMemoryView, MissionFacts, PerceptView } from '@reconstrua/application';
+import type {
+  BrainContext,
+  BrainMemoryView,
+  MissionFacts,
+  PerceptView,
+} from '@reconstrua/application';
 import { ExecutiveBrainRuntime, emptySnapshot } from '@reconstrua/application';
 import { InMemoryEventStore } from '../event-store/in-memory-event-store.js';
 import { CryptoHasher } from '../event-store/crypto-hasher.js';
@@ -44,11 +49,31 @@ function facts(perceptKind: string): MissionFacts {
   };
 }
 
-function brainContext(kind: string, turnCount: number, purpose = 'service_request', caseExists = false): BrainContext {
+function brainContext(
+  kind: string,
+  turnCount: number,
+  purpose = 'service_request',
+  caseExists = false,
+): BrainContext {
   // GO-LIVE 9C: onboarding só nasce de PEDIDO percebido (service_request) ou documento.
-  const percept: PerceptView = { kind, sentiment: 'neutral', urgency: 'normal', hasArtifacts: kind !== 'text', artifactCount: kind !== 'text' ? 1 : 0, silenceMs: null, purpose };
+  const percept: PerceptView = {
+    kind,
+    sentiment: 'neutral',
+    urgency: 'normal',
+    hasArtifacts: kind !== 'text',
+    artifactCount: kind !== 'text' ? 1 : 0,
+    silenceMs: null,
+    purpose,
+  };
   const memory: BrainMemoryView = { turnCount, lastOutboundAgoMs: null };
-  return { percept, snapshot: { ...emptySnapshot(CHAT), ...(caseExists ? { caseExists: true } : {}) }, memory, rules: MISSION_RULE_CATALOG, chatId: CHAT, now: NOW };
+  return {
+    percept,
+    snapshot: { ...emptySnapshot(CHAT), ...(caseExists ? { caseExists: true } : {}) },
+    memory,
+    rules: MISSION_RULE_CATALOG,
+    chatId: CHAT,
+    now: NOW,
+  };
 }
 
 describe('Fluxo obrigatório: Percepção → Brain → Mission Runtime → Event Store', () => {
@@ -56,7 +81,12 @@ describe('Fluxo obrigatório: Percepção → Brain → Mission Runtime → Even
     const clock = new TestClock();
     const eventStore = new InMemoryEventStore(new CryptoHasher(), new SeqUuid(), clock);
     const brain = new ExecutiveBrainRuntime({ clock, uuid: new SeqUuid() });
-    const { runtime } = assembleMissionRuntime({ eventStore, hasher: new CryptoHasher(), uuid: new SeqUuid(), clock });
+    const { runtime } = assembleMissionRuntime({
+      eventStore,
+      hasher: new CryptoHasher(),
+      uuid: new SeqUuid(),
+      clock,
+    });
 
     // 1) Brain DECIDE (determinístico, sem LLM).
     const outcome = await brain.decide(brainContext('text', 1));
@@ -75,7 +105,11 @@ describe('Fluxo obrigatório: Percepção → Brain → Mission Runtime → Even
     // 3) Trabalho executado e persistido: a Missão nasceu.
     expect(result.ok).toBe(true);
     expect(result.identity.missionId).not.toBeNull();
-    const missionEvents = await eventStore.readStream('mission', result.identity.missionId as string, 0);
+    const missionEvents = await eventStore.readStream(
+      'mission',
+      result.identity.missionId as string,
+      0,
+    );
     expect(missionEvents).toHaveLength(1);
     expect(missionEvents[0]?.provenance.actor).toBe('AHRI');
   });
@@ -84,7 +118,12 @@ describe('Fluxo obrigatório: Percepção → Brain → Mission Runtime → Even
     const clock = new TestClock();
     const eventStore = new InMemoryEventStore(new CryptoHasher(), new SeqUuid(), clock);
     const brain = new ExecutiveBrainRuntime({ clock, uuid: new SeqUuid() });
-    const { runtime } = assembleMissionRuntime({ eventStore, hasher: new CryptoHasher(), uuid: new SeqUuid(), clock });
+    const { runtime } = assembleMissionRuntime({
+      eventStore,
+      hasher: new CryptoHasher(),
+      uuid: new SeqUuid(),
+      clock,
+    });
 
     // onboarding primeiro
     const onboard = await brain.decide(brainContext('text', 1));

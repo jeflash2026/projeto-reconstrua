@@ -34,11 +34,18 @@ export interface AchadosDaValidacao {
   readonly estrategiasBaixaConfianca: readonly EstrategiaBaixaConfianca[];
   readonly casosConflitantes: readonly CasoConflitante[];
   readonly lacunas: readonly string[]; // refs de casos sem NENHUMA hipótese
-  readonly cobertura: { readonly casos: number; readonly estrategias: number; readonly utilizadas: number };
+  readonly cobertura: {
+    readonly casos: number;
+    readonly estrategias: number;
+    readonly utilizadas: number;
+  };
 }
 
 /** Valida o catálogo contra os casos. Não decide nada de produção — só analisa. */
-export function validarCatalogo(catalogo: CatalogoDeEstrategias, casos: readonly CasoReal[]): AchadosDaValidacao {
+export function validarCatalogo(
+  catalogo: CatalogoDeEstrategias,
+  casos: readonly CasoReal[],
+): AchadosDaValidacao {
   const utilizadas = new Set<string>();
   const melhorConfPorRef = new Map<string, Confianca>();
   const lacunas: string[] = [];
@@ -55,7 +62,8 @@ export function validarCatalogo(catalogo: CatalogoDeEstrategias, casos: readonly
     for (const h of r.hipoteses) {
       utilizadas.add(h.ref);
       const atual = melhorConfPorRef.get(h.ref);
-      if (atual === undefined || RANK[h.confianca] > RANK[atual]) melhorConfPorRef.set(h.ref, h.confianca);
+      if (atual === undefined || RANK[h.confianca] > RANK[atual])
+        melhorConfPorRef.set(h.ref, h.confianca);
     }
 
     // CONFLITO: duas ou mais hipóteses empatadas no TOPO por confiança, reforços
@@ -63,13 +71,19 @@ export function validarCatalogo(catalogo: CatalogoDeEstrategias, casos: readonly
     const top = r.hipoteses[0];
     if (top !== undefined) {
       const empatadas = r.hipoteses.filter(
-        (h) => RANK[h.confianca] === RANK[top.confianca] && h.reforcadaPor.length === top.reforcadaPor.length && h.prioridade === top.prioridade,
+        (h) =>
+          RANK[h.confianca] === RANK[top.confianca] &&
+          h.reforcadaPor.length === top.reforcadaPor.length &&
+          h.prioridade === top.prioridade,
       );
-      if (empatadas.length > 1) casosConflitantes.push({ caso: caso.ref, empatadas: empatadas.map((h) => h.ref) });
+      if (empatadas.length > 1)
+        casosConflitantes.push({ caso: caso.ref, empatadas: empatadas.map((h) => h.ref) });
     }
   }
 
-  const estrategiasNuncaUtilizadas = catalogo.map((s) => s.ref).filter((ref) => !utilizadas.has(ref));
+  const estrategiasNuncaUtilizadas = catalogo
+    .map((s) => s.ref)
+    .filter((ref) => !utilizadas.has(ref));
   const estrategiasBaixaConfianca = [...melhorConfPorRef.entries()]
     .filter(([, conf]) => conf !== 'alta')
     .map(([ref, conf]) => ({ ref, melhorConfianca: conf }));

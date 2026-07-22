@@ -25,7 +25,14 @@ import {
   ProjectionBackedMissionSnapshotAdapter,
 } from '../executive-brain/projection-backed-mission-snapshot-adapter.js';
 
-const TEXTO: PerceptView = { kind: 'text', sentiment: 'neutral', urgency: 'normal', hasArtifacts: false, artifactCount: 0, silenceMs: null };
+const TEXTO: PerceptView = {
+  kind: 'text',
+  sentiment: 'neutral',
+  urgency: 'normal',
+  hasArtifacts: false,
+  artifactCount: 0,
+  silenceMs: null,
+};
 const SEGUNDO_TURNO: BrainMemoryView = { turnCount: 3, lastOutboundAgoMs: 1000 };
 
 describe('Truth Layer → Brain Facts (agnósticos de domínio)', () => {
@@ -39,34 +46,69 @@ describe('Truth Layer → Brain Facts (agnósticos de domínio)', () => {
   it('com caso: snapshot com caseExists ⇒ fases abertura/em_andamento/encerrado', () => {
     const base = { ...emptySnapshot('m1'), caseExists: true };
     expect(buildFacts(TEXTO, base, SEGUNDO_TURNO)['casePhase']).toBe('abertura');
-    expect(buildFacts(TEXTO, { ...base, truthEstablished: true }, SEGUNDO_TURNO)['casePhase']).toBe('em_andamento');
-    expect(buildFacts(TEXTO, { ...base, stateCode: 'ENCERRADA' }, SEGUNDO_TURNO)['casePhase']).toBe('encerrado');
+    expect(buildFacts(TEXTO, { ...base, truthEstablished: true }, SEGUNDO_TURNO)['casePhase']).toBe(
+      'em_andamento',
+    );
+    expect(buildFacts(TEXTO, { ...base, stateCode: 'ENCERRADA' }, SEGUNDO_TURNO)['casePhase']).toBe(
+      'encerrado',
+    );
   });
 
   it('adapters: registro projetado OU identidade→missão ⇒ caseExists=true', async () => {
-    const record = { missionId: 'm1', truthEstablished: false, terminalState: null, updatedAt: new Date() };
-    const store = { load: () => Promise.resolve(record), all: () => Promise.resolve([record]), save: () => Promise.resolve() };
+    const record = {
+      missionId: 'm1',
+      truthEstablished: false,
+      terminalState: null,
+      updatedAt: new Date(),
+    };
+    const store = {
+      load: () => Promise.resolve(record),
+      all: () => Promise.resolve([record]),
+      save: () => Promise.resolve(),
+    };
     const porMissao = await new MissionKeyedSnapshotAdapter(store).load('m1');
     expect(porMissao?.caseExists).toBe(true);
 
     // Identidade existe mas a projeção AINDA não alcançou (lag): caso mesmo assim EXISTE.
-    const storeVazio = { load: () => Promise.resolve(null), all: () => Promise.resolve([]), save: () => Promise.resolve() };
-    const identities = { load: () => Promise.resolve({ chatId: 'c1', clienteId: 'c1', missionId: 'm1' }), save: () => Promise.resolve() };
-    const porChat = await new ProjectionBackedMissionSnapshotAdapter(storeVazio, identities as never).load('c1');
+    const storeVazio = {
+      load: () => Promise.resolve(null),
+      all: () => Promise.resolve([]),
+      save: () => Promise.resolve(),
+    };
+    const identities = {
+      load: () => Promise.resolve({ chatId: 'c1', clienteId: 'c1', missionId: 'm1' }),
+      save: () => Promise.resolve(),
+    };
+    const porChat = await new ProjectionBackedMissionSnapshotAdapter(
+      storeVazio,
+      identities as never,
+    ).load('c1');
     expect(porChat?.caseExists).toBe(true);
 
     // Sem identidade ⇒ null ⇒ chamador usa emptySnapshot ⇒ caseExists=false.
     const semIdentidade = { load: () => Promise.resolve(null), save: () => Promise.resolve() };
-    expect(await new ProjectionBackedMissionSnapshotAdapter(storeVazio as never, semIdentidade as never).load('c2')).toBeNull();
+    expect(
+      await new ProjectionBackedMissionSnapshotAdapter(
+        storeVazio as never,
+        semIdentidade as never,
+      ).load('c2'),
+    ).toBeNull();
   });
 });
 
 describe('Planner: o topic de CASO exige o fato caseExists (nunca conversa/memória)', () => {
   const evaluator = new RuleEvaluator();
-  const rule = (ref: string) => MISSION_RULE_CATALOG.find((r) => r.ref === ref) ?? (() => { throw new Error(ref); })();
+  const rule = (ref: string) =>
+    MISSION_RULE_CATALOG.find((r) => r.ref === ref) ??
+    (() => {
+      throw new Error(ref);
+    })();
 
   it('SEM caso: RELATE aplica; CASE-FOLLOW não (mesmo com memória/conversa longa)', () => {
-    const facts = buildFacts(TEXTO, emptySnapshot('chat-1'), { turnCount: 50, lastOutboundAgoMs: 10 }); // relação longa!
+    const facts = buildFacts(TEXTO, emptySnapshot('chat-1'), {
+      turnCount: 50,
+      lastOutboundAgoMs: 10,
+    }); // relação longa!
     expect(evaluator.evaluate(rule('RO-2D-RELATE'), facts).applicable).toBe(true);
     expect(evaluator.evaluate(rule('RO-2D-CASE-FOLLOW'), facts).applicable).toBe(false);
   });
@@ -81,10 +123,21 @@ describe('Planner: o topic de CASO exige o fato caseExists (nunca conversa/memó
     const relate = rule('RO-2D-RELATE');
     const follow = rule('RO-2D-CASE-FOLLOW');
     expect(relate.action.kind === 'conversation' && relate.action.topic).toBe('relacionamento');
-    expect(follow.action.kind === 'conversation' && follow.action.topic).toBe('acompanhamento do caso');
+    expect(follow.action.kind === 'conversation' && follow.action.topic).toBe(
+      'acompanhamento do caso',
+    );
     // o catálogo inteiro: NENHUMA outra regra de conversa usa topic de caso
-    const outras = MISSION_RULE_CATALOG.filter((r) => r.ref !== 'RO-2D-CASE-FOLLOW' && r.action.kind === 'conversation');
-    expect(outras.every((r) => !/caso|processo|acompanhamento/i.test((r.action.kind === 'conversation' ? r.action.topic : '') ?? ''))).toBe(true);
+    const outras = MISSION_RULE_CATALOG.filter(
+      (r) => r.ref !== 'RO-2D-CASE-FOLLOW' && r.action.kind === 'conversation',
+    );
+    expect(
+      outras.every(
+        (r) =>
+          !/caso|processo|acompanhamento/i.test(
+            (r.action.kind === 'conversation' ? r.action.topic : '') ?? '',
+          ),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -98,7 +151,11 @@ describe('Ausência declarada + fallback neutro', () => {
   it('degrade da expressão (LLM caído) é NEUTRO: jamais afirma acompanhamento/caso/processo', async () => {
     const config = {
       ...DEFAULT_PRODUCTION_CONFIG,
-      llm: { ...DEFAULT_PRODUCTION_CONFIG.llm, provider: 'anthropic' as const, anthropicApiKey: 'sk-ant-teste' },
+      llm: {
+        ...DEFAULT_PRODUCTION_CONFIG.llm,
+        provider: 'anthropic' as const,
+        anthropicApiKey: 'sk-ant-teste',
+      },
     };
     const httpQueFalha = { postJson: () => Promise.reject(new Error('rede fora')) };
     const bundle = createLlmBundle({
@@ -108,7 +165,19 @@ describe('Ausência declarada + fallback neutro', () => {
       clock: { now: () => new Date('2026-07-19T12:00:00.000Z') },
     });
     const texto = await bundle.expression.phrase({
-      intent: { id: 'i1', chatId: 'c1', directive: 'speak', speechAct: 'explain', topic: 'relacionamento', references: [], urgency: 'normal', operationalRuleRef: 'RO-2D-RELATE', fundamento: 'x', timingHintMs: null, formedAt: new Date() },
+      intent: {
+        id: 'i1',
+        chatId: 'c1',
+        directive: 'speak',
+        speechAct: 'explain',
+        topic: 'relacionamento',
+        references: [],
+        urgency: 'normal',
+        operationalRuleRef: 'RO-2D-RELATE',
+        fundamento: 'x',
+        timingHintMs: null,
+        formedAt: new Date(),
+      },
       context: { lastPercept: null, casoFatos: null, recentOutboundTexts: [] } as never,
       avoidPhrases: [],
       styleGuidance: 'neutro',
@@ -123,7 +192,11 @@ describe('Ausência declarada + fallback neutro', () => {
   it('degrade DENTRO da triagem: o fallback CONTINUA a coleta (pede o próximo documento)', async () => {
     const config = {
       ...DEFAULT_PRODUCTION_CONFIG,
-      llm: { ...DEFAULT_PRODUCTION_CONFIG.llm, provider: 'anthropic' as const, anthropicApiKey: 'sk-ant-teste' },
+      llm: {
+        ...DEFAULT_PRODUCTION_CONFIG.llm,
+        provider: 'anthropic' as const,
+        anthropicApiKey: 'sk-ant-teste',
+      },
     };
     const bundle = createLlmBundle({
       config,
@@ -132,8 +205,29 @@ describe('Ausência declarada + fallback neutro', () => {
       clock: { now: () => new Date('2026-07-19T12:00:00.000Z') },
     });
     const texto = await bundle.expression.phrase({
-      intent: { id: 'i1', chatId: 'c1', directive: 'speak', speechAct: 'explain', topic: 'documentos', references: [], urgency: 'normal', operationalRuleRef: 'RO-2D-DOC-ACK', fundamento: 'x', timingHintMs: null, formedAt: new Date() },
-      context: { lastPercept: null, casoFatos: null, recentOutboundTexts: [], onboardingDocumental: { recebidos: [], faltando: ['RG (frente e verso) ou CNH'], proximo: 'RG (frente e verso) ou CNH' } } as never,
+      intent: {
+        id: 'i1',
+        chatId: 'c1',
+        directive: 'speak',
+        speechAct: 'explain',
+        topic: 'documentos',
+        references: [],
+        urgency: 'normal',
+        operationalRuleRef: 'RO-2D-DOC-ACK',
+        fundamento: 'x',
+        timingHintMs: null,
+        formedAt: new Date(),
+      },
+      context: {
+        lastPercept: null,
+        casoFatos: null,
+        recentOutboundTexts: [],
+        onboardingDocumental: {
+          recebidos: [],
+          faltando: ['RG (frente e verso) ou CNH'],
+          proximo: 'RG (frente e verso) ou CNH',
+        },
+      } as never,
       avoidPhrases: [],
       styleGuidance: 'neutro',
     });

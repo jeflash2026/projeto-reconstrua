@@ -141,7 +141,8 @@ export interface Sleeper {
 // Decreto "Jornada Documental Inicial": EM_ANALISE foi separado em DUAS fases —
 // ONBOARDING_DOCUMENTAL (Jornada 1: coletar os 3 obrigatórios) e
 // ANALISE_ADMINISTRATIVA (100% da documentação inicial; análise em curso).
-export type MissaoDaConversa = 'LEAD' | 'ONBOARDING_DOCUMENTAL' | 'ANALISE_ADMINISTRATIVA' | 'CLIENTE' | 'POS_ATENDIMENTO';
+export type MissaoDaConversa =
+  'LEAD' | 'ONBOARDING_DOCUMENTAL' | 'ANALISE_ADMINISTRATIVA' | 'CLIENTE' | 'POS_ATENDIMENTO';
 
 // ── CONTEXTO montado (lido pela expressão e — conceitualmente — pelo Brain) ────
 export interface ConversationContextView {

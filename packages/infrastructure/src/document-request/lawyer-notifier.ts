@@ -11,7 +11,13 @@
 //   exceção chega ao domínio; o painel atualiza independentemente.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock } from '@reconstrua/domain';
-import type { ConversationGateway, DocumentRequestStore, EventSubscriber, ObservabilityRuntime, StoredEvent } from '@reconstrua/application';
+import type {
+  ConversationGateway,
+  DocumentRequestStore,
+  EventSubscriber,
+  ObservabilityRuntime,
+  StoredEvent,
+} from '@reconstrua/application';
 import { notificacaoAoAdvogado } from '@reconstrua/application';
 import type { JsonStore } from '../production/json-store.js';
 
@@ -68,7 +74,8 @@ export class LawyerNotifierSubscriber implements EventSubscriber {
   constructor(private readonly deps: NotifierDeps) {}
 
   async handle(event: StoredEvent): Promise<void> {
-    if (event.streamType !== 'document-request' || event.eventType !== 'document-request.received') return;
+    if (event.streamType !== 'document-request' || event.eventType !== 'document-request.received')
+      return;
     const d = this.deps;
     const now = d.clock.now();
     const dedupKey = `${event.streamId}:v${String(event.version)}`;
@@ -80,26 +87,70 @@ export class LawyerNotifierSubscriber implements EventSubscriber {
       if (state === null) return;
 
       const canais = await d.canais.canaisDe(state.lawyerId);
-      const canal = canais.find((c) => c.tipo === 'whatsapp' && c.preferido) ?? canais.find((c) => c.tipo === 'whatsapp') ?? null;
+      const canal =
+        canais.find((c) => c.tipo === 'whatsapp' && c.preferido) ??
+        canais.find((c) => c.tipo === 'whatsapp') ??
+        null;
 
       let registro: RegistroDeEntrega;
       if (canal === null || d.gateway === null) {
-        registro = { requestId: state.requestId, resultado: 'sem-canal', canal: null, tentativa: 1, em: now.toISOString(), erro: null };
+        registro = {
+          requestId: state.requestId,
+          resultado: 'sem-canal',
+          canal: null,
+          tentativa: 1,
+          em: now.toISOString(),
+          erro: null,
+        };
       } else {
-        const nome = d.nomeDoCliente !== null ? await d.nomeDoCliente(state.clientId).catch(() => null) : null;
+        const nome =
+          d.nomeDoCliente !== null ? await d.nomeDoCliente(state.clientId).catch(() => null) : null;
         try {
-          await d.gateway.sendText(canal.endereco, notificacaoAoAdvogado(state, nome ?? (state.clientId.split('@')[0] ?? state.clientId)));
-          registro = { requestId: state.requestId, resultado: 'entregue', canal: `whatsapp:${mascarar(canal.endereco)}`, tentativa: 1, em: now.toISOString(), erro: null };
+          await d.gateway.sendText(
+            canal.endereco,
+            notificacaoAoAdvogado(state, nome ?? state.clientId.split('@')[0] ?? state.clientId),
+          );
+          registro = {
+            requestId: state.requestId,
+            resultado: 'entregue',
+            canal: `whatsapp:${mascarar(canal.endereco)}`,
+            tentativa: 1,
+            em: now.toISOString(),
+            erro: null,
+          };
         } catch (e) {
-          registro = { requestId: state.requestId, resultado: 'falhou', canal: `whatsapp:${mascarar(canal.endereco)}`, tentativa: 1, em: now.toISOString(), erro: e instanceof Error ? e.message : String(e) };
+          registro = {
+            requestId: state.requestId,
+            resultado: 'falhou',
+            canal: `whatsapp:${mascarar(canal.endereco)}`,
+            tentativa: 1,
+            em: now.toISOString(),
+            erro: e instanceof Error ? e.message : String(e),
+          };
         }
       }
       await d.entregas.put(NS_ENTREGAS, dedupKey, registro);
-      if (registro.resultado === 'falhou') d.observability.error('document-request', 'notificacao-advogado', now, `${state.requestId}: ${registro.erro ?? ''}`);
-      else d.observability.event('document-request', `notificacao-advogado ${registro.resultado} ${state.requestId}`, now);
+      if (registro.resultado === 'falhou')
+        d.observability.error(
+          'document-request',
+          'notificacao-advogado',
+          now,
+          `${state.requestId}: ${registro.erro ?? ''}`,
+        );
+      else
+        d.observability.event(
+          'document-request',
+          `notificacao-advogado ${registro.resultado} ${state.requestId}`,
+          now,
+        );
     } catch (e) {
       // Falha tratada AQUI — nada chega ao domínio nem ao dispatcher.
-      d.observability.error('document-request', 'notifier', now, e instanceof Error ? e.message : String(e));
+      d.observability.error(
+        'document-request',
+        'notifier',
+        now,
+        e instanceof Error ? e.message : String(e),
+      );
     }
   }
 }

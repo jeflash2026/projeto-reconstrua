@@ -55,11 +55,40 @@ import type { JsonStore } from './json-store.js';
 import { reviveDates } from './json-store.js';
 
 const DATE_KEYS = [
-  'at', 'createdAt', 'updatedAt', 'dueAt', 'openedAt', 'assignedAt', 'recognizedAt', 'observedAt',
-  'lastAccessAt', 'lastInboundAt', 'lastOutboundAt', 'lastContactAt', 'firstContactAt', 'lastSilenceNoticeAt',
-  'resolvedAt', 'enqueuedAt', 'nextAttemptAt', 'lockedAt', 'occurredAt', 'recordedAt', 'formedAt',
-  'reportedAt', 'lastProcessedAt', 'framedAt', 'presentedAt', 'synthesizedAt', 'derivedAt',
-  'decididaEm', 'vendidaEm', 'confirmadoEm', 'projectedAt', 'comunicadoEm', 'comunicadaEm', 'atualizadaEm',
+  'at',
+  'createdAt',
+  'updatedAt',
+  'dueAt',
+  'openedAt',
+  'assignedAt',
+  'recognizedAt',
+  'observedAt',
+  'lastAccessAt',
+  'lastInboundAt',
+  'lastOutboundAt',
+  'lastContactAt',
+  'firstContactAt',
+  'lastSilenceNoticeAt',
+  'resolvedAt',
+  'enqueuedAt',
+  'nextAttemptAt',
+  'lockedAt',
+  'occurredAt',
+  'recordedAt',
+  'formedAt',
+  'reportedAt',
+  'lastProcessedAt',
+  'framedAt',
+  'presentedAt',
+  'synthesizedAt',
+  'derivedAt',
+  'decididaEm',
+  'vendidaEm',
+  'confirmadoEm',
+  'projectedAt',
+  'comunicadoEm',
+  'comunicadaEm',
+  'atualizadaEm',
 ] as const;
 
 function revive<T>(value: unknown): T {
@@ -124,8 +153,15 @@ export class JsonSessionStore implements SessionStore {
     const raw = await this.store.get('sessions', chatId);
     if (raw !== null) return revive<Session>(raw);
     const opened: Session = {
-      chatId, openedAt: now, lastInboundAt: null, lastOutboundAt: null, turns: 0,
-      presence: 'available', awaitingDocuments: false, status: 'active', lastSilenceNoticeAt: null,
+      chatId,
+      openedAt: now,
+      lastInboundAt: null,
+      lastOutboundAt: null,
+      turns: 0,
+      presence: 'available',
+      awaitingDocuments: false,
+      status: 'active',
+      lastSilenceNoticeAt: null,
     };
     await this.store.put('sessions', chatId, opened);
     return opened;
@@ -147,7 +183,8 @@ export class JsonConversationStore implements ConversationStore {
     await this.store.put(`conv:${entry.chatId}`, key, entry);
     if (entry.kind === 'inbound') {
       const messageId = entry.meta['messageId'];
-      if (messageId !== undefined) await this.store.put(`conv-idx:${entry.chatId}`, messageId, true);
+      if (messageId !== undefined)
+        await this.store.put(`conv-idx:${entry.chatId}`, messageId, true);
     }
   }
   private async entries(chatId: string): Promise<readonly MemoryEntry[]> {
@@ -195,7 +232,9 @@ export class JsonSchedulerStore implements SchedulerStore {
       .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
   }
   async pendingCount(): Promise<number> {
-    return (await this.store.list('scheduler')).map((t) => revive<ScheduledTask>(t)).filter((t) => t.status === 'pending').length;
+    return (await this.store.list('scheduler'))
+      .map((t) => revive<ScheduledTask>(t))
+      .filter((t) => t.status === 'pending').length;
   }
   async all(): Promise<readonly ScheduledTask[]> {
     return (await this.store.list('scheduler')).map((t) => revive<ScheduledTask>(t));
@@ -242,7 +281,9 @@ export class JsonStaffStore implements StaffStore {
     return raw === null ? null : revive<StaffMember>(raw);
   }
   async byRole(role: StaffRole): Promise<readonly StaffMember[]> {
-    return (await this.store.list('staff')).map((m) => revive<StaffMember>(m)).filter((m) => m.role === role);
+    return (await this.store.list('staff'))
+      .map((m) => revive<StaffMember>(m))
+      .filter((m) => m.role === role);
   }
   async all(): Promise<readonly StaffMember[]> {
     return (await this.store.list('staff')).map((m) => revive<StaffMember>(m));
@@ -259,7 +300,9 @@ export class JsonAssignmentStore implements AssignmentStore {
     return raw === null ? null : revive<CaseAssignment>(raw);
   }
   async byAdvogado(advogadoId: string): Promise<readonly CaseAssignment[]> {
-    return (await this.store.list('assignments')).map((a) => revive<CaseAssignment>(a)).filter((a) => a.advogadoId === advogadoId);
+    return (await this.store.list('assignments'))
+      .map((a) => revive<CaseAssignment>(a))
+      .filter((a) => a.advogadoId === advogadoId);
   }
 }
 
@@ -273,10 +316,14 @@ export class JsonJuridicalWorkStore implements JuridicalWorkStore {
     return raw === null ? null : revive<JuridicalEntry>(raw);
   }
   async byAdvogado(advogadoId: string): Promise<readonly JuridicalEntry[]> {
-    return (await this.store.list('juridical')).map((e) => revive<JuridicalEntry>(e)).filter((e) => e.advogadoId === advogadoId);
+    return (await this.store.list('juridical'))
+      .map((e) => revive<JuridicalEntry>(e))
+      .filter((e) => e.advogadoId === advogadoId);
   }
   async byMission(missionId: string): Promise<readonly JuridicalEntry[]> {
-    return (await this.store.list('juridical')).map((e) => revive<JuridicalEntry>(e)).filter((e) => e.missionId === missionId);
+    return (await this.store.list('juridical'))
+      .map((e) => revive<JuridicalEntry>(e))
+      .filter((e) => e.missionId === missionId);
   }
 }
 
@@ -305,7 +352,10 @@ export class JsonDecisionStore implements DecisionStore {
       .map((d) => revive<DecisionRequest>(d))
       .filter((d) => d.advogadoId === advogadoId && d.status === 'open');
   }
-  async byMissionAndType(missionId: string, type: LawyerDecisionType): Promise<DecisionRequest | null> {
+  async byMissionAndType(
+    missionId: string,
+    type: LawyerDecisionType,
+  ): Promise<DecisionRequest | null> {
     return (
       (await this.store.list('decisions'))
         .map((d) => revive<DecisionRequest>(d))
@@ -319,10 +369,16 @@ export class JsonProductivityStore implements ProductivityStore {
   private seq = 0;
   async record(event: ProductivityEvent): Promise<void> {
     this.seq += 1;
-    await this.store.put('productivity', `${event.at.toISOString()}|${String(this.seq).padStart(6, '0')}`, event);
+    await this.store.put(
+      'productivity',
+      `${event.at.toISOString()}|${String(this.seq).padStart(6, '0')}`,
+      event,
+    );
   }
   async byAdvogado(advogadoId: string): Promise<readonly ProductivityEvent[]> {
-    return (await this.store.list('productivity')).map((e) => revive<ProductivityEvent>(e)).filter((e) => e.advogadoId === advogadoId);
+    return (await this.store.list('productivity'))
+      .map((e) => revive<ProductivityEvent>(e))
+      .filter((e) => e.advogadoId === advogadoId);
   }
 }
 

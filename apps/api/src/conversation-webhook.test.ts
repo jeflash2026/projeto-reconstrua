@@ -93,7 +93,11 @@ describe('POST /webhook/evolution', () => {
     const h = harness();
     const app = buildServer({ runtime: h.runtime, awaitProcessing: true });
 
-    const response = await app.inject({ method: 'POST', url: '/webhook/evolution', payload: { foo: 'bar' } });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/evolution',
+      payload: { foo: 'bar' },
+    });
 
     expect(response.statusCode).toBe(200);
     const parsed: { processed: boolean } = response.json();

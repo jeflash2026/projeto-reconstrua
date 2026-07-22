@@ -24,7 +24,11 @@ const PainelLayout = ({ children }: { children: ReactNode }): ReactElement => {
   const secret = process.env['ADVOGADO_API_TOKEN'] ?? '';
   const presented = cookies().get(ADVOGADO_SESSION_COOKIE)?.value ?? '';
   const identidade = cookies().get(ADVOGADO_ID_COOKIE)?.value ?? '';
-  if (secret === '' || identidade === '' || !secretsMatch(presented, advogadoSessionToken(secret))) {
+  if (
+    secret === '' ||
+    identidade === '' ||
+    !secretsMatch(presented, advogadoSessionToken(secret))
+  ) {
     redirect('/login');
   }
 

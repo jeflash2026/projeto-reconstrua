@@ -59,10 +59,21 @@ const JornadaAcoes = ({
   if (status === 'PRONTO_AGUARDANDO_MODALIDADE') {
     return (
       <div className="form-row" style={{ margin: 0 }}>
-        <button className="primary" disabled={busy} onClick={() => { void decidir('VENDA'); }}>
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() => {
+            void decidir('VENDA');
+          }}
+        >
           Venda
         </button>
-        <button disabled={busy} onClick={() => { void decidir('SOCIEDADE'); }}>
+        <button
+          disabled={busy}
+          onClick={() => {
+            void decidir('SOCIEDADE');
+          }}
+        >
           Sociedade
         </button>
         {erro ? <span style={{ color: 'var(--text-dim)' }}>{erro}</span> : null}
@@ -76,7 +87,8 @@ const JornadaAcoes = ({
       setBusy(true);
       setErro(null);
       const result = await assignCase(missionId, advogadoId, 'admin');
-      if (result) router.refresh(); // status vira EM_PROCESSO por derivação
+      if (result)
+        router.refresh(); // status vira EM_PROCESSO por derivação
       else setErro('Falha ao atribuir (servidor do Advogado configurado?).');
       setBusy(false);
     };
@@ -85,7 +97,12 @@ const JornadaAcoes = ({
     }
     return (
       <div className="form-row" style={{ margin: 0 }}>
-        <select value={advogadoId} onChange={(e) => { setAdvogadoId(e.target.value); }}>
+        <select
+          value={advogadoId}
+          onChange={(e) => {
+            setAdvogadoId(e.target.value);
+          }}
+        >
           <option value="">Escolher sócio…</option>
           {advogados.map((a) => (
             <option key={a.id} value={a.id}>
@@ -93,7 +110,13 @@ const JornadaAcoes = ({
             </option>
           ))}
         </select>
-        <button className="primary" disabled={busy || advogadoId === '' || missionId === null} onClick={() => { void atribuir(); }}>
+        <button
+          className="primary"
+          disabled={busy || advogadoId === '' || missionId === null}
+          onClick={() => {
+            void atribuir();
+          }}
+        >
           Atribuir sócio
         </button>
         {erro ? <span style={{ color: 'var(--text-dim)' }}>{erro}</span> : null}
@@ -108,19 +131,39 @@ const JornadaAcoes = ({
           type="text"
           placeholder="Advogado/escritório comprador"
           value={comprador}
-          onChange={(e) => { setComprador(e.target.value); }}
+          onChange={(e) => {
+            setComprador(e.target.value);
+          }}
         />
         {confirming ? (
           <>
-            <button className="primary" disabled={busy || comprador.trim() === ''} onClick={() => { void vender(); }}>
+            <button
+              className="primary"
+              disabled={busy || comprador.trim() === ''}
+              onClick={() => {
+                void vender();
+              }}
+            >
               Confirmar venda
             </button>
-            <button disabled={busy} onClick={() => { setConfirming(false); }}>
+            <button
+              disabled={busy}
+              onClick={() => {
+                setConfirming(false);
+              }}
+            >
               Cancelar
             </button>
           </>
         ) : (
-          <button className="primary" disabled={busy || comprador.trim() === ''} onClick={() => { setConfirming(true); setErro(null); }}>
+          <button
+            className="primary"
+            disabled={busy || comprador.trim() === ''}
+            onClick={() => {
+              setConfirming(true);
+              setErro(null);
+            }}
+          >
             Vender
           </button>
         )}

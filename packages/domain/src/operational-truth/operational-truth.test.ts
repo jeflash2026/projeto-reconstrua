@@ -61,26 +61,38 @@ describe('OperationalTruthAggregate — síntese (E8; a Verdade nasce por sínte
   });
 
   it('VO-CADEIA-DEMONSTRAVEL — Verdade sem cadeia demonstrável é recusada (INV-E8-02)', () => {
-    const result = OperationalTruthAggregate.synthesize({ ...validInput(), chainJustification: '   ' });
+    const result = OperationalTruthAggregate.synthesize({
+      ...validInput(),
+      chainJustification: '   ',
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('VO-CADEIA-DEMONSTRAVEL');
   });
 
   it('VO-INCERTEZA-DECLARADA — incerteza declarada vazia é recusada (INV-E8-07: sem preenchimento artificial)', () => {
-    const result = OperationalTruthAggregate.synthesize({ ...validInput(), declaredUncertainty: '   ' });
+    const result = OperationalTruthAggregate.synthesize({
+      ...validInput(),
+      declaredUncertainty: '   ',
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('VO-INCERTEZA-DECLARADA');
   });
 
   it('VO-RASTREABILIDADE — responsável é obrigatório (INV-E8-06; DF-09; Art. 14º)', () => {
-    // @ts-expect-error INV-E8-06/DF-09: responsável é obrigatório.
-    const result = OperationalTruthAggregate.synthesize({ ...validInput(), synthesizedBy: undefined });
+    const result = OperationalTruthAggregate.synthesize({
+      ...validInput(),
+      // @ts-expect-error INV-E8-06/DF-09: responsável é obrigatório.
+      synthesizedBy: undefined,
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('VO-RASTREABILIDADE');
   });
 
   it('VO-RASTREABILIDADE — datação inválida é recusada (E8-L03)', () => {
-    const result = OperationalTruthAggregate.synthesize({ ...validInput(), synthesizedAt: new Date('x') });
+    const result = OperationalTruthAggregate.synthesize({
+      ...validInput(),
+      synthesizedAt: new Date('x'),
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('VO-RASTREABILIDADE');
   });

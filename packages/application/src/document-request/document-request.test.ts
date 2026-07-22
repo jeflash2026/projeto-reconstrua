@@ -20,10 +20,20 @@ import {
 
 const NOW = new Date('2026-07-20T10:00:00.000Z');
 let n = 0;
-function estado(over: { documentName?: string; priority?: 'normal' | 'alta'; caseId?: string; clientId?: string; mutar?: (a: DocumentRequestAggregate) => void } = {}): DocumentRequestState {
+function estado(
+  over: {
+    documentName?: string;
+    priority?: 'normal' | 'alta';
+    caseId?: string;
+    clientId?: string;
+    mutar?: (a: DocumentRequestAggregate) => void;
+  } = {},
+): DocumentRequestState {
   n += 1;
   const agg = DocumentRequestAggregate.criar({
-    requestId: DocumentRequestId.fromUuid(toUuid(`00000000-0000-4000-8000-${String(n).padStart(12, '0')}`)),
+    requestId: DocumentRequestId.fromUuid(
+      toUuid(`00000000-0000-4000-8000-${String(n).padStart(12, '0')}`),
+    ),
     caseId: over.caseId ?? 'CASE-1',
     clientId: over.clientId ?? '5511999@c',
     lawyerId: 'ADV-1',
@@ -40,11 +50,25 @@ describe('15C-1 · read model por CASO', () => {
   it('doCaso é a consulta principal (Decisão 5); abertas incluem REOPENED', async () => {
     const store = new InMemoryDocumentRequestStore();
     await store.salvar(estado({ documentName: 'Procuração' }));
-    await store.salvar(estado({ documentName: 'Carta', mutar: (a) => void a.associar('doc-1', 'unica', NOW) })); // RECEIVED
-    await store.salvar(estado({ documentName: 'Extrato', mutar: (a) => { a.associar('doc-2', 'ia', NOW); a.reabrir('incorreto', 'ADV-1', NOW); } })); // REOPENED
+    await store.salvar(
+      estado({ documentName: 'Carta', mutar: (a) => void a.associar('doc-1', 'unica', NOW) }),
+    ); // RECEIVED
+    await store.salvar(
+      estado({
+        documentName: 'Extrato',
+        mutar: (a) => {
+          a.associar('doc-2', 'ia', NOW);
+          a.reabrir('incorreto', 'ADV-1', NOW);
+        },
+      }),
+    ); // REOPENED
     await store.salvar(estado({ documentName: 'Outro caso', caseId: 'CASE-2' }));
 
-    expect((await store.doCaso('CASE-1')).map((s) => s.documentName)).toEqual(['Procuração', 'Carta', 'Extrato']);
+    expect((await store.doCaso('CASE-1')).map((s) => s.documentName)).toEqual([
+      'Procuração',
+      'Carta',
+      'Extrato',
+    ]);
     const abertas = await store.abertasDoCliente('5511999@c');
     expect(abertas.map((s) => s.documentName)).toEqual(['Procuração', 'Extrato', 'Outro caso']); // RECEIVED fora; REOPENED dentro
   });
@@ -54,7 +78,11 @@ describe('15C-1 · resumo para o MissionSnapshot (Decisão B)', () => {
   it('conta abertas, prioridade mais alta, aguardando confirmação e a última', () => {
     const states = [
       estado({ documentName: 'Procuração' }),
-      estado({ documentName: 'Extrato', priority: 'alta', mutar: (a) => void a.aguardarConfirmacao(NOW) }),
+      estado({
+        documentName: 'Extrato',
+        priority: 'alta',
+        mutar: (a) => void a.aguardarConfirmacao(NOW),
+      }),
       estado({ documentName: 'Carta', mutar: (a) => void a.associar('doc-1', 'unica', NOW) }), // RECEIVED — fora
     ];
     const resumo = resumoDocumentRequests(states);
@@ -66,10 +94,20 @@ describe('15C-1 · resumo para o MissionSnapshot (Decisão B)', () => {
   });
 
   it('sem abertas ⇒ resumo vazio; e o shape ENCAIXA no MissionSnapshot', () => {
-    const vazio = resumoDocumentRequests([estado({ mutar: (a) => void a.cancelar('x', 'ADV-1', NOW) })]);
-    expect(vazio).toEqual({ totalPendentes: 0, prioridadeMaisAlta: null, aguardandoConfirmacao: 0, ultimaSolicitacao: null });
+    const vazio = resumoDocumentRequests([
+      estado({ mutar: (a) => void a.cancelar('x', 'ADV-1', NOW) }),
+    ]);
+    expect(vazio).toEqual({
+      totalPendentes: 0,
+      prioridadeMaisAlta: null,
+      aguardandoConfirmacao: 0,
+      ultimaSolicitacao: null,
+    });
     // Single Source of Truth: o resumo é exatamente o campo do snapshot.
-    const snap: MissionSnapshot = { ...emptySnapshot('m1'), documentRequests: resumoDocumentRequests([estado({})]) };
+    const snap: MissionSnapshot = {
+      ...emptySnapshot('m1'),
+      documentRequests: resumoDocumentRequests([estado({})]),
+    };
     expect(snap.documentRequests?.totalPendentes).toBe(1);
   });
 });
@@ -77,12 +115,25 @@ describe('15C-1 · resumo para o MissionSnapshot (Decisão B)', () => {
 describe('15C-1 · mensagens autoradas', () => {
   it('cliente / confirmação / lembrete / advogado — formatos do decreto', () => {
     const s = estado({ documentName: 'Procuração' });
-    expect(mensagemAoCliente(s, 'Jessé')).toContain('Dr. João Silva, responsável pelo seu processo, solicitou um documento complementar');
+    expect(mensagemAoCliente(s, 'Jessé')).toContain(
+      'Dr. João Silva, responsável pelo seu processo, solicitou um documento complementar',
+    );
     expect(mensagemAoCliente(s, 'Jessé')).toContain('Documento solicitado:\nProcuração');
-    expect(perguntaDeConfirmacao([s, estado({ documentName: 'Carta de Concessão' })])).toBe('Recebi seu arquivo! Só confirmando: ele é **Procuração** ou **Carta de Concessão**?');
-    expect(mensagemDeLembrete(s, 'Jessé')).toContain('Passando para lembrar: Dr. João Silva aguarda a Procuração');
-    const recebida = estado({ documentName: 'Procuração', mutar: (a) => void a.associar('doc-1', 'unica', NOW) });
-    expect(notificacaoAoAdvogado(recebida, 'Jessé Rodrigues')).toContain('O cliente Jessé Rodrigues acabou de enviar o documento solicitado:');
-    expect(notificacaoAoAdvogado(recebida, 'Jessé Rodrigues')).toContain('disponível para análise no painel');
+    expect(perguntaDeConfirmacao([s, estado({ documentName: 'Carta de Concessão' })])).toBe(
+      'Recebi seu arquivo! Só confirmando: ele é **Procuração** ou **Carta de Concessão**?',
+    );
+    expect(mensagemDeLembrete(s, 'Jessé')).toContain(
+      'Passando para lembrar: Dr. João Silva aguarda a Procuração',
+    );
+    const recebida = estado({
+      documentName: 'Procuração',
+      mutar: (a) => void a.associar('doc-1', 'unica', NOW),
+    });
+    expect(notificacaoAoAdvogado(recebida, 'Jessé Rodrigues')).toContain(
+      'O cliente Jessé Rodrigues acabou de enviar o documento solicitado:',
+    );
+    expect(notificacaoAoAdvogado(recebida, 'Jessé Rodrigues')).toContain(
+      'disponível para análise no painel',
+    );
   });
 });

@@ -16,7 +16,13 @@ import {
   mapEvolutionUpsert,
   summarize,
 } from '@reconstrua/infrastructure';
-import { configFromEnv, maskConfig, mergeConfigUpdate, validarTokenCliente, type ProductionConfig } from '@reconstrua/application';
+import {
+  configFromEnv,
+  maskConfig,
+  mergeConfigUpdate,
+  validarTokenCliente,
+  type ProductionConfig,
+} from '@reconstrua/application';
 import type { FastifyRequest } from 'fastify';
 import { bearerToken, requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 import { PRODUCTION_UI_HTML } from './production-ui.js';
@@ -83,10 +89,13 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
   const clientePortalSecret = env['CLIENTE_PORTAL_SECRET'] ?? '';
   app.get('/cliente/acompanhamento', async (request, reply) => {
     const token = bearerToken(request);
-    const clienteId = token !== null ? validarTokenCliente(token, new Date(), clientePortalSecret) : null;
+    const clienteId =
+      token !== null ? validarTokenCliente(token, new Date(), clientePortalSecret) : null;
     const view = clienteId !== null ? await prod.acompanhamento.acompanhamento(clienteId) : null;
     if (view === null) {
-      return reply.code(401).send({ error: 'peça um novo link de acesso conversando com a AHRI no WhatsApp' });
+      return reply
+        .code(401)
+        .send({ error: 'peça um novo link de acesso conversando com a AHRI no WhatsApp' });
     }
     return view;
   });
@@ -102,13 +111,23 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     const envelope = mapEvolutionUpsert(request.body);
     if (envelope) {
       void prod.ingress.receive(envelope).catch((error: unknown) => {
-        prod.observability.error('webhook', 'evolution', new Date(), error instanceof Error ? error.message : 'falha');
+        prod.observability.error(
+          'webhook',
+          'evolution',
+          new Date(),
+          error instanceof Error ? error.message : 'falha',
+        );
       });
       // CAT-02A: captura dos bytes reais de documento — ASSÍNCRONA e best-effort,
       // após o ACK. Nenhuma conversa espera; nenhuma exceção quebra o webhook.
       if (envelope.kind === 'image' || envelope.kind === 'pdf' || envelope.kind === 'document') {
         void prod.mediaCapture.capture(request.body).catch((error: unknown) => {
-          prod.observability.error('webhook', 'media', new Date(), error instanceof Error ? error.message : 'falha');
+          prod.observability.error(
+            'webhook',
+            'media',
+            new Date(),
+            error instanceof Error ? error.message : 'falha',
+          );
         });
       }
     }
@@ -127,7 +146,11 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     const merged = mergeConfigUpdate(current, update);
     await prod.configStore.save(merged);
     prod.observability.event('config', 'updated', new Date());
-    return { ok: true, config: maskConfig(merged), note: 'reinicie o processo para aplicar provedores (LLM/Evolution)' };
+    return {
+      ok: true,
+      config: maskConfig(merged),
+      note: 'reinicie o processo para aplicar provedores (LLM/Evolution)',
+    };
   });
 
   // ── MONITOR DE PRODUÇÃO (tempo real; só read models/observabilidade) ─────────
@@ -140,7 +163,11 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     const llmCalls = trail.filter((o) => o.component === 'llm' && o.kind === 'latency');
     return {
       mode: prod.mode,
-      clientsOnline: memories.filter((m) => m.lastContactAt !== null && now.getTime() - (m.lastContactAt?.getTime() ?? 0) < 30 * 60_000).length,
+      clientsOnline: memories.filter(
+        (m) =>
+          m.lastContactAt !== null &&
+          now.getTime() - (m.lastContactAt?.getTime() ?? 0) < 30 * 60_000,
+      ).length,
       conversations: memories.length,
       queues: {
         scheduler: await prod.scheduler.pendingCount(),
@@ -151,7 +178,10 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
       llm: {
         provider: prod.mode.llm,
         calls: llmCalls.length,
-        avgLatencyMs: llmCalls.length === 0 ? null : llmCalls.reduce((s, o) => s + (o.value ?? 0), 0) / llmCalls.length,
+        avgLatencyMs:
+          llmCalls.length === 0
+            ? null
+            : llmCalls.reduce((s, o) => s + (o.value ?? 0), 0) / llmCalls.length,
         errors: trail.filter((o) => o.component === 'llm' && o.kind === 'error').length,
       },
       latencyAvgMs: stats.avgLatencyMs,
@@ -209,7 +239,10 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     const body = request.body as { question?: string };
     if (!body.question) return reply.code(400).send({ error: 'pergunta obrigatória' });
     const reports = await prod.shadowStore.all();
-    const detections = detect(reports, PRODUCTION_RULE_CATALOG.map((r) => r.ref));
+    const detections = detect(
+      reports,
+      PRODUCTION_RULE_CATALOG.map((r) => r.ref),
+    );
     // Carga por advogado (read model 3B) e documentos pendentes (memória viva).
     const lawyerLoad: Record<string, number> = {};
     for (const member of await prod.advogadoView.staff.list('advogado')) {
@@ -220,7 +253,9 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
       m.documentsPending.map((d) => ({
         chatId: m.chatId,
         document: d,
-        sinceDays: m.lastContactAt ? Math.floor((now - m.lastContactAt.getTime()) / 86_400_000) : null,
+        sinceDays: m.lastContactAt
+          ? Math.floor((now - m.lastContactAt.getTime()) / 86_400_000)
+          : null,
       })),
     );
     return askShadow(body.question, { reports, detections, lawyerLoad, pendingDocs });
@@ -245,8 +280,7 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     const ga = gaId
       ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${gaId}');</script>`
       : '';
-    const html = LANDING_HTML
-      .replace(/__URL__/g, publicUrl)
+    const html = LANDING_HTML.replace(/__URL__/g, publicUrl)
       .replace(/__WA__/g, wa)
       .replace(/__OAB__/g, oab)
       .replace(/__CNPJ__/g, cnpj)
@@ -267,7 +301,12 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     try {
       return { status: 'ok', overall: prod.health.overall(), components: prod.health.all() };
     } catch (error) {
-      return { status: 'ok', overall: 'UNKNOWN', components: [], detail: error instanceof Error ? error.message : 'health indisponível' };
+      return {
+        status: 'ok',
+        overall: 'UNKNOWN',
+        components: [],
+        detail: error instanceof Error ? error.message : 'health indisponível',
+      };
     }
   });
 

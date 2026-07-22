@@ -34,7 +34,8 @@ export const NASCIMENTO_RULE_CATALOG: readonly OperationalRuleSpec[] = [
       references: ['cadastro-concluido', 'portal-do-cliente'],
       urgency: 'normal',
     },
-    fundamento: 'Art. 15º (assistiva) — o nascimento do Portal é um momento da jornada; D2 (mensagem homologada); RO-R7-001',
+    fundamento:
+      'Art. 15º (assistiva) — o nascimento do Portal é um momento da jornada; D2 (mensagem homologada); RO-R7-001',
   },
   {
     ref: 'RO-NASCIMENTO-WAIT',
@@ -83,7 +84,12 @@ export class BrainNascimentoComunicador implements ComunicadorNascimento {
     });
     const decided = outcome.intents.find((i) => i.kind === 'conversation');
     if (decided === undefined) {
-      d.observability.degraded('nascimento', 'brain-veto', now, `nascimento sem fala para ${clienteId} (silêncio/veto do Brain)`);
+      d.observability.degraded(
+        'nascimento',
+        'brain-veto',
+        now,
+        `nascimento sem fala para ${clienteId} (silêncio/veto do Brain)`,
+      );
       return false;
     }
 
@@ -110,7 +116,12 @@ export class BrainNascimentoComunicador implements ComunicadorNascimento {
       await d.delivery.drain(view); // cadência humana (nunca instantânea)
       return true;
     } catch (error) {
-      d.observability.error('nascimento', 'entrega', now, error instanceof Error ? error.message : 'falha na entrega');
+      d.observability.error(
+        'nascimento',
+        'entrega',
+        now,
+        error instanceof Error ? error.message : 'falha na entrega',
+      );
       return false;
     }
   }

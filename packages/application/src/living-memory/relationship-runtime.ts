@@ -45,15 +45,19 @@ export class RelationshipRuntime {
 
   async context(chatId: string): Promise<RelationshipContext> {
     const memory = await this.memory.recall(chatId);
-    const name = latestAttribute(memory, 'name')?.value ?? latestAttribute(memory, 'nickname')?.value ?? null;
+    const name =
+      latestAttribute(memory, 'name')?.value ?? latestAttribute(memory, 'nickname')?.value ?? null;
     const lastStage = memory.stagesCompleted.at(-1)?.stageRef ?? null;
     const topics = memory.rememberedEvents.map((e) => e.description);
 
     const parts: string[] = [];
     if (name !== null) parts.push(`Cliente: ${name}.`);
-    if (memory.firstContactAt !== null) parts.push(`Acompanhado desde ${memory.firstContactAt.toISOString().slice(0, 10)}.`);
-    if (memory.documentsPending.length > 0) parts.push(`Documentos pendentes: ${memory.documentsPending.join(', ')}.`);
-    if (memory.documentsSent.length > 0) parts.push(`Documentos recebidos: ${String(memory.documentsSent.length)}.`);
+    if (memory.firstContactAt !== null)
+      parts.push(`Acompanhado desde ${memory.firstContactAt.toISOString().slice(0, 10)}.`);
+    if (memory.documentsPending.length > 0)
+      parts.push(`Documentos pendentes: ${memory.documentsPending.join(', ')}.`);
+    if (memory.documentsSent.length > 0)
+      parts.push(`Documentos recebidos: ${String(memory.documentsSent.length)}.`);
     if (lastStage !== null) parts.push(`Etapa atual: ${lastStage}.`);
     if (topics.length > 0) parts.push(`Assuntos lembrados: ${topics.join('; ')}.`);
     if (memory.conversationStyle !== null) parts.push(`Estilo: ${memory.conversationStyle}.`);

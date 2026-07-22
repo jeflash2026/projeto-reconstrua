@@ -3,5 +3,7 @@
 import type { ReactElement } from 'react';
 import AhriThinking from '../../../components/ahri-thinking';
 
-const Loading = (): ReactElement => <AhriThinking label="AHRI abrindo o laboratório de inteligência" />;
+const Loading = (): ReactElement => (
+  <AhriThinking label="AHRI abrindo o laboratório de inteligência" />
+);
 export default Loading;

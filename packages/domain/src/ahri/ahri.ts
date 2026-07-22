@@ -72,7 +72,8 @@ export class AhriAggregate extends AggregateRoot<AhriId> {
         new CanonViolationError({
           invariantId: MISSION_ID,
           canonReference: MISSION_REF,
-          message: 'A AHRI assume responsabilidade operacional de uma Missão; a Missão é obrigatória (item 12).',
+          message:
+            'A AHRI assume responsabilidade operacional de uma Missão; a Missão é obrigatória (item 12).',
         }),
       );
     }
@@ -82,7 +83,8 @@ export class AhriAggregate extends AggregateRoot<AhriId> {
         new CanonViolationError({
           invariantId: RULE_ID,
           canonReference: RULE_REF,
-          message: 'Toda atuação da AHRI referencia ao menos uma Regra Operacional (INV-AH-02; DF-09).',
+          message:
+            'Toda atuação da AHRI referencia ao menos uma Regra Operacional (INV-AH-02; DF-09).',
         }),
       );
     }
@@ -110,7 +112,9 @@ export class AhriAggregate extends AggregateRoot<AhriId> {
       assumedAt: new Date(input.assumedAt.getTime()),
     });
 
-    ahri.addDomainEvent(new AhriOperationalResponsibilityAssumed(input.id.toString(), ahri.props.assumedAt));
+    ahri.addDomainEvent(
+      new AhriOperationalResponsibilityAssumed(input.id.toString(), ahri.props.assumedAt),
+    );
     return Result.ok(ahri);
   }
 

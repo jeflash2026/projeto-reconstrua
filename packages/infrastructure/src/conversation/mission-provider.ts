@@ -11,7 +11,12 @@
 // (fail-closed: continuar coletando é o modo de falha seguro do decreto).
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock } from '@reconstrua/domain';
-import { derivarMissaoDaConversa, type ClientesList, type MissaoProvider, type MissionSnapshotPort } from '@reconstrua/application';
+import {
+  derivarMissaoDaConversa,
+  type ClientesList,
+  type MissaoProvider,
+  type MissionSnapshotPort,
+} from '@reconstrua/application';
 
 export interface OnboardingCompletude {
   /** true ⇔ os 3 documentos iniciais estão 100% (contabilidade da Jornada 1). */
@@ -28,7 +33,9 @@ export function criarMissaoProvider(
     const [snapshot, lista, documentacaoInicialCompleta] = await Promise.all([
       snapshots.load(chatId).catch(() => null), // MISSÃO ATIVA (Mission Runtime) — primário
       clientes.list(clock.now()).catch(() => []),
-      onboarding !== null ? onboarding.estaCompleto(chatId).catch(() => false) : Promise.resolve(false),
+      onboarding !== null
+        ? onboarding.estaCompleto(chatId).catch(() => false)
+        : Promise.resolve(false),
     ]);
     const cliente = lista.find((c) => c.chatId === chatId);
 

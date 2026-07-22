@@ -21,7 +21,11 @@ runEventStoreContract('InMemory', makeHarness);
 
 describe('InMemoryEventStore — específico', () => {
   it('readAll retorna em ordem global monotônica entre streams', async () => {
-    const store = new InMemoryEventStore(new CryptoHasher(), new UuidV4Generator(), new SystemClock());
+    const store = new InMemoryEventStore(
+      new CryptoHasher(),
+      new UuidV4Generator(),
+      new SystemClock(),
+    );
     const e = (n: number) => ({
       eventType: 't',
       isRelevant: false,
@@ -30,7 +34,9 @@ describe('InMemoryEventStore — específico', () => {
     });
     await store.append('a', '00000000-0000-4000-8000-00000000aa01', NO_STREAM, [e(1)]);
     await store.append('b', '00000000-0000-4000-8000-00000000bb01', NO_STREAM, [e(2)]);
-    await store.append('a', '00000000-0000-4000-8000-00000000aa01', { kind: 'exact', version: 1 }, [e(3)]);
+    await store.append('a', '00000000-0000-4000-8000-00000000aa01', { kind: 'exact', version: 1 }, [
+      e(3),
+    ]);
     const all = await store.readAll(0, 100);
     expect(all.map((x) => x.globalSeq)).toEqual([1, 2, 3]);
     expect(all.map((x) => x.streamType)).toEqual(['a', 'b', 'a']);

@@ -6,7 +6,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
-import type { ClienteResumo, ModalidadeRecord, PedidosAdministrativosRecord, ScheduledTask, VendaRecord } from '@reconstrua/application';
+import type {
+  ClienteResumo,
+  ModalidadeRecord,
+  PedidosAdministrativosRecord,
+  ScheduledTask,
+  VendaRecord,
+} from '@reconstrua/application';
 import { buildAdminServer } from './admin-server.js';
 
 const ADMIN = 'TEST-ADMIN-SECRET';
@@ -14,8 +20,16 @@ const NOW = new Date('2026-07-18T12:00:00.000Z');
 
 function resumo(over: Partial<ClienteResumo>): ClienteResumo {
   return {
-    clienteId: 'cli-1', chatId: 'c1', missionId: 'm1', quem: 'Maria', status: 'PRONTO_AGUARDANDO_VENDA',
-    modalidade: 'VENDA', pronto: true, faltando: [], saude: 'GREEN', ultimoContatoAt: NOW,
+    clienteId: 'cli-1',
+    chatId: 'c1',
+    missionId: 'm1',
+    quem: 'Maria',
+    status: 'PRONTO_AGUARDANDO_VENDA',
+    modalidade: 'VENDA',
+    pronto: true,
+    faltando: [],
+    saude: 'GREEN',
+    ultimoContatoAt: NOW,
     pedidosConfirmadosEm: null,
     ...over,
   };
@@ -41,58 +55,113 @@ function harness(clientes: readonly ClienteResumo[]): Harness {
   const op = {
     clientes: {
       list: () => Promise.resolve(clientes),
-      prontosParaVenda: () => Promise.resolve(clientes.filter((c) => c.status === 'PRONTO_AGUARDANDO_VENDA')),
+      prontosParaVenda: () =>
+        Promise.resolve(clientes.filter((c) => c.status === 'PRONTO_AGUARDANDO_VENDA')),
     },
     modalidadeStore: {
       load: () => Promise.resolve(null),
-      save: (r: ModalidadeRecord) => { modalidades.push(r); return Promise.resolve(); },
+      save: (r: ModalidadeRecord) => {
+        modalidades.push(r);
+        return Promise.resolve();
+      },
     },
     vendaStore: {
       load: () => Promise.resolve(null),
-      save: (r: VendaRecord) => { vendas.push(r); return Promise.resolve(); },
+      save: (r: VendaRecord) => {
+        vendas.push(r);
+        return Promise.resolve();
+      },
     },
     mission: {
       execute: (envelope: { chatId: string }) => {
         closes.push(envelope.chatId);
-        return Promise.resolve({ outcomes: [{ useCase: 'CloseMission', ok: true, skipped: false, streamId: 's1' }] });
+        return Promise.resolve({
+          outcomes: [{ useCase: 'CloseMission', ok: true, skipped: false, streamId: 's1' }],
+        });
       },
     },
-    outbox: { drainToIdle: () => { state.drains += 1; return Promise.resolve(); } },
+    outbox: {
+      drainToIdle: () => {
+        state.drains += 1;
+        return Promise.resolve();
+      },
+    },
     // B-R3 — fato + consequência (fakes de captura)
     pedidosStore: {
       load: () => Promise.resolve(null),
-      save: (r: PedidosAdministrativosRecord) => { pedidos.push(r); return Promise.resolve(); },
+      save: (r: PedidosAdministrativosRecord) => {
+        pedidos.push(r);
+        return Promise.resolve();
+      },
     },
     scheduler: {
-      schedule: (t: Omit<ScheduledTask, 'status'>) => { agendadas.push(t); return Promise.resolve({ ...t, status: 'pending' }); },
+      schedule: (t: Omit<ScheduledTask, 'status'>) => {
+        agendadas.push(t);
+        return Promise.resolve({ ...t, status: 'pending' });
+      },
     },
     // B-R2 — visão do Perito (fake mínimo; a lógica real é testada em application)
     perito: {
       contratos: (clienteId: string) =>
         Promise.resolve(
           clientes.some((c) => c.clienteId === clienteId)
-            ? { clienteId, chatId: 'c1', quem: 'Maria', parse: { contratos: [], foraDaJanela: [], naoReconhecidas: [], porBanco: {} }, documentosLidos: 1, documentosSemTexto: 0 }
+            ? {
+                clienteId,
+                chatId: 'c1',
+                quem: 'Maria',
+                parse: { contratos: [], foraDaJanela: [], naoReconhecidas: [], porBanco: {} },
+                documentosLidos: 1,
+                documentosSemTexto: 0,
+              }
             : null,
         ),
       planilha: (clienteId: string) =>
         Promise.resolve(
           clientes.some((c) => c.clienteId === clienteId)
-            ? { clienteId, quem: 'Maria', nomeArquivo: `contratos-${clienteId}.csv`, mime: 'text/csv; charset=utf-8', conteudo: 'A;B\r\n' }
+            ? {
+                clienteId,
+                quem: 'Maria',
+                nomeArquivo: `contratos-${clienteId}.csv`,
+                mime: 'text/csv; charset=utf-8',
+                conteudo: 'A;B\r\n',
+              }
             : null,
         ),
       planilhasDaFila: () =>
         Promise.resolve(
           clientes
             .filter((c) => c.status === 'PRONTO_AGUARDANDO_PERICIA')
-            .map((c) => ({ clienteId: c.clienteId, quem: c.quem, nomeArquivo: `contratos-${c.clienteId}.csv`, mime: 'text/csv; charset=utf-8', conteudo: 'A;B\r\n' })),
+            .map((c) => ({
+              clienteId: c.clienteId,
+              quem: c.quem,
+              nomeArquivo: `contratos-${c.clienteId}.csv`,
+              mime: 'text/csv; charset=utf-8',
+              conteudo: 'A;B\r\n',
+            })),
         ),
     },
   } as unknown as AssembledAdminOperation;
   const app = buildAdminServer(op, { accessSecret: ADMIN });
-  return { app, modalidades, vendas, pedidos, agendadas, closes, get drains() { return state.drains; }, set drains(v: number) { state.drains = v; } };
+  return {
+    app,
+    modalidades,
+    vendas,
+    pedidos,
+    agendadas,
+    closes,
+    get drains() {
+      return state.drains;
+    },
+    set drains(v: number) {
+      state.drains = v;
+    },
+  };
 }
 
-function call(app: FastifyInstance, opts: { method: 'GET' | 'POST'; url: string; payload?: object }) {
+function call(
+  app: FastifyInstance,
+  opts: { method: 'GET' | 'POST'; url: string; payload?: object },
+) {
   return app.inject({ ...opts, headers: { authorization: `Bearer ${ADMIN}` } });
 }
 
@@ -101,8 +170,19 @@ describe('Jornada · rotas', () => {
   beforeEach(() => {
     h = harness([
       resumo({}),
-      resumo({ clienteId: 'novo@c.us', chatId: 'novo@c.us', status: 'ATENDIMENTO', modalidade: null, pronto: false }),
-      resumo({ clienteId: 'cli-2', chatId: 'c2', status: 'PRONTO_AGUARDANDO_MODALIDADE', modalidade: null }),
+      resumo({
+        clienteId: 'novo@c.us',
+        chatId: 'novo@c.us',
+        status: 'ATENDIMENTO',
+        modalidade: null,
+        pronto: false,
+      }),
+      resumo({
+        clienteId: 'cli-2',
+        chatId: 'c2',
+        status: 'PRONTO_AGUARDANDO_MODALIDADE',
+        modalidade: null,
+      }),
       resumo({ clienteId: 'cli-3', chatId: 'c3', status: 'VENDIDO' }),
     ]);
   });
@@ -127,7 +207,12 @@ describe('Jornada · rotas', () => {
   it('B-R4 — fila=socio devolve apenas AGUARDANDO_SOCIO (prazo vencido)', async () => {
     const h4 = harness([
       resumo({}),
-      resumo({ clienteId: 'cli-s', chatId: 'cs', status: 'AGUARDANDO_SOCIO', modalidade: 'SOCIEDADE' }),
+      resumo({
+        clienteId: 'cli-s',
+        chatId: 'cs',
+        status: 'AGUARDANDO_SOCIO',
+        modalidade: 'SOCIEDADE',
+      }),
       resumo({ clienteId: 'cli-10', status: 'AGUARDANDO_10_DIAS', modalidade: 'SOCIEDADE' }),
     ]);
     const res = await call(h4.app, { method: 'GET', url: '/admin/jornada/clientes?fila=socio' });
@@ -138,7 +223,12 @@ describe('Jornada · rotas', () => {
 
   it('B-R2 — fila=pericia filtra e as rotas do perito respondem', async () => {
     const h2 = harness([
-      resumo({ clienteId: 'cli-p', chatId: 'cp', status: 'PRONTO_AGUARDANDO_PERICIA', modalidade: 'SOCIEDADE' }),
+      resumo({
+        clienteId: 'cli-p',
+        chatId: 'cp',
+        status: 'PRONTO_AGUARDANDO_PERICIA',
+        modalidade: 'SOCIEDADE',
+      }),
       resumo({}),
     ]);
     const fila = await call(h2.app, { method: 'GET', url: '/admin/jornada/clientes?fila=pericia' });
@@ -146,12 +236,21 @@ describe('Jornada · rotas', () => {
     expect(bodyFila.clientes).toHaveLength(1);
     expect(bodyFila.clientes[0]?.clienteId).toBe('cli-p');
 
-    const contratos = await call(h2.app, { method: 'GET', url: '/admin/jornada/pericia/cli-p/contratos' });
+    const contratos = await call(h2.app, {
+      method: 'GET',
+      url: '/admin/jornada/pericia/cli-p/contratos',
+    });
     expect(contratos.statusCode).toBe(200);
-    const naoExiste = await call(h2.app, { method: 'GET', url: '/admin/jornada/pericia/zzz/contratos' });
+    const naoExiste = await call(h2.app, {
+      method: 'GET',
+      url: '/admin/jornada/pericia/zzz/contratos',
+    });
     expect(naoExiste.statusCode).toBe(404);
 
-    const planilha = await call(h2.app, { method: 'GET', url: '/admin/jornada/pericia/cli-p/planilha' });
+    const planilha = await call(h2.app, {
+      method: 'GET',
+      url: '/admin/jornada/pericia/cli-p/planilha',
+    });
     expect(planilha.statusCode).toBe(200);
     expect(planilha.headers['content-type']).toContain('text/csv');
     expect(planilha.headers['content-disposition']).toContain('contratos-cli-p.csv');
@@ -163,16 +262,32 @@ describe('Jornada · rotas', () => {
   });
 
   it('POST modalidade — valida entrada, reconhecimento e grava o marcador', async () => {
-    const invalida = await call(h.app, { method: 'POST', url: '/admin/jornada/clientes/cli-2/modalidade', payload: { modalidade: 'OUTRA' } });
+    const invalida = await call(h.app, {
+      method: 'POST',
+      url: '/admin/jornada/clientes/cli-2/modalidade',
+      payload: { modalidade: 'OUTRA' },
+    });
     expect(invalida.statusCode).toBe(400);
 
-    const inexistente = await call(h.app, { method: 'POST', url: '/admin/jornada/clientes/nao-existe/modalidade', payload: { modalidade: 'VENDA' } });
+    const inexistente = await call(h.app, {
+      method: 'POST',
+      url: '/admin/jornada/clientes/nao-existe/modalidade',
+      payload: { modalidade: 'VENDA' },
+    });
     expect(inexistente.statusCode).toBe(404);
 
-    const naoReconhecido = await call(h.app, { method: 'POST', url: '/admin/jornada/clientes/novo@c.us/modalidade', payload: { modalidade: 'VENDA' } });
+    const naoReconhecido = await call(h.app, {
+      method: 'POST',
+      url: '/admin/jornada/clientes/novo@c.us/modalidade',
+      payload: { modalidade: 'VENDA' },
+    });
     expect(naoReconhecido.statusCode).toBe(409);
 
-    const ok = await call(h.app, { method: 'POST', url: '/admin/jornada/clientes/cli-2/modalidade', payload: { modalidade: 'SOCIEDADE', decididaPor: 'ceo' } });
+    const ok = await call(h.app, {
+      method: 'POST',
+      url: '/admin/jornada/clientes/cli-2/modalidade',
+      payload: { modalidade: 'SOCIEDADE', decididaPor: 'ceo' },
+    });
     expect(ok.statusCode).toBe(200);
     expect(h.modalidades).toHaveLength(1);
     expect(h.modalidades[0]?.modalidade).toBe('SOCIEDADE');
@@ -181,21 +296,43 @@ describe('Jornada · rotas', () => {
 
   it('B-R3 — confirmar pedidos: guarda de fila, grava o FATO e agenda a consequência (Lei 8)', async () => {
     const h3 = harness([
-      resumo({ clienteId: 'cli-p', chatId: 'cp', missionId: 'mp', status: 'PRONTO_AGUARDANDO_PERICIA', modalidade: 'SOCIEDADE' }),
+      resumo({
+        clienteId: 'cli-p',
+        chatId: 'cp',
+        missionId: 'mp',
+        status: 'PRONTO_AGUARDANDO_PERICIA',
+        modalidade: 'SOCIEDADE',
+      }),
       resumo({}),
       resumo({ clienteId: 'cli-10d', status: 'AGUARDANDO_10_DIAS', modalidade: 'SOCIEDADE' }),
     ]);
 
-    const foraDaFila = await call(h3.app, { method: 'POST', url: '/admin/jornada/pericia/cli-1/confirmar-pedidos', payload: {} });
+    const foraDaFila = await call(h3.app, {
+      method: 'POST',
+      url: '/admin/jornada/pericia/cli-1/confirmar-pedidos',
+      payload: {},
+    });
     expect(foraDaFila.statusCode).toBe(409); // está na fila de VENDA, não da perícia
 
-    const jaConfirmado = await call(h3.app, { method: 'POST', url: '/admin/jornada/pericia/cli-10d/confirmar-pedidos', payload: {} });
+    const jaConfirmado = await call(h3.app, {
+      method: 'POST',
+      url: '/admin/jornada/pericia/cli-10d/confirmar-pedidos',
+      payload: {},
+    });
     expect(jaConfirmado.statusCode).toBe(409);
 
-    const inexistente = await call(h3.app, { method: 'POST', url: '/admin/jornada/pericia/zzz/confirmar-pedidos', payload: {} });
+    const inexistente = await call(h3.app, {
+      method: 'POST',
+      url: '/admin/jornada/pericia/zzz/confirmar-pedidos',
+      payload: {},
+    });
     expect(inexistente.statusCode).toBe(404);
 
-    const ok = await call(h3.app, { method: 'POST', url: '/admin/jornada/pericia/cli-p/confirmar-pedidos', payload: { confirmadoPor: 'perito-ana' } });
+    const ok = await call(h3.app, {
+      method: 'POST',
+      url: '/admin/jornada/pericia/cli-p/confirmar-pedidos',
+      payload: { confirmadoPor: 'perito-ana' },
+    });
     expect(ok.statusCode).toBe(200);
     const body: { confirmado: boolean; prazoAte: string } = ok.json();
     expect(body.confirmado).toBe(true);
@@ -215,16 +352,32 @@ describe('Jornada · rotas', () => {
   });
 
   it('POST vender — guarda de status, registra a venda e encerra pelo caminho existente', async () => {
-    const semComprador = await call(h.app, { method: 'POST', url: '/admin/jornada/clientes/cli-1/vender', payload: {} });
+    const semComprador = await call(h.app, {
+      method: 'POST',
+      url: '/admin/jornada/clientes/cli-1/vender',
+      payload: {},
+    });
     expect(semComprador.statusCode).toBe(400);
 
-    const naoPronto = await call(h.app, { method: 'POST', url: '/admin/jornada/clientes/cli-2/vender', payload: { comprador: 'Dr. X' } });
+    const naoPronto = await call(h.app, {
+      method: 'POST',
+      url: '/admin/jornada/clientes/cli-2/vender',
+      payload: { comprador: 'Dr. X' },
+    });
     expect(naoPronto.statusCode).toBe(409);
 
-    const jaVendido = await call(h.app, { method: 'POST', url: '/admin/jornada/clientes/cli-3/vender', payload: { comprador: 'Dr. X' } });
+    const jaVendido = await call(h.app, {
+      method: 'POST',
+      url: '/admin/jornada/clientes/cli-3/vender',
+      payload: { comprador: 'Dr. X' },
+    });
     expect(jaVendido.statusCode).toBe(409);
 
-    const ok = await call(h.app, { method: 'POST', url: '/admin/jornada/clientes/cli-1/vender', payload: { comprador: 'Escritório X', vendidaPor: 'ceo' } });
+    const ok = await call(h.app, {
+      method: 'POST',
+      url: '/admin/jornada/clientes/cli-1/vender',
+      payload: { comprador: 'Escritório X', vendidaPor: 'ceo' },
+    });
     expect(ok.statusCode).toBe(200);
     const body: { vendido: boolean; comprador: string } = ok.json();
     expect(body.vendido).toBe(true);

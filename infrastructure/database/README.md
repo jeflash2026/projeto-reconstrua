@@ -20,6 +20,7 @@ PostgreSQL 16. Dois schemas, com separação estrutural exigida pelo Livro Mestr
   O `deploy.sh` permanece intocado.
 
 ### Adicionar uma migration
+
 1. Crie `init/NN-descricao.sql` (próximo número; use `CREATE ... IF NOT EXISTS`).
 2. **Nunca edite** uma migration já aplicada — crie uma nova.
 3. No deploy, o serviço `migrate` a aplica automaticamente antes da `api`.

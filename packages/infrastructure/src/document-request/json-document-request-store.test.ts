@@ -32,10 +32,16 @@ class JsonRoundTripStore implements JsonStore {
     return Promise.resolve();
   }
   list(ns: string): Promise<readonly unknown[]> {
-    return Promise.resolve([...this.m.entries()].filter(([key]) => key.startsWith(`${ns}:`)).map(([, v]) => JSON.parse(v) as unknown));
+    return Promise.resolve(
+      [...this.m.entries()]
+        .filter(([key]) => key.startsWith(`${ns}:`))
+        .map(([, v]) => JSON.parse(v) as unknown),
+    );
   }
   keys(ns: string): Promise<readonly string[]> {
-    return Promise.resolve([...this.m.keys()].filter((k) => k.startsWith(`${ns}:`)).map((k) => k.slice(ns.length + 1)));
+    return Promise.resolve(
+      [...this.m.keys()].filter((k) => k.startsWith(`${ns}:`)).map((k) => k.slice(ns.length + 1)),
+    );
   }
   /** Corrompe um registro (teste da Correção 2). */
   corromper(ns: string, k: string, patch: Record<string, unknown>): void {
@@ -57,13 +63,23 @@ function harness() {
   return { json, store, runtime, publicados };
 }
 
-const NOVA = { requestId: REQ, caseId: 'CASE-1', clientId: '5511999@c', lawyerId: 'ADV-1', documentName: 'Procuração', requestedBy: 'Dr. João Silva', createdAt: NOW } as const;
+const NOVA = {
+  requestId: REQ,
+  caseId: 'CASE-1',
+  clientId: '5511999@c',
+  lawyerId: 'ADV-1',
+  documentName: 'Procuração',
+  requestedBy: 'Dr. João Silva',
+  createdAt: NOW,
+} as const;
 
 describe('15C-1 · read model persistente (round-trip JSON fiel ao Pg)', () => {
   it('ciclo completo pelo runtime: criar → mensagear → associar; datas revividas; eventos publicados', async () => {
     const { store, runtime, publicados } = harness();
 
-    expect((await runtime.criar({ ...NOVA, priority: 'alta', reminderPolicy: '48h' })).isOk()).toBe(true);
+    expect((await runtime.criar({ ...NOVA, priority: 'alta', reminderPolicy: '48h' })).isOk()).toBe(
+      true,
+    );
     expect((await runtime.registrarMensagem(REQ, NOW)).isOk()).toBe(true);
     const assoc = await runtime.associar(REQ, 'doc-777', 'unica', T1);
     expect(assoc.isOk()).toBe(true);
@@ -77,7 +93,11 @@ describe('15C-1 · read model persistente (round-trip JSON fiel ao Pg)', () => {
     expect(lido?.history.at(-1)?.at).toEqual(T1);
 
     // Eventos do ciclo publicados na ordem (created → messaged → received).
-    expect(publicados.flatMap((p) => p.nomes)).toEqual(['document-request.created', 'document-request.messaged', 'document-request.received']);
+    expect(publicados.flatMap((p) => p.nomes)).toEqual([
+      'document-request.created',
+      'document-request.messaged',
+      'document-request.received',
+    ]);
   });
 
   it('Correção 2 na leitura: JSON corrompido ⇒ ERRO explícito, nunca estado inválido', async () => {
@@ -103,7 +123,10 @@ describe('15C-1 · read model persistente (round-trip JSON fiel ao Pg)', () => {
 });
 
 describe('15C-1 · projeção no MissionSnapshot (Decisão B)', () => {
-  const inner: MissionSnapshotPort = { load: (chatId: string) => Promise.resolve({ ...emptySnapshot(chatId), caseExists: true } as MissionSnapshot) };
+  const inner: MissionSnapshotPort = {
+    load: (chatId: string) =>
+      Promise.resolve({ ...emptySnapshot(chatId), caseExists: true } as MissionSnapshot),
+  };
 
   it('com pendências ⇒ snapshot ganha documentRequests; sem ⇒ snapshot intacto', async () => {
     const { store, runtime } = harness();
@@ -113,7 +136,11 @@ describe('15C-1 · projeção no MissionSnapshot (Decisão B)', () => {
 
     await runtime.criar({ ...NOVA, priority: 'alta' });
     const snap = await adapter.load('5511999@c');
-    expect(snap?.documentRequests).toMatchObject({ totalPendentes: 1, prioridadeMaisAlta: 'alta', aguardandoConfirmacao: 0 });
+    expect(snap?.documentRequests).toMatchObject({
+      totalPendentes: 1,
+      prioridadeMaisAlta: 'alta',
+      aguardandoConfirmacao: 0,
+    });
     expect(snap?.documentRequests?.ultimaSolicitacao?.documentName).toBe('Procuração');
     expect(snap?.caseExists).toBe(true); // base preservada
 
@@ -122,7 +149,9 @@ describe('15C-1 · projeção no MissionSnapshot (Decisão B)', () => {
   });
 
   it('falha do read model ⇒ best-effort (snapshot base intacto, nunca quebra o Brain)', async () => {
-    const quebrado = { abertasDoCliente: () => Promise.reject(new Error('down')) } as unknown as JsonDocumentRequestStore;
+    const quebrado = {
+      abertasDoCliente: () => Promise.reject(new Error('down')),
+    } as unknown as JsonDocumentRequestStore;
     const adapter = new DocumentRequestsAwareSnapshotAdapter(inner, quebrado);
     const snap = await adapter.load('x@c');
     expect(snap?.caseExists).toBe(true);

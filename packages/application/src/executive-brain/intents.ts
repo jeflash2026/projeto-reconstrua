@@ -11,7 +11,8 @@ import type { IntentDirective, IntentUrgency, SpeechAct } from '../conversation/
 import type { HumanRole } from './mission-snapshot.js';
 import type { DecisionProvenance } from './provenance.js';
 
-export type BrainIntentKind = 'conversation' | 'use_case' | 'escalation' | 'wait' | 'stop' | 'notification';
+export type BrainIntentKind =
+  'conversation' | 'use_case' | 'escalation' | 'wait' | 'stop' | 'notification';
 
 interface IntentBase {
   readonly id: string;

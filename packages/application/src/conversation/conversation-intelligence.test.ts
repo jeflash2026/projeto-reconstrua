@@ -15,14 +15,26 @@ const FATOS = 'FATOS: situação X; próximo passo Y.';
 
 function intent(over: Partial<ConversationIntent> = {}): ConversationIntent {
   return {
-    id: 'i1', chatId: 'c1', directive: 'speak', speechAct: 'explain', topic: 'relacionamento',
-    references: [], urgency: 'normal', operationalRuleRef: 'RO-X', fundamento: 'f',
-    timingHintMs: null, formedAt: new Date('2026-07-19T12:00:00.000Z'),
+    id: 'i1',
+    chatId: 'c1',
+    directive: 'speak',
+    speechAct: 'explain',
+    topic: 'relacionamento',
+    references: [],
+    urgency: 'normal',
+    operationalRuleRef: 'RO-X',
+    fundamento: 'f',
+    timingHintMs: null,
+    formedAt: new Date('2026-07-19T12:00:00.000Z'),
     ...over,
   };
 }
 
-function contexto(purpose: PerceivedPurpose, outbounds: string[] = [], casoFatos: string | null = FATOS): ConversationContextView {
+function contexto(
+  purpose: PerceivedPurpose,
+  outbounds: string[] = [],
+  casoFatos: string | null = FATOS,
+): ConversationContextView {
   return {
     session: { chatId: 'c1', turns: 3, lastInboundAt: null, lastOutboundAt: null },
     lastPercept: { enrichment: { perceivedPurpose: purpose } } as never,

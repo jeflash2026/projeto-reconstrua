@@ -48,7 +48,10 @@ function curto(s: string, max = 110): string {
 }
 
 /** Deriva a memória ativa do diálogo corrente. Determinística; nunca grava nada. */
-export function memoriaDaConversa(intent: ConversationIntent, context: ConversationContextView): MemoriaDaConversa {
+export function memoriaDaConversa(
+  intent: ConversationIntent,
+  context: ConversationContextView,
+): MemoriaDaConversa {
   // Derivada e RESILIENTE: contexto parcial (sem entries) ⇒ memória vazia —
   // a camada jamais derruba um turno; apenas deixa de ter fio.
   const entries: readonly MemoryEntry[] = [...(context.recentEntries ?? [])].sort(

@@ -39,7 +39,10 @@ export function buildFacts(
   const minDeadlineDays =
     snapshot.deadlines.length === 0
       ? -1
-      : snapshot.deadlines.reduce((min, d) => (d.dueInDays < min ? d.dueInDays : min), Number.POSITIVE_INFINITY);
+      : snapshot.deadlines.reduce(
+          (min, d) => (d.dueInDays < min ? d.dueInDays : min),
+          Number.POSITIVE_INFINITY,
+        );
 
   return {
     perceptKind: percept.kind,

@@ -39,7 +39,8 @@ export const ADVOGADO_RULE_CATALOG: readonly OperationalRuleSpec[] = [
       references: ['andamento-juridico'],
       urgency: 'normal',
     },
-    fundamento: 'Art. 15º (assistiva) + RO-R8-002 (continuidade) — comunicação é da AHRI, nunca do advogado; RO-R7-001',
+    fundamento:
+      'Art. 15º (assistiva) + RO-R8-002 (continuidade) — comunicação é da AHRI, nunca do advogado; RO-R7-001',
   },
   {
     ref: 'RO-3B-CONCLUSAO-CELEBRATE',

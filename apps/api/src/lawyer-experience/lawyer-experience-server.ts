@@ -81,9 +81,16 @@ export function buildLawyerExperienceServer(
       return reply.code(400).send({ error: 'accepted (boolean) é obrigatório' });
     }
     try {
-      return await lx.afterDecision.resolve(advogadoId, decisionId, body.accepted, body.note ?? null);
+      return await lx.afterDecision.resolve(
+        advogadoId,
+        decisionId,
+        body.accepted,
+        body.note ?? null,
+      );
     } catch (error) {
-      return reply.code(403).send({ error: error instanceof Error ? error.message : 'não permitido' });
+      return reply
+        .code(403)
+        .send({ error: error instanceof Error ? error.message : 'não permitido' });
     }
   });
 

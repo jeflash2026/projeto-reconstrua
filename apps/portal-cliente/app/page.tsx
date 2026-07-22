@@ -33,7 +33,11 @@ const PedirLink = (): ReactElement => (
   </main>
 );
 
-const Pagina = async ({ searchParams }: { searchParams: { demo?: string } }): Promise<ReactElement> => {
+const Pagina = async ({
+  searchParams,
+}: {
+  searchParams: { demo?: string };
+}): Promise<ReactElement> => {
   const agora = new Date();
 
   // Demo APENAS em desenvolvimento (validação da experiência — nunca em produção).
@@ -96,7 +100,11 @@ const Pagina = async ({ searchParams }: { searchParams: { demo?: string } }): Pr
         ) : (
           <>
             {dados.atualizacoes.map((n) => (
-              <NovidadeBalao key={`${n.quando}-${n.texto.slice(0, 12)}`} quando={dataHumana(n.quando, agora)} texto={n.texto} />
+              <NovidadeBalao
+                key={`${n.quando}-${n.texto.slice(0, 12)}`}
+                quando={dataHumana(n.quando, agora)}
+                texto={n.texto}
+              />
             ))}
             <p className="novidades__rodape">Para responder, é só me chamar no WhatsApp.</p>
           </>

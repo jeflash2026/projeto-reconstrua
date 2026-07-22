@@ -17,7 +17,8 @@ services:
       # Migrations idempotentes de bootstrap (schemas, roles, event store).
       - ./infrastructure/database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_SUPERUSER:-postgres} -d ${POSTGRES_DB:-reconstrua}']
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_SUPERUSER:-postgres} -d ${POSTGRES_DB:-reconstrua}']
       interval: 10s
       timeout: 5s
       retries: 5

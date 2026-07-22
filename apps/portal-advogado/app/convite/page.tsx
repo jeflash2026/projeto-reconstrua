@@ -20,8 +20,14 @@ const ConvitePage = (): ReactElement => {
   const concluir = async (): Promise<void> => {
     if (busy) return;
     setErro(null);
-    if (senha.length < 8) { setErro('A senha precisa ter pelo menos 8 caracteres.'); return; }
-    if (senha !== confirmar) { setErro('As senhas não conferem.'); return; }
+    if (senha.length < 8) {
+      setErro('A senha precisa ter pelo menos 8 caracteres.');
+      return;
+    }
+    if (senha !== confirmar) {
+      setErro('As senhas não conferem.');
+      return;
+    }
     setBusy(true);
     const result = await definirSenhaAdvogado(token, senha);
     if (!result.ok) {
@@ -37,7 +43,9 @@ const ConvitePage = (): ReactElement => {
       <div className="card">
         <h1 className="page-title">Crie a sua senha</h1>
         {token === '' ? (
-          <div className="error-box" style={{ marginTop: 12 }}>{CONVITE_AUSENTE}</div>
+          <div className="error-box" style={{ marginTop: 12 }}>
+            {CONVITE_AUSENTE}
+          </div>
         ) : (
           <>
             <p className="page-sub">
@@ -45,7 +53,10 @@ const ConvitePage = (): ReactElement => {
             </p>
             <form
               className="form-row"
-              onSubmit={(e) => { e.preventDefault(); void concluir(); }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void concluir();
+              }}
               style={{ flexDirection: 'column', alignItems: 'stretch' }}
             >
               <input
@@ -53,21 +64,33 @@ const ConvitePage = (): ReactElement => {
                 placeholder="Nova senha (mínimo 8 caracteres)"
                 value={senha}
                 autoFocus
-                onChange={(e) => { setSenha(e.target.value); }}
+                onChange={(e) => {
+                  setSenha(e.target.value);
+                }}
               />
               <input
                 type="password"
                 placeholder="Confirme a senha"
                 value={confirmar}
-                onChange={(e) => { setConfirmar(e.target.value); }}
+                onChange={(e) => {
+                  setConfirmar(e.target.value);
+                }}
               />
-              <button type="submit" className="primary" disabled={busy || senha === '' || confirmar === ''}>
+              <button
+                type="submit"
+                className="primary"
+                disabled={busy || senha === '' || confirmar === ''}
+              >
                 Criar senha e continuar
               </button>
             </form>
           </>
         )}
-        {erro ? <div className="error-box" style={{ marginTop: 12 }}>{erro}</div> : null}
+        {erro ? (
+          <div className="error-box" style={{ marginTop: 12 }}>
+            {erro}
+          </div>
+        ) : null}
       </div>
     </div>
   );

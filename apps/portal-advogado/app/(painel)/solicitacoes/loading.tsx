@@ -5,7 +5,9 @@ const Loading = (): ReactElement => (
   <>
     <h1 className="page-title">Solicitações de Documentos</h1>
     <div className="sol-skeleton-grid" aria-busy="true" aria-label="Carregando solicitações">
-      {[1, 2, 3, 4].map((i) => <div key={i} className="sol-skeleton" />)}
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="sol-skeleton" />
+      ))}
     </div>
   </>
 );

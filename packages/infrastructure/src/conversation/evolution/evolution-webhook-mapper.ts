@@ -124,7 +124,8 @@ function parseMessage(message: Record<string, unknown>): Parsed | null {
   }
 
   // Documento (pdf vs. genérico pelo mimetype)
-  const document = asRecord(message['documentMessage']) ?? asRecord(message['documentWithCaptionMessage']);
+  const document =
+    asRecord(message['documentMessage']) ?? asRecord(message['documentWithCaptionMessage']);
   if (document) {
     const inner = asRecord(document['message']);
     const doc = inner ? (asRecord(inner['documentMessage']) ?? document) : document;

@@ -34,9 +34,15 @@ export interface EstrategiaSpec {
   /** Fatos que a REFORÇAM — elevam a confiança quando presentes. */
   readonly reforca?: readonly Condition[];
   /** Riscos condicionais: só aparecem quando os fatos os sustentam. */
-  readonly riscos?: ReadonlyArray<{ readonly quando: readonly Condition[]; readonly risco: string }>;
+  readonly riscos?: ReadonlyArray<{
+    readonly quando: readonly Condition[];
+    readonly risco: string;
+  }>;
   /** Oportunidades condicionais (mesma disciplina dos riscos). */
-  readonly oportunidades?: ReadonlyArray<{ readonly quando: readonly Condition[]; readonly oportunidade: string }>;
+  readonly oportunidades?: ReadonlyArray<{
+    readonly quando: readonly Condition[];
+    readonly oportunidade: string;
+  }>;
   /** Prioridades condicionais — cada uma com a sua justificativa. */
   readonly prioridades?: ReadonlyArray<{
     readonly quando: readonly Condition[];
@@ -80,9 +86,21 @@ export interface RaciocinioEstrategico {
   /** Hipóteses SUSTENTADAS por fatos, ordenadas (confiança > reforços > catálogo). */
   readonly hipoteses: readonly HipoteseAvaliada[];
   readonly hipotesePrincipal: HipoteseAvaliada | null;
-  readonly prioridades: ReadonlyArray<{ readonly acao: string; readonly justificativa: string; readonly ref: string }>;
-  readonly riscos: ReadonlyArray<{ readonly risco: string; readonly sustentadoPor: readonly string[]; readonly ref: string }>;
-  readonly oportunidades: ReadonlyArray<{ readonly oportunidade: string; readonly sustentadoPor: readonly string[]; readonly ref: string }>;
+  readonly prioridades: ReadonlyArray<{
+    readonly acao: string;
+    readonly justificativa: string;
+    readonly ref: string;
+  }>;
+  readonly riscos: ReadonlyArray<{
+    readonly risco: string;
+    readonly sustentadoPor: readonly string[];
+    readonly ref: string;
+  }>;
+  readonly oportunidades: ReadonlyArray<{
+    readonly oportunidade: string;
+    readonly sustentadoPor: readonly string[];
+    readonly ref: string;
+  }>;
   readonly proximaMelhorAcao: {
     readonly acao: string;
     readonly justificativa: string;
@@ -116,11 +134,18 @@ function confiancaDe(reforcos: number): Confianca {
 const RANK: Record<Confianca, number> = { alta: 2, media: 1, baixa: 0 };
 
 /** O raciocínio: avalia TODO o catálogo contra os fatos. Nunca inventa. */
-export function raciocinar(facts: BrainFacts, catalogo: CatalogoDeEstrategias): RaciocinioEstrategico {
+export function raciocinar(
+  facts: BrainFacts,
+  catalogo: CatalogoDeEstrategias,
+): RaciocinioEstrategico {
   const hipoteses: HipoteseAvaliada[] = [];
   const prioridades: Array<{ acao: string; justificativa: string; ref: string }> = [];
   const riscos: Array<{ risco: string; sustentadoPor: readonly string[]; ref: string }> = [];
-  const oportunidades: Array<{ oportunidade: string; sustentadoPor: readonly string[]; ref: string }> = [];
+  const oportunidades: Array<{
+    oportunidade: string;
+    sustentadoPor: readonly string[];
+    ref: string;
+  }> = [];
 
   for (const spec of catalogo) {
     // NUNCA inventar: sem TODOS os requisitos casando, a hipótese não existe.
@@ -130,7 +155,9 @@ export function raciocinar(facts: BrainFacts, catalogo: CatalogoDeEstrategias): 
     if ((spec.criteriosDeExclusao ?? []).some((c) => evaluateCondition(c, facts))) continue;
 
     const sustentadaPor = spec.requer.map((c) => fatoTexto(facts, c));
-    const reforcadaPor = (spec.reforca ?? []).filter((c) => evaluateCondition(c, facts)).map((c) => fatoTexto(facts, c));
+    const reforcadaPor = (spec.reforca ?? [])
+      .filter((c) => evaluateCondition(c, facts))
+      .map((c) => fatoTexto(facts, c));
 
     hipoteses.push({
       ref: spec.ref,
@@ -145,16 +172,25 @@ export function raciocinar(facts: BrainFacts, catalogo: CatalogoDeEstrategias): 
     });
 
     for (const p of spec.prioridades ?? []) {
-      if (casamTodas(p.quando, facts)) prioridades.push({ acao: p.acao, justificativa: p.justificativa, ref: spec.ref });
+      if (casamTodas(p.quando, facts))
+        prioridades.push({ acao: p.acao, justificativa: p.justificativa, ref: spec.ref });
     }
     for (const r of spec.riscos ?? []) {
       if (casamTodas(r.quando, facts)) {
-        riscos.push({ risco: r.risco, sustentadoPor: r.quando.map((c) => fatoTexto(facts, c)), ref: spec.ref });
+        riscos.push({
+          risco: r.risco,
+          sustentadoPor: r.quando.map((c) => fatoTexto(facts, c)),
+          ref: spec.ref,
+        });
       }
     }
     for (const o of spec.oportunidades ?? []) {
       if (casamTodas(o.quando, facts)) {
-        oportunidades.push({ oportunidade: o.oportunidade, sustentadoPor: o.quando.map((c) => fatoTexto(facts, c)), ref: spec.ref });
+        oportunidades.push({
+          oportunidade: o.oportunidade,
+          sustentadoPor: o.quando.map((c) => fatoTexto(facts, c)),
+          ref: spec.ref,
+        });
       }
     }
   }
@@ -162,7 +198,10 @@ export function raciocinar(facts: BrainFacts, catalogo: CatalogoDeEstrategias): 
   // COMPARAR e ESCOLHER (determinístico): confiança > reforços > PRIORIDADE do
   // domínio (11A) > ordem do catálogo. Prioridade ausente = 0 (legado inalterado).
   hipoteses.sort(
-    (a, b) => RANK[b.confianca] - RANK[a.confianca] || b.reforcadaPor.length - a.reforcadaPor.length || b.prioridade - a.prioridade,
+    (a, b) =>
+      RANK[b.confianca] - RANK[a.confianca] ||
+      b.reforcadaPor.length - a.reforcadaPor.length ||
+      b.prioridade - a.prioridade,
   );
   const principal = hipoteses[0] ?? null;
 

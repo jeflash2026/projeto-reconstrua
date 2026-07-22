@@ -20,7 +20,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock } from '@reconstrua/domain';
 import type { DocumentRequestState, ReminderPolicy } from '@reconstrua/domain';
-import type { ConversationGateway, DocumentRequestRuntime, DocumentRequestStore, ObservabilityRuntime } from '@reconstrua/application';
+import type {
+  ConversationGateway,
+  DocumentRequestRuntime,
+  DocumentRequestStore,
+  ObservabilityRuntime,
+} from '@reconstrua/application';
 import { mensagemDeLembrete } from '@reconstrua/application';
 import type { JsonStore } from '../production/json-store.js';
 import { NS_CONFIRMACOES } from './document-arrival-subscriber.js';
@@ -34,7 +39,12 @@ const INTERVALO: Readonly<Record<Exclude<ReminderPolicy, 'nenhum'>, number>> = {
 };
 
 function normalizar(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
 /**
@@ -42,11 +52,16 @@ function normalizar(s: string): string {
  * Pontua por tokens do documentName presentes na resposta; só decide quando
  * EXATAMENTE UMA candidata tem a maior pontuação (>0). Ambíguo/zero ⇒ null.
  */
-export function identificarCandidata(resposta: string, candidatas: readonly DocumentRequestState[]): DocumentRequestState | null {
+export function identificarCandidata(
+  resposta: string,
+  candidatas: readonly DocumentRequestState[],
+): DocumentRequestState | null {
   const texto = normalizar(resposta);
   if (texto === '') return null;
   const pontuadas = candidatas.map((c) => {
-    const tokens = normalizar(c.documentName).split(' ').filter((t) => t.length > 2);
+    const tokens = normalizar(c.documentName)
+      .split(' ')
+      .filter((t) => t.length > 2);
     const pontos = tokens.filter((t) => texto.includes(t)).length;
     return { c, pontos };
   });
@@ -73,11 +88,15 @@ export class DocumentRequestAutonomia {
   async aoReceberTexto(chatId: string, texto: string, now: Date): Promise<void> {
     const d = this.deps;
     try {
-      const ctx = (await d.confirmacoes.get(NS_CONFIRMACOES, chatId)) as { documentId?: string } | null;
+      const ctx = (await d.confirmacoes.get(NS_CONFIRMACOES, chatId)) as {
+        documentId?: string;
+      } | null;
       const documentId = typeof ctx?.documentId === 'string' ? ctx.documentId : null;
       if (documentId === null) return; // nada aguardando confirmação
 
-      const aguardando = (await d.store.abertasDoCliente(chatId)).filter((s) => s.status === 'AWAITING_CONFIRMATION');
+      const aguardando = (await d.store.abertasDoCliente(chatId)).filter(
+        (s) => s.status === 'AWAITING_CONFIRMATION',
+      );
       if (aguardando.length === 0) {
         await d.confirmacoes.del(NS_CONFIRMACOES, chatId).catch(() => undefined);
         return;
@@ -89,13 +108,26 @@ export class DocumentRequestAutonomia {
       await d.runtime.associar(alvo.requestId, documentId, 'confirmacao-cliente', now);
       for (const outra of aguardando) {
         if (outra.requestId !== alvo.requestId) {
-          await d.runtime.retornarPendente(outra.requestId, now, 'cliente indicou que o arquivo é outro documento');
+          await d.runtime.retornarPendente(
+            outra.requestId,
+            now,
+            'cliente indicou que o arquivo é outro documento',
+          );
         }
       }
       await d.confirmacoes.del(NS_CONFIRMACOES, chatId).catch(() => undefined);
-      d.observability.event('document-request', `confirmacao-resolvida ${alvo.requestId} doc=${documentId}`, now);
+      d.observability.event(
+        'document-request',
+        `confirmacao-resolvida ${alvo.requestId} doc=${documentId}`,
+        now,
+      );
     } catch (e) {
-      d.observability.error('document-request', 'confirmacao', now, e instanceof Error ? e.message : String(e));
+      d.observability.error(
+        'document-request',
+        'confirmacao',
+        now,
+        e instanceof Error ? e.message : String(e),
+      );
     }
   }
 
@@ -106,7 +138,12 @@ export class DocumentRequestAutonomia {
     try {
       abertas = await d.store.abertas();
     } catch (e) {
-      d.observability.error('document-request', 'sla:read-model', now, e instanceof Error ? e.message : String(e));
+      d.observability.error(
+        'document-request',
+        'sla:read-model',
+        now,
+        e instanceof Error ? e.message : String(e),
+      );
       return; // read model indisponível ⇒ nada a fazer neste ciclo (estado intacto)
     }
     for (const s of abertas) {
@@ -121,14 +158,29 @@ export class DocumentRequestAutonomia {
         if (registrado.isErr()) continue;
 
         if (d.gateway !== null) {
-          const nome = d.nomeDoCliente !== null ? await d.nomeDoCliente(s.clientId).catch(() => null) : null;
+          const nome =
+            d.nomeDoCliente !== null ? await d.nomeDoCliente(s.clientId).catch(() => null) : null;
           await d.gateway
             .sendText(s.clientId, mensagemDeLembrete(s, nome ?? ''))
-            .then(() => { d.observability.event('document-request', `lembrete-entregue ${s.requestId}`, now); })
-            .catch((e: unknown) => { d.observability.error('document-request', 'lembrete-falhou', now, `${s.requestId}: ${e instanceof Error ? e.message : String(e)}`); });
+            .then(() => {
+              d.observability.event('document-request', `lembrete-entregue ${s.requestId}`, now);
+            })
+            .catch((e: unknown) => {
+              d.observability.error(
+                'document-request',
+                'lembrete-falhou',
+                now,
+                `${s.requestId}: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            });
         }
       } catch (e) {
-        d.observability.error('document-request', 'sla', now, e instanceof Error ? e.message : String(e));
+        d.observability.error(
+          'document-request',
+          'sla',
+          now,
+          e instanceof Error ? e.message : String(e),
+        );
       }
     }
   }

@@ -203,16 +203,17 @@ export class TimelineProjector {
   /** Log pesquisável (substring, case-insensitive, sobre tipo/stream/ator/regra). */
   searchLog(query: string, limit = 200): readonly TimelineEntry[] {
     const q = query.trim().toLowerCase();
-    const matches = q === ''
-      ? this.log
-      : this.log.filter(
-          (e) =>
-            e.eventType.toLowerCase().includes(q) ||
-            e.streamType.toLowerCase().includes(q) ||
-            (e.actor ?? '').toLowerCase().includes(q) ||
-            (e.operationalRuleRef ?? '').toLowerCase().includes(q) ||
-            e.streamId.toLowerCase().includes(q),
-        );
+    const matches =
+      q === ''
+        ? this.log
+        : this.log.filter(
+            (e) =>
+              e.eventType.toLowerCase().includes(q) ||
+              e.streamType.toLowerCase().includes(q) ||
+              (e.actor ?? '').toLowerCase().includes(q) ||
+              (e.operationalRuleRef ?? '').toLowerCase().includes(q) ||
+              e.streamId.toLowerCase().includes(q),
+          );
     return matches.slice(Math.max(0, matches.length - limit));
   }
 }

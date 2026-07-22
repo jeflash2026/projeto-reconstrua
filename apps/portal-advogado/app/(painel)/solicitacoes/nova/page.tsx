@@ -13,14 +13,24 @@ interface MeuCliente {
   nome: string;
 }
 
-const NovaPage = async ({ searchParams }: { searchParams: { caso?: string; cliente?: string } }): Promise<ReactElement> => {
+const NovaPage = async ({
+  searchParams,
+}: {
+  searchParams: { caso?: string; cliente?: string };
+}): Promise<ReactElement> => {
   const perfil = advogadoId() !== null ? await getJson<Perfil>('/advogado/perfil') : null;
-  const meus = advogadoId() !== null ? await getJson<{ clientes: MeuCliente[] }>('/advogado/clientes') : null;
+  const meus =
+    advogadoId() !== null ? await getJson<{ clientes: MeuCliente[] }>('/advogado/clientes') : null;
   return (
     <>
-      <Link href="/solicitacoes" className="sol-voltar">← Solicitações</Link>
+      <Link href="/solicitacoes" className="sol-voltar">
+        ← Solicitações
+      </Link>
       <h1 className="page-title">Solicitar Documento</h1>
-      <p className="page-sub">Você define o que precisa; a AHRI conversa com o cliente, cobra com gentileza e te avisa quando chegar.</p>
+      <p className="page-sub">
+        Você define o que precisa; a AHRI conversa com o cliente, cobra com gentileza e te avisa
+        quando chegar.
+      </p>
       <NovaSolicitacaoForm
         casoInicial={searchParams.caso ?? ''}
         clienteInicial={searchParams.cliente ?? ''}

@@ -16,9 +16,25 @@ const NOW = new Date('2026-07-21T06:23:57.000Z');
 
 function evento(streamType: string, eventType: string): StoredEvent {
   return {
-    id: 'e-1', streamType, streamId: 's-1', version: 1, eventType, isRelevant: true, payload: {},
-    provenance: { factRef: null, actor: 'AHRI', decisionType: null, fundamento: null, operationalRuleRef: null },
-    previousHash: null, hash: 'h', occurredAt: NOW, recordedAt: NOW, globalSeq: 1,
+    id: 'e-1',
+    streamType,
+    streamId: 's-1',
+    version: 1,
+    eventType,
+    isRelevant: true,
+    payload: {},
+    provenance: {
+      factRef: null,
+      actor: 'AHRI',
+      decisionType: null,
+      fundamento: null,
+      operationalRuleRef: null,
+    },
+    previousHash: null,
+    hash: 'h',
+    occurredAt: NOW,
+    recordedAt: NOW,
+    globalSeq: 1,
   };
 }
 
@@ -38,14 +54,21 @@ function onboardingSubscriber(): OnboardingDocumentalSubscriber {
 describe('13ª rodada · interesse casa com os EVENTOS REAIS via SubscriberRegistry', () => {
   it('onboarding-documental É interessado em mission.created e document.recognized (o bug: zero entregas na produção)', () => {
     const registry = new SubscriberRegistry().register(onboardingSubscriber(), 1, NOW);
-    expect(registry.interestedIn(evento('mission', 'mission.created'))).toContain('onboarding-documental');
-    expect(registry.interestedIn(evento('document', 'document.recognized'))).toContain('onboarding-documental');
+    expect(registry.interestedIn(evento('mission', 'mission.created'))).toContain(
+      'onboarding-documental',
+    );
+    expect(registry.interestedIn(evento('document', 'document.recognized'))).toContain(
+      'onboarding-documental',
+    );
   });
 
   it('interesse declarado nos DEMAIS subscribers usa event types reais (nunca stream types)', () => {
     // Os eventos reais do domínio (conferidos no event_store da produção).
     const EVENT_TYPES_REAIS = new Set([
-      'mission.created', 'document.recognized', 'document-request.received', 'operational-state.derived',
+      'mission.created',
+      'document.recognized',
+      'document-request.received',
+      'operational-state.derived',
       'operational-truth.synthesized',
     ]);
     const declarados: string[] = [
@@ -54,6 +77,7 @@ describe('13ª rodada · interesse casa com os EVENTOS REAIS via SubscriberRegis
       ...['operational-state.derived'], // mission-closure-feedback
       ...['mission.created', 'document.recognized'], // onboarding-documental
     ];
-    for (const t of declarados) expect(EVENT_TYPES_REAIS.has(t), `"${t}" não é um event type real`).toBe(true);
+    for (const t of declarados)
+      expect(EVENT_TYPES_REAIS.has(t), `"${t}" não é um event type real`).toBe(true);
   });
 });

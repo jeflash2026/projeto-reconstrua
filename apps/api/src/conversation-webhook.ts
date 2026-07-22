@@ -15,7 +15,10 @@ export interface WebhookResult {
 }
 
 /** Mapeia e PROCESSA um evento da Evolution ponta a ponta (aguarda o turno). */
-export async function mapAndProcess(runtime: ConversationRuntime, payload: unknown): Promise<WebhookResult> {
+export async function mapAndProcess(
+  runtime: ConversationRuntime,
+  payload: unknown,
+): Promise<WebhookResult> {
   const envelope = mapEvolutionUpsert(payload);
   if (!envelope) {
     return { processed: false, chatId: null, skipped: false };

@@ -49,14 +49,21 @@ export class NightShiftRuntime {
             type: 'confirm_distribution',
             explanation:
               'A documentação reconhecida está presente e não há marco de distribuição. A AHRI parou aqui: marcar distribuição é competência sua.',
-            context: docs.map((d) => `documento reconhecido: ${d.contentReference ?? d.documentId} (${d.recognizedAt.toISOString()})`),
+            context: docs.map(
+              (d) =>
+                `documento reconhecido: ${d.contentReference ?? d.documentId} (${d.recognizedAt.toISOString()})`,
+            ),
             fundamento: 'DF-09; INV-AD — marco jurídico é do advogado; RO-R7-001 (parada legítima)',
           });
-          if (opened.createdAt.getTime() === now.getTime() || opened.status === 'open') decisionsOpened += 1;
+          if (opened.createdAt.getTime() === now.getTime() || opened.status === 'open')
+            decisionsOpened += 1;
         }
 
         // 2) Prazo vencido → PARAR para análise jurídica (nunca decidir por ele).
-        const overdue = entries.filter((e) => e.kind === 'prazo' && !e.done && e.dueAt !== null && e.dueAt.getTime() < now.getTime());
+        const overdue = entries.filter(
+          (e) =>
+            e.kind === 'prazo' && !e.done && e.dueAt !== null && e.dueAt.getTime() < now.getTime(),
+        );
         for (const prazo of overdue) {
           risksHighlighted += 1;
           await this.gate.open({
@@ -64,7 +71,10 @@ export class NightShiftRuntime {
             missionId,
             type: 'juridical_review',
             explanation: `O prazo "${prazo.text}" venceu. A AHRI parou aqui: a providência é análise jurídica sua.`,
-            context: [`prazo registrado por você em ${prazo.createdAt.toISOString()}`, `vencimento: ${prazo.dueAt?.toISOString() ?? ''}`],
+            context: [
+              `prazo registrado por você em ${prazo.createdAt.toISOString()}`,
+              `vencimento: ${prazo.dueAt?.toISOString() ?? ''}`,
+            ],
             fundamento: 'DF-09; INV-AD — estratégia processual é humana; RO-R7-001',
           });
           decisionsOpened += 1;
@@ -73,7 +83,18 @@ export class NightShiftRuntime {
       await this.productivity.record(advogado.id, 'relevant_changes', assignments.length, now);
     }
 
-    this.op.observability.event('night-shift', 'run', now, `decisões abertas: ${String(decisionsOpened)}`);
-    return { ranAt: now, advogados: advogados.length, missionsPrepared, decisionsOpened, risksHighlighted };
+    this.op.observability.event(
+      'night-shift',
+      'run',
+      now,
+      `decisões abertas: ${String(decisionsOpened)}`,
+    );
+    return {
+      ranAt: now,
+      advogados: advogados.length,
+      missionsPrepared,
+      decisionsOpened,
+      risksHighlighted,
+    };
   }
 }

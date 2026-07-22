@@ -14,8 +14,14 @@ const ID = DocumentRequestId.fromString('00000000-0000-4000-8000-000000000001');
 
 function criar(over: Partial<Parameters<typeof DocumentRequestAggregate.criar>[0]> = {}) {
   return DocumentRequestAggregate.criar({
-    requestId: ID, caseId: 'CASE-1', clientId: '5511999@c', lawyerId: 'ADV-1',
-    documentName: 'Procuração', requestedBy: 'Dr. João Silva', createdAt: NOW, ...over,
+    requestId: ID,
+    caseId: 'CASE-1',
+    clientId: '5511999@c',
+    lawyerId: 'ADV-1',
+    documentName: 'Procuração',
+    requestedBy: 'Dr. João Silva',
+    createdAt: NOW,
+    ...over,
   });
 }
 
@@ -23,7 +29,14 @@ describe('15C · criação (Decisão 5: pertence a um Caso)', () => {
   it('cria PENDING com auditoria e history inicial; emite created', () => {
     const agg = criar({ priority: 'alta', reminderPolicy: '48h', dueAt: T2 }).unwrap();
     const s = agg.toState();
-    expect(s).toMatchObject({ caseId: 'CASE-1', status: 'PENDING', priority: 'alta', reminderPolicy: '48h', createdBy: 'ADV-1', fulfilledBy: null });
+    expect(s).toMatchObject({
+      caseId: 'CASE-1',
+      status: 'PENDING',
+      priority: 'alta',
+      reminderPolicy: '48h',
+      createdBy: 'ADV-1',
+      fulfilledBy: null,
+    });
     expect(s.history).toHaveLength(1);
     expect(agg.pullDomainEvents().map((e) => e.eventName)).toEqual(['document-request.created']);
   });
@@ -135,16 +148,40 @@ describe('15C · Correção 2 — reidratação SEGURA (fromState valida invaria
     expect(DocumentRequestAggregate.fromState({ ...base(), caseId: ' ' }).isErr()).toBe(true);
     expect(DocumentRequestAggregate.fromState({ ...base(), clientId: '' }).isErr()).toBe(true);
     expect(DocumentRequestAggregate.fromState({ ...base(), documentName: '' }).isErr()).toBe(true);
-    expect(DocumentRequestAggregate.fromState({ ...base(), status: 'QUALQUER' as never }).isErr()).toBe(true);
-    expect(DocumentRequestAggregate.fromState({ ...base(), reminderPolicy: '96h' as never }).isErr()).toBe(true);
-    expect(DocumentRequestAggregate.fromState({ ...base(), dueAt: new Date('invalida') }).isErr()).toBe(true);
+    expect(
+      DocumentRequestAggregate.fromState({ ...base(), status: 'QUALQUER' as never }).isErr(),
+    ).toBe(true);
+    expect(
+      DocumentRequestAggregate.fromState({ ...base(), reminderPolicy: '96h' as never }).isErr(),
+    ).toBe(true);
+    expect(
+      DocumentRequestAggregate.fromState({ ...base(), dueAt: new Date('invalida') }).isErr(),
+    ).toBe(true);
   });
 
   it('fulfilledBy coerente com o estado: RECEIVED exige; abertas proíbem; caminho rejeitado', () => {
-    expect(DocumentRequestAggregate.fromState({ ...base(), status: 'RECEIVED' }).isErr()).toBe(true); // sem fulfilledBy
-    expect(DocumentRequestAggregate.fromState({ ...base(), fulfilledBy: 'doc-1' }).isErr()).toBe(true); // PENDING com fulfilledBy
-    expect(DocumentRequestAggregate.fromState({ ...base(), status: 'RECEIVED', fulfilledBy: '/tmp/a.pdf', receivedAt: T1 }).isErr()).toBe(true);
-    expect(DocumentRequestAggregate.fromState({ ...base(), status: 'RECEIVED', fulfilledBy: 'doc-1', receivedAt: T1 }).isOk()).toBe(true);
+    expect(DocumentRequestAggregate.fromState({ ...base(), status: 'RECEIVED' }).isErr()).toBe(
+      true,
+    ); // sem fulfilledBy
+    expect(DocumentRequestAggregate.fromState({ ...base(), fulfilledBy: 'doc-1' }).isErr()).toBe(
+      true,
+    ); // PENDING com fulfilledBy
+    expect(
+      DocumentRequestAggregate.fromState({
+        ...base(),
+        status: 'RECEIVED',
+        fulfilledBy: '/tmp/a.pdf',
+        receivedAt: T1,
+      }).isErr(),
+    ).toBe(true);
+    expect(
+      DocumentRequestAggregate.fromState({
+        ...base(),
+        status: 'RECEIVED',
+        fulfilledBy: 'doc-1',
+        receivedAt: T1,
+      }).isOk(),
+    ).toBe(true);
   });
 
   it('a mensagem de erro identifica a solicitação e a causa', () => {

@@ -42,7 +42,11 @@ export class HealthRuntime {
   }
 }
 
-export function online(component: string, reportedAt: Date, over: Partial<ComponentHealth> = {}): ComponentHealth {
+export function online(
+  component: string,
+  reportedAt: Date,
+  over: Partial<ComponentHealth> = {},
+): ComponentHealth {
   return {
     component,
     status: 'ONLINE',

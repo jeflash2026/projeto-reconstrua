@@ -27,7 +27,13 @@ const PerfilPage = async (): Promise<ReactElement> => {
               <span className="badge accent">{perfil.role}</span>
             </dd>
             <dt>Status</dt>
-            <dd>{perfil.active ? <span className="badge ok">ativo</span> : <span className="badge bad">inativo</span>}</dd>
+            <dd>
+              {perfil.active ? (
+                <span className="badge ok">ativo</span>
+              ) : (
+                <span className="badge bad">inativo</span>
+              )}
+            </dd>
             <dt>Cadastro</dt>
             <dd>{formatDate(perfil.createdAt)}</dd>
             <dt>ID</dt>
@@ -38,7 +44,9 @@ const PerfilPage = async (): Promise<ReactElement> => {
       {perfil ? (
         <CanalWhatsAppForm atual={canal} />
       ) : (
-        <div className="card empty">Sessão sem identidade válida — clique em Sair e entre novamente.</div>
+        <div className="card empty">
+          Sessão sem identidade válida — clique em Sair e entre novamente.
+        </div>
       )}
     </>
   );

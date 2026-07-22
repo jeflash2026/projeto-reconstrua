@@ -15,14 +15,25 @@ const FATOS = 'FATOS DO CASO: situação X; próximo passo Y; documentos Z.';
 
 function intent(over: Partial<ConversationIntent> = {}): ConversationIntent {
   return {
-    id: 'i1', chatId: 'c1', directive: 'speak', speechAct: 'explain', topic: 'relacionamento',
-    references: [], urgency: 'normal', operationalRuleRef: 'RO-X', fundamento: 'f',
-    timingHintMs: null, formedAt: new Date('2026-07-19T12:00:00.000Z'),
+    id: 'i1',
+    chatId: 'c1',
+    directive: 'speak',
+    speechAct: 'explain',
+    topic: 'relacionamento',
+    references: [],
+    urgency: 'normal',
+    operationalRuleRef: 'RO-X',
+    fundamento: 'f',
+    timingHintMs: null,
+    formedAt: new Date('2026-07-19T12:00:00.000Z'),
     ...over,
   };
 }
 
-function contexto(purpose: PerceivedPurpose | null, casoFatos: string | null = FATOS): ConversationContextView {
+function contexto(
+  purpose: PerceivedPurpose | null,
+  casoFatos: string | null = FATOS,
+): ConversationContextView {
   return {
     session: { chatId: 'c1', turns: 3, lastInboundAt: null, lastOutboundAt: null },
     lastPercept: purpose === null ? null : ({ enrichment: { perceivedPurpose: purpose } } as never),
@@ -65,7 +76,10 @@ describe('PromptBuilder · a dosagem chega ao fraseado', () => {
   const builder = new PromptBuilderRuntime(8);
 
   it('turno social: request SEM casoFatos + instrução mínima no styleGuidance', () => {
-    const req = builder.build(intent({ speechAct: 'greet', topic: 'boas-vindas' }), contexto('greeting'));
+    const req = builder.build(
+      intent({ speechAct: 'greet', topic: 'boas-vindas' }),
+      contexto('greeting'),
+    );
     expect(req.context.casoFatos).toBeNull(); // o LLM nem VÊ os fatos
     expect(req.styleGuidance).toContain('retribua o cumprimento');
     expect(req.styleGuidance).toContain('nada mais');

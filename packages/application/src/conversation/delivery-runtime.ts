@@ -43,7 +43,10 @@ export class DeliveryRuntime {
   constructor(private readonly deps: DeliveryRuntimeDeps) {}
 
   /** Entrega UMA mensagem com cadência humana completa. */
-  async deliverOne(msg: QueuedMessage, context: ConversationContextView): Promise<DeliveredMessage> {
+  async deliverOne(
+    msg: QueuedMessage,
+    context: ConversationContextView,
+  ): Promise<DeliveredMessage> {
     const { timing, delay, typing, gateway, sessions, memory, queue, clock } = this.deps;
 
     const inboundLength = context.lastPercept?.envelope.text?.length ?? 0;

@@ -8,8 +8,18 @@
 import { describe, it, expect } from 'vitest';
 import type { Clock, Uuid, UuidGenerator } from '@reconstrua/domain';
 import { toUuid } from '@reconstrua/domain';
-import type { InboundEnvelope, MissionFacts, MissionUseCaseIntent, StoredEvent } from '@reconstrua/application';
-import { ExecutiveBrainRuntime, emptyMetrics, projectEvent, emptySnapshot } from '@reconstrua/application';
+import type {
+  InboundEnvelope,
+  MissionFacts,
+  MissionUseCaseIntent,
+  StoredEvent,
+} from '@reconstrua/application';
+import {
+  ExecutiveBrainRuntime,
+  emptyMetrics,
+  projectEvent,
+  emptySnapshot,
+} from '@reconstrua/application';
 import { assembleProduction } from './build-production.js';
 import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
 import { InMemoryConversationGateway } from '../conversation/in-memory-conversation-gateway.js';
@@ -32,30 +42,74 @@ class SeqUuid implements UuidGenerator {
   }
 }
 
-function env(chatId: string, text: string, messageId: string, over: Partial<InboundEnvelope> = {}): InboundEnvelope {
+function env(
+  chatId: string,
+  text: string,
+  messageId: string,
+  over: Partial<InboundEnvelope> = {},
+): InboundEnvelope {
   return {
-    messageId, chatId, from: chatId, kind: 'text', text, mediaUrl: null, mediaMimeType: null, fileName: null,
-    location: null, contact: null, reactionEmoji: null, reactionToMessageId: null, editedText: null,
-    deletedMessageId: null, silenceMs: null, timestamp: new Date('2026-07-14T09:00:00.000Z'), ...over,
+    messageId,
+    chatId,
+    from: chatId,
+    kind: 'text',
+    text,
+    mediaUrl: null,
+    mediaMimeType: null,
+    fileName: null,
+    location: null,
+    contact: null,
+    reactionEmoji: null,
+    reactionToMessageId: null,
+    editedText: null,
+    deletedMessageId: null,
+    silenceMs: null,
+    timestamp: new Date('2026-07-14T09:00:00.000Z'),
+    ...over,
   };
 }
 
 function harness() {
   const clock = new TestClock();
   const gateway = new InMemoryConversationGateway(clock);
-  const prod = assembleProduction({ clock, uuid: new SeqUuid(), env: {}, gateway, sleeper: new FakeSleeper(clock) });
+  const prod = assembleProduction({
+    clock,
+    uuid: new SeqUuid(),
+    env: {},
+    gateway,
+    sleeper: new FakeSleeper(clock),
+  });
   return { prod, clock, gateway };
 }
 
 // ═════════ A1 — read models nunca perdem eventos ═════════
 describe('A1 — projeção administrativa sob intercalação e reentrega', () => {
-  function stored(streamType: string, streamId: string, version: number, globalSeq: number): StoredEvent {
+  function stored(
+    streamType: string,
+    streamId: string,
+    version: number,
+    globalSeq: number,
+  ): StoredEvent {
     return {
-      id: `${streamId}-v${String(version)}`, streamType, streamId, version,
-      eventType: `${streamType}.event`, isRelevant: true, payload: {},
-      provenance: { factRef: null, actor: 'AHRI', decisionType: null, fundamento: null, operationalRuleRef: null },
-      previousHash: null, hash: 'h', occurredAt: new Date('2026-07-14T00:00:00.000Z'),
-      recordedAt: new Date('2026-07-14T00:00:00.000Z'), globalSeq,
+      id: `${streamId}-v${String(version)}`,
+      streamType,
+      streamId,
+      version,
+      eventType: `${streamType}.event`,
+      isRelevant: true,
+      payload: {},
+      provenance: {
+        factRef: null,
+        actor: 'AHRI',
+        decisionType: null,
+        fundamento: null,
+        operationalRuleRef: null,
+      },
+      previousHash: null,
+      hash: 'h',
+      occurredAt: new Date('2026-07-14T00:00:00.000Z'),
+      recordedAt: new Date('2026-07-14T00:00:00.000Z'),
+      globalSeq,
     };
   }
 
@@ -101,7 +155,10 @@ describe('A1 — projeção administrativa sob intercalação e reentrega', () =
 describe('A2 — unicidade de missão sob qualquer concorrência (entrada única serializada)', () => {
   const CHAT = '5511900001111@s.whatsapp.net';
 
-  async function missionsOf(prod: ReturnType<typeof harness>['prod'], chatId: string): Promise<number> {
+  async function missionsOf(
+    prod: ReturnType<typeof harness>['prod'],
+    chatId: string,
+  ): Promise<number> {
     await prod.adminView.projector.refresh();
     return prod.adminView.projector.missionsOf(chatId).length;
   }
@@ -118,14 +175,20 @@ describe('A2 — unicidade de missão sob qualquer concorrência (entrada única
   it('RAJADA: 10 mensagens simultâneas → 1 missão', async () => {
     const { prod } = harness();
     await Promise.all(
-      Array.from({ length: 10 }, (_, i) => prod.ingress.receive(env(CHAT, `msg ${String(i)}`, `B${String(i)}`))),
+      Array.from({ length: 10 }, (_, i) =>
+        prod.ingress.receive(env(CHAT, `msg ${String(i)}`, `B${String(i)}`)),
+      ),
     );
     expect(await missionsOf(prod, CHAT)).toBe(1);
   });
 
   it('RETRY/REDELIVERY: o MESMO messageId reenviado 5× em paralelo → 1 missão e 1 processamento', async () => {
     const { prod, gateway } = harness();
-    await Promise.all(Array.from({ length: 5 }, () => prod.ingress.receive(env(CHAT, 'quero dar entrada no meu benefício', 'DUP-1'))));
+    await Promise.all(
+      Array.from({ length: 5 }, () =>
+        prod.ingress.receive(env(CHAT, 'quero dar entrada no meu benefício', 'DUP-1')),
+      ),
+    );
     expect(await missionsOf(prod, CHAT)).toBe(1);
     // Só um turno gerou resposta (os demais foram idempotentes DENTRO da fila).
     expect(gateway.texts().length).toBe(1);
@@ -147,7 +210,11 @@ describe('A2 — unicidade de missão sob qualquer concorrência (entrada única
   it('clientes DIFERENTES continuam paralelos (a serialização é POR conversa)', async () => {
     const { prod } = harness();
     const chats = Array.from({ length: 4 }, (_, i) => `551190000${String(i)}@s.whatsapp.net`);
-    await Promise.all(chats.map((c, i) => prod.ingress.receive(env(c, 'quero dar entrada no meu benefício', `P${String(i)}`))));
+    await Promise.all(
+      chats.map((c, i) =>
+        prod.ingress.receive(env(c, 'quero dar entrada no meu benefício', `P${String(i)}`)),
+      ),
+    );
     for (const c of chats) expect(await missionsOf(prod, c)).toBe(1);
     await prod.adminView.projector.refresh();
     expect(prod.adminView.projector.missions().length).toBe(4);
@@ -171,13 +238,22 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     expect(refs).toContain('RO-4C-FOLLOWUP-TIMEOUT'); // decisão por REGRA, nunca timer cego
     expect(gateway.texts().length).toBe(before + 1); // o cliente FOI chamado de volta
     // Regressão 4D: o follow-up vai para o CHAT REAL, nunca para o missionId.
-    const lastAction = gateway.actions().filter((a) => a.type === 'text').pop();
+    const lastAction = gateway
+      .actions()
+      .filter((a) => a.type === 'text')
+      .pop();
     expect(lastAction?.chatId).toBe(CHAT);
     expect(results.every((r) => r.chatId.includes('@'))).toBe(true);
     // E com humanização: presença 'composing' antes do envio.
     const actions = gateway.actions();
-    const lastText = actions.map((a, i) => (a.type === 'text' ? i : -1)).filter((i) => i >= 0).pop() ?? 0;
-    expect(actions.slice(0, lastText).some((a) => a.type === 'presence' && a.state === 'composing')).toBe(true);
+    const lastText =
+      actions
+        .map((a, i) => (a.type === 'text' ? i : -1))
+        .filter((i) => i >= 0)
+        .pop() ?? 0;
+    expect(
+      actions.slice(0, lastText).some((a) => a.type === 'presence' && a.state === 'composing'),
+    ).toBe(true);
   });
 
   it('follow-up NÃO redispara (sem loop) e segunda tarefa futura permanece agendada', async () => {
@@ -195,14 +271,18 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     // 1º acompanhamento vence e é decidido por Regra Operacional.
     clock.advance(4 * 24 * 60 * 60_000);
     const first = await prod.ingress.tick(clock.now());
-    expect(first.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain('RO-4C-FOLLOWUP-TIMEOUT');
+    expect(first.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain(
+      'RO-4C-FOLLOWUP-TIMEOUT',
+    );
 
     // Sem recorrência, um tick imediato seguinte não redispara (comprovado acima).
     // Com recorrência: passada a cadência, o cliente é acompanhado NOVAMENTE.
     clock.advance(3 * 24 * 60 * 60_000 + 60_000);
     const second = await prod.ingress.tick(clock.now());
     expect(second.length).toBeGreaterThanOrEqual(1);
-    expect(second.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain('RO-4C-FOLLOWUP-TIMEOUT');
+    expect(second.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain(
+      'RO-4C-FOLLOWUP-TIMEOUT',
+    );
   });
 
   it('B4.2 — a recorrência tem TETO anti-spam (não acompanha infinitamente)', async () => {
@@ -213,7 +293,9 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     for (let i = 0; i < 20; i += 1) {
       clock.advance(4 * 24 * 60 * 60_000);
       const results = await prod.ingress.tick(clock.now());
-      followUps += results.flatMap((r) => r.intents.map((idx) => idx.operationalRuleRef)).filter((ref) => ref === 'RO-4C-FOLLOWUP-TIMEOUT').length;
+      followUps += results
+        .flatMap((r) => r.intents.map((idx) => idx.operationalRuleRef))
+        .filter((ref) => ref === 'RO-4C-FOLLOWUP-TIMEOUT').length;
     }
     // Limitado: nunca acompanha indefinidamente (streak ≤ maxConsecutive), longe de 20.
     expect(followUps).toBeLessThanOrEqual(8);
@@ -231,12 +313,23 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     // Encerramento OFICIAL pelo operador (o mesmo caminho da rota /admin/.../encerrar):
     // Mission Runtime existente + drain do outbox → Estado terminal ENCERRADA projetado.
     const facts: MissionFacts = {
-      chatId: CHAT, senderId: 'operador', messageId: 'CLOSE-1', perceptKind: 'closure',
-      text: 'perícia concluída', mediaRef: null, fileName: null, mimeType: null, occurredAt: clock.now(),
+      chatId: CHAT,
+      senderId: 'operador',
+      messageId: 'CLOSE-1',
+      perceptKind: 'closure',
+      text: 'perícia concluída',
+      mediaRef: null,
+      fileName: null,
+      mimeType: null,
+      occurredAt: clock.now(),
     };
     const closeIntent: MissionUseCaseIntent = {
-      useCase: 'CloseMission', references: ['encerramento'], decisor: 'operador', tipo: 'encerramento',
-      fundamento: 'Estado Operacional terminal — ENCERRADA (DF-11); RO-R9-001', operationalRuleRef: 'RO-STOP-CONCLUDED-001',
+      useCase: 'CloseMission',
+      references: ['encerramento'],
+      decisor: 'operador',
+      tipo: 'encerramento',
+      fundamento: 'Estado Operacional terminal — ENCERRADA (DF-11); RO-R9-001',
+      operationalRuleRef: 'RO-STOP-CONCLUDED-001',
     };
     const closed = await prod.adminView.mission.execute(facts, [closeIntent]);
     expect(closed.outcomes.find((o) => o.useCase === 'CloseMission')?.ok).toBe(true);
@@ -254,7 +347,9 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     // B4.2 × B4.1: a recorrência NÃO revive um processo encerrado — a cadeia fica morta.
     clock.advance(3 * 24 * 60 * 60_000 + 60_000);
     const afterCadence = await prod.ingress.tick(clock.now());
-    expect(afterCadence.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).not.toContain('RO-4C-FOLLOWUP-TIMEOUT');
+    expect(afterCadence.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).not.toContain(
+      'RO-4C-FOLLOWUP-TIMEOUT',
+    );
     expect(gateway.texts().length).toBe(textsBefore);
   });
 
@@ -267,10 +362,26 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     const runCmd = async (useCase: string, ruleRef: string): Promise<void> => {
       await prod.adminView.mission.execute(
         {
-          chatId: CHAT, senderId: 'operador', messageId: `${useCase}-1`, perceptKind: 'command',
-          text: null, mediaRef: null, fileName: null, mimeType: null, occurredAt: clock.now(),
+          chatId: CHAT,
+          senderId: 'operador',
+          messageId: `${useCase}-1`,
+          perceptKind: 'command',
+          text: null,
+          mediaRef: null,
+          fileName: null,
+          mimeType: null,
+          occurredAt: clock.now(),
         },
-        [{ useCase, references: [], decisor: 'operador', tipo: 'ciclo', fundamento: 'ato operacional; RO-R9-001', operationalRuleRef: ruleRef }],
+        [
+          {
+            useCase,
+            references: [],
+            decisor: 'operador',
+            tipo: 'ciclo',
+            fundamento: 'ato operacional; RO-R9-001',
+            operationalRuleRef: ruleRef,
+          },
+        ],
       );
       await prod.outbox.drainToIdle();
     };
@@ -279,7 +390,9 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     await runCmd('CloseMission', 'RO-STOP-CONCLUDED-001');
     clock.advance(4 * 24 * 60 * 60_000);
     const whileClosed = await prod.ingress.tick(clock.now());
-    expect(whileClosed.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).not.toContain('RO-4C-FOLLOWUP-TIMEOUT');
+    expect(whileClosed.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).not.toContain(
+      'RO-4C-FOLLOWUP-TIMEOUT',
+    );
 
     // 2) REABRE (evento append-only) → o Workflow re-arma; a recorrência volta a valer.
     await runCmd('ReopenMission', 'RO-R9-001');
@@ -288,12 +401,16 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     // 3) Passada a cadência do acompanhamento re-armado, o cliente é acompanhado de novo.
     clock.advance(4 * 24 * 60 * 60_000);
     const afterReopen = await prod.ingress.tick(clock.now());
-    expect(afterReopen.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain('RO-4C-FOLLOWUP-TIMEOUT');
+    expect(afterReopen.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain(
+      'RO-4C-FOLLOWUP-TIMEOUT',
+    );
 
     // 4) E RECORRE após a reabertura (não é um disparo único).
     clock.advance(3 * 24 * 60 * 60_000 + 60_000);
     const recurs = await prod.ingress.tick(clock.now());
-    expect(recurs.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain('RO-4C-FOLLOWUP-TIMEOUT');
+    expect(recurs.flatMap((r) => r.intents.map((i) => i.operationalRuleRef))).toContain(
+      'RO-4C-FOLLOWUP-TIMEOUT',
+    );
   });
 
   it('BLOQUEIO por regra: missão ENCERRADA → o Brain cala (wait), nunca mensagem mecânica', async () => {
@@ -301,14 +418,23 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     const uuid = new SeqUuid();
     const brain = new ExecutiveBrainRuntime({ clock, uuid });
     const outcome = await brain.decide({
-      percept: { kind: 'timeout', sentiment: 'unknown', urgency: 'unknown', hasArtifacts: false, artifactCount: 0, silenceMs: 999 },
+      percept: {
+        kind: 'timeout',
+        sentiment: 'unknown',
+        urgency: 'unknown',
+        hasArtifacts: false,
+        artifactCount: 0,
+        silenceMs: 999,
+      },
       snapshot: { ...emptySnapshot('m1'), stateCode: 'ENCERRADA' },
       memory: { turnCount: 5, lastOutboundAgoMs: null },
       rules: PRODUCTION_RULE_CATALOG,
       chatId: 'c1',
       now: clock.now(),
     });
-    expect(outcome.intents.some((i) => i.kind === 'conversation' && i.directive === 'speak')).toBe(false);
+    expect(outcome.intents.some((i) => i.kind === 'conversation' && i.directive === 'speak')).toBe(
+      false,
+    );
     expect(outcome.intents[0]?.kind === 'stop' || outcome.intents[0]?.kind === 'wait').toBe(true);
   });
 
@@ -316,7 +442,14 @@ describe('A3 — a AHRI jamais abandona o cliente (follow-up decidido pelo Brain
     const clock = new TestClock();
     const brain = new ExecutiveBrainRuntime({ clock, uuid: new SeqUuid() });
     const outcome = await brain.decide({
-      percept: { kind: 'timeout', sentiment: 'unknown', urgency: 'unknown', hasArtifacts: false, artifactCount: 0, silenceMs: 999 },
+      percept: {
+        kind: 'timeout',
+        sentiment: 'unknown',
+        urgency: 'unknown',
+        hasArtifacts: false,
+        artifactCount: 0,
+        silenceMs: 999,
+      },
       snapshot: { ...emptySnapshot('m1'), matterRequiresHuman: true },
       memory: { turnCount: 5, lastOutboundAgoMs: null },
       rules: PRODUCTION_RULE_CATALOG,

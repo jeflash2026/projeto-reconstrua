@@ -37,7 +37,11 @@ export async function getJson<T>(path: string): Promise<T | null> {
   }
 }
 
-export async function sendJson<T>(method: 'POST' | 'PATCH' | 'PUT' | 'GET', path: string, body?: unknown): Promise<T | null> {
+export async function sendJson<T>(
+  method: 'POST' | 'PATCH' | 'PUT' | 'GET',
+  path: string,
+  body?: unknown,
+): Promise<T | null> {
   const id = advogadoId();
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (ADVOGADO_TOKEN) headers['authorization'] = `Bearer ${ADVOGADO_TOKEN}`;
@@ -107,7 +111,12 @@ export interface ProcessDetail {
   missionId: string;
   timeline: TimelineEntry[];
   progress: { steps: string[] } | null;
-  documents: Array<{ documentId: string; contentReference: string | null; mimeType: string | null; recognizedAt: string }>;
+  documents: Array<{
+    documentId: string;
+    contentReference: string | null;
+    mimeType: string | null;
+    recognizedAt: string;
+  }>;
   pericias: Array<{ periciaId: string; framedAt: string }>;
   juridical: JuridicalEntry[];
 }
@@ -122,7 +131,8 @@ export interface Perfil {
 }
 
 // ── 15C-2 · Solicitações Complementares de Documentos (Workflow 2) ─────────────
-export type SolicitacaoStatus = 'PENDING' | 'AWAITING_CONFIRMATION' | 'RECEIVED' | 'REOPENED' | 'CANCELLED';
+export type SolicitacaoStatus =
+  'PENDING' | 'AWAITING_CONFIRMATION' | 'RECEIVED' | 'REOPENED' | 'CANCELLED';
 export interface SolicitacaoHistorico {
   at: string;
   por: string;

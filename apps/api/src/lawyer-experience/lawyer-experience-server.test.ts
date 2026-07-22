@@ -8,7 +8,12 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Clock, Uuid, UuidGenerator } from '@reconstrua/domain';
 import { toUuid } from '@reconstrua/domain';
-import type { InboundEnvelope, PlantaoBoard, DecisionRequest, ProductivityReport } from '@reconstrua/application';
+import type {
+  InboundEnvelope,
+  PlantaoBoard,
+  DecisionRequest,
+  ProductivityReport,
+} from '@reconstrua/application';
 import {
   assembleLawyerExperience,
   FakeSleeper,
@@ -67,14 +72,25 @@ describe('Lawyer Experience (3D) — o advogado nunca começa do zero', () => {
   const ADVOGADO_SECRET = 'TEST-LX-ADVOGADO-SECRET';
   const ADMIN_SECRET = 'TEST-LX-ADMIN-SECRET';
   // GO-LIVE-04.2: toda rota /lx/* exige o Bearer do advogado ALÉM do x-advogado-id.
-  const H = (): Record<string, string> => ({ 'x-advogado-id': ana, authorization: `Bearer ${ADVOGADO_SECRET}` });
+  const H = (): Record<string, string> => ({
+    'x-advogado-id': ana,
+    authorization: `Bearer ${ADVOGADO_SECRET}`,
+  });
   const nightShift = (): Record<string, string> => ({ authorization: `Bearer ${ADMIN_SECRET}` });
 
   beforeAll(async () => {
     clock = new TestClock();
     gateway = new InMemoryConversationGateway(clock);
-    lx = assembleLawyerExperience({ clock, uuid: new SeqUuid(), gateway, sleeper: new FakeSleeper(clock) });
-    app = buildLawyerExperienceServer(lx, { advogadoSecret: ADVOGADO_SECRET, adminSecret: ADMIN_SECRET });
+    lx = assembleLawyerExperience({
+      clock,
+      uuid: new SeqUuid(),
+      gateway,
+      sleeper: new FakeSleeper(clock),
+    });
+    app = buildLawyerExperienceServer(lx, {
+      advogadoSecret: ADVOGADO_SECRET,
+      adminSecret: ADMIN_SECRET,
+    });
 
     // MADRUGADA (03:00): cliente chega e envia documento — a operação trabalha sozinha.
     await lx.op.conversation.receive(envelope('text', 'olá, sou o Carlos', 'M1'));
@@ -86,7 +102,11 @@ describe('Lawyer Experience (3D) — o advogado nunca começa do zero', () => {
   });
 
   it('PREPARAÇÃO NOTURNA: abre o ponto de decisão (documentação presente → confirmar distribuição)', async () => {
-    const res = await app.inject({ method: 'POST', url: '/lx-admin/night-shift', headers: nightShift() });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/lx-admin/night-shift',
+      headers: nightShift(),
+    });
     const report: { decisionsOpened: number; missionsPrepared: number } = res.json();
     expect(report.missionsPrepared).toBe(1);
     expect(report.decisionsOpened).toBeGreaterThanOrEqual(1);
@@ -125,8 +145,15 @@ describe('Lawyer Experience (3D) — o advogado nunca começa do zero', () => {
   });
 
   it('BENCHMARK antes × depois: eventos crus vs. linhas mostradas (dobra auditável)', async () => {
-    const quadroRes = await app.inject({ method: 'GET', url: `/lx/processos/${missionId}/quadro`, headers: H() });
-    const quadro: { board: { rawNewEvents: number }; fullTimeline: Array<{ count: number; events: unknown[] }> } = quadroRes.json();
+    const quadroRes = await app.inject({
+      method: 'GET',
+      url: `/lx/processos/${missionId}/quadro`,
+      headers: H(),
+    });
+    const quadro: {
+      board: { rawNewEvents: number };
+      fullTimeline: Array<{ count: number; events: unknown[] }>;
+    } = quadroRes.json();
 
     const rawTotal = quadro.fullTimeline.reduce((sum, c) => sum + c.count, 0);
     const shownLines = quadro.fullTimeline.length;
@@ -155,7 +182,8 @@ describe('Lawyer Experience (3D) — o advogado nunca começa do zero', () => {
       headers: H(),
       payload: { accepted: true, note: 'Distribuído na 2ª Vara, processo nº 2026.777' },
     });
-    const outcome: { missionContinued: boolean; clientInformed: boolean; ruleRefs: string[] } = res.json();
+    const outcome: { missionContinued: boolean; clientInformed: boolean; ruleRefs: string[] } =
+      res.json();
 
     expect(outcome.missionContinued).toBe(true);
     expect(outcome.clientInformed).toBe(true);
@@ -198,7 +226,13 @@ describe('Lawyer Experience (3D) — o advogado nunca começa do zero', () => {
   it('COMPETÊNCIA PRIVATIVA: a AHRI jamais resolve uma decisão; outro advogado não resolve a de Ana', async () => {
     const bruno = (await lx.op.staff.register('advogado', 'Dr. Bruno', null)).id;
     // Abre nova decisão (prazo vencido de Ana).
-    await lx.op.work.addEntry({ advogadoId: ana, missionId, kind: 'prazo', text: 'Prazo teste', dueAt: new Date('2026-07-13T00:00:00.000Z') });
+    await lx.op.work.addEntry({
+      advogadoId: ana,
+      missionId,
+      kind: 'prazo',
+      text: 'Prazo teste',
+      dueAt: new Date('2026-07-13T00:00:00.000Z'),
+    });
     await lx.nightShift.run(clock.now());
     const open = (await lx.gate.awaiting(ana)).find((d) => d.type === 'juridical_review');
     expect(open).toBeDefined();
@@ -228,39 +262,71 @@ describe('Lawyer Experience (3D) — o advogado nunca começa do zero', () => {
         const semTudo = await app.inject({ method: r.method, url: r.url });
         expect(semTudo.statusCode, `${r.url} sem headers`).toBe(401);
         // x-advogado-id VÁLIDO mas SEM segredo: identidade não é sessão → 401.
-        const soIdentidade = await app.inject({ method: r.method, url: r.url, headers: { 'x-advogado-id': ana } });
+        const soIdentidade = await app.inject({
+          method: r.method,
+          url: r.url,
+          headers: { 'x-advogado-id': ana },
+        });
         expect(soIdentidade.statusCode, `${r.url} só x-advogado-id`).toBe(401);
       }
     });
 
     it('SESSÃO inválida/adulterada: Bearer errado → 401', async () => {
       for (const r of rotasLx) {
-        const res = await app.inject({ method: r.method, url: r.url, headers: { 'x-advogado-id': ana, authorization: 'Bearer token-adulterado' } });
+        const res = await app.inject({
+          method: r.method,
+          url: r.url,
+          headers: { 'x-advogado-id': ana, authorization: 'Bearer token-adulterado' },
+        });
         expect(res.statusCode, r.url).toBe(401);
       }
     });
 
     it('PERFIL: Bearer válido mas x-advogado-id ausente/inexistente → 401 (perfil não resolvido)', async () => {
-      const semId = await app.inject({ method: 'GET', url: '/lx/plantao', headers: { authorization: `Bearer ${ADVOGADO_SECRET}` } });
+      const semId = await app.inject({
+        method: 'GET',
+        url: '/lx/plantao',
+        headers: { authorization: `Bearer ${ADVOGADO_SECRET}` },
+      });
       expect(semId.statusCode).toBe(401);
-      const idFalso = await app.inject({ method: 'GET', url: '/lx/plantao', headers: { 'x-advogado-id': 'fantasma', authorization: `Bearer ${ADVOGADO_SECRET}` } });
+      const idFalso = await app.inject({
+        method: 'GET',
+        url: '/lx/plantao',
+        headers: { 'x-advogado-id': 'fantasma', authorization: `Bearer ${ADVOGADO_SECRET}` },
+      });
       expect(idFalso.statusCode).toBe(401);
     });
 
     it('CRON DO DONO: /lx-admin/night-shift exige o segredo do Admin — não o do advogado', async () => {
       const aberto = await app.inject({ method: 'POST', url: '/lx-admin/night-shift' });
       expect(aberto.statusCode).toBe(401);
-      const comAdvogado = await app.inject({ method: 'POST', url: '/lx-admin/night-shift', headers: { authorization: `Bearer ${ADVOGADO_SECRET}` } });
+      const comAdvogado = await app.inject({
+        method: 'POST',
+        url: '/lx-admin/night-shift',
+        headers: { authorization: `Bearer ${ADVOGADO_SECRET}` },
+      });
       expect(comAdvogado.statusCode).toBe(401); // segredo de advogado NÃO abre o cron
-      const comAdmin = await app.inject({ method: 'POST', url: '/lx-admin/night-shift', headers: nightShift() });
+      const comAdmin = await app.inject({
+        method: 'POST',
+        url: '/lx-admin/night-shift',
+        headers: nightShift(),
+      });
       expect(comAdmin.statusCode).toBe(200);
     });
 
     it('FAIL-CLOSED: servidor sem segredo ⇒ toda rota /lx/* responde 401 (nunca abre por engano)', async () => {
       const semSegredo = buildLawyerExperienceServer(lx, { advogadoSecret: '', adminSecret: '' });
-      const res = await semSegredo.inject({ method: 'GET', url: '/lx/plantao', headers: { 'x-advogado-id': ana, authorization: 'Bearer ' + ADVOGADO_SECRET } });
+      const res = await semSegredo.inject({
+        method: 'GET',
+        url: '/lx/plantao',
+        headers: { 'x-advogado-id': ana, authorization: 'Bearer ' + ADVOGADO_SECRET },
+      });
       expect(res.statusCode).toBe(401);
-      const cron = await semSegredo.inject({ method: 'POST', url: '/lx-admin/night-shift', headers: { authorization: 'Bearer ' + ADMIN_SECRET } });
+      const cron = await semSegredo.inject({
+        method: 'POST',
+        url: '/lx-admin/night-shift',
+        headers: { authorization: 'Bearer ' + ADMIN_SECRET },
+      });
       expect(cron.statusCode).toBe(401);
     });
   });

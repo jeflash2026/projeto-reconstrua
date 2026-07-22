@@ -48,7 +48,9 @@ export class InMemoryHandoffStore implements HandoffStore {
     return Promise.resolve(this.tasks.get(id) ?? null);
   }
   openByRole(role: HumanRole): Promise<readonly HandoffTask[]> {
-    return Promise.resolve([...this.tasks.values()].filter((t) => t.role === role && t.status === 'open'));
+    return Promise.resolve(
+      [...this.tasks.values()].filter((t) => t.role === role && t.status === 'open'),
+    );
   }
 }
 

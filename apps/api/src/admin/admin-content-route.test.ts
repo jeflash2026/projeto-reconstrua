@@ -54,7 +54,11 @@ async function appWithContent(): Promise<ReturnType<typeof buildAdminServer>> {
 describe('CAT-02C · GET /admin/documents/:documentId/content', () => {
   it('documento com conteúdo ⇒ 200 + bytes + content-type', async () => {
     const app = await appWithContent();
-    const res = await app.inject({ method: 'GET', url: '/admin/documents/DOC-1/content', headers: { authorization: `Bearer ${CONTENT_SECRET}` } });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin/documents/DOC-1/content',
+      headers: { authorization: `Bearer ${CONTENT_SECRET}` },
+    });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('application/pdf');
     expect(new Uint8Array(res.rawPayload)).toEqual(bytes);
@@ -62,7 +66,11 @@ describe('CAT-02C · GET /admin/documents/:documentId/content', () => {
 
   it('documento sem conteúdo ⇒ 404', async () => {
     const app = await appWithContent();
-    const res = await app.inject({ method: 'GET', url: '/admin/documents/DESCONHECIDO/content', headers: { authorization: `Bearer ${CONTENT_SECRET}` } });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin/documents/DESCONHECIDO/content',
+      headers: { authorization: `Bearer ${CONTENT_SECRET}` },
+    });
     expect(res.statusCode).toBe(404);
   });
 });

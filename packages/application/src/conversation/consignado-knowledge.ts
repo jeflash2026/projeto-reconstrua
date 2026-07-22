@@ -34,25 +34,58 @@ export const CATALOGO_CONSIGNADO_INSS: CatalogoDeConhecimento = [
     detectar: (r): DeteccaoDeFato | null => {
       if (/(descont\w*[^.?!]*n[ãa]o (reconhe|autoriz))|(n[ãa]o reconhe[çc]o[^.?!]*descont)/.test(r))
         return { valor: 'descontos_nao_reconhecidos' };
-      if (/empr[ée]stimo[^.?!]*n[ãa]o (fiz|contratei|pedi|solicitei)/.test(r)) return { valor: 'emprestimo_nao_contratado' };
-      if (/juros?[^.?!]*(abusiv|muito alto|alt[oa]s? demais)/.test(r)) return { valor: 'juros_abusivos' };
-      if (/(parcela|desconto)[^.?!]*(errad|maior|a mais)/.test(r)) return { valor: 'desconto_errado' };
+      if (/empr[ée]stimo[^.?!]*n[ãa]o (fiz|contratei|pedi|solicitei)/.test(r))
+        return { valor: 'emprestimo_nao_contratado' };
+      if (/juros?[^.?!]*(abusiv|muito alto|alt[oa]s? demais)/.test(r))
+        return { valor: 'juros_abusivos' };
+      if (/(parcela|desconto)[^.?!]*(errad|maior|a mais)/.test(r))
+        return { valor: 'desconto_errado' };
       // GO-LIVE 11A — novos cenários jurídicos do consignado INSS (acréscimo).
-      if (/rmc|reserva de margem|cart[ãa]o (de )?(cr[ée]dito )?consignad|cart[ãa]o benef[íi]cio/.test(r)) return { valor: 'cartao_rmc' };
-      if (/(seguro|tarifa|taxa)[^.?!]*(embutid|junto|n[ãa]o (contratei|pedi|sabia|solicitei|autorizei))/.test(r)) return { valor: 'tarifas_indevidas' };
-      if (/(portabilidade|refinancia\w*)[^.?!]*(n[ãa]o (autoriz|pedi|fiz|contratei|sabia))|(n[ãa]o autorizei|sem (minha )?autoriza\w*)[^.?!]*(portabilidade|refinancia)/.test(r)) return { valor: 'portabilidade_indevida' };
-      if (/superendivid|n[ãa]o (sobra|consigo)[^.?!]*(pagar|comer|viver|sobreviver|nada)|comprometi\w*[^.?!]*tudo|n[ãa]o sobra nada/.test(r)) return { valor: 'superendividamento' };
-      if (/(desconto|parcela)s?[^.?!]*(acima|ultrapass|passou|mais de 35|mais de 45)|extrapol\w*[^.?!]*margem|margem[^.?!]*(estourad|extrapol|acima)/.test(r)) return { valor: 'margem_extrapolada' };
+      if (
+        /rmc|reserva de margem|cart[ãa]o (de )?(cr[ée]dito )?consignad|cart[ãa]o benef[íi]cio/.test(
+          r,
+        )
+      )
+        return { valor: 'cartao_rmc' };
+      if (
+        /(seguro|tarifa|taxa)[^.?!]*(embutid|junto|n[ãa]o (contratei|pedi|sabia|solicitei|autorizei))/.test(
+          r,
+        )
+      )
+        return { valor: 'tarifas_indevidas' };
+      if (
+        /(portabilidade|refinancia\w*)[^.?!]*(n[ãa]o (autoriz|pedi|fiz|contratei|sabia))|(n[ãa]o autorizei|sem (minha )?autoriza\w*)[^.?!]*(portabilidade|refinancia)/.test(
+          r,
+        )
+      )
+        return { valor: 'portabilidade_indevida' };
+      if (
+        /superendivid|n[ãa]o (sobra|consigo)[^.?!]*(pagar|comer|viver|sobreviver|nada)|comprometi\w*[^.?!]*tudo|n[ãa]o sobra nada/.test(
+          r,
+        )
+      )
+        return { valor: 'superendividamento' };
+      if (
+        /(desconto|parcela)s?[^.?!]*(acima|ultrapass|passou|mais de 35|mais de 45)|extrapol\w*[^.?!]*margem|margem[^.?!]*(estourad|extrapol|acima)/.test(
+          r,
+        )
+      )
+        return { valor: 'margem_extrapolada' };
       return null;
     },
   },
   {
     factKey: 'tempo_do_problema',
     detectar: (r): DeteccaoDeFato | null => {
-      if (/mais de (dois|2) anos|h[áa]\s+(uns\s+)?([2-9]|\d{2,})\s+anos|faz\s+(uns\s+)?([2-9]|\d{2,})\s+anos/.test(r))
+      if (
+        /mais de (dois|2) anos|h[áa]\s+(uns\s+)?([2-9]|\d{2,})\s+anos|faz\s+(uns\s+)?([2-9]|\d{2,})\s+anos/.test(
+          r,
+        )
+      )
         return { valor: 'mais_de_2_anos' };
       if (/h[áa]\s+(um|1)\s+ano|faz\s+(um|1)\s+ano/.test(r)) return { valor: 'cerca_de_1_ano' };
-      if (/recente|esse m[êe]s|m[êe]s passado|semana|dias|come[çc]ou agora/.test(r)) return { valor: 'recente' };
+      if (/recente|esse m[êe]s|m[êe]s passado|semana|dias|come[çc]ou agora/.test(r))
+        return { valor: 'recente' };
       return null;
     },
   },
@@ -73,7 +106,8 @@ export const CATALOGO_CONSIGNADO_INSS: CatalogoDeConhecimento = [
     factKey: 'documentacao_mencionada',
     detectar: (r): DeteccaoDeFato | null => {
       if (/hiscon|hist[óo]rico de (empr[ée]stimos? )?consignad/.test(r)) return { valor: 'hiscon' };
-      if (/extrato do inss|extrato de (empr[ée]stimo|pagamento)/.test(r)) return { valor: 'extrato_inss' };
+      if (/extrato do inss|extrato de (empr[ée]stimo|pagamento)/.test(r))
+        return { valor: 'extrato_inss' };
       if (/contracheque|holerite/.test(r)) return { valor: 'contracheque' };
       // GO-LIVE 11A — documentos adicionais frequentes (acréscimo).
       if (/c[óo]pia do contrato|contrato assinado|o contrato/.test(r)) return { valor: 'contrato' };
@@ -84,9 +118,12 @@ export const CATALOGO_CONSIGNADO_INSS: CatalogoDeConhecimento = [
   {
     factKey: 'interesse',
     detectar: (r): DeteccaoDeFato | null => {
-      if (/revis[ãa]o|revisar|rever (os )?contratos?/.test(r)) return { valor: 'revisao_consignado' };
-      if (/cancelar (o )?(desconto|empr[ée]stimo)|parar de descontar/.test(r)) return { valor: 'cancelamento' };
-      if (/devolu[çc][ãa]o|dinheiro de volta|reembolso/.test(r)) return { valor: 'devolucao_valores' };
+      if (/revis[ãa]o|revisar|rever (os )?contratos?/.test(r))
+        return { valor: 'revisao_consignado' };
+      if (/cancelar (o )?(desconto|empr[ée]stimo)|parar de descontar/.test(r))
+        return { valor: 'cancelamento' };
+      if (/devolu[çc][ãa]o|dinheiro de volta|reembolso/.test(r))
+        return { valor: 'devolucao_valores' };
       return null;
     },
   },

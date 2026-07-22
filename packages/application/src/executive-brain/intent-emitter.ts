@@ -38,11 +38,21 @@ export class IntentEmitter {
           urgency: action.urgency,
         };
       case 'use_case':
-        return { ...base, kind: 'use_case', useCase: action.useCase, references: action.references };
+        return {
+          ...base,
+          kind: 'use_case',
+          useCase: action.useCase,
+          references: action.references,
+        };
       case 'escalation':
         return { ...base, kind: 'escalation', role: action.role, reasonCode: action.reasonCode };
       case 'wait':
-        return { ...base, kind: 'wait', reasonCode: action.reasonCode, untilHintMs: action.untilHintMs };
+        return {
+          ...base,
+          kind: 'wait',
+          reasonCode: action.reasonCode,
+          untilHintMs: action.untilHintMs,
+        };
       case 'stop':
         return { ...base, kind: 'stop', reasonCode: action.reasonCode };
       case 'notification':

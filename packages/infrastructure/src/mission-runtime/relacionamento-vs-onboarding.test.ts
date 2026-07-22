@@ -13,28 +13,52 @@ import { assembleAdvogadoOperation, FakeSleeper, InMemoryConversationGateway } f
 
 class TestClock implements Clock {
   private t = new Date('2026-07-19T12:00:00.000Z');
-  now(): Date { return new Date(this.t.getTime()); }
-  advance(ms: number): void { this.t = new Date(this.t.getTime() + ms); }
+  now(): Date {
+    return new Date(this.t.getTime());
+  }
+  advance(ms: number): void {
+    this.t = new Date(this.t.getTime() + ms);
+  }
 }
 class SeqUuid implements UuidGenerator {
   private n = 0;
-  next(): Uuid { this.n += 1; return toUuid(`00000000-0000-4000-8000-${String(this.n).padStart(12, '0')}`); }
+  next(): Uuid {
+    this.n += 1;
+    return toUuid(`00000000-0000-4000-8000-${String(this.n).padStart(12, '0')}`);
+  }
 }
 
 const CHAT = '5517996332346@s.whatsapp.net';
 function envelope(text: string, messageId: string): InboundEnvelope {
   return {
-    messageId, chatId: CHAT, from: CHAT, kind: 'text', text,
-    mediaUrl: null, mediaMimeType: null, fileName: null, location: null, contact: null,
-    reactionEmoji: null, reactionToMessageId: null, editedText: null, deletedMessageId: null,
-    silenceMs: null, timestamp: new Date('2026-07-19T12:00:00.000Z'),
+    messageId,
+    chatId: CHAT,
+    from: CHAT,
+    kind: 'text',
+    text,
+    mediaUrl: null,
+    mediaMimeType: null,
+    fileName: null,
+    location: null,
+    contact: null,
+    reactionEmoji: null,
+    reactionToMessageId: null,
+    editedText: null,
+    deletedMessageId: null,
+    silenceMs: null,
+    timestamp: new Date('2026-07-19T12:00:00.000Z'),
   };
 }
 
 function harness() {
   const clock = new TestClock();
   const gateway = new InMemoryConversationGateway(clock);
-  const op = assembleAdvogadoOperation({ clock, uuid: new SeqUuid(), gateway, sleeper: new FakeSleeper(clock) });
+  const op = assembleAdvogadoOperation({
+    clock,
+    uuid: new SeqUuid(),
+    gateway,
+    sleeper: new FakeSleeper(clock),
+  });
   return { op, gateway };
 }
 
@@ -59,7 +83,9 @@ describe('GO-LIVE 9C · "Olá" não promove relacionamento a onboarding', () => 
     const textos = gateway.texts();
     expect(textos).toHaveLength(1); // uma saudação — nada mais
     // Nenhuma etapa operacional inventada na resposta:
-    expect(textos[0]).not.toMatch(/cadastro|registro|coleta|document|análise|analis|qualifica|processo|organizando/i);
+    expect(textos[0]).not.toMatch(
+      /cadastro|registro|coleta|document|análise|analis|qualifica|processo|organizando/i,
+    );
   });
 
   // GO-LIVE 9E — a conversa evolui UMA descoberta por vez, nunca como fluxo.
@@ -90,22 +116,46 @@ describe('GO-LIVE 9C · "Olá" não promove relacionamento a onboarding', () => 
 
   it('DOCUMENTO sem atendimento aberto ⇒ missão nasce (pedido implícito por artefato)', async () => {
     const { op } = harness();
-    await op.conversation.receive({ ...envelope('', 'M1'), kind: 'pdf', text: null, fileName: 'rg.pdf', mediaMimeType: 'application/pdf' });
+    await op.conversation.receive({
+      ...envelope('', 'M1'),
+      kind: 'pdf',
+      text: null,
+      fileName: 'rg.pdf',
+      mediaMimeType: 'application/pdf',
+    });
     await op.projector.refresh();
     expect(op.projector.missions()).toHaveLength(1);
   });
 });
 
 describe('GO-LIVE 9C · fatos e ausência declarada', () => {
-  const TEXTO = { kind: 'text', sentiment: 'neutral', urgency: 'normal', hasArtifacts: false, artifactCount: 0, silenceMs: null } as const;
+  const TEXTO = {
+    kind: 'text',
+    sentiment: 'neutral',
+    urgency: 'normal',
+    hasArtifacts: false,
+    artifactCount: 0,
+    silenceMs: null,
+  } as const;
 
   it('onboardingExists/Phase/Truth derivam SÓ do snapshot (domínio)', () => {
-    const sem = buildFacts({ ...TEXTO, purpose: 'greeting' }, emptySnapshot('c1'), { turnCount: 9, lastOutboundAgoMs: 5 });
+    const sem = buildFacts({ ...TEXTO, purpose: 'greeting' }, emptySnapshot('c1'), {
+      turnCount: 9,
+      lastOutboundAgoMs: 5,
+    });
     expect(sem['onboardingExists']).toBe(false);
     expect(sem['onboardingPhase']).toBe('inexistente'); // 9 turnos de conversa NÃO mudam isso
-    const cadastro = buildFacts(TEXTO, { ...emptySnapshot('m1'), caseExists: true }, { turnCount: 2, lastOutboundAgoMs: null });
+    const cadastro = buildFacts(
+      TEXTO,
+      { ...emptySnapshot('m1'), caseExists: true },
+      { turnCount: 2, lastOutboundAgoMs: null },
+    );
     expect(cadastro['onboardingPhase']).toBe('cadastro');
-    const qualificado = buildFacts(TEXTO, { ...emptySnapshot('m1'), caseExists: true, truthEstablished: true }, { turnCount: 2, lastOutboundAgoMs: null });
+    const qualificado = buildFacts(
+      TEXTO,
+      { ...emptySnapshot('m1'), caseExists: true, truthEstablished: true },
+      { turnCount: 2, lastOutboundAgoMs: null },
+    );
     expect(qualificado['onboardingPhase']).toBe('qualificado');
     expect(qualificado['onboardingTruth']).toBe(true);
   });

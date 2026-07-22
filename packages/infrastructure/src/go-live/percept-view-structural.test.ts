@@ -4,7 +4,12 @@
 // artefatos detectados) NÃO pode impedir RO-2D-INGEST-DOC de disparar.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
-import type { InboundEnvelope, Percept, PerceptEnrichment, PerceptKind } from '@reconstrua/application';
+import type {
+  InboundEnvelope,
+  Percept,
+  PerceptEnrichment,
+  PerceptKind,
+} from '@reconstrua/application';
 import { toPerceptView } from './full-loop-brain-adapter.js';
 
 const NOW = new Date('2026-07-21T06:00:00.000Z');
@@ -63,7 +68,9 @@ describe('toPerceptView · artefato ESTRUTURAL para mídia (independente da LLM)
   });
 
   it('LLM detectou MAIS artefatos que o estrutural ⇒ prevalece o maior', () => {
-    const view = toPerceptView(percept('image', { ...DEGRADE, detectedArtifacts: ['rg-frente', 'rg-verso'] }));
+    const view = toPerceptView(
+      percept('image', { ...DEGRADE, detectedArtifacts: ['rg-frente', 'rg-verso'] }),
+    );
     expect(view.artifactCount).toBe(2);
   });
 

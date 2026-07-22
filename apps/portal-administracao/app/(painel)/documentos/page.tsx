@@ -12,7 +12,9 @@ const DocumentsPage = async (): Promise<ReactElement> => {
     <>
       <AutoRefresh seconds={8} />
       <h1 className="page-title">Documentos</h1>
-      <p className="page-sub">Reconhecimento é ato de domínio (R3); pendências vêm da memória viva.</p>
+      <p className="page-sub">
+        Reconhecimento é ato de domínio (R3); pendências vêm da memória viva.
+      </p>
       {!data ? (
         <div className="error-box">API indisponível.</div>
       ) : (
@@ -42,7 +44,11 @@ const DocumentsPage = async (): Promise<ReactElement> => {
                         <td>{d.mimeType ?? '—'}</td>
                         <td>
                           {d.missionId ? (
-                            <Link href={`/missoes/${d.missionId}`} className="mono" style={{ color: 'var(--accent)' }}>
+                            <Link
+                              href={`/missoes/${d.missionId}`}
+                              className="mono"
+                              style={{ color: 'var(--accent)' }}
+                            >
                               {shortId(d.missionId, 10)}
                             </Link>
                           ) : (
@@ -77,7 +83,10 @@ const DocumentsPage = async (): Promise<ReactElement> => {
                     {data.pending.map((p, i) => (
                       <tr key={i}>
                         <td className="mono">
-                          <Link href={`/clientes/${encodeURIComponent(p.chatId)}`} style={{ color: 'var(--accent)' }}>
+                          <Link
+                            href={`/clientes/${encodeURIComponent(p.chatId)}`}
+                            style={{ color: 'var(--accent)' }}
+                          >
                             {p.chatId}
                           </Link>
                         </td>

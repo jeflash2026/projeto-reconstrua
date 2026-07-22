@@ -120,14 +120,19 @@ export function gerarRelatorioDeEvolucao(
     .map(([chave, ocorrencias]) => ({ chave, ocorrencias }))
     .sort((a, b) => b.ocorrencias - a.ocorrencias || a.chave.localeCompare(b.chave));
 
-  const estrategiasNuncaUtilizadas = catalogo.map((s) => s.ref).filter((ref) => !usosPorRef.has(ref));
+  const estrategiasNuncaUtilizadas = catalogo
+    .map((s) => s.ref)
+    .filter((ref) => !usosPorRef.has(ref));
 
   const estrategiasFrequentementeCorrigidas = [...correcoesPorRef.entries()]
     .map(([ref, correcoes]) => {
       const usos = usosPorRef.get(ref) ?? correcoes;
       return { ref, correcoes, usos, taxaCorrecao: usos > 0 ? arredondar(correcoes / usos) : 1 };
     })
-    .sort((a, b) => b.correcoes - a.correcoes || b.taxaCorrecao - a.taxaCorrecao || a.ref.localeCompare(b.ref));
+    .sort(
+      (a, b) =>
+        b.correcoes - a.correcoes || b.taxaCorrecao - a.taxaCorrecao || a.ref.localeCompare(b.ref),
+    );
 
   return {
     totalAtendimentos: total,

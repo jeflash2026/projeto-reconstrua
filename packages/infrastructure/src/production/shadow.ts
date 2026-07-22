@@ -69,7 +69,11 @@ export class JsonShadowStore implements ShadowStore {
   constructor(private readonly store: JsonStore) {}
   async save(report: ShadowReport): Promise<void> {
     this.seq += 1;
-    await this.store.put('shadow', `${report.at.toISOString()}|${String(this.seq).padStart(8, '0')}|${report.id}`, report);
+    await this.store.put(
+      'shadow',
+      `${report.at.toISOString()}|${String(this.seq).padStart(8, '0')}|${report.id}`,
+      report,
+    );
     await this.store.put('shadow-by-id', report.id, report);
   }
   async byId(id: string): Promise<ShadowReport | null> {
@@ -109,7 +113,11 @@ export class ShadowRecorder implements TurnIngress {
     private readonly enabled: () => boolean,
   ) {}
 
-  private async record(origin: 'inbound' | 'temporal', envelope: InboundEnvelope, run: () => Promise<TurnResult>): Promise<TurnResult> {
+  private async record(
+    origin: 'inbound' | 'temporal',
+    envelope: InboundEnvelope,
+    run: () => Promise<TurnResult>,
+  ): Promise<TurnResult> {
     if (!this.enabled()) return run();
     const t0 = Date.now();
     const llmBefore = this.meter.snapshot();
@@ -125,7 +133,9 @@ export class ShadowRecorder implements TurnIngress {
 
     await this.sources.refreshProjector();
     const missionId = this.sources.missionsOf(envelope.chatId)[0] ?? null;
-    const counts = missionId ? this.sources.timelineCounts(missionId) : { truth: 0, state: 0, stage: 0 };
+    const counts = missionId
+      ? this.sources.timelineCounts(missionId)
+      : { truth: 0, state: 0, stage: 0 };
     const steps = missionId ? await this.sources.workflowSteps(missionId) : [];
 
     const report: ShadowReport = {
@@ -143,8 +153,12 @@ export class ShadowRecorder implements TurnIngress {
       truthCount: counts.truth,
       stateCount: counts.state,
       stageCount: counts.stage,
-      rulesApplied: result ? [...new Set(result.intents.map((i) => i.operationalRuleRef ?? '-'))] : [],
-      intents: result ? result.intents.map((i) => `${i.directive}[${i.operationalRuleRef ?? '-'}]`) : [],
+      rulesApplied: result
+        ? [...new Set(result.intents.map((i) => i.operationalRuleRef ?? '-'))]
+        : [],
+      intents: result
+        ? result.intents.map((i) => `${i.directive}[${i.operationalRuleRef ?? '-'}]`)
+        : [],
       decisionTimeMs,
       responses: result ? result.delivered.map((d) => d.text) : [],
       latencyMs: decisionTimeMs,
@@ -152,9 +166,17 @@ export class ShadowRecorder implements TurnIngress {
         provider: llmAfter.provider,
         calls: llmAfter.calls - llmBefore.calls,
         tokensIn: llmAfter.tokensIn === null ? null : llmAfter.tokensIn - (llmBefore.tokensIn ?? 0),
-        tokensOut: llmAfter.tokensOut === null ? null : llmAfter.tokensOut - (llmBefore.tokensOut ?? 0),
+        tokensOut:
+          llmAfter.tokensOut === null ? null : llmAfter.tokensOut - (llmBefore.tokensOut ?? 0),
       },
-      outcome: error !== null ? 'error' : result?.skipped ? 'skipped' : (result?.delivered.length ?? 0) > 0 ? 'delivered' : 'silent',
+      outcome:
+        error !== null
+          ? 'error'
+          : result?.skipped
+            ? 'skipped'
+            : (result?.delivered.length ?? 0) > 0
+              ? 'delivered'
+              : 'silent',
       error,
       humanFeedback: null,
     };
@@ -175,10 +197,21 @@ export class ShadowRecorder implements TurnIngress {
     for (const r of results) {
       const pseudo: InboundEnvelope = {
         messageId: `temporal:${r.chatId}:${String(now.getTime())}`,
-        chatId: r.chatId, from: r.chatId, kind: r.percept?.envelope.kind ?? 'timeout',
-        text: null, mediaUrl: null, mediaMimeType: null, fileName: null, location: null, contact: null,
-        reactionEmoji: null, reactionToMessageId: null, editedText: null, deletedMessageId: null,
-        silenceMs: r.percept?.envelope.silenceMs ?? null, timestamp: now,
+        chatId: r.chatId,
+        from: r.chatId,
+        kind: r.percept?.envelope.kind ?? 'timeout',
+        text: null,
+        mediaUrl: null,
+        mediaMimeType: null,
+        fileName: null,
+        location: null,
+        contact: null,
+        reactionEmoji: null,
+        reactionToMessageId: null,
+        editedText: null,
+        deletedMessageId: null,
+        silenceMs: r.percept?.envelope.silenceMs ?? null,
+        timestamp: now,
       };
       await this.record('temporal', pseudo, () => Promise.resolve(r));
     }
@@ -212,7 +245,8 @@ export interface ShadowCenterSummary {
 
 export function summarize(reports: readonly ShadowReport[]): ShadowCenterSummary {
   const latencies = reports.map((r) => r.latencyMs).sort((a, b) => a - b);
-  const p = (q: number): number => latencies[Math.min(latencies.length - 1, Math.floor(q * latencies.length))] ?? 0;
+  const p = (q: number): number =>
+    latencies[Math.min(latencies.length - 1, Math.floor(q * latencies.length))] ?? 0;
   const ruleUsage: Record<string, number> = {};
   let escalations = 0;
   let followUps = 0;
@@ -220,11 +254,18 @@ export function summarize(reports: readonly ShadowReport[]): ShadowCenterSummary
   for (const r of reports) {
     for (const ref of r.rulesApplied) ruleUsage[ref] = (ruleUsage[ref] ?? 0) + 1;
     if (r.intents.some((i) => i.startsWith('handoff'))) escalations += 1;
-    if (r.rulesApplied.some((ref) => ref.includes('FOLLOWUP') || ref.includes('SILENCE'))) followUps += 1;
+    if (r.rulesApplied.some((ref) => ref.includes('FOLLOWUP') || ref.includes('SILENCE')))
+      followUps += 1;
     if (r.intents.some((i) => i.startsWith('wait'))) blocks += 1;
   }
-  const tokensIn = reports.reduce<number | null>((s, r) => (r.llm.tokensIn === null ? s : (s ?? 0) + r.llm.tokensIn), null);
-  const tokensOut = reports.reduce<number | null>((s, r) => (r.llm.tokensOut === null ? s : (s ?? 0) + r.llm.tokensOut), null);
+  const tokensIn = reports.reduce<number | null>(
+    (s, r) => (r.llm.tokensIn === null ? s : (s ?? 0) + r.llm.tokensIn),
+    null,
+  );
+  const tokensOut = reports.reduce<number | null>(
+    (s, r) => (r.llm.tokensOut === null ? s : (s ?? 0) + r.llm.tokensOut),
+    null,
+  );
   return {
     totalTurns: reports.length,
     conversations: new Set(reports.map((r) => r.chatId)).size,
@@ -297,7 +338,11 @@ export function detect(
     }
     for (const [hour, count] of byHour) {
       if (count > thresholds.loopTurnsPerChatHour) {
-        detections.push({ kind: 'loop', severity: 'CRITICO', detail: `${chatId}: ${String(count)} turnos em ${hour}h` });
+        detections.push({
+          kind: 'loop',
+          severity: 'CRITICO',
+          detail: `${chatId}: ${String(count)} turnos em ${hour}h`,
+        });
       }
     }
     // Spam: muitas mensagens ENVIADAS na mesma hora.
@@ -308,7 +353,11 @@ export function detect(
     }
     for (const [hour, count] of outByHour) {
       if (count > thresholds.spamOutboundPerChatHour) {
-        detections.push({ kind: 'spam', severity: 'CRITICO', detail: `${chatId}: ${String(count)} mensagens enviadas em ${hour}h` });
+        detections.push({
+          kind: 'spam',
+          severity: 'CRITICO',
+          detail: `${chatId}: ${String(count)} mensagens enviadas em ${hour}h`,
+        });
       }
     }
     // Mensagens repetidas (para o MESMO cliente).
@@ -318,7 +367,11 @@ export function detect(
         const a = texts[i];
         const b = texts[j];
         if (a !== undefined && b !== undefined && similarity(a, b) >= thresholds.repeatSimilarity) {
-          detections.push({ kind: 'mensagem-repetida', severity: 'ALTO', detail: `${chatId}: "${a.slice(0, 60)}…" repetida` });
+          detections.push({
+            kind: 'mensagem-repetida',
+            severity: 'ALTO',
+            detail: `${chatId}: "${a.slice(0, 60)}…" repetida`,
+          });
           i = texts.length; // um achado por chat basta
           break;
         }
@@ -326,29 +379,60 @@ export function detect(
     }
     // Cliente confuso / irritado (sinais percebidos recorrentes).
     const confused = list.filter((r) => r.sentiment === 'confused').length;
-    const negative = list.filter((r) => r.sentiment === 'negative' || r.sentiment === 'anxious').length;
-    if (confused >= 3) detections.push({ kind: 'cliente-confuso', severity: 'MEDIO', detail: `${chatId}: confusão percebida ${String(confused)}×` });
-    if (negative >= 3) detections.push({ kind: 'cliente-irritado', severity: 'ALTO', detail: `${chatId}: sinal negativo/ansioso ${String(negative)}×` });
+    const negative = list.filter(
+      (r) => r.sentiment === 'negative' || r.sentiment === 'anxious',
+    ).length;
+    if (confused >= 3)
+      detections.push({
+        kind: 'cliente-confuso',
+        severity: 'MEDIO',
+        detail: `${chatId}: confusão percebida ${String(confused)}×`,
+      });
+    if (negative >= 3)
+      detections.push({
+        kind: 'cliente-irritado',
+        severity: 'ALTO',
+        detail: `${chatId}: sinal negativo/ansioso ${String(negative)}×`,
+      });
     // Follow-up excessivo.
     const fu = list.filter((r) => r.rulesApplied.some((ref) => ref.includes('FOLLOWUP'))).length;
     if (fu > thresholds.followUpPerChat) {
-      detections.push({ kind: 'followup-excessivo', severity: 'ALTO', detail: `${chatId}: ${String(fu)} follow-ups` });
+      detections.push({
+        kind: 'followup-excessivo',
+        severity: 'ALTO',
+        detail: `${chatId}: ${String(fu)} follow-ups`,
+      });
     }
   }
 
   // Latência excessiva.
   if (summary.latency.p95Ms > thresholds.latencyP95Ms) {
-    detections.push({ kind: 'latencia', severity: 'ALTO', detail: `p95=${String(Math.round(summary.latency.p95Ms))}ms > ${String(thresholds.latencyP95Ms)}ms` });
+    detections.push({
+      kind: 'latencia',
+      severity: 'ALTO',
+      detail: `p95=${String(Math.round(summary.latency.p95Ms))}ms > ${String(thresholds.latencyP95Ms)}ms`,
+    });
   }
   // Escalada excessiva.
-  if (summary.totalTurns > 0 && summary.escalations / summary.totalTurns > thresholds.escalationRate) {
-    detections.push({ kind: 'escalada-excessiva', severity: 'ALTO', detail: `${String(summary.escalations)}/${String(summary.totalTurns)} turnos escalaram` });
+  if (
+    summary.totalTurns > 0 &&
+    summary.escalations / summary.totalTurns > thresholds.escalationRate
+  ) {
+    detections.push({
+      kind: 'escalada-excessiva',
+      severity: 'ALTO',
+      detail: `${String(summary.escalations)}/${String(summary.totalTurns)} turnos escalaram`,
+    });
   }
   // RO muito utilizada / nunca utilizada.
   const totalUsage = Object.values(summary.ruleUsage).reduce((s, n) => s + n, 0);
   for (const [ref, count] of Object.entries(summary.ruleUsage)) {
     if (ref !== '-' && totalUsage > 20 && count / totalUsage > thresholds.ruleShareOverused) {
-      detections.push({ kind: 'ro-muito-usada', severity: 'MEDIO', detail: `${ref}: ${String(count)}/${String(totalUsage)} usos (${String(Math.round((100 * count) / totalUsage))}%)` });
+      detections.push({
+        kind: 'ro-muito-usada',
+        severity: 'MEDIO',
+        detail: `${ref}: ${String(count)}/${String(totalUsage)} usos (${String(Math.round((100 * count) / totalUsage))}%)`,
+      });
     }
   }
   const used = new Set(Object.keys(summary.ruleUsage));
@@ -356,7 +440,12 @@ export function detect(
     if (!used.has(ref)) detections.push({ kind: 'ro-nunca-usada', severity: 'BAIXO', detail: ref });
   }
   // Erros.
-  if (summary.errors > 0) detections.push({ kind: 'erros', severity: 'CRITICO', detail: `${String(summary.errors)} turnos com erro` });
+  if (summary.errors > 0)
+    detections.push({
+      kind: 'erros',
+      severity: 'CRITICO',
+      detail: `${String(summary.errors)} turnos com erro`,
+    });
 
   return detections;
 }
@@ -368,7 +457,11 @@ export interface ShadowOracleContext {
   /** advogadoId → nº de processos atribuídos (read model 3B). */
   readonly lawyerLoad: Readonly<Record<string, number>>;
   /** chatId → documentos pendentes há mais tempo (memória viva). */
-  readonly pendingDocs: ReadonlyArray<{ chatId: string; document: string; sinceDays: number | null }>;
+  readonly pendingDocs: ReadonlyArray<{
+    chatId: string;
+    document: string;
+    sinceDays: number | null;
+  }>;
 }
 
 export interface ShadowAnswer {
@@ -381,10 +474,17 @@ export interface ShadowAnswer {
 export function askShadow(question: string, ctx: ShadowOracleContext): ShadowAnswer {
   const q = question.toLowerCase();
   const reports = ctx.reports;
-  const done = (answer: string, available = true): ShadowAnswer => ({ question, answer, provenance: 'shadow-reports', available });
+  const done = (answer: string, available = true): ShadowAnswer => ({
+    question,
+    answer,
+    provenance: 'shadow-reports',
+    available,
+  });
 
   if (q.includes('mais difícil') || q.includes('mais dificil')) {
-    const hardest = [...reports].sort((a, b) => b.decisionTimeMs - a.decisionTimeMs || b.intents.length - a.intents.length)[0];
+    const hardest = [...reports].sort(
+      (a, b) => b.decisionTimeMs - a.decisionTimeMs || b.intents.length - a.intents.length,
+    )[0];
     if (!hardest) return done('Nenhum turno registrado ainda.', false);
     return done(
       `O turno mais custoso foi na conversa ${hardest.chatId} (${hardest.perceptKind}): ${String(hardest.intents.length)} intenção(ões) [${hardest.rulesApplied.join(', ')}] em ${String(hardest.decisionTimeMs)}ms, resultado ${hardest.outcome}.`,
@@ -392,34 +492,59 @@ export function askShadow(question: string, ctx: ShadowOracleContext): ShadowAns
   }
   if (q.includes('regras') && (q.includes('trabalh') || q.includes('mais us'))) {
     const s = summarize(reports);
-    const top = Object.entries(s.ruleUsage).filter(([r]) => r !== '-').sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const top = Object.entries(s.ruleUsage)
+      .filter(([r]) => r !== '-')
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
     if (top.length === 0) return done('Nenhuma regra registrada ainda.', false);
-    return done(`Regras mais trabalhadas: ${top.map(([r, n]) => `${r} (${String(n)}×)`).join(', ')}.`);
+    return done(
+      `Regras mais trabalhadas: ${top.map(([r, n]) => `${r} (${String(n)}×)`).join(', ')}.`,
+    );
   }
   if (q.includes('gargalo')) {
-    const worst = [...ctx.detections].sort((a, b) => ['CRITICO', 'ALTO', 'MEDIO', 'BAIXO'].indexOf(a.severity) - ['CRITICO', 'ALTO', 'MEDIO', 'BAIXO'].indexOf(b.severity))[0];
+    const worst = [...ctx.detections].sort(
+      (a, b) =>
+        ['CRITICO', 'ALTO', 'MEDIO', 'BAIXO'].indexOf(a.severity) -
+        ['CRITICO', 'ALTO', 'MEDIO', 'BAIXO'].indexOf(b.severity),
+    )[0];
     if (!worst) return done('Nenhum gargalo detectado nos Shadow Reports.');
     return done(`Maior gargalo detectado: [${worst.severity}] ${worst.kind} — ${worst.detail}.`);
   }
   if (q.includes('esperando') || q.includes('aguardando')) {
     const waiting = reports.filter((r) => r.outcome === 'silent' && r.origin === 'inbound');
     const chats = [...new Set(waiting.map((r) => r.chatId))];
-    return done(chats.length === 0 ? 'Nenhum cliente ficou sem resposta em turno de entrada.' : `Clientes com turno de entrada sem fala da AHRI (decisão de silêncio): ${chats.slice(0, 10).join(', ')}.`);
+    return done(
+      chats.length === 0
+        ? 'Nenhum cliente ficou sem resposta em turno de entrada.'
+        : `Clientes com turno de entrada sem fala da AHRI (decisão de silêncio): ${chats.slice(0, 10).join(', ')}.`,
+    );
   }
   if (q.includes('sobrecarregado') || q.includes('advogado')) {
     const entries = Object.entries(ctx.lawyerLoad).sort((a, b) => b[1] - a[1]);
     if (entries.length === 0) return done('Nenhum advogado com processos atribuídos ainda.', false);
     const [id, n] = entries[0] ?? ['-', 0];
-    return done(`Advogado com maior carga: ${id} com ${String(n)} processo(s). Distribuição completa: ${entries.map(([a, c]) => `${a}=${String(c)}`).join(', ')}.`);
+    return done(
+      `Advogado com maior carga: ${id} com ${String(n)} processo(s). Distribuição completa: ${entries.map(([a, c]) => `${a}=${String(c)}`).join(', ')}.`,
+    );
   }
   if (q.includes('documento') && (q.includes('atras') || q.includes('pendent'))) {
-    if (ctx.pendingDocs.length === 0) return done('Nenhum documento pendente registrado na memória viva.');
-    const top = ctx.pendingDocs.slice(0, 10).map((p) => `${p.document} (${p.chatId}${p.sinceDays !== null ? `, ${String(p.sinceDays)}d` : ''})`);
+    if (ctx.pendingDocs.length === 0)
+      return done('Nenhum documento pendente registrado na memória viva.');
+    const top = ctx.pendingDocs
+      .slice(0, 10)
+      .map(
+        (p) =>
+          `${p.document} (${p.chatId}${p.sinceDays !== null ? `, ${String(p.sinceDays)}d` : ''})`,
+      );
     return done(`Documentos atrasando: ${top.join('; ')}.`);
   }
   if (q.includes('estranho') || q.includes('anomal')) {
     const weird = ctx.detections.filter((d) => d.severity === 'CRITICO' || d.severity === 'ALTO');
-    return done(weird.length === 0 ? 'Nenhum comportamento estranho (CRÍTICO/ALTO) detectado.' : `Comportamentos estranhos: ${weird.map((d) => `[${d.severity}] ${d.kind}: ${d.detail}`).join(' | ')}.`);
+    return done(
+      weird.length === 0
+        ? 'Nenhum comportamento estranho (CRÍTICO/ALTO) detectado.'
+        : `Comportamentos estranhos: ${weird.map((d) => `[${d.severity}] ${d.kind}: ${d.detail}`).join(' | ')}.`,
+    );
   }
   return done('Não tenho essa resposta nos Shadow Reports — não vou inventar.', false);
 }

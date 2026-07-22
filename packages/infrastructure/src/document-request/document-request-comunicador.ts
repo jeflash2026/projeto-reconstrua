@@ -43,28 +43,55 @@ export class DocumentRequestComunicador {
     const d = this.deps;
     const now = d.clock.now();
     try {
-      const nome = d.nomeDoCliente !== null ? await d.nomeDoCliente(state.clientId).catch(() => null) : null;
+      const nome =
+        d.nomeDoCliente !== null ? await d.nomeDoCliente(state.clientId).catch(() => null) : null;
       const anexo = d.anexos ? await d.anexos.porRequest(state.requestId).catch(() => null) : null;
-      const texto = anexo !== null ? mensagemDeAssinatura(state, nome ?? '') : mensagemAoCliente(state, nome ?? '');
+      const texto =
+        anexo !== null
+          ? mensagemDeAssinatura(state, nome ?? '')
+          : mensagemAoCliente(state, nome ?? '');
       const receipt = await d.gateway.sendText(state.clientId, texto);
       if (anexo !== null) {
         if (d.documentos) {
           // O arquivo vai DEPOIS da mensagem; falha do arquivo não desfaz o anúncio.
           await d.documentos
             .sendDocument(state.clientId, anexo, state.documentName)
-            .then(() => { d.observability.event('document-request', `anexo-enviado ${state.requestId}`, now); })
-            .catch((e: unknown) => { d.observability.error('document-request', 'anexo-envio', now, `${state.requestId}: ${e instanceof Error ? e.message : String(e)}`); });
+            .then(() => {
+              d.observability.event('document-request', `anexo-enviado ${state.requestId}`, now);
+            })
+            .catch((e: unknown) => {
+              d.observability.error(
+                'document-request',
+                'anexo-envio',
+                now,
+                `${state.requestId}: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            });
         } else {
-          d.observability.error('document-request', 'anexo-sem-enviador', now, `${state.requestId}: gateway sem envio de documento`);
+          d.observability.error(
+            'document-request',
+            'anexo-sem-enviador',
+            now,
+            `${state.requestId}: gateway sem envio de documento`,
+          );
         }
       }
       await d.memory.recordOutbound(state.clientId, texto, receipt.providerMessageId);
       const registrado = await d.runtime.registrarMensagem(state.requestId, now);
       if (registrado.isErr()) {
         // Mensagem foi ao cliente; o registro falhou (ex.: duplicidade) — observa.
-        d.observability.error('document-request', 'anunciar:registro', now, registrado.unwrapErr().message);
+        d.observability.error(
+          'document-request',
+          'anunciar:registro',
+          now,
+          registrado.unwrapErr().message,
+        );
       }
-      d.observability.event('document-request', `anunciada ${state.requestId} → ${state.clientId}`, now);
+      d.observability.event(
+        'document-request',
+        `anunciada ${state.requestId} → ${state.clientId}`,
+        now,
+      );
       return { ok: true, erro: null };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

@@ -28,4 +28,7 @@ export { buildLawyerExperienceServer } from './lawyer-experience/lawyer-experien
 export { buildProductionServer } from './production/production-server.js';
 
 // Sprint 2E: Founder Console (superfície HTTP "Pergunte qualquer coisa").
-export { buildFounderConsoleServer, type FounderConsoleServerDeps } from './founder-console-route.js';
+export {
+  buildFounderConsoleServer,
+  type FounderConsoleServerDeps,
+} from './founder-console-route.js';

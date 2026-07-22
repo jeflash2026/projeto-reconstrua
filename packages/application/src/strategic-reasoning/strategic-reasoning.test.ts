@@ -46,7 +46,9 @@ describe('Strategic Reasoning · o exemplo do decreto', () => {
     expect(r.proximaMelhorAcao?.acao).toContain('Validar documentação complementar');
     expect(r.proximaMelhorAcao?.confianca).toBe('alta');
     expect(r.proximaMelhorAcao?.justificativa).toContain('EST-CONSIG-REVISAO-001');
-    expect(r.proximaMelhorAcao?.justificativa).toContain('problema_principal=descontos_nao_reconhecidos');
+    expect(r.proximaMelhorAcao?.justificativa).toContain(
+      'problema_principal=descontos_nao_reconhecidos',
+    );
   });
 
   it('RASTREABILIDADE completa: fatos sustentadores + reforços + fundamento + auditoria', () => {
@@ -107,7 +109,9 @@ describe('Strategic Reasoning · nunca inventa; motor genérico', () => {
   it('fatosEstrategicos: Truth Layer ⊕ Knowledge ⊕ documentos num só formato', () => {
     const fatos = fatosEstrategicos({
       truthFacts: { caseExists: true, casePhase: 'abertura' },
-      conhecimento: [{ factKey: 'beneficio', valor: 'aposentadoria', origem: 'resposta', confianca: 'alta' }],
+      conhecimento: [
+        { factKey: 'beneficio', valor: 'aposentadoria', origem: 'resposta', confianca: 'alta' },
+      ],
       documentosRecebidos: ['HISCON'],
     });
     expect(fatos['caseExists']).toBe(true);
@@ -131,6 +135,8 @@ describe('Strategic Reasoning · nunca inventa; motor genérico', () => {
     expect(r.hipotesePrincipal?.ref).toBe('EST-BIZ-FLUXO-001');
     expect(r.hipotesePrincipal?.sustentadaPor).toEqual(['problema=caixa_apertado']);
     // E os fatos de Business não acionam NADA no catálogo consignado:
-    expect(raciocinar({ problema: 'caixa_apertado' }, ESTRATEGIAS_CONSIGNADO_INSS).hipoteses).toEqual([]);
+    expect(
+      raciocinar({ problema: 'caixa_apertado' }, ESTRATEGIAS_CONSIGNADO_INSS).hipoteses,
+    ).toEqual([]);
   });
 });

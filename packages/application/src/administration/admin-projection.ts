@@ -47,7 +47,10 @@ export function projectEvent(metrics: AdminMetrics, event: StoredEvent): AdminMe
       return {
         ...base,
         documentCount: metrics.documentCount + 1,
-        documentsByDay: { ...metrics.documentsByDay, [day]: (metrics.documentsByDay[day] ?? 0) + 1 },
+        documentsByDay: {
+          ...metrics.documentsByDay,
+          [day]: (metrics.documentsByDay[day] ?? 0) + 1,
+        },
       };
     }
     case 'operational-truth':

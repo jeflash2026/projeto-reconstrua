@@ -37,7 +37,22 @@ describe('JsonMemoryStore · registro legado sem documentsPending', () => {
     expect(all.every((m) => Array.isArray(m.documentsPending))).toBe(true);
 
     // Registro moderno permanece intocado.
-    await json.put('client-memory', 'novo@c.us', { chatId: 'novo@c.us', documentsPending: ['CNIS'], attributes: [], rememberedEvents: [], emotionsObserved: [], documentsSent: [], stagesCompleted: [], conversationStyle: null, avgResponseMs: null, responseSampleCount: 0, lastOutboundAt: null, messageCount: 1, firstContactAt: null, lastContactAt: null });
+    await json.put('client-memory', 'novo@c.us', {
+      chatId: 'novo@c.us',
+      documentsPending: ['CNIS'],
+      attributes: [],
+      rememberedEvents: [],
+      emotionsObserved: [],
+      documentsSent: [],
+      stagesCompleted: [],
+      conversationStyle: null,
+      avgResponseMs: null,
+      responseSampleCount: 0,
+      lastOutboundAt: null,
+      messageCount: 1,
+      firstContactAt: null,
+      lastContactAt: null,
+    });
     expect((await store.load('novo@c.us'))?.documentsPending).toEqual(['CNIS']);
   });
 });

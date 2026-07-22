@@ -22,9 +22,17 @@ import type { ConversationMemoryRuntime } from './conversation-memory-runtime.js
 
 function intent(): ConversationIntent {
   return {
-    id: 'i1', chatId: 'c1', directive: 'speak', speechAct: 'explain', topic: 'relacionamento',
-    references: [], urgency: 'normal', operationalRuleRef: 'RO-X', fundamento: 'f',
-    timingHintMs: null, formedAt: new Date('2026-07-19T12:00:00.000Z'),
+    id: 'i1',
+    chatId: 'c1',
+    directive: 'speak',
+    speechAct: 'explain',
+    topic: 'relacionamento',
+    references: [],
+    urgency: 'normal',
+    operationalRuleRef: 'RO-X',
+    fundamento: 'f',
+    timingHintMs: null,
+    formedAt: new Date('2026-07-19T12:00:00.000Z'),
   };
 }
 function contexto(
@@ -42,7 +50,11 @@ function contexto(
     recentEntries: [],
     recentOutboundTexts: [],
     lastPercept: {
-      envelope: { text: over.texto ?? null, fileName: over.arquivo ?? null, mediaUrl: over.arquivo !== undefined ? 'https://wa/m1' : null },
+      envelope: {
+        text: over.texto ?? null,
+        fileName: over.arquivo ?? null,
+        mediaUrl: over.arquivo !== undefined ? 'https://wa/m1' : null,
+      },
       enrichment: { perceivedPurpose: over.purpose ?? 'unknown', detectedIntentSignal: null },
     } as never,
     silenceMs: null,
@@ -56,23 +68,69 @@ const SEM_DOCS = { documentacaoInicialCompleta: false } as const;
 
 describe('Decreto · derivação a partir da MISSÃO ATIVA + Jornada 1', () => {
   it('sem missão ativa ⇒ LEAD, mesmo com outros sinais', () => {
-    expect(derivarMissaoDaConversa({ missaoAtiva: false, vendaRegistrada: false, processoEncerrado: false, ...SEM_DOCS })).toBe('LEAD');
-    expect(derivarMissaoDaConversa({ missaoAtiva: false, vendaRegistrada: true, processoEncerrado: true, documentacaoInicialCompleta: true })).toBe('LEAD');
+    expect(
+      derivarMissaoDaConversa({
+        missaoAtiva: false,
+        vendaRegistrada: false,
+        processoEncerrado: false,
+        ...SEM_DOCS,
+      }),
+    ).toBe('LEAD');
+    expect(
+      derivarMissaoDaConversa({
+        missaoAtiva: false,
+        vendaRegistrada: true,
+        processoEncerrado: true,
+        documentacaoInicialCompleta: true,
+      }),
+    ).toBe('LEAD');
   });
   it('missão ativa + documento obrigatório pendente ⇒ ONBOARDING_DOCUMENTAL', () => {
-    expect(derivarMissaoDaConversa({ missaoAtiva: true, vendaRegistrada: false, processoEncerrado: false, ...SEM_DOCS })).toBe('ONBOARDING_DOCUMENTAL');
+    expect(
+      derivarMissaoDaConversa({
+        missaoAtiva: true,
+        vendaRegistrada: false,
+        processoEncerrado: false,
+        ...SEM_DOCS,
+      }),
+    ).toBe('ONBOARDING_DOCUMENTAL');
   });
   it('documentação 100% ⇒ ANALISE_ADMINISTRATIVA — a mudança é automática', () => {
-    expect(derivarMissaoDaConversa({ missaoAtiva: true, vendaRegistrada: false, processoEncerrado: false, documentacaoInicialCompleta: true })).toBe('ANALISE_ADMINISTRATIVA');
+    expect(
+      derivarMissaoDaConversa({
+        missaoAtiva: true,
+        vendaRegistrada: false,
+        processoEncerrado: false,
+        documentacaoInicialCompleta: true,
+      }),
+    ).toBe('ANALISE_ADMINISTRATIVA');
   });
   it('VENDIDO ⇒ CLIENTE; ENCERRADA ⇒ POS_ATENDIMENTO (precedem a jornada)', () => {
-    expect(derivarMissaoDaConversa({ missaoAtiva: true, vendaRegistrada: true, processoEncerrado: false, ...SEM_DOCS })).toBe('CLIENTE');
-    expect(derivarMissaoDaConversa({ missaoAtiva: true, vendaRegistrada: true, processoEncerrado: true, documentacaoInicialCompleta: true })).toBe('POS_ATENDIMENTO');
+    expect(
+      derivarMissaoDaConversa({
+        missaoAtiva: true,
+        vendaRegistrada: true,
+        processoEncerrado: false,
+        ...SEM_DOCS,
+      }),
+    ).toBe('CLIENTE');
+    expect(
+      derivarMissaoDaConversa({
+        missaoAtiva: true,
+        vendaRegistrada: true,
+        processoEncerrado: true,
+        documentacaoInicialCompleta: true,
+      }),
+    ).toBe('POS_ATENDIMENTO');
   });
   it('cada estado tem um OBJETIVO de missão', () => {
     expect(politicaDaMissao(contexto({ missao: 'LEAD' })).objetivo).toBe('Converter Lead');
-    expect(politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL' })).objetivo).toBe('Completar a Documentação Inicial');
-    expect(politicaDaMissao(contexto({ missao: 'ANALISE_ADMINISTRATIVA' })).objetivo).toBe('Acompanhar a Análise Administrativa');
+    expect(politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL' })).objetivo).toBe(
+      'Completar a Documentação Inicial',
+    );
+    expect(politicaDaMissao(contexto({ missao: 'ANALISE_ADMINISTRATIVA' })).objetivo).toBe(
+      'Acompanhar a Análise Administrativa',
+    );
     expect(politicaDaMissao(contexto({ missao: 'CLIENTE' })).objetivo).toBe('Acompanhar Processo');
     expect(politicaDaMissao(contexto({ missao: 'POS_ATENDIMENTO' })).objetivo).toBe('Suporte');
   });
@@ -85,7 +143,10 @@ describe('15A · a política por ESTADO da missão', () => {
 
   it('Q4 — estado INVÁLIDO/desconhecido (incl. o antigo EM_ANALISE) ⇒ LEAD seguro', () => {
     for (const ruimStr of ['ESTADO_INEXISTENTE', 'EM_ANALISE']) {
-      const ruim = { ...contexto({}), missaoDaConversa: ruimStr } as unknown as ConversationContextView;
+      const ruim = {
+        ...contexto({}),
+        missaoDaConversa: ruimStr,
+      } as unknown as ConversationContextView;
       const p = politicaDaMissao(ruim);
       expect(p.missao).toBe('LEAD');
       expect(p.substituiCuriosidade).toBe(true); // nunca undefined — nunca quebra o PromptBuilder
@@ -123,16 +184,43 @@ describe('15A · a política por ESTADO da missão', () => {
   });
 
   it('regra 4 — "tenho direito?" ⇒ canônica em LEAD e ONBOARDING; não em ANÁLISE/CLIENTE', () => {
-    expect(politicaDaMissao(contexto({ missao: 'LEAD', purpose: 'question', texto: 'tenho direito a revisão?' })).respostaCanonica).toBe(RESPOSTA_ELEGIBILIDADE);
-    expect(politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL', purpose: 'question', texto: 'é meu direito?' })).respostaCanonica).toBe(RESPOSTA_ELEGIBILIDADE);
-    expect(politicaDaMissao(contexto({ missao: 'ANALISE_ADMINISTRATIVA', purpose: 'question', texto: 'tenho direito?' })).respostaCanonica).toBeNull();
-    expect(politicaDaMissao(contexto({ missao: 'CLIENTE', purpose: 'question', texto: 'tenho direito?' })).respostaCanonica).toBeNull();
+    expect(
+      politicaDaMissao(
+        contexto({ missao: 'LEAD', purpose: 'question', texto: 'tenho direito a revisão?' }),
+      ).respostaCanonica,
+    ).toBe(RESPOSTA_ELEGIBILIDADE);
+    expect(
+      politicaDaMissao(
+        contexto({ missao: 'ONBOARDING_DOCUMENTAL', purpose: 'question', texto: 'é meu direito?' }),
+      ).respostaCanonica,
+    ).toBe(RESPOSTA_ELEGIBILIDADE);
+    expect(
+      politicaDaMissao(
+        contexto({
+          missao: 'ANALISE_ADMINISTRATIVA',
+          purpose: 'question',
+          texto: 'tenho direito?',
+        }),
+      ).respostaCanonica,
+    ).toBeNull();
+    expect(
+      politicaDaMissao(
+        contexto({ missao: 'CLIENTE', purpose: 'question', texto: 'tenho direito?' }),
+      ).respostaCanonica,
+    ).toBeNull();
   });
 
   it('pergunta direta detectada (question ou "?"); não-pergunta ⇒ false', () => {
-    expect(politicaDaMissao(contexto({ missao: 'LEAD', purpose: 'question' })).perguntaDireta).toBe(true);
-    expect(politicaDaMissao(contexto({ missao: 'LEAD', texto: 'quanto custa?' })).perguntaDireta).toBe(true);
-    expect(politicaDaMissao(contexto({ missao: 'LEAD', texto: 'perdi dinheiro no consignado' })).perguntaDireta).toBe(false);
+    expect(politicaDaMissao(contexto({ missao: 'LEAD', purpose: 'question' })).perguntaDireta).toBe(
+      true,
+    );
+    expect(
+      politicaDaMissao(contexto({ missao: 'LEAD', texto: 'quanto custa?' })).perguntaDireta,
+    ).toBe(true);
+    expect(
+      politicaDaMissao(contexto({ missao: 'LEAD', texto: 'perdi dinheiro no consignado' }))
+        .perguntaDireta,
+    ).toBe(false);
   });
 });
 
@@ -141,19 +229,23 @@ describe('Decreto · JORNADA 1 — ONBOARDING_DOCUMENTAL', () => {
     const p = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL' }));
     expect(p.substituiCuriosidade).toBe(true);
     expect(p.conduta).toContain('100% da documentação inicial FIXA');
-    expect(p.conduta).toContain('nesta ordem: RG (frente e verso) ou CNH, comprovante de endereço, e HISCON');
+    expect(p.conduta).toContain(
+      'nesta ordem: RG (frente e verso) ou CNH, comprovante de endereço, e HISCON',
+    );
     expect(p.conduta).toContain('um por vez, nunca vários');
   });
 
   it('conduta DINÂMICA: confirma os recebidos e solicita AGORA o próximo que falta', () => {
-    const p = politicaDaMissao(contexto({
-      missao: 'ONBOARDING_DOCUMENTAL',
-      onboarding: {
-        recebidos: ['HISCON (histórico de empréstimos consignados do INSS)'],
-        faltando: ['RG ou CNH (documento de identidade com foto)', 'comprovante de endereço'],
-        proximo: 'RG ou CNH (documento de identidade com foto)',
-      },
-    }));
+    const p = politicaDaMissao(
+      contexto({
+        missao: 'ONBOARDING_DOCUMENTAL',
+        onboarding: {
+          recebidos: ['HISCON (histórico de empréstimos consignados do INSS)'],
+          faltando: ['RG ou CNH (documento de identidade com foto)', 'comprovante de endereço'],
+          proximo: 'RG ou CNH (documento de identidade com foto)',
+        },
+      }),
+    );
     expect(p.conduta).toContain('Já recebidos e CONFIRMADOS: HISCON');
     expect(p.conduta).toContain('Ainda faltam: RG ou CNH');
     expect(p.conduta).toContain('Solicite AGORA, nesta resposta, APENAS o próximo: RG ou CNH');
@@ -175,12 +267,16 @@ describe('Decreto · JORNADA 1 — ONBOARDING_DOCUMENTAL', () => {
   it('PROIBIDO qualquer documento da Jornada 2 (complementares só pelo Painel do Advogado)', () => {
     const c = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL' })).conduta;
     expect(c).toContain('É PROIBIDO solicitar QUALQUER outro documento nesta fase');
-    expect(c).toContain('NUNCA peça contratos, procuração, extratos, comprovantes bancários ou documentos judiciais');
+    expect(c).toContain(
+      'NUNCA peça contratos, procuração, extratos, comprovantes bancários ou documentos judiciais',
+    );
     expect(c).toContain('Painel do Advogado (Jornada 2)');
   });
 
   it('GUARDA GO-LIVE (5ª rodada): turno com arquivo ⇒ SÓ o ack — a progressão é automática', () => {
-    const c = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL', arquivo: 'hiscon.pdf' })).conduta;
+    const c = politicaDaMissao(
+      contexto({ missao: 'ONBOARDING_DOCUMENTAL', arquivo: 'hiscon.pdf' }),
+    ).conduta;
     expect(c).toContain('ACABOU de enviar um arquivo NESTA mensagem');
     expect(c).toContain('APENAS a confirmação');
     // Regressão da 4ª rodada: negar recebimento é PROIBIDO.
@@ -252,21 +348,34 @@ describe('15A · integração no PromptBuilder — o estado guia o styleGuidance
   });
 
   it('LEAD + "tenho direito?": a resposta canônica entra no styleGuidance', () => {
-    const req = builder.build(intent(), contexto({ missao: 'LEAD', purpose: 'question', texto: 'tenho direito?' }));
+    const req = builder.build(
+      intent(),
+      contexto({ missao: 'LEAD', purpose: 'question', texto: 'tenho direito?' }),
+    );
     expect(req.styleGuidance).toContain(RESPOSTA_ELEGIBILIDADE);
   });
 
   it('ONBOARDING: styleGuidance pede o PRÓXIMO da contabilidade', () => {
-    const req = builder.build(intent(), contexto({
-      missao: 'ONBOARDING_DOCUMENTAL',
-      purpose: 'service_request',
-      onboarding: { recebidos: [], faltando: ['HISCON (histórico de empréstimos consignados do INSS)'], proximo: 'HISCON (histórico de empréstimos consignados do INSS)' },
-    }));
+    const req = builder.build(
+      intent(),
+      contexto({
+        missao: 'ONBOARDING_DOCUMENTAL',
+        purpose: 'service_request',
+        onboarding: {
+          recebidos: [],
+          faltando: ['HISCON (histórico de empréstimos consignados do INSS)'],
+          proximo: 'HISCON (histórico de empréstimos consignados do INSS)',
+        },
+      }),
+    );
     expect(req.styleGuidance).toContain('Solicite AGORA, nesta resposta, APENAS o próximo: HISCON');
   });
 
   it('ANALISE_ADMINISTRATIVA: conversa livre 9E + reforço (zero pedido espontâneo)', () => {
-    const req = builder.build(intent(), contexto({ missao: 'ANALISE_ADMINISTRATIVA', purpose: 'question' }));
+    const req = builder.build(
+      intent(),
+      contexto({ missao: 'ANALISE_ADMINISTRATIVA', purpose: 'question' }),
+    );
     expect(req.styleGuidance).not.toContain('vou te acompanhar do começo ao fim');
     expect(req.styleGuidance).toContain('NUNCA solicite documentos por iniciativa própria');
   });
@@ -284,8 +393,14 @@ describe('15A · integração no PromptBuilder — o estado guia o styleGuidance
 });
 
 describe('15A · o estado é INTEGRADO ao ConversationContextView (ContextRuntime)', () => {
-  const sessions = { getOrOpen: () => Promise.resolve({ chatId: 'c1', turns: 0, lastInboundAt: null, lastOutboundAt: null }) } as unknown as SessionRuntime;
-  const memory = { recent: () => Promise.resolve([]), recentOutboundTexts: () => Promise.resolve([]) } as unknown as ConversationMemoryRuntime;
+  const sessions = {
+    getOrOpen: () =>
+      Promise.resolve({ chatId: 'c1', turns: 0, lastInboundAt: null, lastOutboundAt: null }),
+  } as unknown as SessionRuntime;
+  const memory = {
+    recent: () => Promise.resolve([]),
+    recentOutboundTexts: () => Promise.resolve([]),
+  } as unknown as ConversationMemoryRuntime;
   const NOW = new Date('2026-07-19T12:00:00.000Z');
 
   it('sem provider ⇒ missaoDaConversa = LEAD (default explícito)', async () => {
@@ -295,20 +410,35 @@ describe('15A · o estado é INTEGRADO ao ConversationContextView (ContextRuntim
   });
 
   it('com provider ⇒ o estado do domínio entra no contexto', async () => {
-    const rt = new ConversationContextRuntime(sessions, memory, {}, undefined, () => Promise.resolve('ANALISE_ADMINISTRATIVA'));
+    const rt = new ConversationContextRuntime(sessions, memory, {}, undefined, () =>
+      Promise.resolve('ANALISE_ADMINISTRATIVA'),
+    );
     const view = await rt.build('c1', null, NOW);
     expect(view.missaoDaConversa).toBe('ANALISE_ADMINISTRATIVA');
   });
 
   it('provider falha ⇒ best-effort cai em LEAD (a conversa nunca quebra)', async () => {
-    const rt = new ConversationContextRuntime(sessions, memory, {}, undefined, () => Promise.reject(new Error('down')));
+    const rt = new ConversationContextRuntime(sessions, memory, {}, undefined, () =>
+      Promise.reject(new Error('down')),
+    );
     const view = await rt.build('c1', null, NOW);
     expect(view.missaoDaConversa).toBe('LEAD');
   });
 
   it('provider de onboarding ⇒ a contabilidade da Jornada 1 entra no contexto', async () => {
-    const rt = new ConversationContextRuntime(sessions, memory, {}, undefined, undefined, undefined, () =>
-      Promise.resolve({ recebidos: [], faltando: ['comprovante de endereço'], proximo: 'comprovante de endereço' }),
+    const rt = new ConversationContextRuntime(
+      sessions,
+      memory,
+      {},
+      undefined,
+      undefined,
+      undefined,
+      () =>
+        Promise.resolve({
+          recebidos: [],
+          faltando: ['comprovante de endereço'],
+          proximo: 'comprovante de endereço',
+        }),
     );
     const view = await rt.build('c1', null, NOW);
     expect(view.onboardingDocumental?.proximo).toBe('comprovante de endereço');

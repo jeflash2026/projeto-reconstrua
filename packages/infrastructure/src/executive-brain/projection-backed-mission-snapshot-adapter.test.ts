@@ -26,21 +26,30 @@ class FakeIdentityMap implements MissionIdentityMap {
 
 describe('ProjectionBackedMissionSnapshotAdapter (RFC-0035-G)', () => {
   it('conversa desconhecida (sem identidade) ⇒ null', async () => {
-    const adapter = new ProjectionBackedMissionSnapshotAdapter(new InMemoryDecisionStateStore(), new FakeIdentityMap());
+    const adapter = new ProjectionBackedMissionSnapshotAdapter(
+      new InMemoryDecisionStateStore(),
+      new FakeIdentityMap(),
+    );
     expect(await adapter.load('chat-x')).toBeNull();
   });
 
   it('identidade sem missionId (missão não nasceu) ⇒ null', async () => {
     const ids = new FakeIdentityMap();
     ids.set('chat-1', null);
-    const adapter = new ProjectionBackedMissionSnapshotAdapter(new InMemoryDecisionStateStore(), ids);
+    const adapter = new ProjectionBackedMissionSnapshotAdapter(
+      new InMemoryDecisionStateStore(),
+      ids,
+    );
     expect(await adapter.load('chat-1')).toBeNull();
   });
 
   it('GO-LIVE 9B: identidade SEM registro projetado ⇒ default com caseExists=true (o CASO é fato de domínio, não da projeção)', async () => {
     const ids = new FakeIdentityMap();
     ids.set('chat-1', 'M1');
-    const adapter = new ProjectionBackedMissionSnapshotAdapter(new InMemoryDecisionStateStore(), ids);
+    const adapter = new ProjectionBackedMissionSnapshotAdapter(
+      new InMemoryDecisionStateStore(),
+      ids,
+    );
     const snap = await adapter.load('chat-1');
     expect(snap).not.toBeNull();
     expect(snap?.caseExists).toBe(true); // missão existe (identidade) ⇒ caso existe
@@ -52,7 +61,11 @@ describe('ProjectionBackedMissionSnapshotAdapter (RFC-0035-G)', () => {
     const ids = new FakeIdentityMap();
     ids.set('chat-1', 'M1');
     const store = new InMemoryDecisionStateStore();
-    await store.save({ missionId: 'M1', truthEstablished: true, updatedAt: new Date('2026-07-16T00:00:00.000Z') });
+    await store.save({
+      missionId: 'M1',
+      truthEstablished: true,
+      updatedAt: new Date('2026-07-16T00:00:00.000Z'),
+    });
     const snap = await new ProjectionBackedMissionSnapshotAdapter(store, ids).load('chat-1');
     expect(snap?.truthEstablished).toBe(true);
     expect(snap?.missionId).toBe('M1');
@@ -70,7 +83,12 @@ describe('ProjectionBackedMissionSnapshotAdapter (RFC-0035-G)', () => {
     const ids = new FakeIdentityMap();
     ids.set('chat-1', 'M1');
     const store = new InMemoryDecisionStateStore();
-    await store.save({ missionId: 'M1', truthEstablished: true, terminalState: 'ENCERRADA', updatedAt: new Date('2026-07-16T00:00:00.000Z') });
+    await store.save({
+      missionId: 'M1',
+      truthEstablished: true,
+      terminalState: 'ENCERRADA',
+      updatedAt: new Date('2026-07-16T00:00:00.000Z'),
+    });
     const snap = await new ProjectionBackedMissionSnapshotAdapter(store, ids).load('chat-1');
     expect(snap?.stateCode).toBe('ENCERRADA');
     expect(snap?.truthEstablished).toBe(true);

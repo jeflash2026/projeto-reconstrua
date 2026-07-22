@@ -9,10 +9,22 @@ import { describe, it, expect } from 'vitest';
 import { decodePayload, rowToStoredEvent } from './event-row.js';
 
 const ROW = {
-  id: 'e-1', stream_type: 'document', stream_id: 'd-1', version: 1,
-  event_type: 'document.recognized', is_relevant: true,
-  fact_ref: null, actor: 'AHRI', decision_type: null, fundamento: null, operational_rule_ref: null,
-  previous_hash: null, hash: 'h', occurred_at: new Date(), recorded_at: new Date(), global_seq: 186,
+  id: 'e-1',
+  stream_type: 'document',
+  stream_id: 'd-1',
+  version: 1,
+  event_type: 'document.recognized',
+  is_relevant: true,
+  fact_ref: null,
+  actor: 'AHRI',
+  decision_type: null,
+  fundamento: null,
+  operational_rule_ref: null,
+  previous_hash: null,
+  hash: 'h',
+  occurred_at: new Date(),
+  recorded_at: new Date(),
+  global_seq: 186,
 };
 
 describe('decodePayload · dupla codificação histórica', () => {

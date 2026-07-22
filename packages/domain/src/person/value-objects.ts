@@ -32,7 +32,8 @@ export class CivilIdentity extends ValueObject<{ value: string }> {
         new CanonViolationError({
           invariantId: 'INV-P14',
           canonReference: CANON_REF,
-          message: 'Identidade civil ausente: a Pessoa não pode ser reconhecida de forma incompleta (DF-23).',
+          message:
+            'Identidade civil ausente: a Pessoa não pode ser reconhecida de forma incompleta (DF-23).',
         }),
       );
     }

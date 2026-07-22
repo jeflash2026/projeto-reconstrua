@@ -73,10 +73,19 @@ export class StaffDirectoryRuntime {
     return member;
   }
 
-  async update(id: string, patch: Partial<Pick<StaffMember, 'name' | 'email' | 'active'>>): Promise<StaffMember> {
+  async update(
+    id: string,
+    patch: Partial<Pick<StaffMember, 'name' | 'email' | 'active'>>,
+  ): Promise<StaffMember> {
     const current = await this.store.byId(id);
     if (!current) throw new Error(`membro não encontrado: ${id}`);
-    const next: StaffMember = { ...current, ...patch, id: current.id, role: current.role, updatedAt: this.clock.now() };
+    const next: StaffMember = {
+      ...current,
+      ...patch,
+      id: current.id,
+      role: current.role,
+      updatedAt: this.clock.now(),
+    };
     await this.store.save(next);
     return next;
   }
@@ -127,8 +136,7 @@ export class StaffDirectoryRuntime {
   async workload(role: StaffRole): Promise<StaffWorkload> {
     const members = await this.store.byRole(role);
     const active = members.filter((m) => m.active).length;
-    const open =
-      role === 'administrador' ? 0 : (await this.handoff.openFor(role)).length;
+    const open = role === 'administrador' ? 0 : (await this.handoff.openFor(role)).length;
     return {
       role,
       activeMembers: active,

@@ -45,7 +45,10 @@ export class InMemoryDispatchMetrics implements DispatchMetrics {
   private skippedIdempotent = 0;
   private totalProcessMs = 0;
   private totalQueueMs = 0;
-  private readonly perSubscriber = new Map<string, { delivered: number; failed: number; dead: number }>();
+  private readonly perSubscriber = new Map<
+    string,
+    { delivered: number; failed: number; dead: number }
+  >();
 
   private sub(name: string): { delivered: number; failed: number; dead: number } {
     let entry = this.perSubscriber.get(name);

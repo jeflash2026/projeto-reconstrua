@@ -14,7 +14,9 @@ const ConfiguracoesPage = async (): Promise<ReactElement> => {
   return (
     <>
       <h1 className="page-title">Configurações</h1>
-      <p className="page-sub">Parâmetros operacionais em leitura. Regras mudam por Governança, não por aqui.</p>
+      <p className="page-sub">
+        Parâmetros operacionais em leitura. Regras mudam por Governança, não por aqui.
+      </p>
       <div className="card">
         <dl className="kv">
           <dt>API</dt>

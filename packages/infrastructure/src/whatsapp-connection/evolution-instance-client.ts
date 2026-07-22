@@ -31,7 +31,10 @@ export class FetchEvoHttp implements EvoHttp {
     headers: Readonly<Record<string, string>>,
     body?: unknown,
   ): Promise<EvoHttpResponse> {
-    const init: RequestInit = { method, headers: { 'content-type': 'application/json', ...headers } };
+    const init: RequestInit = {
+      method,
+      headers: { 'content-type': 'application/json', ...headers },
+    };
     if (body !== undefined) init.body = JSON.stringify(body);
     const response = await fetch(url, init);
     const text = await response.text();
@@ -107,34 +110,47 @@ export class EvolutionInstanceClient {
     if (res.status >= 300) throw new Error(`Evolution create falhou (HTTP ${String(res.status)})`);
     const hash = pick(res.body, ['hash']);
     const apiKey =
-      asStr(hash) ??
-      asStr(pick(hash, ['apikey'])) ??
-      asStr(pick(res.body, ['apikey'])) ??
-      '';
+      asStr(hash) ?? asStr(pick(hash, ['apikey'])) ?? asStr(pick(res.body, ['apikey'])) ?? '';
     return { instanceName, apiKey };
   }
 
   /** Configura o webhook oficial (com o segredo) na instância. */
   async setWebhook(instanceName: string, url: string, secret: string): Promise<void> {
-    const res = await this.http.request('POST', `${this.base()}/webhook/set/${instanceName}`, this.gkey(), {
-      webhook: { enabled: true, url, headers: { apikey: secret }, events: ['MESSAGES_UPSERT'] },
-    });
-    if (res.status >= 300) throw new Error(`Evolution webhook/set falhou (HTTP ${String(res.status)})`);
+    const res = await this.http.request(
+      'POST',
+      `${this.base()}/webhook/set/${instanceName}`,
+      this.gkey(),
+      {
+        webhook: { enabled: true, url, headers: { apikey: secret }, events: ['MESSAGES_UPSERT'] },
+      },
+    );
+    if (res.status >= 300)
+      throw new Error(`Evolution webhook/set falhou (HTTP ${String(res.status)})`);
   }
 
   /** Gera/obtém o QR atual da instância (aguardando leitura). */
   async connect(instanceName: string): Promise<QrCode> {
-    const res = await this.http.request('GET', `${this.base()}/instance/connect/${instanceName}`, this.gkey());
+    const res = await this.http.request(
+      'GET',
+      `${this.base()}/instance/connect/${instanceName}`,
+      this.gkey(),
+    );
     if (res.status >= 300) throw new Error(`Evolution connect falhou (HTTP ${String(res.status)})`);
-    const base64 = asStr(pick(res.body, ['base64'])) ?? asStr(pick(pick(res.body, ['qrcode']), ['base64']));
+    const base64 =
+      asStr(pick(res.body, ['base64'])) ?? asStr(pick(pick(res.body, ['qrcode']), ['base64']));
     const pairingCode =
-      asStr(pick(res.body, ['pairingCode'])) ?? asStr(pick(pick(res.body, ['qrcode']), ['pairingCode']));
+      asStr(pick(res.body, ['pairingCode'])) ??
+      asStr(pick(pick(res.body, ['qrcode']), ['pairingCode']));
     return { base64, pairingCode };
   }
 
   /** Estado de conexão da instância. */
   async connectionState(instanceName: string): Promise<string> {
-    const res = await this.http.request('GET', `${this.base()}/instance/connectionState/${instanceName}`, this.gkey());
+    const res = await this.http.request(
+      'GET',
+      `${this.base()}/instance/connectionState/${instanceName}`,
+      this.gkey(),
+    );
     if (res.status >= 300) return 'close';
     const state = pick(pick(res.body, ['instance']), ['state']) ?? pick(res.body, ['state']);
     return (asStr(state) ?? 'close').toLowerCase();
@@ -142,7 +158,11 @@ export class EvolutionInstanceClient {
 
   /** Snapshot da instância (nome, ownerJid, estado) a partir de fetchInstances. */
   async fetchInstance(instanceName: string): Promise<InstanceSnapshot | null> {
-    const res = await this.http.request('GET', `${this.base()}/instance/fetchInstances`, this.gkey());
+    const res = await this.http.request(
+      'GET',
+      `${this.base()}/instance/fetchInstances`,
+      this.gkey(),
+    );
     if (res.status >= 300) return null;
     const list: unknown[] = Array.isArray(res.body) ? (res.body as unknown[]) : [];
     for (const raw of list) {
@@ -152,7 +172,9 @@ export class EvolutionInstanceClient {
       return {
         name,
         ownerJid: asStr(pick(inst, ['ownerJid', 'owner', 'wuid'])),
-        state: (asStr(pick(inst, ['connectionStatus', 'status', 'state'])) ?? 'close').toLowerCase(),
+        state: (
+          asStr(pick(inst, ['connectionStatus', 'status', 'state'])) ?? 'close'
+        ).toLowerCase(),
       };
     }
     return null;
@@ -170,7 +192,11 @@ export class EvolutionInstanceClient {
     readonly instanceNames: readonly string[];
   }> {
     try {
-      const res = await this.http.request('GET', `${this.base()}/instance/fetchInstances`, this.gkey());
+      const res = await this.http.request(
+        'GET',
+        `${this.base()}/instance/fetchInstances`,
+        this.gkey(),
+      );
       const list: unknown[] = Array.isArray(res.body) ? (res.body as unknown[]) : [];
       const names = list
         .map((raw) => asStr(pick(pick(raw, ['instance']) ?? raw, ['name', 'instanceName', 'id'])))
@@ -184,14 +210,19 @@ export class EvolutionInstanceClient {
     } catch (error) {
       // node fetch lança em falha de transporte; a causa real vive em .cause.
       const cause = (error as { cause?: unknown }).cause;
-      const code = typeof cause === 'object' && cause !== null ? (cause as { code?: string }).code : undefined;
+      const code =
+        typeof cause === 'object' && cause !== null ? (cause as { code?: string }).code : undefined;
       const raw = error instanceof Error ? error.message : 'erro de rede';
       const detail =
-        code === 'ECONNREFUSED' ? 'conexão recusada (Evolution fora do ar ou porta errada)'
-        : code === 'ENOTFOUND' ? 'DNS não resolveu o host da Evolution (EVOLUTION_BASE_URL)'
-        : code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT' ? 'timeout ao conectar na Evolution'
-        : code !== undefined ? `${raw} (${code})`
-        : raw;
+        code === 'ECONNREFUSED'
+          ? 'conexão recusada (Evolution fora do ar ou porta errada)'
+          : code === 'ENOTFOUND'
+            ? 'DNS não resolveu o host da Evolution (EVOLUTION_BASE_URL)'
+            : code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT'
+              ? 'timeout ao conectar na Evolution'
+              : code !== undefined
+                ? `${raw} (${code})`
+                : raw;
       return { reached: false, status: null, error: detail, instanceNames: [] };
     }
   }
@@ -220,7 +251,9 @@ export class EvolutionInstanceClient {
         return {
           name: asStr(pick(inst, ['name', 'instanceName', 'id'])) ?? '',
           ownerJid,
-          state: (asStr(pick(inst, ['connectionStatus', 'status', 'state'])) ?? 'close').toLowerCase(),
+          state: (
+            asStr(pick(inst, ['connectionStatus', 'status', 'state'])) ?? 'close'
+          ).toLowerCase(),
         };
       }
     }
@@ -228,11 +261,19 @@ export class EvolutionInstanceClient {
   }
 
   async logout(instanceName: string): Promise<void> {
-    await this.http.request('DELETE', `${this.base()}/instance/logout/${instanceName}`, this.gkey());
+    await this.http.request(
+      'DELETE',
+      `${this.base()}/instance/logout/${instanceName}`,
+      this.gkey(),
+    );
   }
 
   async deleteInstance(instanceName: string): Promise<void> {
-    await this.http.request('DELETE', `${this.base()}/instance/delete/${instanceName}`, this.gkey());
+    await this.http.request(
+      'DELETE',
+      `${this.base()}/instance/delete/${instanceName}`,
+      this.gkey(),
+    );
   }
 }
 

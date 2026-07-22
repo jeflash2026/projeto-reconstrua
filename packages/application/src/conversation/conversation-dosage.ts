@@ -30,15 +30,20 @@ export function turnoSocial(intent: ConversationIntent, context: ConversationCon
 }
 
 /** Decide quanto contexto entra neste turno. Determinístico; nunca altera fatos. */
-export function doseConversa(intent: ConversationIntent, context: ConversationContextView): DoseDaConversa {
+export function doseConversa(
+  intent: ConversationIntent,
+  context: ConversationContextView,
+): DoseDaConversa {
   if (turnoSocial(intent, context)) {
     return {
       casoFatos: null,
-      principio: 'apenas retribua o cumprimento com calor humano e pergunte como pode ajudar — nada mais',
+      principio:
+        'apenas retribua o cumprimento com calor humano e pergunte como pode ajudar — nada mais',
     };
   }
   return {
     casoFatos: context.casoFatos ?? null,
-    principio: 'a MENOR resposta verdadeira: responda somente ao que a pessoa pediu; nunca antecipe informações não perguntadas',
+    principio:
+      'a MENOR resposta verdadeira: responda somente ao que a pessoa pediu; nunca antecipe informações não perguntadas',
   };
 }

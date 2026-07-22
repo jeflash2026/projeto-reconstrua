@@ -7,7 +7,13 @@ import { describe, it, expect } from 'vitest';
 import type { StoredEvent } from '@reconstrua/application';
 import { InMemoryDeliveryStore } from './in-memory-delivery-store.js';
 
-const NOPROV = { factRef: null, actor: null, decisionType: null, fundamento: null, operationalRuleRef: null };
+const NOPROV = {
+  factRef: null,
+  actor: null,
+  decisionType: null,
+  fundamento: null,
+  operationalRuleRef: null,
+};
 const NOW = new Date('2026-07-14T00:00:00.000Z');
 
 function event(streamId: string, version: number): StoredEvent {

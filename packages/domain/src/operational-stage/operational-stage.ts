@@ -68,7 +68,8 @@ export class OperationalStageAggregate extends AggregateRoot<OperationalStageId>
         new CanonViolationError({
           invariantId: STATE_ID,
           canonReference: STATE_REF,
-          message: 'A Etapa corresponde a exatamente um Estado; o Estado representado é obrigatório (INV-ET-01).',
+          message:
+            'A Etapa corresponde a exatamente um Estado; o Estado representado é obrigatório (INV-ET-01).',
         }),
       );
     }
@@ -95,7 +96,9 @@ export class OperationalStageAggregate extends AggregateRoot<OperationalStageId>
       presentedAt: new Date(input.presentedAt.getTime()),
     });
 
-    stage.addDomainEvent(new OperationalStageRepresented(input.id.toString(), stage.props.presentedAt));
+    stage.addDomainEvent(
+      new OperationalStageRepresented(input.id.toString(), stage.props.presentedAt),
+    );
     return Result.ok(stage);
   }
 

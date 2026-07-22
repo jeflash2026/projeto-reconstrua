@@ -59,10 +59,7 @@ export function computeHash(
  * Verifica a integridade de um stream inteiro: versões 1..N contíguas e cada hash
  * consistente com o anterior e com o conteúdo. Lança EventStoreIntegrityError.
  */
-export function assertStreamIntegrity(
-  events: readonly StoredEvent[],
-  hasher: Hasher,
-): void {
+export function assertStreamIntegrity(events: readonly StoredEvent[], hasher: Hasher): void {
   let expectedVersion = 0;
   let previousHash: string | null = null;
   for (const e of events) {

@@ -25,7 +25,11 @@ const Nav = (): ReactElement => {
         <Link
           key={item.href}
           href={item.href}
-          className={pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)) ? 'active' : ''}
+          className={
+            pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+              ? 'active'
+              : ''
+          }
         >
           {item.label}
         </Link>

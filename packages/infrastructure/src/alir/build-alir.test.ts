@@ -41,15 +41,33 @@ function wire() {
   return { ...wiring, assembled: assembleALIR(wiring) };
 }
 
-async function seedCliente(w: ReturnType<typeof wire>, over: { terminal?: boolean; pendentes?: string[] } = {}) {
+async function seedCliente(
+  w: ReturnType<typeof wire>,
+  over: { terminal?: boolean; pendentes?: string[] } = {},
+) {
   await w.identityMap.save({
-    chatId: 'c1', personId: 'p1', clienteId: 'cli-1', missionId: 'm1', caseId: null,
-    processId: null, latestTruthId: null, latestStateId: null, latestStageId: null,
-    lastDocumentId: null, lastEventId: null,
+    chatId: 'c1',
+    personId: 'p1',
+    clienteId: 'cli-1',
+    missionId: 'm1',
+    caseId: null,
+    processId: null,
+    latestTruthId: null,
+    latestStateId: null,
+    latestStageId: null,
+    lastDocumentId: null,
+    lastEventId: null,
   });
   await w.memoryStore.save({
     ...emptyMemory('c1'),
-    attributes: [{ key: 'nome', value: 'Maria', source: { kind: 'conversation', ref: 'msg1', at: NOW }, confidence: 0.9 }],
+    attributes: [
+      {
+        key: 'nome',
+        value: 'Maria',
+        source: { kind: 'conversation', ref: 'msg1', at: NOW },
+        confidence: 0.9,
+      },
+    ],
     documentsPending: over.pendentes ?? ['CNIS'],
   });
   await w.decisionState.save({

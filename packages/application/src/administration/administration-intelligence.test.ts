@@ -8,7 +8,10 @@ import { describe, it, expect } from 'vitest';
 import type { MemoryStore } from '../living-memory/ports.js';
 import type { AdminMetricsStore } from './ports.js';
 import { emptyMetrics } from './admin-metrics.js';
-import { AdministrationIntelligenceRuntime, type AdminIntelligenceSources } from './administration-intelligence-runtime.js';
+import {
+  AdministrationIntelligenceRuntime,
+  type AdminIntelligenceSources,
+} from './administration-intelligence-runtime.js';
 import { FounderConsoleRuntime } from './founder-console-runtime.js';
 
 const NOW = new Date('2026-07-18T12:00:00.000Z');
@@ -17,7 +20,11 @@ const metricsStore: AdminMetricsStore = {
   load: () => Promise.resolve({ ...emptyMetrics(NOW), clientCount: 3, documentCount: 7 }),
   save: () => Promise.resolve(),
 };
-const memoryStore: MemoryStore = { load: () => Promise.resolve(null), save: () => Promise.resolve(), all: () => Promise.resolve([]) };
+const memoryStore: MemoryStore = {
+  load: () => Promise.resolve(null),
+  save: () => Promise.resolve(),
+  all: () => Promise.resolve([]),
+};
 
 const SOURCES: AdminIntelligenceSources = {
   clientes: () =>
@@ -78,7 +85,12 @@ describe('AdministrationIntelligence · fontes REAIS ligadas', () => {
 
   it('SEM fonte ligada → honestamente NÃO DISPONÍVEL (jamais inventado)', async () => {
     const r = runtime();
-    for (const kind of ['clients_awaiting_lawyer', 'clients_awaiting_expertise', 'lawyer_count', 'lawyer_most_processes'] as const) {
+    for (const kind of [
+      'clients_awaiting_lawyer',
+      'clients_awaiting_expertise',
+      'lawyer_count',
+      'lawyer_most_processes',
+    ] as const) {
       const a = await r.answer(kind, NOW);
       expect(a.available).toBe(false);
       expect(a.fact).toContain('não disponível');
@@ -94,7 +106,9 @@ describe('AdministrationIntelligence · fontes REAIS ligadas', () => {
 describe('FounderConsole · o fim do "unknown" (item 5)', () => {
   it('pergunta fora do mapa → resposta ÚTIL em português; nunca o slug "unknown"', async () => {
     const narration = { narrate: () => Promise.resolve('narrado') };
-    const console_ = new FounderConsoleRuntime(runtime(SOURCES), narration, metricsStore, { founderName: 'Jessé' });
+    const console_ = new FounderConsoleRuntime(runtime(SOURCES), narration, metricsStore, {
+      founderName: 'Jessé',
+    });
     const res = await console_.ask('qual é o sentido da vida?', NOW);
     expect(res.available).toBe(false);
     expect(res.answer).not.toContain('unknown');

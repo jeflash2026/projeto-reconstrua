@@ -39,7 +39,10 @@ export interface ProductionGoLiveReport {
 export class ProductionGoLive {
   constructor(private readonly prod: AssembledProduction) {}
 
-  async verify(now: Date, env: Readonly<Record<string, string | undefined>>): Promise<ProductionGoLiveReport> {
+  async verify(
+    now: Date,
+    env: Readonly<Record<string, string | undefined>>,
+  ): Promise<ProductionGoLiveReport> {
     const p = this.prod;
     const results: ProductionItemResult[] = [];
     const add = (item: ProductionItem, passed: boolean, detail: string): void => {
@@ -50,22 +53,41 @@ export class ProductionGoLive {
     const evo = p.config.evolution;
     add(
       'evolution',
-      p.mode.gateway === 'evolution' || (evo.baseUrl !== '' && evo.instance !== '' && evo.apiKey !== ''),
-      p.mode.gateway === 'evolution' ? 'gateway Evolution ativo' : 'EVOLUTION_BASE_URL/INSTANCE/API_KEY ausentes',
+      p.mode.gateway === 'evolution' ||
+        (evo.baseUrl !== '' && evo.instance !== '' && evo.apiKey !== ''),
+      p.mode.gateway === 'evolution'
+        ? 'gateway Evolution ativo'
+        : 'EVOLUTION_BASE_URL/INSTANCE/API_KEY ausentes',
     );
 
     // LLM: provedor real configurado.
-    add('llm', p.mode.llm !== 'offline', p.mode.llm !== 'offline' ? `provedor: ${p.mode.llm}` : 'LLM_PROVIDER/chave ausentes (modo offline)');
+    add(
+      'llm',
+      p.mode.llm !== 'offline',
+      p.mode.llm !== 'offline'
+        ? `provedor: ${p.mode.llm}`
+        : 'LLM_PROVIDER/chave ausentes (modo offline)',
+    );
 
     // Postgres: DATABASE_URL + storage pg.
-    add('postgres', p.mode.storage === 'postgres', p.mode.storage === 'postgres' ? 'DATABASE_URL ativo' : 'DATABASE_URL ausente (in-memory)');
+    add(
+      'postgres',
+      p.mode.storage === 'postgres',
+      p.mode.storage === 'postgres' ? 'DATABASE_URL ativo' : 'DATABASE_URL ausente (in-memory)',
+    );
 
     // Redis: não utilizado nesta arquitetura (outbox+Postgres fazem a fila) — declarado.
     add('redis', true, 'não requerido (fila = outbox/Postgres por ADR-0001)');
 
     // Workers: boot da composição sobe todos os componentes.
     const bootReport = await p.boot.boot(p.bootComponents);
-    add('workers', bootReport.ok, bootReport.ok ? `${String(bootReport.started.length)} componentes ONLINE` : `falhas: ${bootReport.failed.map((f) => f.name).join(', ')}`);
+    add(
+      'workers',
+      bootReport.ok,
+      bootReport.ok
+        ? `${String(bootReport.started.length)} componentes ONLINE`
+        : `falhas: ${bootReport.failed.map((f) => f.name).join(', ')}`,
+    );
 
     // Scheduler: consulta real.
     try {
@@ -76,7 +98,11 @@ export class ProductionGoLive {
     }
 
     // HTTPS: URL pública precisa ser https.
-    add('https', p.config.publicUrl.startsWith('https://'), p.config.publicUrl === '' ? 'PUBLIC_URL ausente' : p.config.publicUrl);
+    add(
+      'https',
+      p.config.publicUrl.startsWith('https://'),
+      p.config.publicUrl === '' ? 'PUBLIC_URL ausente' : p.config.publicUrl,
+    );
 
     // Variáveis obrigatórias. GO-LIVE-02: os SEGREDOS entram no bloqueio — sem
     // CLIENTE_PORTAL_SECRET o Portal nunca nasce (silenciosamente); sem
@@ -92,11 +118,19 @@ export class ProductionGoLive {
       'WEBHOOK_SECRET',
     ];
     const missing = required.filter((k) => (env[k] ?? '') === '');
-    add('env-vars', missing.length === 0, missing.length === 0 ? 'todas presentes' : `ausentes: ${missing.join(', ')}`);
+    add(
+      'env-vars',
+      missing.length === 0,
+      missing.length === 0 ? 'todas presentes' : `ausentes: ${missing.join(', ')}`,
+    );
 
     // Portas configuradas.
     const port = env['PORT'] ?? '';
-    add('ports', port !== '' && Number.isInteger(Number(port)), port !== '' ? `PORT=${port}` : 'PORT ausente');
+    add(
+      'ports',
+      port !== '' && Number.isInteger(Number(port)),
+      port !== '' ? `PORT=${port}` : 'PORT ausente',
+    );
 
     // Health global.
     add('health', p.health.overall() !== 'FAILED', `overall: ${p.health.overall()}`);

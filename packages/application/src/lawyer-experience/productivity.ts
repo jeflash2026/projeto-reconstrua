@@ -56,7 +56,12 @@ export class ProductivityRuntime {
     private readonly params: SavingsParams = DEFAULT_SAVINGS,
   ) {}
 
-  async record(advogadoId: string, kind: ProductivityEventKind, value: number, at: Date): Promise<void> {
+  async record(
+    advogadoId: string,
+    kind: ProductivityEventKind,
+    value: number,
+    at: Date,
+  ): Promise<void> {
     await this.store.record({ advogadoId, kind, value, at });
   }
 
@@ -73,7 +78,9 @@ export class ProductivityRuntime {
       accesses: events.filter((e) => e.kind === 'access').length,
       decisionsResolved: events.filter((e) => e.kind === 'decision_resolved').length,
       timeToFirstDecisionMs:
-        firstAccess && firstDecision ? Math.max(0, firstDecision.getTime() - firstAccess.getTime()) : null,
+        firstAccess && firstDecision
+          ? Math.max(0, firstDecision.getTime() - firstAccess.getTime())
+          : null,
       eventsHidden,
       relevantChanges: sum('relevant_changes'),
       ahriCommunications,

@@ -65,8 +65,16 @@ export class BootRuntime {
           this.observability.latency('boot', component.name, now().getTime() - t0, now());
           this.observability.event('boot', `${component.name}:started`, now());
         } else {
-          failed.push({ name: component.name, error: healthReport.detail ?? `status ${healthReport.status}` });
-          this.observability.error('boot', component.name, now(), healthReport.detail ?? healthReport.status);
+          failed.push({
+            name: component.name,
+            error: healthReport.detail ?? `status ${healthReport.status}`,
+          });
+          this.observability.error(
+            'boot',
+            component.name,
+            now(),
+            healthReport.detail ?? healthReport.status,
+          );
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'falha desconhecida';

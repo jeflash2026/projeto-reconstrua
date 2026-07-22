@@ -72,7 +72,12 @@ export class MediaCaptureRuntime {
       if (this.deps.references) {
         const messageId = messageIdOf(rawMessage);
         if (messageId !== null) {
-          await this.deps.references.save({ messageId, sha256, mime: fetched.mime, size: bytes.length });
+          await this.deps.references.save({
+            messageId,
+            sha256,
+            mime: fetched.mime,
+            size: bytes.length,
+          });
         }
       }
       if (await this.deps.store.has(sha256)) {
@@ -100,7 +105,9 @@ function payloadShape(rawMessage: unknown): string {
   const image = message ? asRecord(message['imageMessage']) : null;
   const doc = message ? asRecord(message['documentMessage']) : null;
   const inner = image ?? doc;
-  const innerKeys = inner ? ` ${image ? 'image' : 'document'}=[${Object.keys(inner).join(',')}]` : '';
+  const innerKeys = inner
+    ? ` ${image ? 'image' : 'document'}=[${Object.keys(inner).join(',')}]`
+    : '';
   return `data=[${dataKeys}] message=[${messageKeys}]${innerKeys}`;
 }
 

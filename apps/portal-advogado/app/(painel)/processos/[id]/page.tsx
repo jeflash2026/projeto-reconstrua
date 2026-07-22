@@ -13,7 +13,9 @@ const ProcessoPage = async ({ params }: { params: { id: string } }): Promise<Rea
     return (
       <>
         <h1 className="page-title">Processo</h1>
-        <div className="error-box">Processo não atribuído a você, identificação ausente ou API indisponível.</div>
+        <div className="error-box">
+          Processo não atribuído a você, identificação ausente ou API indisponível.
+        </div>
       </>
     );
   }
@@ -21,7 +23,9 @@ const ProcessoPage = async ({ params }: { params: { id: string } }): Promise<Rea
     <>
       <AutoRefresh seconds={8} />
       <h1 className="page-title mono">{shortId(data.missionId, 16)}</h1>
-      <p className="page-sub">Dados operacionais em somente-leitura; seus registros jurídicos abaixo.</p>
+      <p className="page-sub">
+        Dados operacionais em somente-leitura; seus registros jurídicos abaixo.
+      </p>
 
       {data.progress ? (
         <div className="card" style={{ marginBottom: 16 }}>
@@ -49,7 +53,10 @@ const ProcessoPage = async ({ params }: { params: { id: string } }): Promise<Rea
           ) : (
             data.documents.map((d) => (
               <p key={d.documentId} style={{ margin: '4px 0' }}>
-                📄 {d.contentReference ?? shortId(d.documentId)} <span className="mono" style={{ color: 'var(--text-dim)' }}>({formatDate(d.recognizedAt)})</span>
+                📄 {d.contentReference ?? shortId(d.documentId)}{' '}
+                <span className="mono" style={{ color: 'var(--text-dim)' }}>
+                  ({formatDate(d.recognizedAt)})
+                </span>
               </p>
             ))
           )}
@@ -88,7 +95,13 @@ const ProcessoPage = async ({ params }: { params: { id: string } }): Promise<Rea
                   <td className="mono">{e.globalSeq}</td>
                   <td className="mono">{formatDate(e.at)}</td>
                   <td className="mono">{e.eventType}</td>
-                  <td>{e.isRelevant ? <span className="badge warn">relevante</span> : <span className="badge dim">informativo</span>}</td>
+                  <td>
+                    {e.isRelevant ? (
+                      <span className="badge warn">relevante</span>
+                    ) : (
+                      <span className="badge dim">informativo</span>
+                    )}
+                  </td>
                   <td>{e.actor ?? '—'}</td>
                   <td className="mono">{e.operationalRuleRef ?? '—'}</td>
                 </tr>

@@ -19,7 +19,9 @@ const MissionPage = async ({ params }: { params: { id: string } }): Promise<Reac
     );
   }
   const staff = await getJson<StaffData>('/admin/staff/advogado');
-  const advogados = (staff?.members ?? []).filter((m) => m.active).map((m) => ({ id: m.id, name: m.name }));
+  const advogados = (staff?.members ?? [])
+    .filter((m) => m.active)
+    .map((m) => ({ id: m.id, name: m.name }));
   const count = (type: string): number => data.timeline.filter((e) => e.streamType === type).length;
   return (
     <>
@@ -28,7 +30,11 @@ const MissionPage = async ({ params }: { params: { id: string } }): Promise<Reac
       <p className="page-sub">
         Cliente:{' '}
         {data.chatId ? (
-          <Link href={`/clientes/${encodeURIComponent(data.chatId)}`} className="mono" style={{ color: 'var(--accent)' }}>
+          <Link
+            href={`/clientes/${encodeURIComponent(data.chatId)}`}
+            className="mono"
+            style={{ color: 'var(--accent)' }}
+          >
             {data.chatId}
           </Link>
         ) : (
@@ -37,12 +43,30 @@ const MissionPage = async ({ params }: { params: { id: string } }): Promise<Reac
       </p>
 
       <div className="grid stats" style={{ marginBottom: 16 }}>
-        <div className="card stat"><div className="value">{count('operational-truth')}</div><div className="label">Verdades Operacionais</div></div>
-        <div className="card stat"><div className="value">{count('operational-state')}</div><div className="label">Estados</div></div>
-        <div className="card stat"><div className="value">{count('operational-stage')}</div><div className="label">Etapas</div></div>
-        <div className="card stat"><div className="value">{count('operation')}</div><div className="label">Operações</div></div>
-        <div className="card stat"><div className="value">{count('projection')}</div><div className="label">Projeções</div></div>
-        <div className="card stat"><div className="value">{count('document')}</div><div className="label">Documentos</div></div>
+        <div className="card stat">
+          <div className="value">{count('operational-truth')}</div>
+          <div className="label">Verdades Operacionais</div>
+        </div>
+        <div className="card stat">
+          <div className="value">{count('operational-state')}</div>
+          <div className="label">Estados</div>
+        </div>
+        <div className="card stat">
+          <div className="value">{count('operational-stage')}</div>
+          <div className="label">Etapas</div>
+        </div>
+        <div className="card stat">
+          <div className="value">{count('operation')}</div>
+          <div className="label">Operações</div>
+        </div>
+        <div className="card stat">
+          <div className="value">{count('projection')}</div>
+          <div className="label">Projeções</div>
+        </div>
+        <div className="card stat">
+          <div className="value">{count('document')}</div>
+          <div className="label">Documentos</div>
+        </div>
       </div>
 
       <AssignForm missionId={data.missionId} advogados={advogados} />
@@ -85,7 +109,13 @@ const MissionPage = async ({ params }: { params: { id: string } }): Promise<Reac
                   <td>
                     <span className="badge dim">{e.streamType}</span>
                   </td>
-                  <td>{e.isRelevant ? <span className="badge warn">relevante</span> : <span className="badge dim">informativo</span>}</td>
+                  <td>
+                    {e.isRelevant ? (
+                      <span className="badge warn">relevante</span>
+                    ) : (
+                      <span className="badge dim">informativo</span>
+                    )}
+                  </td>
                   <td>{e.actor ?? '—'}</td>
                   <td className="mono">{e.operationalRuleRef ?? '—'}</td>
                   <td style={{ whiteSpace: 'normal', maxWidth: 360 }}>{e.fundamento ?? '—'}</td>

@@ -32,12 +32,7 @@ export const documentEntityInvariants: ReadonlyArray<Invariant<DocumentAggregate
 
 // (B) Manifesto completo das 14 invariantes do Canon e onde cada uma é garantida.
 export type EnforcementLocus =
-  | 'entity'
-  | 'event-store'
-  | 'projection'
-  | 'cqrs'
-  | 'use-case'
-  | 'cross-entity';
+  'entity' | 'event-store' | 'projection' | 'cqrs' | 'use-case' | 'cross-entity';
 
 export interface DocumentInvariantSpec {
   readonly id: string;
@@ -47,18 +42,93 @@ export interface DocumentInvariantSpec {
 }
 
 export const DOCUMENT_INVARIANTS_MANIFEST: ReadonlyArray<DocumentInvariantSpec> = [
-  { id: 'INV-D01', canonReference: 'Entidade 03; Lei do Reconhecimento', description: 'Jamais inventado: o Sistema reconhece, nunca cria um Documento.', enforcement: 'entity' },
-  { id: 'INV-D02', canonReference: 'Entidade 03', description: 'Jamais perde sua origem.', enforcement: 'entity' },
-  { id: 'INV-D03', canonReference: 'Lei 3; Art. 14º', description: 'Jamais perde rastreabilidade (origem, momento, responsável).', enforcement: 'event-store' },
-  { id: 'INV-D04', canonReference: 'Entidade 03', description: 'Jamais confundido com decisão, estado ou conclusão.', enforcement: 'entity' },
-  { id: 'INV-D05', canonReference: 'DF-20; Entidade 03', description: 'Compartilhado entre missões apenas quando as Regras Operacionais permitirem.', enforcement: 'use-case' },
-  { id: 'INV-D06', canonReference: 'Entidade 03 — Reconhecimento', description: 'Reconhecimento jamais significa validação, aprovação ou aceitação de veracidade.', enforcement: 'entity' },
-  { id: 'INV-D07', canonReference: 'DF-09; Entidade 03', description: 'O valor jurídico definitivo jamais pertence ao Documento (é da interpretação humana).', enforcement: 'entity' },
-  { id: 'INV-D08', canonReference: 'Entidade 03 — Reconhecimento', description: 'Individualizado, com origem, incorporado a ≥1 Missão, integrando a Verdade Operacional.', enforcement: 'entity' },
-  { id: 'INV-D09', canonReference: 'DF-05; E8', description: 'A incorporação jamais altera, por si só, o Estado Operacional.', enforcement: 'projection' },
-  { id: 'INV-D10', canonReference: 'Entidade 03', description: 'O conteúdo probatório jamais é alterado; alterações da representação são rastreáveis.', enforcement: 'entity' },
-  { id: 'INV-D11', canonReference: 'DF-11; Lei 3', description: 'Um Documento reconhecido jamais desaparece.', enforcement: 'event-store' },
-  { id: 'INV-D12', canonReference: 'Entidade 03', description: 'Nunca pertence ao Sistema; o Sistema mantém apenas sua representação.', enforcement: 'entity' },
-  { id: 'INV-D13', canonReference: 'Lei 1; Entidade 03', description: 'O mesmo documento real corresponde a uma única individualização; compartilhar não duplica.', enforcement: 'event-store' },
-  { id: 'INV-D14', canonReference: 'Lei 4; DF-09; DF-13', description: 'Toda automação que reconheça/classifique/vincule referencia Regra Operacional e produz histórico.', enforcement: 'use-case' },
+  {
+    id: 'INV-D01',
+    canonReference: 'Entidade 03; Lei do Reconhecimento',
+    description: 'Jamais inventado: o Sistema reconhece, nunca cria um Documento.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-D02',
+    canonReference: 'Entidade 03',
+    description: 'Jamais perde sua origem.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-D03',
+    canonReference: 'Lei 3; Art. 14º',
+    description: 'Jamais perde rastreabilidade (origem, momento, responsável).',
+    enforcement: 'event-store',
+  },
+  {
+    id: 'INV-D04',
+    canonReference: 'Entidade 03',
+    description: 'Jamais confundido com decisão, estado ou conclusão.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-D05',
+    canonReference: 'DF-20; Entidade 03',
+    description: 'Compartilhado entre missões apenas quando as Regras Operacionais permitirem.',
+    enforcement: 'use-case',
+  },
+  {
+    id: 'INV-D06',
+    canonReference: 'Entidade 03 — Reconhecimento',
+    description: 'Reconhecimento jamais significa validação, aprovação ou aceitação de veracidade.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-D07',
+    canonReference: 'DF-09; Entidade 03',
+    description:
+      'O valor jurídico definitivo jamais pertence ao Documento (é da interpretação humana).',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-D08',
+    canonReference: 'Entidade 03 — Reconhecimento',
+    description:
+      'Individualizado, com origem, incorporado a ≥1 Missão, integrando a Verdade Operacional.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-D09',
+    canonReference: 'DF-05; E8',
+    description: 'A incorporação jamais altera, por si só, o Estado Operacional.',
+    enforcement: 'projection',
+  },
+  {
+    id: 'INV-D10',
+    canonReference: 'Entidade 03',
+    description:
+      'O conteúdo probatório jamais é alterado; alterações da representação são rastreáveis.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-D11',
+    canonReference: 'DF-11; Lei 3',
+    description: 'Um Documento reconhecido jamais desaparece.',
+    enforcement: 'event-store',
+  },
+  {
+    id: 'INV-D12',
+    canonReference: 'Entidade 03',
+    description: 'Nunca pertence ao Sistema; o Sistema mantém apenas sua representação.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-D13',
+    canonReference: 'Lei 1; Entidade 03',
+    description:
+      'O mesmo documento real corresponde a uma única individualização; compartilhar não duplica.',
+    enforcement: 'event-store',
+  },
+  {
+    id: 'INV-D14',
+    canonReference: 'Lei 4; DF-09; DF-13',
+    description:
+      'Toda automação que reconheça/classifique/vincule referencia Regra Operacional e produz histórico.',
+    enforcement: 'use-case',
+  },
 ];

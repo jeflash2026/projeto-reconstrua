@@ -44,14 +44,19 @@ describe('Nascimento e2e (Json stores reais)', () => {
     const staffStore = new JsonStaffStore(json);
     const liberacaoStore = new JsonLiberacaoPortalStore(json);
     const alir = assembleALIR({
-      identityMap, memoryStore, decisionState,
+      identityMap,
+      memoryStore,
+      decisionState,
       progressStore: new JsonProgressStore(json),
       schedulerStore: new JsonSchedulerStore(json),
       handoffStore: new JsonHandoffStore(json),
-      assignmentStore, staffStore, juridicalStore,
+      assignmentStore,
+      staffStore,
+      juridicalStore,
     });
     const clientes = new ClientesList({
-      memory: memoryStore, alir: alir.builder,
+      memory: memoryStore,
+      alir: alir.builder,
       modalidade: new JsonModalidadeStore(json),
       venda: new JsonVendaStore(json),
       pedidos: new JsonPedidosAdministrativosStore(json),
@@ -60,16 +65,39 @@ describe('Nascimento e2e (Json stores reais)', () => {
     // Cliente RECONHECIDO, PRONTO (verdade + sem pendências) com os 3 documentos
     // REAIS do decreto "Jornada Documental Inicial" (HISCON + RG/CNH + endereço).
     await identityMap.save({
-      chatId: 'c1', personId: 'p1', clienteId: 'cli-1', missionId: 'm1', caseId: null,
-      processId: null, latestTruthId: null, latestStateId: null, latestStageId: null,
-      lastDocumentId: null, lastEventId: null,
+      chatId: 'c1',
+      personId: 'p1',
+      clienteId: 'cli-1',
+      missionId: 'm1',
+      caseId: null,
+      processId: null,
+      latestTruthId: null,
+      latestStateId: null,
+      latestStageId: null,
+      lastDocumentId: null,
+      lastEventId: null,
     });
     await memoryStore.save({
       ...emptyMemory('c1'),
-      attributes: [{ key: 'nome', value: 'Maria', source: { kind: 'conversation', ref: 'x', at: NOW }, confidence: 0.9 }],
+      attributes: [
+        {
+          key: 'nome',
+          value: 'Maria',
+          source: { kind: 'conversation', ref: 'x', at: NOW },
+          confidence: 0.9,
+        },
+      ],
       documentsSent: [
-        { ref: 'd1', label: 'Documento de identidade', source: { kind: 'domain_event', ref: 'e1', at: NOW } },
-        { ref: 'd2', label: 'Comprovante de residência', source: { kind: 'domain_event', ref: 'e2', at: NOW } },
+        {
+          ref: 'd1',
+          label: 'Documento de identidade',
+          source: { kind: 'domain_event', ref: 'e1', at: NOW },
+        },
+        {
+          ref: 'd2',
+          label: 'Comprovante de residência',
+          source: { kind: 'domain_event', ref: 'e2', at: NOW },
+        },
         { ref: 'd3', label: 'HISCON', source: { kind: 'domain_event', ref: 'e3', at: NOW } },
       ],
       lastContactAt: NOW,
@@ -78,11 +106,22 @@ describe('Nascimento e2e (Json stores reais)', () => {
 
     const mensagens: string[] = [];
     const comunicador: ComunicadorNascimento = {
-      comunicar: (_chat, _cli, texto) => { mensagens.push(texto); return Promise.resolve(true); },
+      comunicar: (_chat, _cli, texto) => {
+        mensagens.push(texto);
+        return Promise.resolve(true);
+      },
     };
     const nascimento = new NascimentoPortalRuntime({
-      clientes, memory: memoryStore, liberacao: liberacaoStore, comunicador,
-      config: { estimativaDias: 12, validadeLinkDias: 90, publicUrl: 'https://www.projetoreconstrua.com.br', tokenSecret: SECRET },
+      clientes,
+      memory: memoryStore,
+      liberacao: liberacaoStore,
+      comunicador,
+      config: {
+        estimativaDias: 12,
+        validadeLinkDias: 90,
+        publicUrl: 'https://www.projetoreconstrua.com.br',
+        tokenSecret: SECRET,
+      },
     });
 
     // O momento acontece:
@@ -100,8 +139,11 @@ describe('Nascimento e2e (Json stores reais)', () => {
 
     // A visão do Portal agora ANCORA o relógio no fato (nada muda na relação):
     const view = new AcompanhamentoView({
-      clientes, memory: memoryStore, juridical: juridicalStore,
-      assignments: assignmentStore, staff: staffStore,
+      clientes,
+      memory: memoryStore,
+      juridical: juridicalStore,
+      assignments: assignmentStore,
+      staff: staffStore,
       liberacao: (id) => liberacaoStore.load(id),
       config: { estimativaDias: 12, whatsapp: '554137989737' },
     });

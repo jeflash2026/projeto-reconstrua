@@ -57,7 +57,9 @@ export function pacoteDeEstado(view: AcompanhamentoCliente, link: string | null)
       `- PORTAL DO CLIENTE: se a pessoa pedir o acesso, disser que perdeu o link, trocou de celular ou perguntar onde acompanha, inclua na resposta exatamente este endereço: ${link} — se ela não precisar, não ofereça.`,
     );
   } else {
-    linhas.push('- O Portal do Cliente ainda não foi liberado para esta pessoa: NÃO mencione portal nem link.');
+    linhas.push(
+      '- O Portal do Cliente ainda não foi liberado para esta pessoa: NÃO mencione portal nem link.',
+    );
   }
 
   return linhas.join('\n');

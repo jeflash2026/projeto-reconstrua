@@ -63,7 +63,9 @@ export class JsonDocumentRequestStore implements DocumentRequestStore {
   }
 
   async doAdvogado(lawyerId: string): Promise<readonly DocumentRequestState[]> {
-    return (await this.todos()).filter((s) => s.lawyerId === lawyerId).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    return (await this.todos())
+      .filter((s) => s.lawyerId === lawyerId)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }
 
   async abertas(): Promise<readonly DocumentRequestState[]> {

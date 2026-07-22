@@ -20,7 +20,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  const migrationsDir = resolve(process.cwd(), process.env['MIGRATIONS_DIR'] ?? 'infrastructure/database/init');
+  const migrationsDir = resolve(
+    process.cwd(),
+    process.env['MIGRATIONS_DIR'] ?? 'infrastructure/database/init',
+  );
   const ledgerSql = readFileSync(join(migrationsDir, '..', '_schema_migrations.sql'), 'utf8');
   const versions = readdirSync(migrationsDir)
     .filter((name) => name.endsWith('.sql'))
@@ -44,10 +47,13 @@ async function main(): Promise<void> {
     process.stdout.write(`[migrate] já presentes: ${String(result.skipped.length)}\n`);
     process.stdout.write('[migrate] OK\n');
   } catch (error) {
-    process.stderr.write(`[migrate] FALHA: ${error instanceof Error ? error.message : String(error)}\n`);
+    process.stderr.write(
+      `[migrate] FALHA: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
     process.exitCode = 1;
   } finally {
-    if (locked) await db.rows('SELECT pg_advisory_unlock($1)', [ADVISORY_LOCK_KEY]).catch(() => undefined);
+    if (locked)
+      await db.rows('SELECT pg_advisory_unlock($1)', [ADVISORY_LOCK_KEY]).catch(() => undefined);
     await db.close();
   }
 }

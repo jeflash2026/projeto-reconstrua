@@ -69,14 +69,27 @@ describe('Portal do Advogado', () => {
   let missionId = '';
 
   /** Injeta já autenticado (Bearer) — reflete o portal com o segredo do Advogado. */
-  function call(opts: { method: 'GET' | 'POST'; url: string; headers?: Record<string, string>; payload?: object }) {
-    return app.inject({ ...opts, headers: { authorization: `Bearer ${ADVOGADO_SECRET}`, ...opts.headers } });
+  function call(opts: {
+    method: 'GET' | 'POST';
+    url: string;
+    headers?: Record<string, string>;
+    payload?: object;
+  }) {
+    return app.inject({
+      ...opts,
+      headers: { authorization: `Bearer ${ADVOGADO_SECRET}`, ...opts.headers },
+    });
   }
 
   beforeAll(async () => {
     const clock = new TestClock();
     gateway = new InMemoryConversationGateway(clock);
-    op = assembleAdvogadoOperation({ clock, uuid: new SeqUuid(), gateway, sleeper: new FakeSleeper(clock) });
+    op = assembleAdvogadoOperation({
+      clock,
+      uuid: new SeqUuid(),
+      gateway,
+      sleeper: new FakeSleeper(clock),
+    });
     app = buildAdvogadoServer(op, { accessSecret: ADVOGADO_SECRET });
 
     // Operação real: cliente chega pelo WhatsApp → missão nasce.
@@ -98,23 +111,39 @@ describe('Portal do Advogado', () => {
   it('BL-3.1 — sem autenticação (guard) → 401', async () => {
     const res = await app.inject({ method: 'GET', url: '/advogado/painel' }); // sem Bearer
     expect(res.statusCode).toBe(401);
-    const fakeAuth = await app.inject({ method: 'GET', url: '/advogado/painel', headers: { 'x-advogado-id': advogadoA } });
+    const fakeAuth = await app.inject({
+      method: 'GET',
+      url: '/advogado/painel',
+      headers: { 'x-advogado-id': advogadoA },
+    });
     expect(fakeAuth.statusCode).toBe(401); // identidade sem o segredo NÃO entra
   });
 
   it('autenticado mas sem identificação (ou inativo) → 401', async () => {
     const res = await call({ method: 'GET', url: '/advogado/painel' });
     expect(res.statusCode).toBe(401);
-    const fake = await call({ method: 'GET', url: '/advogado/painel', headers: { 'x-advogado-id': 'intruso' } });
+    const fake = await call({
+      method: 'GET',
+      url: '/advogado/painel',
+      headers: { 'x-advogado-id': 'intruso' },
+    });
     expect(fake.statusCode).toBe(401);
   });
 
   it('ISOLAMENTO: A vê seu processo; B vê lista vazia e recebe 403 no processo de A', async () => {
-    const listA = await call({ method: 'GET', url: '/advogado/processos', headers: { 'x-advogado-id': advogadoA } });
+    const listA = await call({
+      method: 'GET',
+      url: '/advogado/processos',
+      headers: { 'x-advogado-id': advogadoA },
+    });
     const bodyA: unknown[] = listA.json();
     expect(bodyA).toHaveLength(1);
 
-    const listB = await call({ method: 'GET', url: '/advogado/processos', headers: { 'x-advogado-id': advogadoB } });
+    const listB = await call({
+      method: 'GET',
+      url: '/advogado/processos',
+      headers: { 'x-advogado-id': advogadoB },
+    });
     const bodyB: unknown[] = listB.json();
     expect(bodyB).toHaveLength(0);
 
@@ -158,7 +187,8 @@ describe('Portal do Advogado', () => {
       payload: { kind: 'despacho', text: 'Despacho favorável ao prosseguimento.' },
     });
     expect(res.statusCode).toBe(200);
-    const body: { ahri: { informed: boolean; decidedToSpeak: boolean; ruleRefs: string[] } } = res.json();
+    const body: { ahri: { informed: boolean; decidedToSpeak: boolean; ruleRefs: string[] } } =
+      res.json();
     expect(body.ahri.informed).toBe(true);
     expect(body.ahri.decidedToSpeak).toBe(true);
     expect(body.ahri.ruleRefs.some((r) => r.startsWith('RO-3B'))).toBe(true);
@@ -166,8 +196,14 @@ describe('Portal do Advogado', () => {
     expect(gateway.texts().length).toBe(before + 1);
     // Presença "digitando" antes do envio (humanização preservada).
     const actions = gateway.actions();
-    const lastText = actions.map((a, i) => (a.type === 'text' ? i : -1)).filter((i) => i >= 0).pop() ?? 0;
-    expect(actions.slice(0, lastText).some((a) => a.type === 'presence' && a.state === 'composing')).toBe(true);
+    const lastText =
+      actions
+        .map((a, i) => (a.type === 'text' ? i : -1))
+        .filter((i) => i >= 0)
+        .pop() ?? 0;
+    expect(
+      actions.slice(0, lastText).some((a) => a.type === 'presence' && a.state === 'composing'),
+    ).toBe(true);
   });
 
   it('atividade INTERNA (observação) → Brain decide silêncio (wait) → nenhuma mensagem', async () => {
@@ -191,28 +227,47 @@ describe('Portal do Advogado', () => {
       headers: { 'x-advogado-id': advogadoA },
       payload: { kind: 'prazo', text: 'Prazo recursal', dueAt: '2026-07-10T00:00:00.000Z' },
     });
-    const painel = await call({ method: 'GET', url: '/advogado/painel', headers: { 'x-advogado-id': advogadoA } });
+    const painel = await call({
+      method: 'GET',
+      url: '/advogado/painel',
+      headers: { 'x-advogado-id': advogadoA },
+    });
     const body: { processCount: number; pendingCount: number; alerts: string[] } = painel.json();
     expect(body.processCount).toBe(1);
     expect(body.pendingCount).toBeGreaterThanOrEqual(1);
     expect(body.alerts.some((a) => a.includes('Prazo recursal'))).toBe(true);
 
-    const agenda = await call({ method: 'GET', url: '/advogado/agenda', headers: { 'x-advogado-id': advogadoA } });
+    const agenda = await call({
+      method: 'GET',
+      url: '/advogado/agenda',
+      headers: { 'x-advogado-id': advogadoA },
+    });
     const agendaBody: unknown[] = agenda.json();
     expect(agendaBody.length).toBeGreaterThanOrEqual(1);
   });
 
   it('histórico/protocolos/movimentações/arquivos são SEMPRE do próprio advogado', async () => {
-    const historicoB = await call({ method: 'GET', url: '/advogado/historico', headers: { 'x-advogado-id': advogadoB } });
+    const historicoB = await call({
+      method: 'GET',
+      url: '/advogado/historico',
+      headers: { 'x-advogado-id': advogadoB },
+    });
     const bodyB: unknown[] = historicoB.json();
     expect(bodyB).toHaveLength(0); // B não vê o trabalho de A
-    const historicoA = await call({ method: 'GET', url: '/advogado/historico', headers: { 'x-advogado-id': advogadoA } });
+    const historicoA = await call({
+      method: 'GET',
+      url: '/advogado/historico',
+      headers: { 'x-advogado-id': advogadoA },
+    });
     const bodyA: unknown[] = historicoA.json();
     expect(bodyA.length).toBeGreaterThanOrEqual(3);
   });
 
   it('BL-3.3 — conteúdo de documento sem autenticação → 401', async () => {
-    const res = await app.inject({ method: 'GET', url: `/advogado/processos/${missionId}/documentos/DOC-1/content` });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/advogado/processos/${missionId}/documentos/DOC-1/content`,
+    });
     expect(res.statusCode).toBe(401);
   });
 
@@ -236,14 +291,22 @@ describe('Portal do Advogado', () => {
 
   // ── GO-LIVE-04: convite → senha individual → login (fail-closed) ─────────────
   it('GO-LIVE-04 — rotas de auth exigem o Bearer de transporte (nunca públicas)', async () => {
-    for (const url of ['/advogado-admin/convite', '/advogado-auth/definir-senha', '/advogado-auth/login']) {
+    for (const url of [
+      '/advogado-admin/convite',
+      '/advogado-auth/definir-senha',
+      '/advogado-auth/login',
+    ]) {
       const res = await app.inject({ method: 'POST', url, payload: {} });
       expect(res.statusCode, url).toBe(401);
     }
   });
 
   it('GO-LIVE-04 — fluxo completo: convite do Admin → cria senha → login individual', async () => {
-    const convite = await call({ method: 'POST', url: '/advogado-admin/convite', payload: { advogadoId: advogadoA } });
+    const convite = await call({
+      method: 'POST',
+      url: '/advogado-admin/convite',
+      payload: { advogadoId: advogadoA },
+    });
     expect(convite.statusCode).toBe(200);
     const conviteBody: { token: string } = convite.json();
     expect(conviteBody.token).toBeTruthy();
@@ -255,22 +318,42 @@ describe('Portal do Advogado', () => {
     });
     expect(definir.statusCode).toBe(200);
 
-    const login = await call({ method: 'POST', url: '/advogado-auth/login', payload: { advogadoId: advogadoA, senha: 'senha-da-ana-123' } });
+    const login = await call({
+      method: 'POST',
+      url: '/advogado-auth/login',
+      payload: { advogadoId: advogadoA, senha: 'senha-da-ana-123' },
+    });
     expect(login.statusCode).toBe(200);
     const loginBody: { nome: string } = login.json();
     expect(loginBody.nome).toBe('Dra. Ana');
   });
 
   it('GO-LIVE-04 — FAIL-CLOSED: senha errada, sem credencial e convite forjado negam', async () => {
-    const errada = await call({ method: 'POST', url: '/advogado-auth/login', payload: { advogadoId: advogadoA, senha: 'errada' } });
+    const errada = await call({
+      method: 'POST',
+      url: '/advogado-auth/login',
+      payload: { advogadoId: advogadoA, senha: 'errada' },
+    });
     expect(errada.statusCode).toBe(401);
     // B nunca concluiu convite ⇒ login nega mesmo com ID válido:
-    const semCredencial = await call({ method: 'POST', url: '/advogado-auth/login', payload: { advogadoId: advogadoB, senha: 'qualquer' } });
+    const semCredencial = await call({
+      method: 'POST',
+      url: '/advogado-auth/login',
+      payload: { advogadoId: advogadoB, senha: 'qualquer' },
+    });
     expect(semCredencial.statusCode).toBe(401);
-    const forjado = await call({ method: 'POST', url: '/advogado-auth/definir-senha', payload: { token: 'forjado.deadbeef', senha: 'senha-longa-123' } });
+    const forjado = await call({
+      method: 'POST',
+      url: '/advogado-auth/definir-senha',
+      payload: { token: 'forjado.deadbeef', senha: 'senha-longa-123' },
+    });
     expect(forjado.statusCode).toBe(400);
     // convite para inexistente/inativo nega:
-    const fantasma = await call({ method: 'POST', url: '/advogado-admin/convite', payload: { advogadoId: 'fantasma' } });
+    const fantasma = await call({
+      method: 'POST',
+      url: '/advogado-admin/convite',
+      payload: { advogadoId: 'fantasma' },
+    });
     expect(fantasma.statusCode).toBe(404);
   });
 });

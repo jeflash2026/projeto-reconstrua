@@ -47,7 +47,10 @@ export interface DecisaoHumana {
 }
 
 /** Monta o registro de encerramento a partir do automático + do humano. Puro. */
-export function montarAtendimentoEncerrado(auto: EncerramentoAutomatico, humano: DecisaoHumana): AtendimentoEncerrado {
+export function montarAtendimentoEncerrado(
+  auto: EncerramentoAutomatico,
+  humano: DecisaoHumana,
+): AtendimentoEncerrado {
   const auditoria: AtendimentoAuditoria = {
     missionId: auto.missionId,
     decisionId: auto.decisionId,
@@ -95,7 +98,10 @@ export class InMemoryAtendimentoStore implements AtendimentoStore {
 /** O laço de feedback: no encerramento, monta + persiste o AtendimentoEncerrado. */
 export class ProductionFeedbackLoop {
   constructor(private readonly store: AtendimentoStore) {}
-  async registrarEncerramento(auto: EncerramentoAutomatico, humano: DecisaoHumana): Promise<AtendimentoEncerrado> {
+  async registrarEncerramento(
+    auto: EncerramentoAutomatico,
+    humano: DecisaoHumana,
+  ): Promise<AtendimentoEncerrado> {
     const atendimento = montarAtendimentoEncerrado(auto, humano);
     await this.store.salvar(atendimento);
     return atendimento;
@@ -147,7 +153,13 @@ export function montarPainelDoArquiteto(
   const historicoMensal: HistoricoMensal[] = [...porMes.entries()]
     .map(([mes, lista]) => {
       const r = gerarRelatorioDeEvolucao(catalogo, lista);
-      return { mes, total: lista.length, taxaAcerto: r.taxaAcerto, confiancaMedia: r.confiancaMedia, tempoMedioAteDecisaoMs: r.tempoMedioAteDecisaoMs };
+      return {
+        mes,
+        total: lista.length,
+        taxaAcerto: r.taxaAcerto,
+        confiancaMedia: r.confiancaMedia,
+        tempoMedioAteDecisaoMs: r.tempoMedioAteDecisaoMs,
+      };
     })
     .sort((a, b) => a.mes.localeCompare(b.mes));
 

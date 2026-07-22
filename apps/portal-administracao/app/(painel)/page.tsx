@@ -23,16 +23,24 @@ const InsightRow = ({ i }: { i: CCInsight }): ReactElement => {
       <div className="cc-insight-body">
         <div className="cc-insight-top">
           <span className={`cc-tag cc-tag-${i.severidade}`}>{SEV_LABEL[i.severidade]}</span>
-          <span className="cc-source" title={`Fonte: ${i.fonte}`}>{i.fonte}</span>
+          <span className="cc-source" title={`Fonte: ${i.fonte}`}>
+            {i.fonte}
+          </span>
         </div>
         <p className="cc-insight-title">{i.titulo}</p>
         {i.detalhe ? <p className="cc-insight-detail">{i.detalhe}</p> : null}
       </div>
-      {i.href ? <span className="cc-arrow" aria-hidden>→</span> : null}
+      {i.href ? (
+        <span className="cc-arrow" aria-hidden>
+          →
+        </span>
+      ) : null}
     </>
   );
   return i.href ? (
-    <Link href={i.href} className="cc-insight cc-insight-link">{body}</Link>
+    <Link href={i.href} className="cc-insight cc-insight-link">
+      {body}
+    </Link>
   ) : (
     <div className="cc-insight">{body}</div>
   );
@@ -41,12 +49,22 @@ const InsightRow = ({ i }: { i: CCInsight }): ReactElement => {
 const Indicador = ({ ind }: { ind: CCIndicador }): ReactElement => {
   const inner = (
     <>
-      <div className={`cc-ind-value cc-tom-${ind.tom}${ind.valor === '—' ? ' na' : ''}`}>{ind.valor}</div>
+      <div className={`cc-ind-value cc-tom-${ind.tom}${ind.valor === '—' ? ' na' : ''}`}>
+        {ind.valor}
+      </div>
       <div className="cc-ind-label">{ind.rotulo}</div>
-      <div className="cc-source cc-ind-source" title={`Fonte: ${ind.fonte}`}>{ind.fonte}</div>
+      <div className="cc-source cc-ind-source" title={`Fonte: ${ind.fonte}`}>
+        {ind.fonte}
+      </div>
     </>
   );
-  return ind.href ? <Link href={ind.href} className="cc-ind cc-ind-link">{inner}</Link> : <div className="cc-ind">{inner}</div>;
+  return ind.href ? (
+    <Link href={ind.href} className="cc-ind cc-ind-link">
+      {inner}
+    </Link>
+  ) : (
+    <div className="cc-ind">{inner}</div>
+  );
 };
 
 const ENTRADAS: ReadonlyArray<{ href: string; titulo: string; desc: string }> = [
@@ -63,7 +81,9 @@ const CommandCenter = async (): Promise<ReactElement> => {
     return (
       <>
         <h1 className="page-title">Centro de Comando</h1>
-        <div className="error-box">A AHRI está temporariamente indisponível. Verifique o servidor administrativo.</div>
+        <div className="error-box">
+          A AHRI está temporariamente indisponível. Verifique o servidor administrativo.
+        </div>
       </>
     );
   }
@@ -76,7 +96,9 @@ const CommandCenter = async (): Promise<ReactElement> => {
 
       {/* HERO — a AHRI fala primeiro */}
       <section className="cc-hero">
-        <div className="cc-live"><span className="cc-live-dot" aria-hidden /> AHRI · ao vivo</div>
+        <div className="cc-live">
+          <span className="cc-live-dot" aria-hidden /> AHRI · ao vivo
+        </div>
         <h1 className="cc-greeting">{briefing.saudacao}</h1>
         <p className="cc-summary">{briefing.resumo}</p>
       </section>
@@ -84,7 +106,9 @@ const CommandCenter = async (): Promise<ReactElement> => {
       {/* BRIEFING dinâmico — a AHRI decidiu o que importa hoje */}
       {semInsights ? (
         <div className="cc-empty">
-          <div className="cc-empty-icon" aria-hidden>✓</div>
+          <div className="cc-empty-icon" aria-hidden>
+            ✓
+          </div>
           <p>Nenhuma pendência crítica no momento. Sigo observando a operação em tempo real.</p>
         </div>
       ) : (
@@ -110,7 +134,9 @@ const CommandCenter = async (): Promise<ReactElement> => {
           <Link key={e.href} href={e.href} className="cc-entry">
             <span className="cc-entry-title">{e.titulo}</span>
             <span className="cc-entry-desc">{e.desc}</span>
-            <span className="cc-arrow" aria-hidden>→</span>
+            <span className="cc-arrow" aria-hidden>
+              →
+            </span>
           </Link>
         ))}
       </div>

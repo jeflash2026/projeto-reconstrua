@@ -18,8 +18,9 @@ const CampanhasPage = async (): Promise<ReactElement> => {
         <div className="error-box">API indisponível.</div>
       ) : !data.available ? (
         <div className="card empty">
-          Sem fonte de dados de campanha ainda. A atribuição de origem será alimentada quando a integração de
-          rastreamento (Meta Ads → link do WhatsApp) estiver conectada. Nenhum número é inventado.
+          Sem fonte de dados de campanha ainda. A atribuição de origem será alimentada quando a
+          integração de rastreamento (Meta Ads → link do WhatsApp) estiver conectada. Nenhum número
+          é inventado.
         </div>
       ) : (
         <div className="table-wrap">

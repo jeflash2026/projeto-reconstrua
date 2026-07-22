@@ -15,7 +15,11 @@
 // permanecem no default de `emptySnapshot`.
 // ─────────────────────────────────────────────────────────────────────────────
 import { emptySnapshot } from '@reconstrua/application';
-import type { MissionIdentityMap, MissionSnapshot, MissionSnapshotPort } from '@reconstrua/application';
+import type {
+  MissionIdentityMap,
+  MissionSnapshot,
+  MissionSnapshotPort,
+} from '@reconstrua/application';
 import type { DecisionStateStore } from './decision-state-read-model.js';
 
 /**

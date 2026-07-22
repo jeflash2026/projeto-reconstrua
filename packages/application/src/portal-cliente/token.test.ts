@@ -36,7 +36,14 @@ describe('token do cliente (link mágico)', () => {
   });
 
   it('lixo e formas inválidas → null, sem lançar', () => {
-    for (const junk of ['', 'abc', 'a.b', '..', 'x'.repeat(500), `${Buffer.from('nao-json').toString('base64url')}.deadbeef`]) {
+    for (const junk of [
+      '',
+      'abc',
+      'a.b',
+      '..',
+      'x'.repeat(500),
+      `${Buffer.from('nao-json').toString('base64url')}.deadbeef`,
+    ]) {
       expect(validarTokenCliente(junk, NOW, SECRET)).toBeNull();
     }
   });

@@ -22,7 +22,10 @@ export class PostgresSqlClient implements SqlClient {
   private constructor(private readonly sql: DriverSql) {}
 
   /** Conecta a partir de uma connection string (ex.: process.env.DATABASE_URL). */
-  static connect(connectionString: string, options: PostgresSqlClientOptions = {}): PostgresSqlClient {
+  static connect(
+    connectionString: string,
+    options: PostgresSqlClientOptions = {},
+  ): PostgresSqlClient {
     const driver = postgres(connectionString, {
       max: options.max ?? 10,
       prepare: true,
@@ -30,7 +33,10 @@ export class PostgresSqlClient implements SqlClient {
     return new PostgresSqlClient(driver);
   }
 
-  async query<T extends SqlRow = SqlRow>(text: string, params: readonly unknown[] = []): Promise<T[]> {
+  async query<T extends SqlRow = SqlRow>(
+    text: string,
+    params: readonly unknown[] = [],
+  ): Promise<T[]> {
     const rows = await this.sql.unsafe(text, params);
     return rows as T[];
   }

@@ -30,7 +30,11 @@ class ThrowingGateway implements MediaGatewayPort {
   }
 }
 
-const pdf = (): FetchedMedia => ({ base64: b64(PDF_BYTES), mime: 'application/pdf', fileName: 'HISCON.pdf' });
+const pdf = (): FetchedMedia => ({
+  base64: b64(PDF_BYTES),
+  mime: 'application/pdf',
+  fileName: 'HISCON.pdf',
+});
 
 describe('MediaCaptureRuntime (CAT-02A)', () => {
   it('PDF válido: baixa, valida, calcula sha256 e persiste o blob', async () => {
@@ -39,7 +43,11 @@ describe('MediaCaptureRuntime (CAT-02A)', () => {
     const sha = shaOf(PDF_BYTES);
     expect(await store.has(sha)).toBe(true);
     expect(store.count()).toBe(1);
-    expect(store.get(sha)).toMatchObject({ sha256: sha, mime: 'application/pdf', size: PDF_BYTES.length });
+    expect(store.get(sha)).toMatchObject({
+      sha256: sha,
+      mime: 'application/pdf',
+      size: PDF_BYTES.length,
+    });
   });
 
   it('deduplicação: mesmo conteúdo 2× ⇒ um único blob', async () => {
@@ -53,7 +61,11 @@ describe('MediaCaptureRuntime (CAT-02A)', () => {
   it('MIME fora da allowlist ⇒ não armazena', async () => {
     const store = new InMemoryMediaStore();
     await new MediaCaptureRuntime({
-      gateway: new FakeGateway({ base64: b64(PDF_BYTES), mime: 'application/zip', fileName: 'x.zip' }),
+      gateway: new FakeGateway({
+        base64: b64(PDF_BYTES),
+        mime: 'application/zip',
+        fileName: 'x.zip',
+      }),
       store,
     }).capture({});
     expect(store.count()).toBe(0);
@@ -61,14 +73,20 @@ describe('MediaCaptureRuntime (CAT-02A)', () => {
 
   it('tamanho acima do limite ⇒ não armazena', async () => {
     const store = new InMemoryMediaStore();
-    await new MediaCaptureRuntime({ gateway: new FakeGateway(pdf()), store, maxBytes: 4 }).capture({});
+    await new MediaCaptureRuntime({ gateway: new FakeGateway(pdf()), store, maxBytes: 4 }).capture(
+      {},
+    );
     expect(store.count()).toBe(0);
   });
 
   it('magic bytes não conferem (mime pdf, conteúdo png) ⇒ não armazena', async () => {
     const store = new InMemoryMediaStore();
     await new MediaCaptureRuntime({
-      gateway: new FakeGateway({ base64: b64(PNG_BYTES), mime: 'application/pdf', fileName: 'fake.pdf' }),
+      gateway: new FakeGateway({
+        base64: b64(PNG_BYTES),
+        mime: 'application/pdf',
+        fileName: 'fake.pdf',
+      }),
       store,
     }).capture({});
     expect(store.count()).toBe(0);
@@ -76,13 +94,17 @@ describe('MediaCaptureRuntime (CAT-02A)', () => {
 
   it('gateway retorna null ⇒ não armazena e não lança', async () => {
     const store = new InMemoryMediaStore();
-    await expect(new MediaCaptureRuntime({ gateway: new FakeGateway(null), store }).capture({})).resolves.toBeUndefined();
+    await expect(
+      new MediaCaptureRuntime({ gateway: new FakeGateway(null), store }).capture({}),
+    ).resolves.toBeUndefined();
     expect(store.count()).toBe(0);
   });
 
   it('gateway lança ⇒ capture NÃO lança (best-effort) e não armazena', async () => {
     const store = new InMemoryMediaStore();
-    await expect(new MediaCaptureRuntime({ gateway: new ThrowingGateway(), store }).capture({})).resolves.toBeUndefined();
+    await expect(
+      new MediaCaptureRuntime({ gateway: new ThrowingGateway(), store }).capture({}),
+    ).resolves.toBeUndefined();
     expect(store.count()).toBe(0);
   });
 

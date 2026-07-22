@@ -77,7 +77,9 @@ export class InMemoryEventStore implements EventStore, OutboxStore {
     for (const e of events) {
       const provenance = normalizeProvenance(e.provenance ?? provenanceDefault);
       if (e.isRelevant && provenance.factRef === null) {
-        return Promise.reject(new RelevantEventRequiresFactError(streamType, streamId, e.eventType));
+        return Promise.reject(
+          new RelevantEventRequiresFactError(streamType, streamId, e.eventType),
+        );
       }
       version += 1;
       this.globalSeq += 1;

@@ -13,7 +13,9 @@ const ProcessosPage = async (): Promise<ReactElement> => {
       <h1 className="page-title">Meus Processos</h1>
       <p className="page-sub">Você vê apenas os processos atribuídos a você.</p>
       {!rows ? (
-        <div className="error-box">API indisponível ou identificação ausente (defina no Perfil).</div>
+        <div className="error-box">
+          API indisponível ou identificação ausente (defina no Perfil).
+        </div>
       ) : rows.length === 0 ? (
         <div className="card empty">Nenhum processo atribuído a você ainda.</div>
       ) : (
@@ -33,7 +35,11 @@ const ProcessosPage = async (): Promise<ReactElement> => {
               {rows.map((r) => (
                 <tr key={r.assignment.missionId}>
                   <td>
-                    <Link href={`/processos/${r.assignment.missionId}`} className="mono" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                    <Link
+                      href={`/processos/${r.assignment.missionId}`}
+                      className="mono"
+                      style={{ color: 'var(--accent)', fontWeight: 600 }}
+                    >
                       {shortId(r.assignment.missionId, 14)}
                     </Link>
                   </td>

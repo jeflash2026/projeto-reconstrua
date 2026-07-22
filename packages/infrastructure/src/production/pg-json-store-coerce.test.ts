@@ -18,7 +18,8 @@ function parsedReturningSql(): SqlClient {
       const [namespace, key, valueText] = params as [string, string, string];
       const parsed: unknown = JSON.parse(valueText); // driver devolve como objeto/escalar JS
       const i = rows.findIndex((r) => r.namespace === namespace && r.key === key);
-      if (i >= 0) rows[i]!.value = parsed; else rows.push({ namespace, key, value: parsed });
+      if (i >= 0) rows[i]!.value = parsed;
+      else rows.push({ namespace, key, value: parsed });
       return [];
     }
     if (text.includes('WHERE namespace = $1 AND key = $2')) {
@@ -28,13 +29,17 @@ function parsedReturningSql(): SqlClient {
     }
     if (text.includes('WHERE namespace = $1')) {
       const [namespace] = params as [string];
-      return rows.filter((r) => r.namespace === namespace).map((r) => ({ value: r.value })) as unknown as T[];
+      return rows
+        .filter((r) => r.namespace === namespace)
+        .map((r) => ({ value: r.value })) as unknown as T[];
     }
     return [];
   }
   return {
-    query: <T extends SqlRow = SqlRow>(text: string, params: readonly unknown[] = []): Promise<T[]> =>
-      Promise.resolve(run<T>(text, params)),
+    query: <T extends SqlRow = SqlRow>(
+      text: string,
+      params: readonly unknown[] = [],
+    ): Promise<T[]> => Promise.resolve(run<T>(text, params)),
     transaction: (work) => work(parsedReturningSql()),
   };
 }
@@ -47,7 +52,8 @@ function stringReturningSql(): SqlClient {
     if (text.includes('INSERT INTO production.documents')) {
       const [namespace, key, value] = params as [string, string, string];
       const i = rows.findIndex((r) => r.namespace === namespace && r.key === key);
-      if (i >= 0) rows[i]!.value = value; else rows.push({ namespace, key, value });
+      if (i >= 0) rows[i]!.value = value;
+      else rows.push({ namespace, key, value });
       return [];
     }
     if (text.includes('WHERE namespace = $1 AND key = $2')) {
@@ -57,13 +63,17 @@ function stringReturningSql(): SqlClient {
     }
     if (text.includes('WHERE namespace = $1')) {
       const [namespace] = params as [string];
-      return rows.filter((r) => r.namespace === namespace).map((r) => ({ value: r.value })) as unknown as T[];
+      return rows
+        .filter((r) => r.namespace === namespace)
+        .map((r) => ({ value: r.value })) as unknown as T[];
     }
     return [];
   }
   return {
-    query: <T extends SqlRow = SqlRow>(text: string, params: readonly unknown[] = []): Promise<T[]> =>
-      Promise.resolve(run<T>(text, params)),
+    query: <T extends SqlRow = SqlRow>(
+      text: string,
+      params: readonly unknown[] = [],
+    ): Promise<T[]> => Promise.resolve(run<T>(text, params)),
     transaction: (work) => work(stringReturningSql()),
   };
 }
@@ -81,7 +91,15 @@ describe('PgJsonStore · jsonb devolvido como STRING (causa raiz do BUG 1)', () 
     const sql = stringReturningSql();
     const store = new JsonStaffStore(new PgJsonStore(sql));
     const now = new Date();
-    await store.save({ id: 'adm-1', role: 'administrador', name: 'Jessé Fundador', email: null, active: true, createdAt: now, updatedAt: now });
+    await store.save({
+      id: 'adm-1',
+      role: 'administrador',
+      name: 'Jessé Fundador',
+      email: null,
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    });
 
     const admins = await store.byRole('administrador');
     expect(admins).toHaveLength(1);

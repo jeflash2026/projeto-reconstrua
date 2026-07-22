@@ -25,7 +25,13 @@ export type { MissaoDaConversa };
 /** Todo novo contato, sem sinal de domínio, é um LEAD. */
 export const MISSAO_PADRAO: MissaoDaConversa = 'LEAD';
 
-const ESTADOS_VALIDOS: ReadonlySet<string> = new Set(['LEAD', 'ONBOARDING_DOCUMENTAL', 'ANALISE_ADMINISTRATIVA', 'CLIENTE', 'POS_ATENDIMENTO']);
+const ESTADOS_VALIDOS: ReadonlySet<string> = new Set([
+  'LEAD',
+  'ONBOARDING_DOCUMENTAL',
+  'ANALISE_ADMINISTRATIVA',
+  'CLIENTE',
+  'POS_ATENDIMENTO',
+]);
 /** Fallback SEGURO: só as 4 missões conhecidas passam; qualquer outra ⇒ LEAD. */
 export function ehMissaoValida(v: unknown): v is MissaoDaConversa {
   return typeof v === 'string' && ESTADOS_VALIDOS.has(v);
@@ -89,7 +95,9 @@ function ehPerguntaDireta(context: ConversationContextView): boolean {
   return purpose === 'question' || textoDoTurno(context).includes('?');
 }
 function ehPerguntaDeDireito(context: ConversationContextView): boolean {
-  return /\bdireito\b|\bdireitos\b|me\s+enquadr|tenho\s+como|eleg[íi]v|fa[çc]o\s+jus/.test(textoDoTurno(context));
+  return /\bdireito\b|\bdireitos\b|me\s+enquadr|tenho\s+como|eleg[íi]v|fa[çc]o\s+jus/.test(
+    textoDoTurno(context),
+  );
 }
 
 // Condutas por estado (autoradas; prioridade sobre a curiosidade quando aplicável).
@@ -168,23 +176,68 @@ const REFORCO_POS =
 /** Avalia a política do turno pelo ESTADO da missão. Determinística. */
 export function politicaDaMissao(context: ConversationContextView): PoliticaDaMissao {
   // Item 15A-review Q4: estado ausente, desconhecido OU inválido ⇒ LEAD (seguro).
-  const missao: MissaoDaConversa = ehMissaoValida(context.missaoDaConversa) ? context.missaoDaConversa : MISSAO_PADRAO;
+  const missao: MissaoDaConversa = ehMissaoValida(context.missaoDaConversa)
+    ? context.missaoDaConversa
+    : MISSAO_PADRAO;
   const objetivo = OBJETIVO_DA_MISSAO[missao];
   const perguntaDireta = ehPerguntaDireta(context);
   const podeResponderElegibilidade = missao === 'LEAD' || missao === 'ONBOARDING_DOCUMENTAL';
-  const respostaCanonica = podeResponderElegibilidade && perguntaDireta && ehPerguntaDeDireito(context) ? RESPOSTA_ELEGIBILIDADE : null;
+  const respostaCanonica =
+    podeResponderElegibilidade && perguntaDireta && ehPerguntaDeDireito(context)
+      ? RESPOSTA_ELEGIBILIDADE
+      : null;
 
   switch (missao) {
     case 'LEAD':
-      return { missao, objetivo, substituiCuriosidade: true, perguntaDireta, respostaCanonica, conduta: CONDUTA_LEAD, reforco: '' };
+      return {
+        missao,
+        objetivo,
+        substituiCuriosidade: true,
+        perguntaDireta,
+        respostaCanonica,
+        conduta: CONDUTA_LEAD,
+        reforco: '',
+      };
     case 'ONBOARDING_DOCUMENTAL':
-      return { missao, objetivo, substituiCuriosidade: true, perguntaDireta, respostaCanonica, conduta: condutaOnboarding(context), reforco: '' };
+      return {
+        missao,
+        objetivo,
+        substituiCuriosidade: true,
+        perguntaDireta,
+        respostaCanonica,
+        conduta: condutaOnboarding(context),
+        reforco: '',
+      };
     case 'ANALISE_ADMINISTRATIVA':
-      return { missao, objetivo, substituiCuriosidade: false, perguntaDireta, respostaCanonica: null, conduta: '', reforco: REFORCO_ANALISE_ADMINISTRATIVA };
+      return {
+        missao,
+        objetivo,
+        substituiCuriosidade: false,
+        perguntaDireta,
+        respostaCanonica: null,
+        conduta: '',
+        reforco: REFORCO_ANALISE_ADMINISTRATIVA,
+      };
     case 'CLIENTE':
-      return { missao, objetivo, substituiCuriosidade: false, perguntaDireta, respostaCanonica: null, conduta: '', reforco: REFORCO_CLIENTE };
+      return {
+        missao,
+        objetivo,
+        substituiCuriosidade: false,
+        perguntaDireta,
+        respostaCanonica: null,
+        conduta: '',
+        reforco: REFORCO_CLIENTE,
+      };
     case 'POS_ATENDIMENTO':
-      return { missao, objetivo, substituiCuriosidade: false, perguntaDireta, respostaCanonica: null, conduta: '', reforco: REFORCO_POS };
+      return {
+        missao,
+        objetivo,
+        substituiCuriosidade: false,
+        perguntaDireta,
+        respostaCanonica: null,
+        conduta: '',
+        reforco: REFORCO_POS,
+      };
   }
 }
 
@@ -198,7 +251,8 @@ export function condutaDePendencia(context: ConversationContextView): string {
   const p = context.pendenciaDocumental;
   if (p === null || p === undefined) return '';
   const urgencia = p.prioridade === 'alta' ? ' (é prioritário para o andamento)' : '';
-  const outros = p.total > 1 ? ` — e há outros ${String(p.total - 1)} documento(s) pendente(s) além deste` : '';
+  const outros =
+    p.total > 1 ? ` — e há outros ${String(p.total - 1)} documento(s) pendente(s) além deste` : '';
   return (
     `; MISSÃO OPERACIONAL — obter documento pendente: ${p.requestedBy} aguarda a pessoa enviar «${p.documentName}»${urgencia}${outros}. ` +
     'Responda NORMALMENTE ao que a pessoa disse e, só ao final, lembre com GENTILEZA e leveza desse documento em UMA frase — ' +

@@ -2,10 +2,21 @@
 // R7 — EXECUTAR OPERAÇÃO. Conduz uma Operação em função da Missão via
 // `OperationAggregate.conduct` (INV-OP-01/03). Persiste OperationConducted.
 // ─────────────────────────────────────────────────────────────────────────────
-import { OperationAggregate, OperationId, OperationMissionRef, OperationResponsibleRef } from '@reconstrua/domain';
+import {
+  OperationAggregate,
+  OperationId,
+  OperationMissionRef,
+  OperationResponsibleRef,
+} from '@reconstrua/domain';
 import { foundedProvenance } from '../provenance.js';
 import { failedOutcome, type UseCaseOutcome } from '../types.js';
-import { persistNew, successOutcome, type MissionContext, type MissionUseCase, type UseCaseDeps } from '../use-case.js';
+import {
+  persistNew,
+  successOutcome,
+  type MissionContext,
+  type MissionUseCase,
+  type UseCaseDeps,
+} from '../use-case.js';
 
 export class ExecuteOperationUseCase implements MissionUseCase {
   readonly name = 'ExecuteOperation';
@@ -23,7 +34,8 @@ export class ExecuteOperationUseCase implements MissionUseCase {
       conductedBy: OperationResponsibleRef.fromString(this.deps.config.ahriResponsibleId),
       conductedAt: ctx.now,
     });
-    if (result.isErr()) return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
+    if (result.isErr())
+      return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
 
     const appended = await persistNew(
       this.deps.appender,

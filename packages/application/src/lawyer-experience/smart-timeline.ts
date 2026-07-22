@@ -97,6 +97,9 @@ export function foldTimeline(entries: readonly TimelineEntry[]): readonly Timeli
 }
 
 /** Quantos eventos foram OCULTADOS da primeira dobra (métrica de produtividade). */
-export function hiddenCount(entries: readonly TimelineEntry[], chapters: readonly TimelineChapter[]): number {
+export function hiddenCount(
+  entries: readonly TimelineEntry[],
+  chapters: readonly TimelineChapter[],
+): number {
   return Math.max(0, entries.length - chapters.length);
 }

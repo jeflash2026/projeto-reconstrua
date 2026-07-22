@@ -6,7 +6,18 @@
 // ponte automática Advogado→AHRI. Aditivo puro; nenhum congelado alterado.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock, DocumentRequestState, UuidGenerator } from '@reconstrua/domain';
-import type { AnexoStore, ClientesList, ConversationGateway, ConversationRuntime, Sleeper, MemoryStore, AdminMetricsStore, TraducaoClienteRuntime, DocumentRequestRuntime, DocumentRequestStore } from '@reconstrua/application';
+import type {
+  AnexoStore,
+  ClientesList,
+  ConversationGateway,
+  ConversationRuntime,
+  Sleeper,
+  MemoryStore,
+  AdminMetricsStore,
+  TraducaoClienteRuntime,
+  DocumentRequestRuntime,
+  DocumentRequestStore,
+} from '@reconstrua/application';
 import {
   AdvogadoAhriBridge,
   AdvogadoAuthRuntime,
@@ -65,7 +76,11 @@ import {
 import { FullLoopBrainAdapter } from '../go-live/full-loop-brain-adapter.js';
 import { SerializedSubscriber } from '../go-live/serialized-subscriber.js';
 import { InMemoryStaffStore } from '../admin-portal/in-memory-staff-store.js';
-import { InMemoryAssignmentStore, InMemoryCredenciaisStore, InMemoryJuridicalWorkStore } from './in-memory-adapters.js';
+import {
+  InMemoryAssignmentStore,
+  InMemoryCredenciaisStore,
+  InMemoryJuridicalWorkStore,
+} from './in-memory-adapters.js';
 import { ADVOGADO_RULE_CATALOG } from './advogado-rule-catalog.js';
 import { ConversationClientMessenger } from './client-messenger.js';
 import type { DocumentContentService } from '../media/document-content-service.js';
@@ -103,22 +118,38 @@ export interface AssembledAdvogadoOperation {
   readonly documentRequests?: DocumentRequestRuntime;
   readonly documentRequestStore?: DocumentRequestStore;
   // 15C-3: disparo proativo (created → messaged → WhatsApp) — só na produção.
-  readonly documentRequestComunicador?: { anunciar(state: DocumentRequestState): Promise<{ ok: boolean; erro: string | null }> };
+  readonly documentRequestComunicador?: {
+    anunciar(state: DocumentRequestState): Promise<{ ok: boolean; erro: string | null }>;
+  };
   // Decreto Tráfego Pago · B1: anexo do advogado p/ ASSINATURA (procuração/
   // contrato de honorários) — a AHRI envia o arquivo ao cliente. Só produção.
   readonly documentRequestAnexos?: AnexoStore;
   // Decreto Tráfego Pago · B2: canal de notificação do advogado (número de
   // WhatsApp cadastrado por ele no painel). Só produção.
   readonly notificationChannels?: {
-    canaisDe(lawyerId: string): Promise<readonly { tipo: string; endereco: string; preferido: boolean; verificadoEm: string | null }[]>;
-    definir(lawyerId: string, canais: readonly { tipo: 'whatsapp' | 'email'; endereco: string; preferido: boolean; verificadoEm: string | null }[]): Promise<void>;
+    canaisDe(
+      lawyerId: string,
+    ): Promise<
+      readonly { tipo: string; endereco: string; preferido: boolean; verificadoEm: string | null }[]
+    >;
+    definir(
+      lawyerId: string,
+      canais: readonly {
+        tipo: 'whatsapp' | 'email';
+        endereco: string;
+        preferido: boolean;
+        verificadoEm: string | null;
+      }[],
+    ): Promise<void>;
   };
   // Decreto Tráfego Pago: a lista única de clientes (status derivado) — usada
   // pelo painel admin "Clientes prontos p/ Advogado". Só produção.
   readonly clientes?: ClientesList;
 }
 
-export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): AssembledAdvogadoOperation {
+export function assembleAdvogadoOperation(
+  wiring: AdvogadoOperationWiring,
+): AssembledAdvogadoOperation {
   const { clock, uuid } = wiring;
   const hasher = new CryptoHasher();
   const observability = new ObservabilityRuntime();
@@ -132,26 +163,46 @@ export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): Asse
     deliveries: new InMemoryDeliveryStore(),
     idempotency: new InMemoryIdempotencyStore(),
     registry,
-    retryPolicy: new ExponentialBackoffRetryPolicy({ baseMs: 1000, factor: 2, maxMs: 60_000, maxAttempts: 5, jitter: 0 }),
+    retryPolicy: new ExponentialBackoffRetryPolicy({
+      baseMs: 1000,
+      factor: 2,
+      maxMs: 60_000,
+      maxAttempts: 5,
+      jitter: 0,
+    }),
     clock,
   });
 
   // ── 2E ───────────────────────────────────────────────────────────────────────
   const conversationStore = new InMemoryConversationStore();
   const living = assembleLivingMemory({ clock, uuid, conversationStore });
-  const administration = assembleAdministration({ memoryStore: living.memoryStore, founder: { founderName: 'Jessé' } });
+  const administration = assembleAdministration({
+    memoryStore: living.memoryStore,
+    founder: { founderName: 'Jessé' },
+  });
 
   // ── 2F ───────────────────────────────────────────────────────────────────────
   const scheduler = new SchedulerRuntime(new InMemorySchedulerStore());
   const progressStore = new InMemoryWorkflowProgressStore();
   const workflow = new WorkflowRuntime(progressStore, scheduler, undefined, observability);
-  const notification = new NotificationRuntime(new RecordingNotificationChannel(), DEFAULT_NOTIFICATION_POLICY);
+  const notification = new NotificationRuntime(
+    new RecordingNotificationChannel(),
+    DEFAULT_NOTIFICATION_POLICY,
+  );
   const handoff = new HumanHandoffRuntime(new InMemoryHandoffStore());
-  registry.register(new SerializedSubscriber(new AdminProjectionSubscriber(administration.metricsStore)), 1, clock.now());
+  registry.register(
+    new SerializedSubscriber(new AdminProjectionSubscriber(administration.metricsStore)),
+    1,
+    clock.now(),
+  );
   registry.register(new SerializedSubscriber(workflow), 1, clock.now());
 
   // ── 2C + 2D ──────────────────────────────────────────────────────────────────
-  const brainAssembly = assembleExecutiveBrain({ clock, uuid, rules: new InMemoryRuleCatalog(MISSION_RULE_CATALOG) });
+  const brainAssembly = assembleExecutiveBrain({
+    clock,
+    uuid,
+    rules: new InMemoryRuleCatalog(MISSION_RULE_CATALOG),
+  });
   const missionAssembly = assembleMissionRuntime({ eventStore, hasher, uuid, clock });
 
   const fullLoop = new FullLoopBrainAdapter({
@@ -181,7 +232,18 @@ export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): Asse
   const presence = new PresenceRuntime(gateway, sessions);
   const typing = new TypingRuntime(presence, delay);
   const queue = new MessageQueueRuntime(new InMemoryMessageQueueStore(), clock, uuid);
-  const delivery = new DeliveryRuntime({ gateway, timing, typing, delay, presence, queue, sessions, memory, clock, policy });
+  const delivery = new DeliveryRuntime({
+    gateway,
+    timing,
+    typing,
+    delay,
+    presence,
+    queue,
+    sessions,
+    memory,
+    clock,
+    policy,
+  });
   const conversation = new ConversationRuntimeClass({
     perception: new FakeLlmPerception(),
     expression,
@@ -201,14 +263,29 @@ export function assembleAdvogadoOperation(wiring: AdvogadoOperationWiring): Asse
 
   // ── 3B: projector, trabalho jurídico, ponte AHRI ─────────────────────────────
   const projector = new TimelineProjector(eventStore);
-  const work = new AdvogadoWorkRuntime(new InMemoryAssignmentStore(), new InMemoryJuridicalWorkStore(), clock, uuid);
-  const messenger = new ConversationClientMessenger({ memory, context, promptBuilder, expression, queue, delivery, policy, clock });
+  const work = new AdvogadoWorkRuntime(
+    new InMemoryAssignmentStore(),
+    new InMemoryJuridicalWorkStore(),
+    clock,
+    uuid,
+  );
+  const messenger = new ConversationClientMessenger({
+    memory,
+    context,
+    promptBuilder,
+    expression,
+    queue,
+    delivery,
+    policy,
+    clock,
+  });
   const bridge = new AdvogadoAhriBridge({
     brain: brainAssembly.brain,
     rules: ADVOGADO_RULE_CATALOG,
     messenger,
     clock,
-    chatOf: (missionId) => projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
+    chatOf: (missionId) =>
+      projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null,
   });
   const staffStore = new InMemoryStaffStore();
   const staff = new StaffDirectoryRuntime(staffStore, handoff, clock, uuid);

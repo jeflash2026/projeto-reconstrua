@@ -6,9 +6,19 @@
 // "diretamente" (só via synthesize/derive/represent).
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock, DomainEvent, UuidGenerator } from '@reconstrua/domain';
-import { NO_STREAM, toUncommitted, type AppendResult, type EventProvenance } from '../event-store/index.js';
+import {
+  NO_STREAM,
+  toUncommitted,
+  type AppendResult,
+  type EventProvenance,
+} from '../event-store/index.js';
 import type { EventAppender } from './ports.js';
-import type { MissionFacts, MissionIdentity, MissionUseCaseIntent, UseCaseOutcome } from './types.js';
+import type {
+  MissionFacts,
+  MissionIdentity,
+  MissionUseCaseIntent,
+  UseCaseOutcome,
+} from './types.js';
 
 /** Constrói o resultado de sucesso a partir do append (rastreável). */
 export function successOutcome(

@@ -92,7 +92,10 @@ export class PgJsonStore implements JsonStore {
     );
   }
   async del(namespace: string, key: string): Promise<void> {
-    await this.sql.query('DELETE FROM production.documents WHERE namespace = $1 AND key = $2', [namespace, key]);
+    await this.sql.query('DELETE FROM production.documents WHERE namespace = $1 AND key = $2', [
+      namespace,
+      key,
+    ]);
   }
   async list(namespace: string): Promise<readonly unknown[]> {
     const rows = await this.sql.query<SqlRow>(

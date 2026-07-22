@@ -25,11 +25,17 @@ export interface DecisionProvenance {
 }
 
 /** Constrói a proveniência de uma atuação legítima. Exige fundamento e regra. */
-export function automatedProvenance(fundamento: string, operationalRuleRef: string): DecisionProvenance {
+export function automatedProvenance(
+  fundamento: string,
+  operationalRuleRef: string,
+): DecisionProvenance {
   return { decisor: DECISOR, tipo: DECISION_TYPE_AUTOMATED, fundamento, operationalRuleRef };
 }
 
 /** Constrói a proveniência de uma atuação IMPEDIDA (registrada na auditoria). */
-export function impededProvenance(fundamento: string, operationalRuleRef: string): DecisionProvenance {
+export function impededProvenance(
+  fundamento: string,
+  operationalRuleRef: string,
+): DecisionProvenance {
   return { decisor: DECISOR, tipo: DECISION_TYPE_IMPEDED, fundamento, operationalRuleRef };
 }

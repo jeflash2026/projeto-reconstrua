@@ -37,14 +37,21 @@ export interface ResumoCasoInputs {
   readonly status: string;
   readonly tempoParadoMs: number | null;
   readonly advogadoResponsavel: string | null;
-  readonly dossie: Pick<DossieJuridico, 'grauConfianca' | 'hipoteses' | 'proximasAcoes' | 'documentosPendentes' | 'missionId'>;
+  readonly dossie: Pick<
+    DossieJuridico,
+    'grauConfianca' | 'hipoteses' | 'proximasAcoes' | 'documentosPendentes' | 'missionId'
+  >;
 }
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 /** Urgência DETERMINÍSTICA: parado há muito tempo, docs pendentes ou baixa
  *  confiança elevam a prioridade. */
-function calcularUrgencia(tempoParadoMs: number | null, docsPendentes: number, confianca: Confianca | null): Urgencia {
+function calcularUrgencia(
+  tempoParadoMs: number | null,
+  docsPendentes: number,
+  confianca: Confianca | null,
+): Urgencia {
   const paradoMuito = tempoParadoMs !== null && tempoParadoMs > 5 * DIA_MS;
   const paradoMedio = tempoParadoMs !== null && tempoParadoMs > 2 * DIA_MS;
   if (paradoMuito || (docsPendentes > 0 && confianca === 'baixa')) return 'alta';
@@ -57,7 +64,11 @@ export function resumirCaso(input: ResumoCasoInputs): CartaoCaso {
   const { dossie } = input;
   const principal = dossie.hipoteses[0] ?? null;
   const dossieDisponivel = dossie.hipoteses.length > 0;
-  const urgencia = calcularUrgencia(input.tempoParadoMs, dossie.documentosPendentes.length, dossie.grauConfianca);
+  const urgencia = calcularUrgencia(
+    input.tempoParadoMs,
+    dossie.documentosPendentes.length,
+    dossie.grauConfianca,
+  );
   return {
     chatId: input.chatId,
     clienteNome: input.clienteNome,
@@ -79,5 +90,10 @@ export function resumirCaso(input: ResumoCasoInputs): CartaoCaso {
 /** Ordena os casos por urgência (alta→baixa) e, dentro dela, mais parados antes. */
 export function ordenarCasos(casos: readonly CartaoCaso[]): readonly CartaoCaso[] {
   const peso: Record<Urgencia, number> = { alta: 0, media: 1, baixa: 2 };
-  return [...casos].sort((a, b) => peso[a.urgencia] - peso[b.urgencia] || (b.tempoParadoMs ?? 0) - (a.tempoParadoMs ?? 0) || a.chatId.localeCompare(b.chatId));
+  return [...casos].sort(
+    (a, b) =>
+      peso[a.urgencia] - peso[b.urgencia] ||
+      (b.tempoParadoMs ?? 0) - (a.tempoParadoMs ?? 0) ||
+      a.chatId.localeCompare(b.chatId),
+  );
 }

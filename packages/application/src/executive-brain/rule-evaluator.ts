@@ -36,10 +36,7 @@ export class RuleEvaluator {
     };
   }
 
-  evaluateAll(
-    rules: readonly OperationalRuleSpec[],
-    facts: BrainFacts,
-  ): readonly RuleEvaluation[] {
+  evaluateAll(rules: readonly OperationalRuleSpec[], facts: BrainFacts): readonly RuleEvaluation[] {
     return rules.map((rule) => this.evaluate(rule, facts));
   }
 }

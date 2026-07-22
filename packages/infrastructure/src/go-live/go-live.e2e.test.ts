@@ -8,7 +8,11 @@
 import { describe, it, expect } from 'vitest';
 import type { Clock, Uuid, UuidGenerator } from '@reconstrua/domain';
 import { toUuid } from '@reconstrua/domain';
-import type { EscalationIntentOut, InboundEnvelope, NotificationIntentOut } from '@reconstrua/application';
+import type {
+  EscalationIntentOut,
+  InboundEnvelope,
+  NotificationIntentOut,
+} from '@reconstrua/application';
 import { InMemoryConversationGateway } from '../conversation/in-memory-conversation-gateway.js';
 import { FakeSleeper } from '../conversation/system-sleeper.js';
 import { assembleGoLive } from './build-go-live.js';
@@ -57,7 +61,13 @@ function envelope(text: string, messageId: string): InboundEnvelope {
 function harness() {
   const clock = new TestClock();
   const gateway = new InMemoryConversationGateway(clock);
-  const live = assembleGoLive({ clock, uuid: new SeqUuid(), gateway, sleeper: new FakeSleeper(clock), rng: () => 0.5 });
+  const live = assembleGoLive({
+    clock,
+    uuid: new SeqUuid(),
+    gateway,
+    sleeper: new FakeSleeper(clock),
+    rng: () => 0.5,
+  });
   return { live, clock, gateway };
 }
 
@@ -95,7 +105,9 @@ describe('GO LIVE — o fluxo obrigatório completo num turno real', () => {
     // Mission executou: eventos de domínio no Event Store (mission stream nasceu).
     const all = await live.eventStore.readAll(0, 100);
     expect(all.some((e) => e.eventType === 'mission.created')).toBe(true);
-    expect(all.every((e) => e.provenance.actor === 'AHRI' || e.provenance.actor === null)).toBe(true);
+    expect(all.every((e) => e.provenance.actor === 'AHRI' || e.provenance.actor === null)).toBe(
+      true,
+    );
 
     // Dispatcher drenou → Read Models projetados (CQRS).
     const metrics = await live.metricsStore.load();
@@ -111,7 +123,9 @@ describe('GO LIVE — o fluxo obrigatório completo num turno real', () => {
     // Memória viva lembra do cliente (atributo com fonte).
     const memory = await live.memoryStore.load(CHAT);
     expect(memory?.messageCount).toBe(1);
-    expect(memory?.attributes.some((a) => a.key === 'name' && a.value.toLowerCase().includes('joão'))).toBe(true);
+    expect(
+      memory?.attributes.some((a) => a.key === 'name' && a.value.toLowerCase().includes('joão')),
+    ).toBe(true);
   });
 
   it('sinal temporal do Scheduler → Brain decide (com Regra Operacional) → sem mensagem mecânica', async () => {
@@ -143,7 +157,12 @@ describe('GO LIVE — handoff e portais (acesso por papel)', () => {
       chatId: CHAT,
       role,
       reasonCode: 'COMPETENCIA_HUMANA',
-      provenance: { decisor: 'AHRI', tipo: 'DECISAO_OPERACIONAL_AUTOMATIZADA', fundamento: 'DF-09', operationalRuleRef: 'RO-2D-ESCALATE-HUMAN' },
+      provenance: {
+        decisor: 'AHRI',
+        tipo: 'DECISAO_OPERACIONAL_AUTOMATIZADA',
+        fundamento: 'DF-09',
+        operationalRuleRef: 'RO-2D-ESCALATE-HUMAN',
+      },
       formedAt: T0,
     };
   }
@@ -181,7 +200,12 @@ describe('GO LIVE — handoff e portais (acesso por papel)', () => {
       channel: 'portal-operacao',
       audience: 'operador',
       reasonCode: 'PRAZO_CRITICO',
-      provenance: { decisor: 'AHRI', tipo: 'DECISAO_OPERACIONAL_AUTOMATIZADA', fundamento: 'RO-R6', operationalRuleRef: 'RO-2D-NOTIFY' },
+      provenance: {
+        decisor: 'AHRI',
+        tipo: 'DECISAO_OPERACIONAL_AUTOMATIZADA',
+        fundamento: 'RO-R6',
+        operationalRuleRef: 'RO-2D-NOTIFY',
+      },
       formedAt: T0,
     };
     expect(await live.notification.consume(intent, clock.now())).toBe(true);

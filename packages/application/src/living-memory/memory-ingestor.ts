@@ -21,7 +21,10 @@ export class MemoryIngestor {
   constructor(private readonly memory: MemoryRuntime) {}
 
   /** Ingere um turno: mensagem + emoção + texto (extração opcional) + resultados de missão. */
-  async ingestTurn(observation: TurnObservation, outcomes: readonly UseCaseOutcome[]): Promise<void> {
+  async ingestTurn(
+    observation: TurnObservation,
+    outcomes: readonly UseCaseOutcome[],
+  ): Promise<void> {
     const { chatId, at } = observation;
     await this.memory.observeInbound(chatId, at);
     await this.memory.observeEmotion(chatId, observation.perceptId, observation.sentiment, at);
@@ -31,7 +34,12 @@ export class MemoryIngestor {
     for (const outcome of outcomes) {
       if (!outcome.ok || outcome.skipped || outcome.streamId === null) continue;
       if (outcome.useCase === 'RecognizeDocument') {
-        await this.memory.observeDocumentSent(chatId, outcome.streamId, `documento ${outcome.streamId.slice(0, 8)}`, at);
+        await this.memory.observeDocumentSent(
+          chatId,
+          outcome.streamId,
+          `documento ${outcome.streamId.slice(0, 8)}`,
+          at,
+        );
       } else if (outcome.useCase === 'RepresentStage') {
         await this.memory.observeStageCompleted(chatId, outcome.streamId, outcome.streamId, at);
       }

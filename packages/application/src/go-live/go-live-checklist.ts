@@ -61,7 +61,11 @@ export class GoLiveChecklist {
     for (const check of checks) {
       try {
         const passed = await check.run();
-        results.push({ item: check.item, passed, error: passed ? null : 'verificação retornou falso' });
+        results.push({
+          item: check.item,
+          passed,
+          error: passed ? null : 'verificação retornou falso',
+        });
       } catch (error) {
         results.push({
           item: check.item,

@@ -17,8 +17,16 @@ function sign(payloadB64: string, secret: string): string {
 }
 
 /** Emite o token do cliente (validade em dias; determinístico dados os insumos). */
-export function emitirTokenCliente(clienteId: string, validadeDias: number, now: Date, secret: string): string {
-  const payload: TokenPayload = { c: clienteId, exp: now.getTime() + validadeDias * 24 * 60 * 60 * 1000 };
+export function emitirTokenCliente(
+  clienteId: string,
+  validadeDias: number,
+  now: Date,
+  secret: string,
+): string {
+  const payload: TokenPayload = {
+    c: clienteId,
+    exp: now.getTime() + validadeDias * 24 * 60 * 60 * 1000,
+  };
   const b64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return `${b64}.${sign(b64, secret)}`;
 }
@@ -38,8 +46,11 @@ export function validarTokenCliente(token: string, now: Date, secret: string): s
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
-    const parsed = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8')) as Partial<TokenPayload>;
-    if (typeof parsed.c !== 'string' || parsed.c === '' || typeof parsed.exp !== 'number') return null;
+    const parsed = JSON.parse(
+      Buffer.from(b64, 'base64url').toString('utf8'),
+    ) as Partial<TokenPayload>;
+    if (typeof parsed.c !== 'string' || parsed.c === '' || typeof parsed.exp !== 'number')
+      return null;
     if (now.getTime() > parsed.exp) return null; // expirado → peça novo link à AHRI
     return parsed.c;
   } catch {

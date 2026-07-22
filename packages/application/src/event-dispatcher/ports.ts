@@ -29,7 +29,12 @@ export interface DeliveryStore {
   markDelivered(deliveryIds: readonly string[], now: Date): Promise<void>;
 
   /** Reagenda uma entrega para nova tentativa (backoff); libera o lock. */
-  reschedule(deliveryId: string, nextAttemptAt: Date, attempts: number, error: string): Promise<void>;
+  reschedule(
+    deliveryId: string,
+    nextAttemptAt: Date,
+    attempts: number,
+    error: string,
+  ): Promise<void>;
 
   /** Move uma entrega para a Dead Letter Queue (mensagem envenenada). */
   deadLetter(deliveryId: string, reason: string, attempts: number): Promise<void>;

@@ -17,7 +17,11 @@ export class MissionExecutor {
   async execute(useCase: MissionUseCase, ctx: MissionContext): Promise<UseCaseOutcome> {
     const validation = this.validator.validate(ctx);
     if (!validation.ok) {
-      return failedOutcome(useCase.name, useCase.streamType, validation.error ?? 'pré-condição inválida');
+      return failedOutcome(
+        useCase.name,
+        useCase.streamType,
+        validation.error ?? 'pré-condição inválida',
+      );
     }
     return this.recovery.run(useCase, ctx);
   }

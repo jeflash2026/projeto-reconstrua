@@ -16,35 +16,35 @@ on:
   workflow_call:
     inputs:
       app_dir:
-        description: "Diretório do projeto na VPS (onde está o git clone + deploy.sh)."
+        description: 'Diretório do projeto na VPS (onde está o git clone + deploy.sh).'
         required: false
         type: string
-        default: "/opt/reconstrua"
+        default: '/opt/reconstrua'
       branch:
-        description: "Branch principal a sincronizar (origin/<branch>)."
+        description: 'Branch principal a sincronizar (origin/<branch>).'
         required: false
         type: string
-        default: "master"
+        default: 'master'
       deploy_script:
-        description: "Nome do script de deploy dentro de app_dir."
+        description: 'Nome do script de deploy dentro de app_dir.'
         required: false
         type: string
-        default: "deploy.sh"
+        default: 'deploy.sh'
     secrets:
       SSH_HOST:
-        description: "Host/IP da VPS."
+        description: 'Host/IP da VPS.'
         required: true
       SSH_USER:
-        description: "Usuário SSH (ex.: deploy ou root)."
+        description: 'Usuário SSH (ex.: deploy ou root).'
         required: true
       SSH_PRIVATE_KEY:
-        description: "Chave PRIVADA SSH (sem senha) autorizada na VPS."
+        description: 'Chave PRIVADA SSH (sem senha) autorizada na VPS.'
         required: true
       SSH_KNOWN_HOSTS:
-        description: "Conteúdo de known_hosts (recomendado: fixa a host key = StrictHostKeyChecking)."
+        description: 'Conteúdo de known_hosts (recomendado: fixa a host key = StrictHostKeyChecking).'
         required: false
       SSH_PORT:
-        description: "Porta SSH (default 22)."
+        description: 'Porta SSH (default 22).'
         required: false
 
 permissions:
@@ -57,7 +57,7 @@ jobs:
     timeout-minutes: 25
     # Nunca deixar dois deploys concorrerem no mesmo diretório da VPS.
     concurrency:
-      group: "deploy-${{ inputs.app_dir }}"
+      group: 'deploy-${{ inputs.app_dir }}'
       cancel-in-progress: false
     steps:
       - name: Preparar chave e known_hosts (efêmeros no runner)

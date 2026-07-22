@@ -28,7 +28,11 @@ interface Candidato {
 function mediaKeyBase64(value: unknown): string | null {
   const direto = asString(value);
   if (direto !== null && direto !== '') return direto;
-  if (Array.isArray(value) && value.length > 0 && value.every((n): n is number => typeof n === 'number')) {
+  if (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((n): n is number => typeof n === 'number')
+  ) {
     return Buffer.from(value).toString('base64');
   }
   const rec = asRecord(value);
@@ -74,14 +78,18 @@ export class DirectWhatsAppMediaClient implements MediaGatewayPort {
     const url = asString(alvo.media['url']);
     const mediaKey = mediaKeyBase64(alvo.media['mediaKey']);
     if (url === null || url === '' || mediaKey === null) {
-      this.log(`direct: sem url/mediaKey no ${alvo.tipo} (chaves=[${Object.keys(alvo.media).join(',')}])`);
+      this.log(
+        `direct: sem url/mediaKey no ${alvo.tipo} (chaves=[${Object.keys(alvo.media).join(',')}])`,
+      );
       return null;
     }
     let encrypted: Uint8Array | null = null;
     try {
       encrypted = await this.download(url);
     } catch (erro) {
-      this.log(`direct: download do CDN falhou: ${erro instanceof Error ? erro.message : String(erro)}`);
+      this.log(
+        `direct: download do CDN falhou: ${erro instanceof Error ? erro.message : String(erro)}`,
+      );
       return null;
     }
     if (encrypted === null) {
@@ -93,7 +101,9 @@ export class DirectWhatsAppMediaClient implements MediaGatewayPort {
       this.log(`direct: descriptografia/MAC falhou (${String(encrypted.length)} bytes baixados)`);
       return null;
     }
-    this.log(`direct: midia decifrada (${String(bytes.length)} bytes, ${asString(alvo.media['mimetype']) ?? '?'})`);
+    this.log(
+      `direct: midia decifrada (${String(bytes.length)} bytes, ${asString(alvo.media['mimetype']) ?? '?'})`,
+    );
     return {
       base64: Buffer.from(bytes).toString('base64'),
       mime: asString(alvo.media['mimetype']) ?? 'application/octet-stream',

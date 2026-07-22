@@ -11,7 +11,8 @@ import type { IntentDirective, IntentUrgency, SpeechAct } from '../conversation/
 import type { Condition } from './conditions.js';
 import type { HumanRole } from './mission-snapshot.js';
 
-export type RuleActionKind = 'conversation' | 'use_case' | 'escalation' | 'wait' | 'stop' | 'notification';
+export type RuleActionKind =
+  'conversation' | 'use_case' | 'escalation' | 'wait' | 'stop' | 'notification';
 
 /** A AÇÃO de uma regra — descreve QUE intenção emitir (nunca texto; nunca LLM). */
 export type RuleAction =
@@ -27,7 +28,12 @@ export type RuleAction =
   | { readonly kind: 'escalation'; readonly role: HumanRole; readonly reasonCode: string }
   | { readonly kind: 'wait'; readonly reasonCode: string; readonly untilHintMs: number | null }
   | { readonly kind: 'stop'; readonly reasonCode: string }
-  | { readonly kind: 'notification'; readonly channel: string; readonly audience: string; readonly reasonCode: string };
+  | {
+      readonly kind: 'notification';
+      readonly channel: string;
+      readonly audience: string;
+      readonly reasonCode: string;
+    };
 
 export interface OperationalRuleSpec {
   /** REGRA OPERACIONAL — referência única e citável (ex.: 'RO-2C-COLETA-001'). */

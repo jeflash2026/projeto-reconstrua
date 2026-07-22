@@ -63,7 +63,8 @@ export class ClienteAggregate extends AggregateRoot<ClienteId> {
         new CanonViolationError({
           invariantId: PERSON_ID,
           canonReference: PERSON_REF,
-          message: 'Todo Cliente é a condição de uma Pessoa reconhecida; a Pessoa é obrigatória (INV-CL-01).',
+          message:
+            'Todo Cliente é a condição de uma Pessoa reconhecida; a Pessoa é obrigatória (INV-CL-01).',
         }),
       );
     }
@@ -73,7 +74,8 @@ export class ClienteAggregate extends AggregateRoot<ClienteId> {
         new CanonViolationError({
           invariantId: RESP_ID,
           canonReference: RESP_REF,
-          message: 'Reconhecimento da condição de Cliente sem responsável autorizado identificado (DF-12; Art. 14º).',
+          message:
+            'Reconhecimento da condição de Cliente sem responsável autorizado identificado (DF-12; Art. 14º).',
         }),
       );
     }

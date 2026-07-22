@@ -46,7 +46,13 @@ export function assembleExecutiveBrain(wiring: ExecutiveBrainWiring): AssembledE
   const auditSink = wiring.auditSink ?? new InMemoryBrainAuditSink();
 
   const brain = new ExecutiveBrainRuntime({ clock: wiring.clock, uuid: wiring.uuid, auditSink });
-  const adapter = new ConversationBrainAdapter({ brain, snapshots, rules, resolver, clock: wiring.clock });
+  const adapter = new ConversationBrainAdapter({
+    brain,
+    snapshots,
+    rules,
+    resolver,
+    clock: wiring.clock,
+  });
 
   return { brain, adapter, rules, snapshots, resolver, auditSink };
 }

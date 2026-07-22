@@ -6,8 +6,15 @@
 import type { Clock, UuidGenerator } from '@reconstrua/domain';
 import type { ConversationGateway, Sleeper } from '@reconstrua/application';
 import { CursorRuntime, DecisionGateRuntime, ProductivityRuntime } from '@reconstrua/application';
-import { assembleAdvogadoOperation, type AssembledAdvogadoOperation } from '../advogado-portal/build-advogado-operation.js';
-import { InMemoryCursorStore, InMemoryDecisionStore, InMemoryProductivityStore } from './in-memory-stores.js';
+import {
+  assembleAdvogadoOperation,
+  type AssembledAdvogadoOperation,
+} from '../advogado-portal/build-advogado-operation.js';
+import {
+  InMemoryCursorStore,
+  InMemoryDecisionStore,
+  InMemoryProductivityStore,
+} from './in-memory-stores.js';
 import { NightShiftRuntime } from './night-shift-runtime.js';
 import { AfterDecisionRuntime } from './after-decision-runtime.js';
 import { PlantaoService } from './plantao-service.js';
@@ -29,7 +36,9 @@ export interface AssembledLawyerExperience {
   readonly productivity: ProductivityRuntime;
 }
 
-export function assembleLawyerExperience(wiring: LawyerExperienceWiring): AssembledLawyerExperience {
+export function assembleLawyerExperience(
+  wiring: LawyerExperienceWiring,
+): AssembledLawyerExperience {
   const op = assembleAdvogadoOperation(wiring);
   const cursor = new CursorRuntime(new InMemoryCursorStore());
   const gate = new DecisionGateRuntime(new InMemoryDecisionStore(), wiring.clock, wiring.uuid);

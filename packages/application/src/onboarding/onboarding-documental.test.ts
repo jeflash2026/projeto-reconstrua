@@ -21,8 +21,13 @@ const CHAT = '5517996332346@s.whatsapp.net';
 
 class MemStore implements OnboardingDocumentalStore {
   private state: OnboardingDocumentalState | null = null;
-  load(): Promise<OnboardingDocumentalState | null> { return Promise.resolve(this.state); }
-  save(s: OnboardingDocumentalState): Promise<void> { this.state = s; return Promise.resolve(); }
+  load(): Promise<OnboardingDocumentalState | null> {
+    return Promise.resolve(this.state);
+  }
+  save(s: OnboardingDocumentalState): Promise<void> {
+    this.state = s;
+    return Promise.resolve();
+  }
 }
 
 function harness(textos: Record<string, string | null> = {}) {
@@ -31,33 +36,54 @@ function harness(textos: Record<string, string | null> = {}) {
   const runtime = new OnboardingDocumentalRuntime({
     store,
     leitor: { texto: (id) => Promise.resolve(textos[id] ?? null) },
-    pendencias: { setPendingDocuments: (_c, labels) => { pendenciasGravadas.push([...labels]); return Promise.resolve(); } },
+    pendencias: {
+      setPendingDocuments: (_c, labels) => {
+        pendenciasGravadas.push([...labels]);
+        return Promise.resolve();
+      },
+    },
   });
   return { store, runtime, pendenciasGravadas };
 }
 
 describe('Decreto · classificação DETERMINÍSTICA dos 3 obrigatórios', () => {
   it('HISCON: pelo texto transcrito ou pelo nome do arquivo', () => {
-    expect(classificarDocumentoInicial('doc.pdf', 'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO - INSS')).toBe('CNIS');
+    expect(
+      classificarDocumentoInicial('doc.pdf', 'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO - INSS'),
+    ).toBe('CNIS');
     expect(classificarDocumentoInicial('hiscon-julho.pdf', '')).toBe('CNIS');
-    expect(classificarDocumentoInicial('extrato.pdf', 'Extrato de consignações do benefício')).toBe('CNIS');
+    expect(classificarDocumentoInicial('extrato.pdf', 'Extrato de consignações do benefício')).toBe(
+      'CNIS',
+    );
   });
   it('RG/CNH: registro geral, habilitação, órgão emissor', () => {
-    expect(classificarDocumentoInicial('IMG_1234.jpg', 'REGISTRO GERAL 12.345.678-9 ÓRGÃO EMISSOR SSP')).toBe('IDENTIDADE');
+    expect(
+      classificarDocumentoInicial('IMG_1234.jpg', 'REGISTRO GERAL 12.345.678-9 ÓRGÃO EMISSOR SSP'),
+    ).toBe('IDENTIDADE');
     expect(classificarDocumentoInicial('cnh.jpg', '')).toBe('IDENTIDADE');
-    expect(classificarDocumentoInicial('foto.jpg', 'CARTEIRA NACIONAL DE HABILITAÇÃO')).toBe('IDENTIDADE');
+    expect(classificarDocumentoInicial('foto.jpg', 'CARTEIRA NACIONAL DE HABILITAÇÃO')).toBe(
+      'IDENTIDADE',
+    );
   });
   it('comprovante de endereço: conta de luz/água, fatura de energia', () => {
-    expect(classificarDocumentoInicial('conta.pdf', 'CEMIG — fatura de energia elétrica — vencimento')).toBe('COMPROVANTE_RESIDENCIA');
-    expect(classificarDocumentoInicial('comprovante-de-endereco.jpg', '')).toBe('COMPROVANTE_RESIDENCIA');
+    expect(
+      classificarDocumentoInicial('conta.pdf', 'CEMIG — fatura de energia elétrica — vencimento'),
+    ).toBe('COMPROVANTE_RESIDENCIA');
+    expect(classificarDocumentoInicial('comprovante-de-endereco.jpg', '')).toBe(
+      'COMPROVANTE_RESIDENCIA',
+    );
   });
   it('15ª rodada — a conta de ÁGUA REAL que ficou OUTRO em produção ⇒ COMPROVANTE', () => {
     const contaReal =
       'JOSE RODRIGUES End.: RUA JOAO LOURENCO LEITE,475 - SANTA ERNESTINA - SP - 15970000 ' +
       'Cod. Cliente: 087130751 PDE/RGI: 037141285 Hidrometro: A18L203308 Lacre: RESIDENCIAL Tipo de ligacao: AGUA E ESGOTO';
     expect(classificarDocumentoInicial('IMG_5555.jpg', contaReal)).toBe('COMPROVANTE_RESIDENCIA');
-    expect(classificarDocumentoInicial('foto.jpg', 'SABESP - Companhia de Saneamento Basico')).toBe('COMPROVANTE_RESIDENCIA');
-    expect(classificarDocumentoInicial('foto.jpg', 'DAE Aguas — consumo do mes')).toBe('COMPROVANTE_RESIDENCIA');
+    expect(classificarDocumentoInicial('foto.jpg', 'SABESP - Companhia de Saneamento Basico')).toBe(
+      'COMPROVANTE_RESIDENCIA',
+    );
+    expect(classificarDocumentoInicial('foto.jpg', 'DAE Aguas — consumo do mes')).toBe(
+      'COMPROVANTE_RESIDENCIA',
+    );
   });
   it('nada reconhecível OU empate ⇒ OUTRO (jamais adivinhar)', () => {
     expect(classificarDocumentoInicial('IMG_9999.jpg', '')).toBe('OUTRO');
@@ -86,7 +112,12 @@ describe('Decreto · runtime da jornada', () => {
   });
 
   it('RG exige FRENTE E VERSO: a primeira face NÃO fecha a identidade; a AHRI pede o verso', async () => {
-    const h = harness({ f: 'registro geral órgão emissor', v: 'carteira de identidade filiação', d2: 'fatura de energia elétrica', d3: 'histórico de empréstimo consignado' });
+    const h = harness({
+      f: 'registro geral órgão emissor',
+      v: 'carteira de identidade filiação',
+      d2: 'fatura de energia elétrica',
+      d3: 'histórico de empréstimo consignado',
+    });
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
 
     const r1 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'f', 'IMG_1.jpg', NOW);
@@ -150,13 +181,24 @@ describe('Decreto · runtime da jornada', () => {
   it('nome do arquivo claro dispensa a transcrição (sem retry desnecessário)', async () => {
     const h = harness();
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
-    const r = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'dY', 'hiscon-do-cliente.pdf', NOW);
+    const r = await h.runtime.aoReconhecerDocumento(
+      CHAT,
+      'M-1',
+      'dY',
+      'hiscon-do-cliente.pdf',
+      NOW,
+    );
     expect(r.classificacao).toBe('CNIS');
     expect(r.classificacaoPendente).toBe(false);
   });
 
   it('jornada completa ⇒ documento novo NÃO pertence à Jornada 1 (é acervo/Jornada 2)', async () => {
-    const h = harness({ d1: 'hiscon', d2: 'carteira nacional de habilitação', d3: 'conta de luz', d4: 'procuração assinada' });
+    const h = harness({
+      d1: 'hiscon',
+      d2: 'carteira nacional de habilitação',
+      d3: 'conta de luz',
+      d4: 'procuração assinada',
+    });
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
     await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'a.pdf', NOW);
     await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd2', 'b.jpg', NOW);

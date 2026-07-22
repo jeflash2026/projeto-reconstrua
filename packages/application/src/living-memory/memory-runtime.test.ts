@@ -22,7 +22,9 @@ class FakeStore implements MemoryStore {
 }
 class FakeExtractor implements MemoryAttributeExtractorPort {
   extract(text: string): Promise<readonly ProposedAttribute[]> {
-    return Promise.resolve(text.includes('João') ? [{ key: 'name', value: 'João', confidence: 0.9 }] : []);
+    return Promise.resolve(
+      text.includes('João') ? [{ key: 'name', value: 'João', confidence: 0.9 }] : [],
+    );
   }
 }
 

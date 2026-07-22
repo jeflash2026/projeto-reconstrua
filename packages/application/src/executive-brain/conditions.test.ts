@@ -18,7 +18,9 @@ describe('evaluateCondition', () => {
   it('igualdade e desigualdade de string/boolean', () => {
     expect(evaluateCondition({ fact: 'perceptKind', op: 'eq', value: 'text' }, facts)).toBe(true);
     expect(evaluateCondition({ fact: 'perceptKind', op: 'neq', value: 'audio' }, facts)).toBe(true);
-    expect(evaluateCondition({ fact: 'awaitingDocuments', op: 'eq', value: false }, facts)).toBe(true);
+    expect(evaluateCondition({ fact: 'awaitingDocuments', op: 'eq', value: false }, facts)).toBe(
+      true,
+    );
   });
 
   it('comparações numéricas', () => {
@@ -27,9 +29,15 @@ describe('evaluateCondition', () => {
   });
 
   it('in e contains', () => {
-    expect(evaluateCondition({ fact: 'perceptKind', op: 'in', value: ['text', 'audio'] }, facts)).toBe(true);
-    expect(evaluateCondition({ fact: 'pendingList', op: 'contains', value: 'rg' }, facts)).toBe(true);
-    expect(evaluateCondition({ fact: 'pendingList', op: 'contains', value: 'foto' }, facts)).toBe(false);
+    expect(
+      evaluateCondition({ fact: 'perceptKind', op: 'in', value: ['text', 'audio'] }, facts),
+    ).toBe(true);
+    expect(evaluateCondition({ fact: 'pendingList', op: 'contains', value: 'rg' }, facts)).toBe(
+      true,
+    );
+    expect(evaluateCondition({ fact: 'pendingList', op: 'contains', value: 'foto' }, facts)).toBe(
+      false,
+    );
   });
 
   it('truthy e falsy', () => {
@@ -41,13 +49,28 @@ describe('evaluateCondition', () => {
   it('composição all/any/not', () => {
     expect(
       evaluateCondition(
-        { all: [{ fact: 'perceptKind', op: 'eq', value: 'text' }, { fact: 'minDeadlineDays', op: 'lte', value: 3 }] },
+        {
+          all: [
+            { fact: 'perceptKind', op: 'eq', value: 'text' },
+            { fact: 'minDeadlineDays', op: 'lte', value: 3 },
+          ],
+        },
         facts,
       ),
     ).toBe(true);
     expect(
-      evaluateCondition({ any: [{ fact: 'perceptKind', op: 'eq', value: 'x' }, { fact: 'hasPendingDocuments', op: 'truthy' }] }, facts),
+      evaluateCondition(
+        {
+          any: [
+            { fact: 'perceptKind', op: 'eq', value: 'x' },
+            { fact: 'hasPendingDocuments', op: 'truthy' },
+          ],
+        },
+        facts,
+      ),
     ).toBe(true);
-    expect(evaluateCondition({ not: { fact: 'awaitingDocuments', op: 'truthy' } }, facts)).toBe(true);
+    expect(evaluateCondition({ not: { fact: 'awaitingDocuments', op: 'truthy' } }, facts)).toBe(
+      true,
+    );
   });
 });

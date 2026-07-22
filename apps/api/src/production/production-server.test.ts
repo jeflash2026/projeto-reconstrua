@@ -8,7 +8,11 @@ import type { Clock, Uuid, UuidGenerator } from '@reconstrua/domain';
 import { toUuid } from '@reconstrua/domain';
 import type { ProductionConfig } from '@reconstrua/application';
 import { DEFAULT_PRODUCTION_CONFIG } from '@reconstrua/application';
-import { assembleProduction, FakeSleeper, InMemoryConversationGateway } from '@reconstrua/infrastructure';
+import {
+  assembleProduction,
+  FakeSleeper,
+  InMemoryConversationGateway,
+} from '@reconstrua/infrastructure';
 import { buildProductionServer } from './production-server.js';
 
 class TestClock implements Clock {
@@ -33,7 +37,13 @@ function harness(env: Record<string, string> = {}) {
   const gateway = new InMemoryConversationGateway(clock);
   // B5.1: segredos de operador/webhook presentes por padrão (fail-closed já provado à parte).
   const merged = { ADMIN_ACCESS_SECRET: OPERATOR_SECRET, WEBHOOK_SECRET, ...env };
-  const prod = assembleProduction({ clock, uuid: new SeqUuid(), env: merged, gateway, sleeper: new FakeSleeper() });
+  const prod = assembleProduction({
+    clock,
+    uuid: new SeqUuid(),
+    env: merged,
+    gateway,
+    sleeper: new FakeSleeper(),
+  });
   const app = buildProductionServer({ prod, env: merged, startedAt: clock.now() });
   // inject autenticado (Bearer do operador) — reflete o console com o segredo.
   const auth = (opts: { method: 'GET' | 'POST' | 'PUT'; url: string; payload?: object }) =>
@@ -46,8 +56,17 @@ describe('Produção — Admin Config', () => {
     const { auth, prod } = harness();
     const full: ProductionConfig = {
       ...DEFAULT_PRODUCTION_CONFIG,
-      evolution: { baseUrl: 'https://evo.x.com', instance: 'ahri', apiKey: 'SEGREDO-EVOLUTION-123', whatsappNumber: '5511999999999' },
-      llm: { ...DEFAULT_PRODUCTION_CONFIG.llm, provider: 'anthropic', anthropicApiKey: 'sk-ant-SEGREDO' },
+      evolution: {
+        baseUrl: 'https://evo.x.com',
+        instance: 'ahri',
+        apiKey: 'SEGREDO-EVOLUTION-123',
+        whatsappNumber: '5511999999999',
+      },
+      llm: {
+        ...DEFAULT_PRODUCTION_CONFIG.llm,
+        provider: 'anthropic',
+        anthropicApiKey: 'sk-ant-SEGREDO',
+      },
       publicUrl: 'https://ahrios.com.br',
     };
     await auth({ method: 'PUT', url: '/production/config', payload: full });
@@ -71,7 +90,8 @@ describe('Produção — GO-LIVE bloqueante', () => {
   it('ambiente incompleto ⇒ PRODUÇÃO BLOQUEADA com os itens vermelhos nomeados', async () => {
     const { auth } = harness({});
     const res = await auth({ method: 'GET', url: '/production/go-live' });
-    const report: { ready: boolean; results: Array<{ item: string; passed: boolean }> } = res.json();
+    const report: { ready: boolean; results: Array<{ item: string; passed: boolean }> } =
+      res.json();
     expect(report.ready).toBe(false);
     const failed = report.results.filter((r) => !r.passed).map((r) => r.item);
     expect(failed).toContain('postgres');
@@ -80,7 +100,8 @@ describe('Produção — GO-LIVE bloqueante', () => {
     expect(failed).toContain('llm');
     // GO-LIVE-02: o segredo do Portal do Cliente agora BLOQUEIA a subida quando
     // ausente (antes o sistema subia "verde" com o Portal silenciosamente morto).
-    const envVars = report.results.find((r) => r.item === 'env-vars') as { detail?: string } | undefined;
+    const envVars = report.results.find((r) => r.item === 'env-vars') as
+      { detail?: string } | undefined;
     expect(envVars?.detail).toContain('CLIENTE_PORTAL_SECRET');
   });
 
@@ -88,8 +109,17 @@ describe('Produção — GO-LIVE bloqueante', () => {
     const { auth } = harness({});
     const res = await auth({ method: 'GET', url: '/production/go-live' });
     const report: { results: Array<{ item: string; passed: boolean }> } = res.json();
-    const ok = (item: string): boolean => report.results.find((r) => r.item === item)?.passed === true;
-    for (const item of ['workers', 'scheduler', 'read-models', 'dispatcher', 'event-store', 'redis', 'health']) {
+    const ok = (item: string): boolean =>
+      report.results.find((r) => r.item === item)?.passed === true;
+    for (const item of [
+      'workers',
+      'scheduler',
+      'read-models',
+      'dispatcher',
+      'event-store',
+      'redis',
+      'health',
+    ]) {
       expect(ok(item), item).toBe(true);
     }
   });
@@ -103,7 +133,11 @@ describe('Produção — REAL_FIRST_CLIENT (homologação ponta a ponta)', () =>
       url: '/production/first-client',
       payload: { chatId: '5511988887777@s.whatsapp.net', campaign: 'META-CAMPANHA-01' },
     });
-    const report: { flow: string; passed: boolean; stages: Array<{ stage: string; passed: boolean; evidence: string }> } = res.json();
+    const report: {
+      flow: string;
+      passed: boolean;
+      stages: Array<{ stage: string; passed: boolean; evidence: string }>;
+    } = res.json();
 
     expect(report.flow).toBe('REAL_FIRST_CLIENT');
     const names = report.stages.map((s) => s.stage);
@@ -129,7 +163,12 @@ describe('Produção — Monitor e UI', () => {
     const { auth } = harness();
     await auth({ method: 'POST', url: '/production/first-client', payload: {} });
     const res = await auth({ method: 'GET', url: '/production/monitor' });
-    const m: { conversations: number; queues: { scheduler: number }; llm: { provider: string }; health: string } = res.json();
+    const m: {
+      conversations: number;
+      queues: { scheduler: number };
+      llm: { provider: string };
+      health: string;
+    } = res.json();
     expect(m.conversations).toBeGreaterThanOrEqual(1);
     expect(m.queues.scheduler).toBeGreaterThanOrEqual(1);
     expect(m.llm.provider).toBe('offline');
@@ -147,7 +186,12 @@ describe('Produção — Monitor e UI', () => {
 
   it('webhook de produção responde ACK imediato (com segredo válido)', async () => {
     const { app } = harness();
-    const res = await app.inject({ method: 'POST', url: '/webhook/evolution', payload: { foo: 'bar' }, headers: { apikey: WEBHOOK_SECRET } });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/evolution',
+      payload: { foo: 'bar' },
+      headers: { apikey: WEBHOOK_SECRET },
+    });
     expect(res.statusCode).toBe(200);
     const ack: { ok: boolean } = res.json();
     expect(ack.ok).toBe(true);
@@ -178,7 +222,11 @@ describe('Produção — B5.1 Segurança', () => {
 
   it('rota sensível com Bearer ERRADO ⇒ 401', async () => {
     const { app } = harness();
-    const res = await app.inject({ method: 'GET', url: '/production/monitor', headers: { authorization: 'Bearer ERRADO' } });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/production/monitor',
+      headers: { authorization: 'Bearer ERRADO' },
+    });
     expect(res.statusCode).toBe(401);
   });
 
@@ -197,18 +245,36 @@ describe('Produção — B5.1 Segurança', () => {
 
   it('webhook SEM segredo ⇒ 401 e NÃO processa; com segredo errado ⇒ 401', async () => {
     const { app, gateway } = harness();
-    const semSegredo = await app.inject({ method: 'POST', url: '/webhook/evolution', payload: { foo: 'bar' } });
+    const semSegredo = await app.inject({
+      method: 'POST',
+      url: '/webhook/evolution',
+      payload: { foo: 'bar' },
+    });
     expect(semSegredo.statusCode).toBe(401);
-    const errado = await app.inject({ method: 'POST', url: '/webhook/evolution', payload: { foo: 'bar' }, headers: { apikey: 'ERRADO' } });
+    const errado = await app.inject({
+      method: 'POST',
+      url: '/webhook/evolution',
+      payload: { foo: 'bar' },
+      headers: { apikey: 'ERRADO' },
+    });
     expect(errado.statusCode).toBe(401);
     expect(gateway.texts()).toHaveLength(0);
   });
 
   it('webhook aceita o segredo via Authorization Bearer ou ?token= também', async () => {
     const { app } = harness();
-    const viaBearer = await app.inject({ method: 'POST', url: '/webhook/evolution', payload: {}, headers: { authorization: `Bearer ${WEBHOOK_SECRET}` } });
+    const viaBearer = await app.inject({
+      method: 'POST',
+      url: '/webhook/evolution',
+      payload: {},
+      headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+    });
     expect(viaBearer.statusCode).toBe(200);
-    const viaQuery = await app.inject({ method: 'POST', url: `/webhook/evolution?token=${WEBHOOK_SECRET}`, payload: {} });
+    const viaQuery = await app.inject({
+      method: 'POST',
+      url: `/webhook/evolution?token=${WEBHOOK_SECRET}`,
+      payload: {},
+    });
     expect(viaQuery.statusCode).toBe(200);
   });
 
@@ -216,12 +282,27 @@ describe('Produção — B5.1 Segurança', () => {
     const clock = new TestClock();
     const gateway = new InMemoryConversationGateway(clock);
     const env: Record<string, string> = {}; // nenhum segredo
-    const prod = assembleProduction({ clock, uuid: new SeqUuid(), env, gateway, sleeper: new FakeSleeper() });
+    const prod = assembleProduction({
+      clock,
+      uuid: new SeqUuid(),
+      env,
+      gateway,
+      sleeper: new FakeSleeper(),
+    });
     const app = buildProductionServer({ prod, env, startedAt: clock.now() });
     // Mesmo com um Bearer qualquer, o segredo vazio recusa (fail-closed).
-    const monitor = await app.inject({ method: 'GET', url: '/production/monitor', headers: { authorization: 'Bearer qualquer' } });
+    const monitor = await app.inject({
+      method: 'GET',
+      url: '/production/monitor',
+      headers: { authorization: 'Bearer qualquer' },
+    });
     expect(monitor.statusCode).toBe(401);
-    const webhook = await app.inject({ method: 'POST', url: '/webhook/evolution', payload: {}, headers: { apikey: 'qualquer' } });
+    const webhook = await app.inject({
+      method: 'POST',
+      url: '/webhook/evolution',
+      payload: {},
+      headers: { apikey: 'qualquer' },
+    });
     expect(webhook.statusCode).toBe(401);
   });
 });

@@ -65,7 +65,10 @@ function recorder(name: string, interestedIn?: readonly string[]) {
 
 describe('EventDispatcherRuntime', () => {
   it('faz fan-out para todos os assinantes e publica o lote', async () => {
-    const outbox = new FakeOutbox([evt('e1', 'mission.created', 1), evt('e2', 'document.recognized', 2)]);
+    const outbox = new FakeOutbox([
+      evt('e1', 'mission.created', 1),
+      evt('e2', 'document.recognized', 2),
+    ]);
     const cqrs = recorder('cqrs');
     const notif = recorder('notifications');
     const rt = new EventDispatcherRuntime(outbox).register(cqrs.sub).register(notif.sub);
@@ -77,7 +80,10 @@ describe('EventDispatcherRuntime', () => {
   });
 
   it('respeita interestedIn (assinante recebe só os tipos de interesse)', async () => {
-    const outbox = new FakeOutbox([evt('e1', 'mission.created', 1), evt('e2', 'document.recognized', 2)]);
+    const outbox = new FakeOutbox([
+      evt('e1', 'mission.created', 1),
+      evt('e2', 'document.recognized', 2),
+    ]);
     const learning = recorder('learning', ['document.recognized']);
     const rt = new EventDispatcherRuntime(outbox).register(learning.sub);
     await rt.drainOnce();

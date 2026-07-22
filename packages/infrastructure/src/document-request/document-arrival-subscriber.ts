@@ -32,14 +32,21 @@ export const NS_CONFIRMACOES = 'dr-confirmacoes';
 
 /** Normaliza para comparação: minúsculas, sem acento, só letras/números. */
 function normalizar(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
 /** O arquivo "casa" com a solicitação? (todos os tokens do nome do documento
  *  aparecem no nome do arquivo — determinístico e auditável). */
 export function arquivoCasaCom(fileName: string, documentName: string): boolean {
   const arquivo = normalizar(fileName);
-  const tokens = normalizar(documentName).split(' ').filter((t) => t.length > 2);
+  const tokens = normalizar(documentName)
+    .split(' ')
+    .filter((t) => t.length > 2);
   return tokens.length > 0 && tokens.every((t) => arquivo.includes(t));
 }
 
@@ -65,9 +72,13 @@ export class DocumentArrivalSubscriber implements EventSubscriber {
     const d = this.deps;
     const now = d.clock.now();
     try {
-      const missionId = typeof event.payload['missionId'] === 'string' ? event.payload['missionId'] : null;
+      const missionId =
+        typeof event.payload['missionId'] === 'string' ? event.payload['missionId'] : null;
       if (missionId === null) return;
-      const fileName = typeof event.payload['contentReference'] === 'string' ? event.payload['contentReference'] : '';
+      const fileName =
+        typeof event.payload['contentReference'] === 'string'
+          ? event.payload['contentReference']
+          : '';
       const documentId = event.streamId;
 
       const candidatas = (await d.store.doCaso(missionId)).filter((s) => ABERTAS.has(s.status));
@@ -76,7 +87,11 @@ export class DocumentArrivalSubscriber implements EventSubscriber {
       if (candidatas.length === 1) {
         const unica = candidatas[0] as DocumentRequestState;
         await d.runtime.associar(unica.requestId, documentId, 'unica', now);
-        d.observability.event('document-request', `associada unica=${unica.requestId} doc=${documentId}`, now);
+        d.observability.event(
+          'document-request',
+          `associada unica=${unica.requestId} doc=${documentId}`,
+          now,
+        );
         return;
       }
 
@@ -85,7 +100,11 @@ export class DocumentArrivalSubscriber implements EventSubscriber {
       if (casam.length === 1) {
         const alvo = casam[0] as DocumentRequestState;
         await d.runtime.associar(alvo.requestId, documentId, 'ia', now);
-        d.observability.event('document-request', `associada ia=${alvo.requestId} doc=${documentId} arquivo=${fileName}`, now);
+        d.observability.event(
+          'document-request',
+          `associada ia=${alvo.requestId} doc=${documentId} arquivo=${fileName}`,
+          now,
+        );
         return;
       }
 
@@ -93,14 +112,28 @@ export class DocumentArrivalSubscriber implements EventSubscriber {
       for (const c of candidatas) await d.runtime.aguardarConfirmacao(c.requestId, now);
       const clientId = (candidatas[0] as DocumentRequestState).clientId;
       // 15C-4: registra QUAL documento aguarda a resposta (contexto do resolver).
-      if (d.confirmacoes) await d.confirmacoes.put(NS_CONFIRMACOES, clientId, { documentId, askedAt: now.toISOString() }).catch(() => undefined);
+      if (d.confirmacoes)
+        await d.confirmacoes
+          .put(NS_CONFIRMACOES, clientId, { documentId, askedAt: now.toISOString() })
+          .catch(() => undefined);
       if (d.gateway !== null) {
-        await d.gateway.sendText(clientId, perguntaDeConfirmacao(candidatas)).catch(() => undefined);
+        await d.gateway
+          .sendText(clientId, perguntaDeConfirmacao(candidatas))
+          .catch(() => undefined);
       }
-      d.observability.event('document-request', `confirmacao-pedida doc=${documentId} candidatas=${candidatas.length}`, now);
+      d.observability.event(
+        'document-request',
+        `confirmacao-pedida doc=${documentId} candidatas=${candidatas.length}`,
+        now,
+      );
     } catch (e) {
       // Falha isolada: o documento segue seu fluxo normal; só observamos.
-      d.observability.error('document-request', 'arrival', now, e instanceof Error ? e.message : String(e));
+      d.observability.error(
+        'document-request',
+        'arrival',
+        now,
+        e instanceof Error ? e.message : String(e),
+      );
     }
   }
 }

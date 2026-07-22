@@ -31,30 +31,51 @@ describe('11A · a matriz completa — cada estratégia declara a estrutura do d
   it('a matriz cobre os novos cenários (RMC, margem, tarifas, portabilidade, superendividamento)', () => {
     expect(REFS).toEqual(
       expect.arrayContaining([
-        'EST-CONSIG-REVISAO-001', 'EST-CONSIG-NAO-CONTRATADO-001', 'EST-CONSIG-JUROS-001',
-        'EST-CONSIG-CARTAO-RMC-001', 'EST-CONSIG-MARGEM-001', 'EST-CONSIG-TARIFAS-001',
-        'EST-CONSIG-PORTABILIDADE-001', 'EST-CONSIG-SUPERENDIVIDAMENTO-001',
+        'EST-CONSIG-REVISAO-001',
+        'EST-CONSIG-NAO-CONTRATADO-001',
+        'EST-CONSIG-JUROS-001',
+        'EST-CONSIG-CARTAO-RMC-001',
+        'EST-CONSIG-MARGEM-001',
+        'EST-CONSIG-TARIFAS-001',
+        'EST-CONSIG-PORTABILIDADE-001',
+        'EST-CONSIG-SUPERENDIVIDAMENTO-001',
       ]),
     );
   });
 
   it('cartão RMC: fatos ⇒ hipótese própria com docs esperados (extrato de RMC)', () => {
-    const r = raciocinar({ problema_principal: 'cartao_rmc', beneficio: 'aposentadoria', tempo_do_problema: 'mais_de_2_anos', multiplos_bancos: 'true' }, ESTRATEGIAS_CONSIGNADO_INSS);
+    const r = raciocinar(
+      {
+        problema_principal: 'cartao_rmc',
+        beneficio: 'aposentadoria',
+        tempo_do_problema: 'mais_de_2_anos',
+        multiplos_bancos: 'true',
+      },
+      ESTRATEGIAS_CONSIGNADO_INSS,
+    );
     expect(r.hipotesePrincipal?.ref).toBe('EST-CONSIG-CARTAO-RMC-001');
     expect(r.hipotesePrincipal?.confianca).toBe('alta'); // 3 reforços
-    expect(r.hipotesePrincipal?.documentosEsperados).toContain('extrato da RMC / cartão consignado');
+    expect(r.hipotesePrincipal?.documentosEsperados).toContain(
+      'extrato da RMC / cartão consignado',
+    );
   });
 
   it('superendividamento vence por PRIORIDADE de domínio quando empata em confiança', () => {
     // margem_extrapolada e superendividamento não coexistem (um problema_principal),
     // então testamos a prioridade declarada: superendividamento (90) > revisão (60).
-    const superend = ESTRATEGIAS_CONSIGNADO_INSS.find((s) => s.ref === 'EST-CONSIG-SUPERENDIVIDAMENTO-001');
+    const superend = ESTRATEGIAS_CONSIGNADO_INSS.find(
+      (s) => s.ref === 'EST-CONSIG-SUPERENDIVIDAMENTO-001',
+    );
     const revisao = ESTRATEGIAS_CONSIGNADO_INSS.find((s) => s.ref === 'EST-CONSIG-REVISAO-001');
-    expect((superend?.prioridade ?? 0)).toBeGreaterThan(revisao?.prioridade ?? 0);
+    expect(superend?.prioridade ?? 0).toBeGreaterThan(revisao?.prioridade ?? 0);
   });
 
   it('CRITÉRIO DE EXCLUSÃO: processo ENCERRADO desqualifica a estratégia (não inventa nova)', () => {
-    const facts: BrainFacts = { problema_principal: 'descontos_nao_reconhecidos', beneficio: 'aposentadoria', stateCode: 'ENCERRADA' };
+    const facts: BrainFacts = {
+      problema_principal: 'descontos_nao_reconhecidos',
+      beneficio: 'aposentadoria',
+      stateCode: 'ENCERRADA',
+    };
     const r = raciocinar(facts, ESTRATEGIAS_CONSIGNADO_INSS);
     expect(r.hipoteses.some((h) => h.ref === 'EST-CONSIG-REVISAO-001')).toBe(false);
   });
@@ -63,7 +84,13 @@ describe('11A · a matriz completa — cada estratégia declara a estrutura do d
 describe('11A · regressão — os cenários homologados (10A) seguem idênticos', () => {
   it('o cliente do decreto ⇒ revisão contratual, confiança alta, mesma próxima ação', () => {
     const r = raciocinar(
-      { beneficio: 'aposentadoria', documentacao_mencionada: 'hiscon', problema_principal: 'descontos_nao_reconhecidos', tempo_do_problema: 'mais_de_2_anos', multiplos_bancos: 'true' },
+      {
+        beneficio: 'aposentadoria',
+        documentacao_mencionada: 'hiscon',
+        problema_principal: 'descontos_nao_reconhecidos',
+        tempo_do_problema: 'mais_de_2_anos',
+        multiplos_bancos: 'true',
+      },
       ESTRATEGIAS_CONSIGNADO_INSS,
     );
     expect(r.hipotesePrincipal?.ref).toBe('EST-CONSIG-REVISAO-001');
@@ -75,15 +102,46 @@ describe('11A · regressão — os cenários homologados (10A) seguem idênticos
 describe('11A · validação do catálogo contra casos reais', () => {
   // Casos reais anonimizados — um por cenário + um propositalmente descoberto.
   const casosReais: readonly CasoReal[] = [
-    { ref: 'C1-revisao', facts: { problema_principal: 'descontos_nao_reconhecidos', beneficio: 'aposentadoria', documentacao_mencionada: 'hiscon', tempo_do_problema: 'mais_de_2_anos', multiplos_bancos: 'true' } },
-    { ref: 'C2-fraude', facts: { problema_principal: 'emprestimo_nao_contratado', tempo_do_problema: 'recente' } },
+    {
+      ref: 'C1-revisao',
+      facts: {
+        problema_principal: 'descontos_nao_reconhecidos',
+        beneficio: 'aposentadoria',
+        documentacao_mencionada: 'hiscon',
+        tempo_do_problema: 'mais_de_2_anos',
+        multiplos_bancos: 'true',
+      },
+    },
+    {
+      ref: 'C2-fraude',
+      facts: { problema_principal: 'emprestimo_nao_contratado', tempo_do_problema: 'recente' },
+    },
     { ref: 'C3-juros', facts: { problema_principal: 'juros_abusivos', multiplos_bancos: 'true' } },
     { ref: 'C4-rmc', facts: { problema_principal: 'cartao_rmc', beneficio: 'aposentadoria' } },
-    { ref: 'C5-margem', facts: { problema_principal: 'margem_extrapolada', multiplos_bancos: 'true' } },
-    { ref: 'C6-tarifas', facts: { problema_principal: 'tarifas_indevidas', documentacao_mencionada: 'contrato' } },
-    { ref: 'C7-portabilidade', facts: { problema_principal: 'portabilidade_indevida', multiplos_bancos: 'true' } },
-    { ref: 'C8-superend', facts: { problema_principal: 'superendividamento', multiplos_bancos: 'true', beneficio: 'pensao' } },
-    { ref: 'C9-desconhecido', facts: { problema_principal: 'assunto_fora_do_dominio', beneficio: 'aposentadoria' } },
+    {
+      ref: 'C5-margem',
+      facts: { problema_principal: 'margem_extrapolada', multiplos_bancos: 'true' },
+    },
+    {
+      ref: 'C6-tarifas',
+      facts: { problema_principal: 'tarifas_indevidas', documentacao_mencionada: 'contrato' },
+    },
+    {
+      ref: 'C7-portabilidade',
+      facts: { problema_principal: 'portabilidade_indevida', multiplos_bancos: 'true' },
+    },
+    {
+      ref: 'C8-superend',
+      facts: {
+        problema_principal: 'superendividamento',
+        multiplos_bancos: 'true',
+        beneficio: 'pensao',
+      },
+    },
+    {
+      ref: 'C9-desconhecido',
+      facts: { problema_principal: 'assunto_fora_do_dominio', beneficio: 'aposentadoria' },
+    },
   ];
 
   const achados = validarCatalogo(ESTRATEGIAS_CONSIGNADO_INSS, casosReais);
@@ -109,7 +167,10 @@ describe('11A · validação do catálogo contra casos reais', () => {
   });
 
   it('uma estratégia NUNCA utilizada é detectada quando a bateria não a cobre', () => {
-    const semRmc = validarCatalogo(ESTRATEGIAS_CONSIGNADO_INSS, casosReais.filter((c) => c.ref !== 'C4-rmc'));
+    const semRmc = validarCatalogo(
+      ESTRATEGIAS_CONSIGNADO_INSS,
+      casosReais.filter((c) => c.ref !== 'C4-rmc'),
+    );
     expect(semRmc.estrategiasNuncaUtilizadas).toContain('EST-CONSIG-CARTAO-RMC-001');
   });
 });
@@ -120,11 +181,34 @@ describe('11A · ponta a ponta — a conversa aprende o novo cenário e a estrat
       chatId: 'c1',
       session: { chatId: 'c1', turns: 2, lastInboundAt: null, lastOutboundAt: null },
       recentEntries: [
-        { id: 'e1', chatId: 'c1', kind: 'outbound' as const, at: new Date(2026, 6, 19, 12, 1), text: 'O que está acontecendo com seu benefício?', intentDirective: null, operationalRuleRef: null, meta: {} },
-        { id: 'e2', chatId: 'c1', kind: 'inbound' as const, at: new Date(2026, 6, 19, 12, 2), text: 'Tem uma reserva de margem do cartão consignado que eu não pedi, sou aposentado.', intentDirective: null, operationalRuleRef: null, meta: {} },
+        {
+          id: 'e1',
+          chatId: 'c1',
+          kind: 'outbound' as const,
+          at: new Date(2026, 6, 19, 12, 1),
+          text: 'O que está acontecendo com seu benefício?',
+          intentDirective: null,
+          operationalRuleRef: null,
+          meta: {},
+        },
+        {
+          id: 'e2',
+          chatId: 'c1',
+          kind: 'inbound' as const,
+          at: new Date(2026, 6, 19, 12, 2),
+          text: 'Tem uma reserva de margem do cartão consignado que eu não pedi, sou aposentado.',
+          intentDirective: null,
+          operationalRuleRef: null,
+          meta: {},
+        },
       ],
       recentOutboundTexts: ['O que está acontecendo com seu benefício?'],
-      lastPercept: { envelope: { text: 'Tem uma reserva de margem do cartão consignado que eu não pedi, sou aposentado.' }, enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null } } as never,
+      lastPercept: {
+        envelope: {
+          text: 'Tem uma reserva de margem do cartão consignado que eu não pedi, sou aposentado.',
+        },
+        enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: null },
+      } as never,
       silenceMs: null,
     } as never;
 

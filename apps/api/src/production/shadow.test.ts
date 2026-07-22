@@ -37,11 +37,29 @@ class SeqUuid implements UuidGenerator {
 
 const CHAT = '5511977776666@s.whatsapp.net';
 
-function env(text: string, messageId: string, over: Partial<InboundEnvelope> = {}): InboundEnvelope {
+function env(
+  text: string,
+  messageId: string,
+  over: Partial<InboundEnvelope> = {},
+): InboundEnvelope {
   return {
-    messageId, chatId: CHAT, from: CHAT, kind: 'text', text, mediaUrl: null, mediaMimeType: null, fileName: null,
-    location: null, contact: null, reactionEmoji: null, reactionToMessageId: null, editedText: null,
-    deletedMessageId: null, silenceMs: null, timestamp: new Date('2026-07-14T09:00:00.000Z'), ...over,
+    messageId,
+    chatId: CHAT,
+    from: CHAT,
+    kind: 'text',
+    text,
+    mediaUrl: null,
+    mediaMimeType: null,
+    fileName: null,
+    location: null,
+    contact: null,
+    reactionEmoji: null,
+    reactionToMessageId: null,
+    editedText: null,
+    deletedMessageId: null,
+    silenceMs: null,
+    timestamp: new Date('2026-07-14T09:00:00.000Z'),
+    ...over,
   };
 }
 
@@ -104,19 +122,39 @@ describe('Shadow Mode — recorder', () => {
     const [r] = await prod.shadowStore.all();
     const updated = await prod.shadow.addFeedback(r?.id ?? '', 'resposta adequada, tom bom');
     expect(updated?.humanFeedback).toBe('resposta adequada, tom bom');
-    expect((await prod.shadowStore.byId(r?.id ?? ''))?.humanFeedback).toBe('resposta adequada, tom bom');
+    expect((await prod.shadowStore.byId(r?.id ?? ''))?.humanFeedback).toBe(
+      'resposta adequada, tom bom',
+    );
   });
 });
 
 describe('Shadow Mode — detecção automática', () => {
   function report(over: Partial<ShadowReport>): ShadowReport {
     return {
-      id: 'r', at: new Date('2026-07-14T10:00:00.000Z'), chatId: 'c1', origin: 'inbound', perceptKind: 'text',
-      messageId: 'm', sentiment: 'neutral', urgency: 'normal', turnCount: 1, missionId: null, workflowSteps: [],
-      truthCount: 0, stateCount: 0, stageCount: 0, rulesApplied: ['RO-X'], intents: ['speak[RO-X]'],
-      decisionTimeMs: 100, responses: ['ok'], latencyMs: 100,
+      id: 'r',
+      at: new Date('2026-07-14T10:00:00.000Z'),
+      chatId: 'c1',
+      origin: 'inbound',
+      perceptKind: 'text',
+      messageId: 'm',
+      sentiment: 'neutral',
+      urgency: 'normal',
+      turnCount: 1,
+      missionId: null,
+      workflowSteps: [],
+      truthCount: 0,
+      stateCount: 0,
+      stageCount: 0,
+      rulesApplied: ['RO-X'],
+      intents: ['speak[RO-X]'],
+      decisionTimeMs: 100,
+      responses: ['ok'],
+      latencyMs: 100,
       llm: { provider: 'offline', calls: 0, tokensIn: null, tokensOut: null },
-      outcome: 'delivered', error: null, humanFeedback: null, ...over,
+      outcome: 'delivered',
+      error: null,
+      humanFeedback: null,
+      ...over,
     };
   }
 
@@ -128,7 +166,8 @@ describe('Shadow Mode — detecção automática', () => {
     reports.push(report({ id: 'rep1', chatId: 'rep', responses: ['a mesma frase exata aqui'] }));
     reports.push(report({ id: 'rep2', chatId: 'rep', responses: ['a mesma frase exata aqui'] }));
     // irritado
-    for (let i = 0; i < 3; i += 1) reports.push(report({ id: `n${String(i)}`, chatId: 'bravo', sentiment: 'negative' }));
+    for (let i = 0; i < 3; i += 1)
+      reports.push(report({ id: `n${String(i)}`, chatId: 'bravo', sentiment: 'negative' }));
 
     const detections = detect(reports, ['RO-X', 'RO-NUNCA-USADA']);
     const kinds = detections.map((d) => d.kind);
@@ -136,16 +175,23 @@ describe('Shadow Mode — detecção automática', () => {
     expect(kinds).toContain('spam');
     expect(kinds).toContain('mensagem-repetida');
     expect(kinds).toContain('cliente-irritado');
-    expect(detections.some((d) => d.kind === 'ro-nunca-usada' && d.detail === 'RO-NUNCA-USADA')).toBe(true);
+    expect(
+      detections.some((d) => d.kind === 'ro-nunca-usada' && d.detail === 'RO-NUNCA-USADA'),
+    ).toBe(true);
     // severidades corretas
     expect(detections.find((d) => d.kind === 'loop')?.severity).toBe('CRITICO');
     expect(detections.find((d) => d.kind === 'mensagem-repetida')?.severity).toBe('ALTO');
   });
 
   it('operação saudável → sem CRÍTICO/ALTO', () => {
-    const reports = [report({ id: 'a' }), report({ id: 'b', chatId: 'c2', responses: ['outra frase bem diferente agora'] })];
+    const reports = [
+      report({ id: 'a' }),
+      report({ id: 'b', chatId: 'c2', responses: ['outra frase bem diferente agora'] }),
+    ];
     const detections = detect(reports, ['RO-X']);
-    expect(detections.filter((d) => d.severity === 'CRITICO' || d.severity === 'ALTO')).toHaveLength(0);
+    expect(
+      detections.filter((d) => d.severity === 'CRITICO' || d.severity === 'ALTO'),
+    ).toHaveLength(0);
   });
 });
 
@@ -157,7 +203,12 @@ describe('Shadow Mode — perguntas do fundador (exclusivamente dos reports)', (
     await prod.ingress.tick(clock.now());
     const reports = await prod.shadowStore.all();
     const detections = detect(reports, ['RO-2D-GREET']);
-    const ctx = { reports, detections, lawyerLoad: { 'Dra. Ana': 3, 'Dr. Bruno': 1 }, pendingDocs: [{ chatId: CHAT, document: 'CPF', sinceDays: 2 }] };
+    const ctx = {
+      reports,
+      detections,
+      lawyerLoad: { 'Dra. Ana': 3, 'Dr. Bruno': 1 },
+      pendingDocs: [{ chatId: CHAT, document: 'CPF', sinceDays: 2 }],
+    };
 
     expect(askShadow('qual foi sua decisão mais difícil hoje?', ctx).answer).toContain('ms');
     expect(askShadow('em quais regras você mais trabalhou?', ctx).answer).toContain('RO-');
@@ -176,18 +227,36 @@ describe('Shadow Center — API', () => {
     const { prod } = harness();
     // B5.1: rotas shadow são sensíveis — servidor com segredo de operador + Bearer.
     const SECRET = 'TEST-OPERATOR-SECRET';
-    const app = buildProductionServer({ prod, env: { ADMIN_ACCESS_SECRET: SECRET }, startedAt: new Date() });
+    const app = buildProductionServer({
+      prod,
+      env: { ADMIN_ACCESS_SECRET: SECRET },
+      startedAt: new Date(),
+    });
     const authHeaders = { authorization: `Bearer ${SECRET}` };
     await prod.ingress.receive(env('olá', 'S1'));
 
-    const res = await app.inject({ method: 'GET', url: '/production/shadow/center', headers: authHeaders });
-    const body: { shadowMode: boolean; summary: { totalTurns: number; conversations: number }; detections: unknown[]; recent: unknown[] } = res.json();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/production/shadow/center',
+      headers: authHeaders,
+    });
+    const body: {
+      shadowMode: boolean;
+      summary: { totalTurns: number; conversations: number };
+      detections: unknown[];
+      recent: unknown[];
+    } = res.json();
     expect(body.shadowMode).toBe(true);
     expect(body.summary.totalTurns).toBe(1);
     expect(body.summary.conversations).toBe(1);
     expect(body.recent).toHaveLength(1);
 
-    const ask = await app.inject({ method: 'POST', url: '/production/shadow/ask', payload: { question: 'em quais regras você mais trabalhou?' }, headers: authHeaders });
+    const ask = await app.inject({
+      method: 'POST',
+      url: '/production/shadow/ask',
+      payload: { question: 'em quais regras você mais trabalhou?' },
+      headers: authHeaders,
+    });
     const answer: { answer: string; provenance: string } = ask.json();
     expect(answer.provenance).toBe('shadow-reports');
     expect(answer.answer).toContain('RO-');

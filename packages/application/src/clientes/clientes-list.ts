@@ -117,7 +117,9 @@ export function deriveClienteStatus(
   if (alir.operational.operacao.atribuicao !== null) return 'EM_PROCESSO';
   // Jornada B: fato confirmado + relógio derivam a fila (Lei 8 — nunca o timer).
   if (pedidos !== null) {
-    return now.getTime() < prazoDosPedidos(pedidos.confirmadoEm).getTime() ? 'AGUARDANDO_10_DIAS' : 'AGUARDANDO_SOCIO';
+    return now.getTime() < prazoDosPedidos(pedidos.confirmadoEm).getTime()
+      ? 'AGUARDANDO_10_DIAS'
+      : 'AGUARDANDO_SOCIO';
   }
   if (!readiness.ready) return m.missionId === null ? 'ATENDIMENTO' : 'COLETANDO_DOCUMENTOS';
   if (modalidade === null) return 'PRONTO_AGUARDANDO_MODALIDADE';
@@ -142,7 +144,9 @@ export class ClientesList {
     for (const mem of memories) {
       out.push(await this.resumo(mem.chatId, now));
     }
-    return out.sort((a, b) => (b.ultimoContatoAt?.getTime() ?? 0) - (a.ultimoContatoAt?.getTime() ?? 0));
+    return out.sort(
+      (a, b) => (b.ultimoContatoAt?.getTime() ?? 0) - (a.ultimoContatoAt?.getTime() ?? 0),
+    );
   }
 
   /** Fila do Admin no Modelo A: prontos, com modalidade VENDA, aguardando a venda. */
@@ -152,7 +156,10 @@ export class ClientesList {
 
   private async resumo(chatId: string, now?: Date): Promise<ClienteResumo> {
     const groups: readonly ('CORE' | 'OPERATIONAL')[] = ['CORE', 'OPERATIONAL'];
-    const { alir, metrics } = await this.deps.alir.compose(chatId, now !== undefined ? { groups, now } : { groups });
+    const { alir, metrics } = await this.deps.alir.compose(
+      chatId,
+      now !== undefined ? { groups, now } : { groups },
+    );
     const readiness = evaluateReadiness(
       now !== undefined
         ? { alir, caseType: 'GENERICO', unavailable: metrics.fieldsUnavailable, now }
@@ -170,7 +177,14 @@ export class ClientesList {
       chatId,
       missionId: alir.operational.missao.missionId,
       quem: alirQuem(alir),
-      status: deriveClienteStatus(alir, readiness, modalidade, venda !== null, pedidos, now ?? new Date()),
+      status: deriveClienteStatus(
+        alir,
+        readiness,
+        modalidade,
+        venda !== null,
+        pedidos,
+        now ?? new Date(),
+      ),
       modalidade,
       pronto: readiness.ready,
       faltando: readiness.missingRequirements.map((r) => r.label),

@@ -3,12 +3,7 @@
 // encadeamento e detecção de adulteração.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
-import {
-  canonicalEventString,
-  computeHash,
-  assertStreamIntegrity,
-  GENESIS,
-} from './hash-chain.js';
+import { canonicalEventString, computeHash, assertStreamIntegrity, GENESIS } from './hash-chain.js';
 import type { Hasher } from './ports.js';
 import type { StoredEvent, StoredProvenance } from './stored-event.js';
 import { EventStoreIntegrityError } from './errors.js';

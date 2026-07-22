@@ -68,7 +68,15 @@ export class FounderConsoleRuntime {
         newStages,
       },
     });
-    return { greeting, newClients, newDocuments, newMissions, newProcesses, newStages, provenance: 'read-model:admin-metrics' };
+    return {
+      greeting,
+      newClients,
+      newDocuments,
+      newMissions,
+      newProcesses,
+      newStages,
+      provenance: 'read-model:admin-metrics',
+    };
   }
 
   /** "Pergunte qualquer coisa." Responde de Read Models, ou recomenda com fundamento. */
@@ -87,7 +95,14 @@ export class FounderConsoleRuntime {
         'processos, documentos (total e de hoje), quem aguarda documentos, advogado ou perícia, ' +
         'casos por advogado, gargalos e o setor que precisa de atenção. O que não estiver capturado ' +
         'no domínio, eu digo que não tenho — nunca invento.';
-      return { question, answer, available: false, provenance: 'none', isRecommendation: false, decidesNothing: true };
+      return {
+        question,
+        answer,
+        available: false,
+        provenance: 'none',
+        isRecommendation: false,
+        decidesNothing: true,
+      };
     }
     const result = await this.admin.answer(kind, now);
     const answer = await this.narration.narrate({
@@ -95,7 +110,14 @@ export class FounderConsoleRuntime {
       available: result.available,
       facts: { fact: result.fact, value: result.value, count: result.items.length },
     });
-    return { question, answer, available: result.available, provenance: result.provenance, isRecommendation: false, decidesNothing: true };
+    return {
+      question,
+      answer,
+      available: result.available,
+      provenance: result.provenance,
+      isRecommendation: false,
+      decidesNothing: true,
+    };
   }
 
   /** Recomendação FUNDAMENTADA (nunca decisão): aponta onde os dados indicam impacto. */

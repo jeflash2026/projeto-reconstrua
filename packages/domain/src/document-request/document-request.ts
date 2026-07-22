@@ -36,7 +36,8 @@ import {
   DocumentRequestReopened,
 } from './document-request-events.js';
 
-export type DocumentRequestStatus = 'PENDING' | 'AWAITING_CONFIRMATION' | 'RECEIVED' | 'REOPENED' | 'CANCELLED';
+export type DocumentRequestStatus =
+  'PENDING' | 'AWAITING_CONFIRMATION' | 'RECEIVED' | 'REOPENED' | 'CANCELLED';
 export type DocumentRequestOrigin = 'painel-advogado' | 'sistema';
 export type DocumentRequestPriority = 'normal' | 'alta';
 export type ReminderPolicy = 'nenhum' | '24h' | '48h' | '72h' | 'semanal';
@@ -91,7 +92,13 @@ export interface CriarDocumentRequestInput {
 }
 
 const ABERTOS: readonly DocumentRequestStatus[] = ['PENDING', 'AWAITING_CONFIRMATION', 'REOPENED'];
-const STATUS_VALIDOS: ReadonlySet<string> = new Set(['PENDING', 'AWAITING_CONFIRMATION', 'RECEIVED', 'REOPENED', 'CANCELLED']);
+const STATUS_VALIDOS: ReadonlySet<string> = new Set([
+  'PENDING',
+  'AWAITING_CONFIRMATION',
+  'RECEIVED',
+  'REOPENED',
+  'CANCELLED',
+]);
 const POLITICAS_VALIDAS: ReadonlySet<string> = new Set(['nenhum', '24h', '48h', '72h', 'semanal']);
 
 /** Heurística de segurança da Decisão 6: refs com cara de caminho/upload são rejeitadas. */
@@ -108,10 +115,17 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
 
   static criar(input: CriarDocumentRequestInput): Result<DocumentRequestAggregate, Error> {
     const documentName = input.documentName.trim();
-    if (documentName === '') return Result.err(new Error('documentName é obrigatório — o advogado precisa nomear o documento'));
+    if (documentName === '')
+      return Result.err(
+        new Error('documentName é obrigatório — o advogado precisa nomear o documento'),
+      );
     // Decisão 5 — a solicitação SEMPRE pertence a um Caso.
-    if (input.caseId.trim() === '') return Result.err(new Error('caseId é obrigatório — a solicitação pertence a um Caso Jurídico'));
-    if (input.clientId.trim() === '') return Result.err(new Error('clientId é obrigatório — canal de entrega da AHRI'));
+    if (input.caseId.trim() === '')
+      return Result.err(
+        new Error('caseId é obrigatório — a solicitação pertence a um Caso Jurídico'),
+      );
+    if (input.clientId.trim() === '')
+      return Result.err(new Error('clientId é obrigatório — canal de entrega da AHRI'));
 
     const state: Mutable<DocumentRequestState> = {
       requestId: input.requestId.toString(),
@@ -133,7 +147,15 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
       createdAt: input.createdAt,
       updatedAt: input.createdAt,
       createdBy: input.lawyerId,
-      history: [{ at: input.createdAt, por: input.lawyerId, de: null, para: 'PENDING', nota: `criada: ${documentName}` }],
+      history: [
+        {
+          at: input.createdAt,
+          por: input.lawyerId,
+          de: null,
+          para: 'PENDING',
+          nota: `criada: ${documentName}`,
+        },
+      ],
     };
     const agg = new DocumentRequestAggregate(state);
     agg.addDomainEvent(new DocumentRequestCreated(state.requestId, input.createdAt));
@@ -152,9 +174,12 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
     if (!state.caseId?.trim()) return invalido('caseId obrigatório');
     if (!state.clientId?.trim()) return invalido('clientId obrigatório');
     if (!state.documentName?.trim()) return invalido('documentName obrigatório');
-    if (!STATUS_VALIDOS.has(state.status)) return invalido(`status desconhecido: ${String(state.status)}`);
-    if (!POLITICAS_VALIDAS.has(state.reminderPolicy)) return invalido(`reminderPolicy desconhecida: ${String(state.reminderPolicy)}`);
-    if (state.dueAt !== null && Number.isNaN(state.dueAt.getTime())) return invalido('dueAt inválida');
+    if (!STATUS_VALIDOS.has(state.status))
+      return invalido(`status desconhecido: ${String(state.status)}`);
+    if (!POLITICAS_VALIDAS.has(state.reminderPolicy))
+      return invalido(`reminderPolicy desconhecida: ${String(state.reminderPolicy)}`);
+    if (state.dueAt !== null && Number.isNaN(state.dueAt.getTime()))
+      return invalido('dueAt inválida');
     // fulfilledBy coerente com o estado: RECEIVED ⇔ cumprida por DocumentId.
     if (state.status === 'RECEIVED' && (state.fulfilledBy === null || state.receivedAt === null)) {
       return invalido('RECEIVED sem fulfilledBy/receivedAt');
@@ -179,14 +204,27 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
    */
   registrarMensagemEnviada(now: Date): Result<void, Error> {
     if (!ABERTOS.includes(this.props.status)) {
-      return Result.err(new Error(`mensagem só para solicitações abertas (status=${this.props.status})`));
+      return Result.err(
+        new Error(`mensagem só para solicitações abertas (status=${this.props.status})`),
+      );
     }
     if (this.props.lastMessagedAt !== null) {
-      return Result.err(new Error('mensagem inicial já registrada para esta abertura — duplicidade desnecessária'));
+      return Result.err(
+        new Error('mensagem inicial já registrada para esta abertura — duplicidade desnecessária'),
+      );
     }
     this.props.lastMessagedAt = now;
     this.props.updatedAt = now;
-    this.props.history = [...this.props.history, { at: now, por: 'ahri', de: this.props.status, para: this.props.status, nota: 'mensagem enviada ao cliente' }];
+    this.props.history = [
+      ...this.props.history,
+      {
+        at: now,
+        por: 'ahri',
+        de: this.props.status,
+        para: this.props.status,
+        nota: 'mensagem enviada ao cliente',
+      },
+    ];
     this.addDomainEvent(new DocumentRequestMessaged(this.props.requestId, now));
     return Result.ok(undefined);
   }
@@ -194,9 +232,16 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
   /** Múltiplas pendências + dúvida ⇒ aguarda a confirmação do cliente. */
   aguardarConfirmacao(now: Date): Result<void, Error> {
     if (this.props.status !== 'PENDING' && this.props.status !== 'REOPENED') {
-      return Result.err(new Error(`só pendências aguardam confirmação (status=${this.props.status})`));
+      return Result.err(
+        new Error(`só pendências aguardam confirmação (status=${this.props.status})`),
+      );
     }
-    this.transicionar('AWAITING_CONFIRMATION', 'ahri', now, 'dúvida na associação — confirmando com o cliente');
+    this.transicionar(
+      'AWAITING_CONFIRMATION',
+      'ahri',
+      now,
+      'dúvida na associação — confirmando com o cliente',
+    );
     this.addDomainEvent(new DocumentRequestConfirmationAsked(this.props.requestId, now));
     return Result.ok(undefined);
   }
@@ -204,7 +249,9 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
   /** Cliente negou ("é outro documento") ⇒ volta a pendente. */
   retornarPendente(now: Date, nota: string): Result<void, Error> {
     if (this.props.status !== 'AWAITING_CONFIRMATION') {
-      return Result.err(new Error(`só AWAITING_CONFIRMATION retorna a pendente (status=${this.props.status})`));
+      return Result.err(
+        new Error(`só AWAITING_CONFIRMATION retorna a pendente (status=${this.props.status})`),
+      );
     }
     this.transicionar('PENDING', 'ahri', now, nota);
     return Result.ok(undefined);
@@ -212,13 +259,17 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
 
   /** Decisão 6 — cumpre-se por REFERÊNCIA documental (DocumentId), nunca arquivo. */
   associar(fulfilledBy: string, comoAssociado: ComoAssociado, now: Date): Result<void, Error> {
-    if (!ABERTOS.includes(this.props.status) ) {
+    if (!ABERTOS.includes(this.props.status)) {
       return Result.err(new Error(`solicitação não está aberta (status=${this.props.status})`));
     }
     const ref = fulfilledBy.trim();
     if (ref === '') return Result.err(new Error('fulfilledBy (DocumentId) é obrigatório'));
     if (pareceCaminhoDeArquivo(ref)) {
-      return Result.err(new Error('fulfilledBy deve ser um DocumentId do subsistema documental — nunca caminho de arquivo/upload (Decisão 6)'));
+      return Result.err(
+        new Error(
+          'fulfilledBy deve ser um DocumentId do subsistema documental — nunca caminho de arquivo/upload (Decisão 6)',
+        ),
+      );
     }
     this.props.fulfilledBy = ref;
     this.props.receivedAt = now;
@@ -237,7 +288,12 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
     this.props.receivedAt = null;
     this.props.lastReminderAt = null; // SLA reinicia
     this.props.lastMessagedAt = null; // a AHRI volta a mensagear nesta abertura (Correção 1)
-    this.transicionar('REOPENED', por, now, `reaberta: ${motivo}${anterior ? ` (anterior: DocumentId=${anterior})` : ''}`);
+    this.transicionar(
+      'REOPENED',
+      por,
+      now,
+      `reaberta: ${motivo}${anterior ? ` (anterior: DocumentId=${anterior})` : ''}`,
+    );
     this.addDomainEvent(new DocumentRequestReopened(this.props.requestId, now));
     return Result.ok(undefined);
   }
@@ -245,7 +301,9 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
   /** Cancela qualquer solicitação aberta (condição de parada do SLA). */
   cancelar(motivo: string, por: string, now: Date): Result<void, Error> {
     if (!ABERTOS.includes(this.props.status)) {
-      return Result.err(new Error(`só solicitações abertas podem ser canceladas (status=${this.props.status})`));
+      return Result.err(
+        new Error(`só solicitações abertas podem ser canceladas (status=${this.props.status})`),
+      );
     }
     this.transicionar('CANCELLED', por, now, `cancelada: ${motivo}`);
     this.addDomainEvent(new DocumentRequestCancelled(this.props.requestId, now));
@@ -255,11 +313,22 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
   /** SLA — registra um lembrete automático enviado ao cliente. */
   registrarLembrete(now: Date): Result<void, Error> {
     if (!ABERTOS.includes(this.props.status)) {
-      return Result.err(new Error(`lembrete só para solicitações abertas (status=${this.props.status})`));
+      return Result.err(
+        new Error(`lembrete só para solicitações abertas (status=${this.props.status})`),
+      );
     }
     this.props.lastReminderAt = now;
     this.props.updatedAt = now;
-    this.props.history = [...this.props.history, { at: now, por: 'ahri', de: this.props.status, para: this.props.status, nota: 'lembrete automático enviado' }];
+    this.props.history = [
+      ...this.props.history,
+      {
+        at: now,
+        por: 'ahri',
+        de: this.props.status,
+        para: this.props.status,
+        nota: 'lembrete automático enviado',
+      },
+    ];
     this.addDomainEvent(new DocumentRequestReminded(this.props.requestId, now));
     return Result.ok(undefined);
   }
@@ -279,7 +348,12 @@ export class DocumentRequestAggregate extends AggregateRoot<DocumentRequestId> {
   }
 
   // ── interno ─────────────────────────────────────────────────────────────────
-  private transicionar(para: DocumentRequestStatus, por: string, now: Date, nota: string | null): void {
+  private transicionar(
+    para: DocumentRequestStatus,
+    por: string,
+    now: Date,
+    nota: string | null,
+  ): void {
     const de = this.props.status;
     this.props.status = para;
     this.props.updatedAt = now;

@@ -21,7 +21,12 @@ import type { ConversationIntent } from './intent.js';
 import type { ConversationContextView } from './ports.js';
 import { doseConversa, turnoSocial } from './conversation-dosage.js';
 import { memoriaDaConversa } from './conversation-memory.js';
-import { aprenderDaConversa, resumoDoConhecimento, type CatalogoDeConhecimento, type FatoAprendido } from './conversation-knowledge.js';
+import {
+  aprenderDaConversa,
+  resumoDoConhecimento,
+  type CatalogoDeConhecimento,
+  type FatoAprendido,
+} from './conversation-knowledge.js';
 import { CATALOGO_CONSIGNADO_INSS } from './consignado-knowledge.js';
 
 export type ModoDoTurno = 'social' | 'descoberta' | 'informativo';
@@ -86,7 +91,8 @@ export function conduzirTurno(
     return {
       modo: 'social',
       casoFatos: dose.casoFatos,
-      conduta: 'apenas retribua o cumprimento com calor humano e pergunte como pode ajudar — nada mais',
+      conduta:
+        'apenas retribua o cumprimento com calor humano e pergunte como pode ajudar — nada mais',
       perguntasJaFeitas: jaFeitas,
       fioDaConversa: memoria.fioDaConversa,
       conhecimento,

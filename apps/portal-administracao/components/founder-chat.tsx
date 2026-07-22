@@ -46,7 +46,11 @@ const FounderChat = (): ReactElement => {
       ...prev,
       answer
         ? { from: 'ahri', text: answer.answer, provenance: answer.provenance }
-        : { from: 'ahri', text: 'Não consegui falar com a operação agora (API indisponível).', provenance: null },
+        : {
+            from: 'ahri',
+            text: 'Não consegui falar com a operação agora (API indisponível).',
+            provenance: null,
+          },
     ]);
     setBusy(false);
   };
@@ -54,8 +58,14 @@ const FounderChat = (): ReactElement => {
   return (
     <>
       <h1 className="page-title">Founder Console</h1>
-      <p className="page-sub">Uma conversa com a empresa. Toda resposta nasce dos Read Models, com fonte.</p>
-      {offline ? <div className="error-box" style={{ marginBottom: 12 }}>API indisponível.</div> : null}
+      <p className="page-sub">
+        Uma conversa com a empresa. Toda resposta nasce dos Read Models, com fonte.
+      </p>
+      {offline ? (
+        <div className="error-box" style={{ marginBottom: 12 }}>
+          API indisponível.
+        </div>
+      ) : null}
       <div className="chat">
         <div className="chat-log card" ref={logRef} style={{ maxHeight: 480, overflowY: 'auto' }}>
           {messages.map((m, i) => (
@@ -85,7 +95,13 @@ const FounderChat = (): ReactElement => {
               if (e.key === 'Enter') void ask();
             }}
           />
-          <button className="primary" onClick={() => { void ask(); }} disabled={busy}>
+          <button
+            className="primary"
+            onClick={() => {
+              void ask();
+            }}
+            disabled={busy}
+          >
             Perguntar
           </button>
         </div>

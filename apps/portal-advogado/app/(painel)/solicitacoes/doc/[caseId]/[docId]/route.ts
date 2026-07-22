@@ -3,7 +3,10 @@
 import { NextResponse } from 'next/server';
 import { API_BASE, advogadoId } from '../../../../../../lib/api';
 
-export async function GET(_req: Request, { params }: { params: { caseId: string; docId: string } }): Promise<Response> {
+export async function GET(
+  _req: Request,
+  { params }: { params: { caseId: string; docId: string } },
+): Promise<Response> {
   const id = advogadoId();
   const token = process.env['ADVOGADO_API_TOKEN'] ?? '';
   const headers: Record<string, string> = {};
@@ -14,7 +17,10 @@ export async function GET(_req: Request, { params }: { params: { caseId: string;
     { headers, cache: 'no-store' },
   ).catch(() => null);
   if (!upstream || !upstream.ok) {
-    return NextResponse.json({ error: 'documento indisponível' }, { status: upstream?.status ?? 502 });
+    return NextResponse.json(
+      { error: 'documento indisponível' },
+      { status: upstream?.status ?? 502 },
+    );
   }
   return new Response(upstream.body, {
     headers: {

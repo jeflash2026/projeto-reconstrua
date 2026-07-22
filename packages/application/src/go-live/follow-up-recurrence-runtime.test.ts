@@ -10,7 +10,10 @@ import type { TurnResult } from '../conversation/conversation-runtime.js';
 import type { ConversationIntent } from '../conversation/intent.js';
 import type { ScheduledTask, SchedulerStore } from './scheduler-runtime.js';
 import { SchedulerRuntime } from './scheduler-runtime.js';
-import { FollowUpRecurrenceRuntime, DEFAULT_FOLLOW_UP_RECURRENCE } from './follow-up-recurrence-runtime.js';
+import {
+  FollowUpRecurrenceRuntime,
+  DEFAULT_FOLLOW_UP_RECURRENCE,
+} from './follow-up-recurrence-runtime.js';
 
 class MemoryScheduler implements SchedulerStore {
   readonly tasks = new Map<string, ScheduledTask>();
@@ -22,7 +25,9 @@ class MemoryScheduler implements SchedulerStore {
     return Promise.resolve(this.tasks.get(id) ?? null);
   }
   due(now: Date): Promise<readonly ScheduledTask[]> {
-    return Promise.resolve([...this.tasks.values()].filter((t) => t.status === 'pending' && t.dueAt <= now));
+    return Promise.resolve(
+      [...this.tasks.values()].filter((t) => t.status === 'pending' && t.dueAt <= now),
+    );
   }
   pendingCount(): Promise<number> {
     return Promise.resolve([...this.tasks.values()].filter((t) => t.status === 'pending').length);
@@ -36,20 +41,42 @@ const NOW = new Date('2026-07-14T09:00:00.000Z');
 
 function task(over: Partial<ScheduledTask> = {}): ScheduledTask {
   return {
-    id: 'wf:E1:remind_client', chatId: '5511@x', missionId: 'M1', kind: 'remind_client',
-    dueAt: NOW, note: 'workflow', createdAt: NOW, status: 'fired', ...over,
+    id: 'wf:E1:remind_client',
+    chatId: '5511@x',
+    missionId: 'M1',
+    kind: 'remind_client',
+    dueAt: NOW,
+    note: 'workflow',
+    createdAt: NOW,
+    status: 'fired',
+    ...over,
   };
 }
 
 function intent(operationalRuleRef: string | null): ConversationIntent {
   return {
-    id: 'i1', chatId: '5511@x', directive: 'speak', speechAct: 'follow_up', topic: null,
-    references: [], urgency: 'normal', operationalRuleRef, fundamento: null, timingHintMs: null, formedAt: NOW,
+    id: 'i1',
+    chatId: '5511@x',
+    directive: 'speak',
+    speechAct: 'follow_up',
+    topic: null,
+    references: [],
+    urgency: 'normal',
+    operationalRuleRef,
+    fundamento: null,
+    timingHintMs: null,
+    formedAt: NOW,
   };
 }
 
 function result(refs: Array<string | null>): TurnResult {
-  return { chatId: '5511@x', percept: null, intents: refs.map(intent), delivered: [], skipped: false };
+  return {
+    chatId: '5511@x',
+    percept: null,
+    intents: refs.map(intent),
+    delivered: [],
+    skipped: false,
+  };
 }
 
 describe('FollowUpRecurrenceRuntime (B4.2)', () => {
@@ -83,7 +110,10 @@ describe('FollowUpRecurrenceRuntime (B4.2)', () => {
 
   it('encadeia streak a streak até o teto anti-spam e então PARA', async () => {
     const store = new MemoryScheduler();
-    const rec = new FollowUpRecurrenceRuntime(new SchedulerRuntime(store), { cadenceMs: 1000, maxConsecutive: 3 });
+    const rec = new FollowUpRecurrenceRuntime(new SchedulerRuntime(store), {
+      cadenceMs: 1000,
+      maxConsecutive: 3,
+    });
     // streak 0 → agenda #1; #1 → #2; #2 → (next=3 >= 3) PARA.
     await rec.onFollowUpFired(task({ id: 'base' }), result(['RO-4C-FOLLOWUP-SILENCE']), NOW);
     expect(store.tasks.get('base#1')).toBeDefined();

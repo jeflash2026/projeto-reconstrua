@@ -22,10 +22,7 @@ function structuralEquals(a: unknown, b: unknown): boolean {
     return false;
   }
   return aKeys.every((key) =>
-    structuralEquals(
-      (a as Record<string, unknown>)[key],
-      (b as Record<string, unknown>)[key],
-    ),
+    structuralEquals((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
   );
 }
 

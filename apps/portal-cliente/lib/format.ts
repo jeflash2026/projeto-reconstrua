@@ -7,16 +7,36 @@
 const TZ = 'America/Sao_Paulo';
 
 const MESES = [
-  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
 ] as const;
 
 function partesEm(data: Date): { dia: number; mes: number; ano: number; hora: number } {
   const fmt = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: TZ, day: 'numeric', month: 'numeric', year: 'numeric', hour: 'numeric', hour12: false,
+    timeZone: TZ,
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    hour12: false,
   });
   const partes = Object.fromEntries(fmt.formatToParts(data).map((p) => [p.type, p.value]));
-  return { dia: Number(partes['day']), mes: Number(partes['month']), ano: Number(partes['year']), hora: Number(partes['hour']) };
+  return {
+    dia: Number(partes['day']),
+    mes: Number(partes['month']),
+    ano: Number(partes['year']),
+    hora: Number(partes['hour']),
+  };
 }
 
 /** "hoje" · "ontem" · "17 de julho" (com ano só quando é outro ano). */

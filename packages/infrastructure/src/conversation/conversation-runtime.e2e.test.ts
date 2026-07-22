@@ -31,7 +31,10 @@ import { InMemoryConversationGateway } from './in-memory-conversation-gateway.js
 import { FakeLlmPerception, VaryingLlmExpression } from './fake-llm.js';
 import { DeterministicExecutiveBrain } from './deterministic-executive-brain.js';
 import { FakeSleeper } from './system-sleeper.js';
-import { assembleConversationRuntime, type ConversationWiring } from './build-conversation-runtime.js';
+import {
+  assembleConversationRuntime,
+  type ConversationWiring,
+} from './build-conversation-runtime.js';
 
 class TestClock implements Clock {
   constructor(private t: Date) {}
@@ -103,7 +106,9 @@ function harness(over: Partial<ConversationWiring> = {}) {
 describe('ConversationRuntime — fluxo completo e humanização', () => {
   it('percebe → Brain decide → frasea → entrega, e NUNCA instantaneamente', async () => {
     const h = harness();
-    const result = await h.runtime.receive(envelope('text', { messageId: 'M1', text: 'oi, tudo bem?' }));
+    const result = await h.runtime.receive(
+      envelope('text', { messageId: 'M1', text: 'oi, tudo bem?' }),
+    );
 
     expect(result.skipped).toBe(false);
     expect(result.intents).toHaveLength(1);
@@ -143,7 +148,9 @@ describe('ConversationRuntime — fluxo completo e humanização', () => {
   it('a Conversa NÃO decide: com Brain vazio, nenhuma fala sai', async () => {
     const nullBrain: ExecutiveBrainPort = { decide: () => Promise.resolve([]) };
     const h = harness({ brain: nullBrain });
-    const result = await h.runtime.receive(envelope('text', { messageId: 'M1', text: 'preciso muito de ajuda urgente' }));
+    const result = await h.runtime.receive(
+      envelope('text', { messageId: 'M1', text: 'preciso muito de ajuda urgente' }),
+    );
     expect(result.intents).toHaveLength(0);
     expect(result.delivered).toHaveLength(0);
     expect(h.gateway.texts()).toHaveLength(0);
@@ -165,7 +172,9 @@ describe('ConversationRuntime — nunca repetir frases', () => {
     const texts: string[] = [];
     for (let i = 0; i < 12; i += 1) {
       // turno > 1 → intenção genérica "explain"; força variedade real.
-      await h.runtime.receive(envelope('text', { messageId: `T${String(i)}`, text: `mensagem número ${String(i)}` }));
+      await h.runtime.receive(
+        envelope('text', { messageId: `T${String(i)}`, text: `mensagem número ${String(i)}` }),
+      );
       const all = h.gateway.texts();
       texts.push(all[all.length - 1] ?? '');
     }
@@ -173,16 +182,22 @@ describe('ConversationRuntime — nunca repetir frases', () => {
     const window = DEFAULT_HUMANIZATION_POLICY.antiRepetitionWindow;
     for (let i = 0; i < texts.length; i += 1) {
       const prev = texts.slice(Math.max(0, i - window), i);
-      expect(isRepetition(texts[i] ?? '', prev, DEFAULT_HUMANIZATION_POLICY.repetitionThreshold)).toBe(false);
+      expect(
+        isRepetition(texts[i] ?? '', prev, DEFAULT_HUMANIZATION_POLICY.repetitionThreshold),
+      ).toBe(false);
     }
   });
 
   it('contra um LLM teimoso (sempre igual), o guard esgota tentativas e deixa rastro auditável', async () => {
-    const stubborn: LlmExpressionPort = { phrase: () => Promise.resolve('a mesma frase de sempre') };
+    const stubborn: LlmExpressionPort = {
+      phrase: () => Promise.resolve('a mesma frase de sempre'),
+    };
     const h = harness({ expression: stubborn });
     await h.runtime.receive(envelope('text', { messageId: 'A', text: 'primeira' }));
     await h.runtime.receive(envelope('text', { messageId: 'B', text: 'segunda' }));
-    const notes = h.conversationStore.all().filter((e) => e.kind === 'note' && (e.text ?? '').includes('anti-repetição'));
+    const notes = h.conversationStore
+      .all()
+      .filter((e) => e.kind === 'note' && (e.text ?? '').includes('anti-repetição'));
     expect(notes.length).toBeGreaterThanOrEqual(1);
   });
 });
@@ -210,7 +225,9 @@ describe('ConversationRuntime — ordem e não-sobreposição (fila)', () => {
       },
     };
     const h = harness({ brain: twoSpeak });
-    const result = await h.runtime.receive(envelope('text', { messageId: 'M1', text: 'me explica duas coisas' }));
+    const result = await h.runtime.receive(
+      envelope('text', { messageId: 'M1', text: 'me explica duas coisas' }),
+    );
 
     expect(result.delivered).toHaveLength(2);
     const actions = h.gateway.actions();
@@ -249,7 +266,16 @@ describe('ConversationRuntime — silêncio, timeout e as doze naturezas', () =>
   });
 
   it('percebe todas as doze naturezas sem quebrar; falantes falam, silenciosas calam', async () => {
-    const speaking: PerceptKind[] = ['text', 'image', 'pdf', 'document', 'audio', 'location', 'contact', 'edit'];
+    const speaking: PerceptKind[] = [
+      'text',
+      'image',
+      'pdf',
+      'document',
+      'audio',
+      'location',
+      'contact',
+      'edit',
+    ];
     const silent: PerceptKind[] = ['reaction', 'delete', 'timeout'];
 
     for (const kind of speaking) {

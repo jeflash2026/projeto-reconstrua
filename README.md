@@ -12,16 +12,16 @@ A única fonte oficial de verdade é o **LIVRO MESTRE** (o Canon), em [`constitu
 
 ## Estrutura
 
-| Diretório | Propósito |
-|---|---|
-| `constitution/` | Constituição Operacional (documento oficial) |
-| `docs/` | Blueprint e documentação derivada da Constituição |
-| `apps/` | Aplicações |
-| `packages/` | Pacotes compartilhados |
-| `infrastructure/` | Infraestrutura |
-| `scripts/` | Scripts operacionais |
-| `tests/` | Testes |
-| `.github/` | Automação e CI |
+| Diretório         | Propósito                                         |
+| ----------------- | ------------------------------------------------- |
+| `constitution/`   | Constituição Operacional (documento oficial)      |
+| `docs/`           | Blueprint e documentação derivada da Constituição |
+| `apps/`           | Aplicações                                        |
+| `packages/`       | Pacotes compartilhados                            |
+| `infrastructure/` | Infraestrutura                                    |
+| `scripts/`        | Scripts operacionais                              |
+| `tests/`          | Testes                                            |
+| `.github/`        | Automação e CI                                    |
 
 ## Status
 

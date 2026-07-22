@@ -28,8 +28,7 @@ export class EventDispatcherRuntime {
   private readonly outbox: OutboxStore;
   private readonly batchSize: number;
   private readonly onSubscriberError:
-    | ((subscriber: string, event: StoredEvent, error: unknown) => void)
-    | undefined;
+    ((subscriber: string, event: StoredEvent, error: unknown) => void) | undefined;
   private readonly subscribers: EventSubscriber[] = [];
 
   constructor(outbox: OutboxStore, options: EventDispatcherRuntimeOptions = {}) {
@@ -45,7 +44,9 @@ export class EventDispatcherRuntime {
   }
 
   private interested(subscriber: EventSubscriber, event: StoredEvent): boolean {
-    return subscriber.interestedIn === undefined || subscriber.interestedIn.includes(event.eventType);
+    return (
+      subscriber.interestedIn === undefined || subscriber.interestedIn.includes(event.eventType)
+    );
   }
 
   /**

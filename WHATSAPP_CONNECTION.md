@@ -5,6 +5,7 @@ painel da Evolution. Uma instância só é considerada válida quando o QR é li
 oficial** da empresa (`554137989737`).
 
 ## Decisões de arquitetura (aprovadas)
+
 - **Persistir + aplicar no restart** (sem hot-reload). A config confirmada (instância, apiKey,
   número) é persistida no `ConfigStore` **existente**; o gateway de envio da AHRI passa a usá-la
   no **próximo restart controlado** (não há troca de instância em runtime).
@@ -18,6 +19,7 @@ oficial** da empresa (`554137989737`).
   erro `"O número conectado não corresponde ao número oficial da empresa."` e permite novo QR.
 
 ## Componentes (backend)
+
 - `EvolutionInstanceClient` — wrapper da API de INSTÂNCIAS da Evolution (create, connect/QR,
   connectionState, fetchInstances/ownerJid, logout, delete, webhook/set). HTTP próprio injetável
   (GET/POST/DELETE); **não** usa o gateway de envio congelado.
@@ -25,34 +27,39 @@ oficial** da empresa (`554137989737`).
   persiste a config pendente; audita. **Nunca** retorna segredos.
 
 ## Rotas (API Admin, todas atrás de BL-2.1)
-| Método | Rota | Perfil | Função |
-|---|---|---|---|
-| GET | `/admin/whatsapp/status` | Admin | Status: ativa (env) × pendente (persistida) × ao vivo (Evolution) + `matchesOfficial` |
-| GET | `/admin/whatsapp/qr/:instance` | Admin | (Re)gera o QR da instância |
-| POST | `/admin/whatsapp/confirm` | Admin | Confirma; só ativa se `ownerJid` == oficial |
-| GET | `/admin/whatsapp/apply-instructions` | Admin | Valores de `.env` + comando para aplicar no restart |
-| POST | `/admin/whatsapp/instances` | **Founder** | Cria nova instância + webhook (destrutivo) |
-| POST | `/admin/whatsapp/discard` | **Founder** | Logout + delete da instância (exige `confirm:true`) |
-| GET | `/production/whatsapp` | Operador (B5.1) | Status para o card do Production UI |
+
+| Método | Rota                                 | Perfil          | Função                                                                                |
+| ------ | ------------------------------------ | --------------- | ------------------------------------------------------------------------------------- |
+| GET    | `/admin/whatsapp/status`             | Admin           | Status: ativa (env) × pendente (persistida) × ao vivo (Evolution) + `matchesOfficial` |
+| GET    | `/admin/whatsapp/qr/:instance`       | Admin           | (Re)gera o QR da instância                                                            |
+| POST   | `/admin/whatsapp/confirm`            | Admin           | Confirma; só ativa se `ownerJid` == oficial                                           |
+| GET    | `/admin/whatsapp/apply-instructions` | Admin           | Valores de `.env` + comando para aplicar no restart                                   |
+| POST   | `/admin/whatsapp/instances`          | **Founder**     | Cria nova instância + webhook (destrutivo)                                            |
+| POST   | `/admin/whatsapp/discard`            | **Founder**     | Logout + delete da instância (exige `confirm:true`)                                   |
+| GET    | `/production/whatsapp`               | Operador (B5.1) | Status para o card do Production UI                                                   |
 
 ## Tela (Portal Admin) — "Conexão WhatsApp"
+
 `/conexao-whatsapp`: verifica status em tempo real; cria nova instância (Founder); exibe o QR com
 auto-refresh; botão "Confirmar conexão" (valida o número); "Descartar instância antiga"
 (Founder + confirmação); "Aplicar Configuração" (mostra os valores de `.env` + restart). Quando o
 número oficial conecta: **✅ WhatsApp conectado / Número / OwnerJid / ONLINE**.
 
 ## Card (Production UI `/production/ui`)
+
 Card **WhatsApp**: `● Online/○ Offline`, número conectado, OwnerJid, instância, webhook, última sync.
 
 ## Variáveis de ambiente (novas)
-| Variável | Onde | Descrição |
-|---|---|---|
-| `EVOLUTION_GLOBAL_API_KEY` | API (.env) | Chave GLOBAL da Evolution — só backend; criar/descartar |
-| `FOUNDER_ACCESS_SECRET` | API (.env) | Segredo do perfil Founder (header `x-founder-secret`) |
-| `OFFICIAL_WHATSAPP_NUMBER` | API (.env, default `554137989737`) | Número oficial esperado no QR |
-| `FOUNDER_API_TOKEN` | Portal (.env) | = `FOUNDER_ACCESS_SECRET`; usado server-side pelas Server Actions |
+
+| Variável                   | Onde                               | Descrição                                                         |
+| -------------------------- | ---------------------------------- | ----------------------------------------------------------------- |
+| `EVOLUTION_GLOBAL_API_KEY` | API (.env)                         | Chave GLOBAL da Evolution — só backend; criar/descartar           |
+| `FOUNDER_ACCESS_SECRET`    | API (.env)                         | Segredo do perfil Founder (header `x-founder-secret`)             |
+| `OFFICIAL_WHATSAPP_NUMBER` | API (.env, default `554137989737`) | Número oficial esperado no QR                                     |
+| `FOUNDER_API_TOKEN`        | Portal (.env)                      | = `FOUNDER_ACCESS_SECRET`; usado server-side pelas Server Actions |
 
 ## Fluxo operacional
+
 1. Admin abre **Conexão WhatsApp** → vê status (instância antiga com número divergente, se houver).
 2. (Founder) **Descartar instância antiga**.
 3. (Founder) **Criar nova instância** (`reconstrua-prod`) → webhook configurado automaticamente.
@@ -62,6 +69,7 @@ Card **WhatsApp**: `● Online/○ Offline`, número conectado, OwnerJid, instâ
 7. Após o restart, o status mostra **ONLINE** e o app usa a nova instância/número.
 
 ## Limitações conscientes (não implementadas por decisão)
+
 - **Sem hot-reload**: a nova instância só entra em uso após o restart controlado.
 - **Aplicação via operador**: o botão "Aplicar" instrui o `.env` + restart (o app lê Evolution do
   ambiente no boot; não há gravação automática do `.env` do host pelo container).

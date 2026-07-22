@@ -67,12 +67,7 @@ export interface InboundEnvelope {
 
 /** Emoção percebida (sinal, não veredito). */
 export type PerceivedSentiment =
-  | 'positive'
-  | 'neutral'
-  | 'negative'
-  | 'anxious'
-  | 'confused'
-  | 'unknown';
+  'positive' | 'neutral' | 'negative' | 'anxious' | 'confused' | 'unknown';
 
 /** Urgência percebida (sinal, não decisão de prioridade — isso é do Brain). */
 export type PerceivedUrgency = 'low' | 'normal' | 'high' | 'unknown';
@@ -87,7 +82,8 @@ export type PerceivedUrgency = 'low' | 'normal' | 'high' | 'unknown';
  *  - service_request: a pessoa PEDE atendimento/serviço (ex.: aposentadoria)
  *  - unknown: não foi possível perceber (inclui degrade do LLM — fail-safe)
  */
-export type PerceivedPurpose = 'greeting' | 'smalltalk' | 'question' | 'service_request' | 'unknown';
+export type PerceivedPurpose =
+  'greeting' | 'smalltalk' | 'question' | 'service_request' | 'unknown';
 
 /**
  * Enriquecimento produzido pelo LLM de PERCEPÇÃO. É ENTENDIMENTO puro. Nunca

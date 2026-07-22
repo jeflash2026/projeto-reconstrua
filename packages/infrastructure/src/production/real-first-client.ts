@@ -57,37 +57,68 @@ export class RealFirstClientFlow {
 
     // 2) WHATSAPP → primeira mensagem entra pelo pipeline real (ENTRADA ÚNICA 4C).
     const first = await p.ingress.receive(envelope(chatId, { text: adText, messageId: 'RFC-1' }));
-    stage('whatsapp', !first.skipped && first.intents.length > 0, `turno processado; ${String(first.intents.length)} intenção(ões) do Brain`);
+    stage(
+      'whatsapp',
+      !first.skipped && first.intents.length > 0,
+      `turno processado; ${String(first.intents.length)} intenção(ões) do Brain`,
+    );
 
     // 3) COLETA DE DADOS → cliente informa o nome; memória viva registra.
-    await p.ingress.receive(envelope(chatId, { text: 'meu nome é José Pereira, de Fortaleza', messageId: 'RFC-2' }));
+    await p.ingress.receive(
+      envelope(chatId, { text: 'meu nome é José Pereira, de Fortaleza', messageId: 'RFC-2' }),
+    );
     const memory = await p.memoryStore.load(chatId);
-    stage('coleta_dados', (memory?.messageCount ?? 0) >= 2, `mensagens registradas: ${String(memory?.messageCount ?? 0)}; atributos: ${String(memory?.attributes.length ?? 0)}`);
+    stage(
+      'coleta_dados',
+      (memory?.messageCount ?? 0) >= 2,
+      `mensagens registradas: ${String(memory?.messageCount ?? 0)}; atributos: ${String(memory?.attributes.length ?? 0)}`,
+    );
 
     // 4) COLETA HISCON → cliente envia o extrato (documento PDF).
     const hiscon = await p.ingress.receive(
-      envelope(chatId, { kind: 'pdf', fileName: 'HISCON.pdf', mediaMimeType: 'application/pdf', messageId: 'RFC-3' }),
+      envelope(chatId, {
+        kind: 'pdf',
+        fileName: 'HISCON.pdf',
+        mediaMimeType: 'application/pdf',
+        messageId: 'RFC-3',
+      }),
     );
     stage('coleta_hiscon', !hiscon.skipped, 'documento HISCON.pdf recebido no turno');
 
     // 5) RECONHECIMENTO → documento reconhecido como ato de domínio (R3).
     await p.adminView.projector.refresh();
     const docs = p.adminView.projector.allDocuments();
-    stage('reconhecimento', docs.length >= 1, `documentos reconhecidos: ${String(docs.length)} (${docs[0]?.contentReference ?? '-'})`);
+    stage(
+      'reconhecimento',
+      docs.length >= 1,
+      `documentos reconhecidos: ${String(docs.length)} (${docs[0]?.contentReference ?? '-'})`,
+    );
 
     // 6) MISSÃO CRIADA → o stream 'mission' nasceu com proveniência AHRI.
     const missions = p.adminView.projector.missions();
     const missionId = missions[0]?.missionId ?? null;
-    stage('missao_criada', missionId !== null, missionId !== null ? `missionId: ${missionId}` : 'nenhuma missão');
+    stage(
+      'missao_criada',
+      missionId !== null,
+      missionId !== null ? `missionId: ${missionId}` : 'nenhuma missão',
+    );
 
     // 7) ADMIN RECEBE → read models do portal admin refletem o cliente.
     const metrics = await p.metricsStore.load();
-    stage('admin_recebe', (metrics?.clientCount ?? 0) >= 1 && (metrics?.missionCount ?? 0) >= 1, `clientCount=${String(metrics?.clientCount ?? 0)} missionCount=${String(metrics?.missionCount ?? 0)} documentCount=${String(metrics?.documentCount ?? 0)}`);
+    stage(
+      'admin_recebe',
+      (metrics?.clientCount ?? 0) >= 1 && (metrics?.missionCount ?? 0) >= 1,
+      `clientCount=${String(metrics?.clientCount ?? 0)} missionCount=${String(metrics?.missionCount ?? 0)} documentCount=${String(metrics?.documentCount ?? 0)}`,
+    );
 
     // 8) WORKFLOW CONTINUA → progresso registrado + follow-up agendado.
     const progress = missionId !== null ? await p.adminView.workflow.progress(missionId) : null;
     const pending = await p.scheduler.pendingCount();
-    stage('workflow_continua', (progress?.steps.length ?? 0) >= 1 && pending >= 1, `passos: ${(progress?.steps ?? []).join('→')}; follow-ups agendados: ${String(pending)}`);
+    stage(
+      'workflow_continua',
+      (progress?.steps.length ?? 0) >= 1 && pending >= 1,
+      `passos: ${(progress?.steps ?? []).join('→')}; follow-ups agendados: ${String(pending)}`,
+    );
 
     return { flow: 'REAL_FIRST_CLIENT', passed: stages.every((s) => s.passed), stages };
   }

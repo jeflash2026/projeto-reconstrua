@@ -62,7 +62,9 @@ export class OperadorAggregate extends AggregateRoot<OperadorId> {
    * DF-12). NÃO conduz a operação: assembla o marco imutável (pessoa + missão +
    * autoridade) e valida a boa-formação.
    */
-  static designate(input: OperadorDesignationInput): Result<OperadorAggregate, CanonViolationError> {
+  static designate(
+    input: OperadorDesignationInput,
+  ): Result<OperadorAggregate, CanonViolationError> {
     // item 1 — a pessoa que exerce o papel.
     if (input.person == null) {
       return Result.err(
@@ -112,7 +114,9 @@ export class OperadorAggregate extends AggregateRoot<OperadorId> {
       designatedAt: new Date(input.designatedAt.getTime()),
     });
 
-    operador.addDomainEvent(new OperadorDesignated(input.id.toString(), operador.props.designatedAt));
+    operador.addDomainEvent(
+      new OperadorDesignated(input.id.toString(), operador.props.designatedAt),
+    );
     return Result.ok(operador);
   }
 

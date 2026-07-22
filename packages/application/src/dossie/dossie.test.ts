@@ -13,13 +13,28 @@ function fato(factKey: string, valor: string): FatoAprendido {
   return { factKey, valor, origem: 'resposta do cliente', confianca: 'alta' };
 }
 
-function inputs(conhecimento: readonly FatoAprendido[], over: Partial<DossieInputs> = {}): DossieInputs {
+function inputs(
+  conhecimento: readonly FatoAprendido[],
+  over: Partial<DossieInputs> = {},
+): DossieInputs {
   return {
-    clienteId: 'CLI-1', chatId: '5511999@c', missionId: 'M-1', decisionId: null, correlationId: 'corr-1',
-    versaoCatalogo: '11A', geradoEm: new Date('2026-07-19T12:00:00Z'),
+    clienteId: 'CLI-1',
+    chatId: '5511999@c',
+    missionId: 'M-1',
+    decisionId: null,
+    correlationId: 'corr-1',
+    versaoCatalogo: '11A',
+    geradoEm: new Date('2026-07-19T12:00:00Z'),
     entradas: { conhecimento, documentosRecebidos: [] },
-    documentosReconhecidos: [], contratosEncontrados: [],
-    timeline: [{ rotulo: 'Cliente iniciou conversa', em: new Date('2026-07-18T10:00:00Z'), fonte: 'read-model:conversation' }],
+    documentosReconhecidos: [],
+    contratosEncontrados: [],
+    timeline: [
+      {
+        rotulo: 'Cliente iniciou conversa',
+        em: new Date('2026-07-18T10:00:00Z'),
+        fonte: 'read-model:conversation',
+      },
+    ],
     ...over,
   };
 }
@@ -27,24 +42,38 @@ function inputs(conhecimento: readonly FatoAprendido[], over: Partial<DossieInpu
 describe('13A · Dossiê Jurídico — o parecer inicial da AHRI', () => {
   // Cliente do decreto: descontos não reconhecidos + aposentadoria + hiscon + 2 anos + múltiplos bancos.
   const rmcConhecimento = [
-    fato('problema_principal', 'descontos_nao_reconhecidos'), fato('beneficio', 'aposentadoria'),
-    fato('tempo_do_problema', 'mais_de_2_anos'), fato('documentacao_mencionada', 'hiscon'), fato('multiplos_bancos', 'true'),
+    fato('problema_principal', 'descontos_nao_reconhecidos'),
+    fato('beneficio', 'aposentadoria'),
+    fato('tempo_do_problema', 'mais_de_2_anos'),
+    fato('documentacao_mencionada', 'hiscon'),
+    fato('multiplos_bancos', 'true'),
   ];
 
   it('produz resumo executivo, tese principal ranqueada e grau de confiança', () => {
     const d = montarDossie(inputs(rmcConhecimento, { documentosReconhecidos: ['HISCON'] }));
     expect(d.resumoExecutivo).toContain('revisão contratual');
     expect(d.grauConfianca).toBe('alta');
-    expect(d.hipoteses[0]).toMatchObject({ posicao: 1, ref: 'EST-CONSIG-REVISAO-001', confianca: 'alta' });
-    expect(d.hipoteses[0]?.justificativa).toContain('problema_principal=descontos_nao_reconhecidos');
+    expect(d.hipoteses[0]).toMatchObject({
+      posicao: 1,
+      ref: 'EST-CONSIG-REVISAO-001',
+      confianca: 'alta',
+    });
+    expect(d.hipoteses[0]?.justificativa).toContain(
+      'problema_principal=descontos_nao_reconhecidos',
+    );
     expect(d.hipoteses[0]?.fundamento).toContain('Lei 10.820');
   });
 
   it('evidências encontradas × ausentes, documentos reconhecidos × pendentes', () => {
-    const d = montarDossie(inputs(
-      [fato('problema_principal', 'descontos_nao_reconhecidos'), fato('beneficio', 'aposentadoria')],
-      { documentosReconhecidos: [] },
-    ));
+    const d = montarDossie(
+      inputs(
+        [
+          fato('problema_principal', 'descontos_nao_reconhecidos'),
+          fato('beneficio', 'aposentadoria'),
+        ],
+        { documentosReconhecidos: [] },
+      ),
+    );
     expect(d.evidenciasEncontradas).toContain('problema_principal=descontos_nao_reconhecidos');
     // sem tempo/hiscon/bancos ⇒ reforços ausentes:
     expect(d.evidenciasAusentes).toContain('tempo_do_problema');
@@ -72,10 +101,17 @@ describe('13A · Dossiê Jurídico — o parecer inicial da AHRI', () => {
 
   it('"Como a AHRI chegou" — auditável: fatos, docs, avaliadas, descartadas, vencedora', () => {
     // Cenário com DUAS teses para haver descarte: RMC (com reforços) vs. nada mais.
-    const d = montarDossie(inputs([
-      fato('problema_principal', 'cartao_rmc'), fato('beneficio', 'aposentadoria'),
-      fato('tempo_do_problema', 'mais_de_2_anos'), fato('multiplos_bancos', 'true'),
-    ], { documentosReconhecidos: [] }));
+    const d = montarDossie(
+      inputs(
+        [
+          fato('problema_principal', 'cartao_rmc'),
+          fato('beneficio', 'aposentadoria'),
+          fato('tempo_do_problema', 'mais_de_2_anos'),
+          fato('multiplos_bancos', 'true'),
+        ],
+        { documentosReconhecidos: [] },
+      ),
+    );
     const e = d.explicacao;
     expect(e.estrategiaVencedora).toBe('EST-CONSIG-CARTAO-RMC-001');
     expect(e.confianca).toBe('alta');

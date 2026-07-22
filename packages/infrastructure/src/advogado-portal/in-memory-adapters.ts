@@ -22,7 +22,9 @@ export class InMemoryAssignmentStore implements AssignmentStore {
     return Promise.resolve(this.byMissionId.get(missionId) ?? null);
   }
   byAdvogado(advogadoId: string): Promise<readonly CaseAssignment[]> {
-    return Promise.resolve([...this.byMissionId.values()].filter((a) => a.advogadoId === advogadoId));
+    return Promise.resolve(
+      [...this.byMissionId.values()].filter((a) => a.advogadoId === advogadoId),
+    );
   }
 }
 

@@ -15,7 +15,11 @@
 // mesma decisão (id incluso). Nada de linguagem gerada: o why é montado de
 // partes AUTORADAS (refs, fatos key=valor, critério declarado).
 // ─────────────────────────────────────────────────────────────────────────────
-import type { Confianca, HipoteseAvaliada, RaciocinioEstrategico } from '../strategic-reasoning/strategic-reasoning.js';
+import type {
+  Confianca,
+  HipoteseAvaliada,
+  RaciocinioEstrategico,
+} from '../strategic-reasoning/strategic-reasoning.js';
 
 export interface AlternativaRegistrada {
   readonly strategyRef: string;
@@ -78,7 +82,10 @@ function motivoDerrota(vencedora: HipoteseAvaliada, perdedora: HipoteseAvaliada)
 export function deliberar(raciocinio: RaciocinioEstrategico): StrategicDecision | null {
   const candidatas = [...raciocinio.hipoteses].sort(
     // 11A: confiança > reforços > prioridade do domínio (desempate consistente com o raciocínio).
-    (a, b) => RANK[b.confianca] - RANK[a.confianca] || b.reforcadaPor.length - a.reforcadaPor.length || b.prioridade - a.prioridade,
+    (a, b) =>
+      RANK[b.confianca] - RANK[a.confianca] ||
+      b.reforcadaPor.length - a.reforcadaPor.length ||
+      b.prioridade - a.prioridade,
   );
   const vencedora = candidatas[0];
   if (vencedora === undefined) return null;
@@ -95,13 +102,17 @@ export function deliberar(raciocinio: RaciocinioEstrategico): StrategicDecision 
   const why =
     `estratégia ${vencedora.ref} venceu por ${CRITERIO}: confiança ${vencedora.confianca}; ` +
     `sustentada por [${vencedora.sustentadaPor.join(', ')}]` +
-    (vencedora.reforcadaPor.length > 0 ? `; reforçada por [${vencedora.reforcadaPor.join(', ')}]` : '') +
+    (vencedora.reforcadaPor.length > 0
+      ? `; reforçada por [${vencedora.reforcadaPor.join(', ')}]`
+      : '') +
     (perdedoras.length > 0
       ? `; derrotadas: ${perdedoras.map((p) => `${p.ref} (${motivoDerrota(vencedora, p)})`).join('; ')}`
       : '; nenhuma alternativa concorrente');
 
   return {
-    decisionId: idDeterministico(`${vencedora.ref}|${vencedora.confianca}|${vencedora.sustentadaPor.join('|')}`),
+    decisionId: idDeterministico(
+      `${vencedora.ref}|${vencedora.confianca}|${vencedora.sustentadaPor.join('|')}`,
+    ),
     strategyRef: vencedora.ref,
     confidence: vencedora.confianca,
     why,

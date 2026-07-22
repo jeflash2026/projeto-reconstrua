@@ -23,12 +23,20 @@ describe('requireBearer — guard de autenticação reutilizável (DF-12)', () =
   });
 
   it('token correto ⇒ 200', async () => {
-    const res = await appWith('S1').inject({ method: 'GET', url: '/admin/x', headers: { authorization: 'Bearer S1' } });
+    const res = await appWith('S1').inject({
+      method: 'GET',
+      url: '/admin/x',
+      headers: { authorization: 'Bearer S1' },
+    });
     expect(res.statusCode).toBe(200);
   });
 
   it('token errado ⇒ 401', async () => {
-    const res = await appWith('S1').inject({ method: 'GET', url: '/admin/x', headers: { authorization: 'Bearer NAO' } });
+    const res = await appWith('S1').inject({
+      method: 'GET',
+      url: '/admin/x',
+      headers: { authorization: 'Bearer NAO' },
+    });
     expect(res.statusCode).toBe(401);
   });
 
@@ -38,7 +46,11 @@ describe('requireBearer — guard de autenticação reutilizável (DF-12)', () =
   });
 
   it('segredo vazio ⇒ fail-closed (401 mesmo com token)', async () => {
-    const res = await appWith('').inject({ method: 'GET', url: '/admin/x', headers: { authorization: 'Bearer qualquer' } });
+    const res = await appWith('').inject({
+      method: 'GET',
+      url: '/admin/x',
+      headers: { authorization: 'Bearer qualquer' },
+    });
     expect(res.statusCode).toBe(401);
   });
 
@@ -49,7 +61,9 @@ describe('requireBearer — guard de autenticação reutilizável (DF-12)', () =
 
   it('bearerToken extrai o token e rejeita malformados', () => {
     const req = (authorization?: string): FastifyRequest =>
-      ({ headers: authorization === undefined ? {} : { authorization } }) as unknown as FastifyRequest;
+      ({
+        headers: authorization === undefined ? {} : { authorization },
+      }) as unknown as FastifyRequest;
     expect(bearerToken(req('Bearer abc'))).toBe('abc');
     expect(bearerToken(req('bearer  xyz '))).toBe('xyz');
     expect(bearerToken(req('Basic zzz'))).toBeNull();

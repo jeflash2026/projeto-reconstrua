@@ -69,7 +69,10 @@ describe('ALIR · registry de campos (metadados obrigatórios)', () => {
 
   it('cada seção do Aggregate está representada no registry', () => {
     for (const section of ALIR_SECTIONS) {
-      expect(ALIR_FIELDS.some((f) => f.section === section), `seção sem campos: ${section}`).toBe(true);
+      expect(
+        ALIR_FIELDS.some((f) => f.section === section),
+        `seção sem campos: ${section}`,
+      ).toBe(true);
     }
   });
 
@@ -108,7 +111,9 @@ describe('ALIR · invariantes constitucionais', () => {
     expect(ext.length).toBeGreaterThan(0);
     for (const f of ext) {
       expect(f.owner, `extension com produtor real inesperado: ${f.path}`).toBe('pending-producer');
-      expect(f.origin.startsWith('ausente'), `extension sem ausência declarada: ${f.path}`).toBe(true);
+      expect(f.origin.startsWith('ausente'), `extension sem ausência declarada: ${f.path}`).toBe(
+        true,
+      );
     }
   });
 });

@@ -22,7 +22,8 @@ export const ahriEntityInvariants: ReadonlyArray<Invariant<AhriAggregate>> = [
   defineInvariant<AhriAggregate>({
     id: 'INV-AH-02',
     canonReference: 'AHRI INV-AH-02; DF-09; DF-13',
-    description: 'Toda atuação referencia uma Regra Operacional e possui registro DECISOR/TIPO/FUNDAMENTO.',
+    description:
+      'Toda atuação referencia uma Regra Operacional e possui registro DECISOR/TIPO/FUNDAMENTO.',
     check: (a) => a.governingRule != null && a.record != null && a.record.fundamento.length > 0,
   }),
   defineInvariant<AhriAggregate>({
@@ -35,12 +36,7 @@ export const ahriEntityInvariants: ReadonlyArray<Invariant<AhriAggregate>> = [
 
 // (B) Manifesto completo das 4 invariantes do Canon e onde cada uma é garantida.
 export type EnforcementLocus =
-  | 'entity'
-  | 'event-store'
-  | 'projection'
-  | 'cqrs'
-  | 'use-case'
-  | 'cross-entity';
+  'entity' | 'event-store' | 'projection' | 'cqrs' | 'use-case' | 'cross-entity';
 
 export interface AhriInvariantSpec {
   readonly id: string;
@@ -50,8 +46,29 @@ export interface AhriInvariantSpec {
 }
 
 export const AHRI_INVARIANTS_MANIFEST: ReadonlyArray<AhriInvariantSpec> = [
-  { id: 'INV-AH-01', canonReference: 'Art. 15º', description: 'Função assistiva; jamais decisão final.', enforcement: 'entity' },
-  { id: 'INV-AH-02', canonReference: 'DF-09; DF-13', description: 'Toda automação referencia Regra Operacional com registro DECISOR/TIPO/FUNDAMENTO.', enforcement: 'entity' },
-  { id: 'INV-AH-03', canonReference: 'DF-09', description: 'Jamais pratica ato privativo nem decide juridicamente.', enforcement: 'entity' },
-  { id: 'INV-AH-04', canonReference: 'E9-L06', description: 'Jamais cria fatos, evidência, documento, evento, conhecimento ou verdade.', enforcement: 'entity' },
+  {
+    id: 'INV-AH-01',
+    canonReference: 'Art. 15º',
+    description: 'Função assistiva; jamais decisão final.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-AH-02',
+    canonReference: 'DF-09; DF-13',
+    description:
+      'Toda automação referencia Regra Operacional com registro DECISOR/TIPO/FUNDAMENTO.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-AH-03',
+    canonReference: 'DF-09',
+    description: 'Jamais pratica ato privativo nem decide juridicamente.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-AH-04',
+    canonReference: 'E9-L06',
+    description: 'Jamais cria fatos, evidência, documento, evento, conhecimento ou verdade.',
+    enforcement: 'entity',
+  },
 ];

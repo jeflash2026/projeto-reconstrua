@@ -58,7 +58,9 @@ export class FollowUpRecurrenceRuntime {
    */
   async onFollowUpFired(task: ScheduledTask, result: TurnResult, now: Date): Promise<void> {
     const followedUp = result.intents.some(
-      (intent) => intent.operationalRuleRef !== null && FOLLOW_UP_RULE_REFS.includes(intent.operationalRuleRef),
+      (intent) =>
+        intent.operationalRuleRef !== null &&
+        FOLLOW_UP_RULE_REFS.includes(intent.operationalRuleRef),
     );
     if (!followedUp) return; // encerrado (STOP), escalação ou espera ⇒ a cadeia termina
 

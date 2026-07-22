@@ -60,7 +60,9 @@ export class DeterministicExecutiveBrain implements ExecutiveBrainPort {
 
     switch (percept.envelope.kind) {
       case 'silence':
-        return this.one(this.make(chatId, 'insist', 'follow_up', 'nosso último assunto', 'normal', []));
+        return this.one(
+          this.make(chatId, 'insist', 'follow_up', 'nosso último assunto', 'normal', []),
+        );
       case 'timeout':
         return this.one(this.make(chatId, 'accompany', null, null, 'low', []));
       case 'delete':
@@ -72,12 +74,23 @@ export class DeterministicExecutiveBrain implements ExecutiveBrainPort {
       case 'document':
       case 'image':
         return this.one(
-          this.make(chatId, 'speak', 'inform', percept.envelope.fileName ?? 'o material recebido', 'normal', []),
+          this.make(
+            chatId,
+            'speak',
+            'inform',
+            percept.envelope.fileName ?? 'o material recebido',
+            'normal',
+            [],
+          ),
         );
       case 'audio':
-        return this.one(this.make(chatId, 'speak', 'explain', 'o que você enviou em áudio', 'normal', []));
+        return this.one(
+          this.make(chatId, 'speak', 'explain', 'o que você enviou em áudio', 'normal', []),
+        );
       case 'location':
-        return this.one(this.make(chatId, 'speak', 'inform', 'a localização recebida', 'normal', []));
+        return this.one(
+          this.make(chatId, 'speak', 'inform', 'a localização recebida', 'normal', []),
+        );
       case 'contact':
         return this.one(this.make(chatId, 'speak', 'inform', 'o contato recebido', 'normal', []));
       case 'text':
@@ -96,10 +109,16 @@ export class DeterministicExecutiveBrain implements ExecutiveBrainPort {
       return this.one(this.make(chatId, 'speak', 'greet', 'seu primeiro contato', 'normal', []));
     }
     if (/(documento|anexo|comprovante|rg|cpf)/.test(text)) {
-      return this.one(this.make(chatId, 'await_documents', 'request_document', 'os documentos', urgency, ['documento']));
+      return this.one(
+        this.make(chatId, 'await_documents', 'request_document', 'os documentos', urgency, [
+          'documento',
+        ]),
+      );
     }
     if (/(prazo|vencimento|data limite)/.test(text)) {
-      return this.one(this.make(chatId, 'notify_deadline', 'deadline_warning', 'o prazo', 'high', ['prazo']));
+      return this.one(
+        this.make(chatId, 'notify_deadline', 'deadline_warning', 'o prazo', 'high', ['prazo']),
+      );
     }
     if (/(tchau|obrigad|valeu|at[eé] mais)/.test(text)) {
       return this.one(this.make(chatId, 'speak', 'reassure', 'nossa conversa', 'low', []));

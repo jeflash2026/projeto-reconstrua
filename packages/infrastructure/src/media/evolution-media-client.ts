@@ -61,7 +61,8 @@ export class EvolutionMediaClient implements MediaGatewayPort {
       this.log(`evolution getBase64: 200 sem base64 (chaves=[${Object.keys(body).join(',')}])`);
       return null;
     }
-    const mime = asString(body['mimetype']) ?? asString(body['mimeType']) ?? 'application/octet-stream';
+    const mime =
+      asString(body['mimetype']) ?? asString(body['mimeType']) ?? 'application/octet-stream';
     const fileName = asString(body['fileName']);
     return { base64, mime, fileName };
   }

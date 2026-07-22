@@ -5,7 +5,11 @@
 // projeção → read model → aggregate. A conversa NUNCA consulta o banco.
 // Best-effort: falha do read model ⇒ snapshot base intacto (nunca quebra o Brain).
 // ─────────────────────────────────────────────────────────────────────────────
-import type { DocumentRequestStore, MissionSnapshot, MissionSnapshotPort } from '@reconstrua/application';
+import type {
+  DocumentRequestStore,
+  MissionSnapshot,
+  MissionSnapshotPort,
+} from '@reconstrua/application';
 import { emptySnapshot, resumoDocumentRequests } from '@reconstrua/application';
 
 export class DocumentRequestsAwareSnapshotAdapter implements MissionSnapshotPort {
@@ -18,6 +22,9 @@ export class DocumentRequestsAwareSnapshotAdapter implements MissionSnapshotPort
     const base = await this.inner.load(chatId);
     const abertas = await this.store.abertasDoCliente(chatId).catch(() => []);
     if (abertas.length === 0) return base; // nada a acrescentar — snapshot intacto
-    return { ...(base ?? emptySnapshot(chatId)), documentRequests: resumoDocumentRequests(abertas) };
+    return {
+      ...(base ?? emptySnapshot(chatId)),
+      documentRequests: resumoDocumentRequests(abertas),
+    };
   }
 }

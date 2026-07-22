@@ -38,16 +38,32 @@ export class InMemoryDocumentRequestStore implements DocumentRequestStore {
     return Promise.resolve(this.porIdMap.get(requestId) ?? null);
   }
   doCaso(caseId: string): Promise<readonly DocumentRequestState[]> {
-    return Promise.resolve([...this.porIdMap.values()].filter((r) => r.caseId === caseId).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()));
+    return Promise.resolve(
+      [...this.porIdMap.values()]
+        .filter((r) => r.caseId === caseId)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
+    );
   }
   abertasDoCliente(clientId: string): Promise<readonly DocumentRequestState[]> {
-    return Promise.resolve([...this.porIdMap.values()].filter((r) => r.clientId === clientId && ABERTOS.has(r.status)).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()));
+    return Promise.resolve(
+      [...this.porIdMap.values()]
+        .filter((r) => r.clientId === clientId && ABERTOS.has(r.status))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
+    );
   }
   doAdvogado(lawyerId: string): Promise<readonly DocumentRequestState[]> {
-    return Promise.resolve([...this.porIdMap.values()].filter((r) => r.lawyerId === lawyerId).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+    return Promise.resolve(
+      [...this.porIdMap.values()]
+        .filter((r) => r.lawyerId === lawyerId)
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()),
+    );
   }
   abertas(): Promise<readonly DocumentRequestState[]> {
-    return Promise.resolve([...this.porIdMap.values()].filter((r) => ABERTOS.has(r.status)).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()));
+    return Promise.resolve(
+      [...this.porIdMap.values()]
+        .filter((r) => ABERTOS.has(r.status))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
+    );
   }
 }
 
@@ -65,15 +81,24 @@ export interface DocumentRequestsResumo {
 }
 
 /** Resume as solicitações de um cliente/caso para o MissionSnapshot. Puro. */
-export function resumoDocumentRequests(states: readonly DocumentRequestState[]): DocumentRequestsResumo {
+export function resumoDocumentRequests(
+  states: readonly DocumentRequestState[],
+): DocumentRequestsResumo {
   const abertas = states.filter((s) => ABERTOS.has(s.status));
-  const maisRecente = [...abertas].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
+  const maisRecente =
+    [...abertas].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
   return {
     totalPendentes: abertas.length,
-    prioridadeMaisAlta: abertas.length === 0 ? null : abertas.some((s) => s.priority === 'alta') ? 'alta' : 'normal',
+    prioridadeMaisAlta:
+      abertas.length === 0 ? null : abertas.some((s) => s.priority === 'alta') ? 'alta' : 'normal',
     aguardandoConfirmacao: abertas.filter((s) => s.status === 'AWAITING_CONFIRMATION').length,
     ultimaSolicitacao: maisRecente
-      ? { requestId: maisRecente.requestId, documentName: maisRecente.documentName, requestedBy: maisRecente.requestedBy, dueAt: maisRecente.dueAt }
+      ? {
+          requestId: maisRecente.requestId,
+          documentName: maisRecente.documentName,
+          requestedBy: maisRecente.requestedBy,
+          dueAt: maisRecente.dueAt,
+        }
       : null,
   };
 }

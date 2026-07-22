@@ -15,25 +15,46 @@ let seq = 0;
 function entry(kind: MemoryEntry['kind'], text: string | null, minuto: number): MemoryEntry {
   seq += 1;
   return {
-    id: `e${String(seq)}`, chatId: 'c1', kind, at: new Date(2026, 6, 19, 12, minuto), text,
-    intentDirective: null, operationalRuleRef: null, meta: {},
+    id: `e${String(seq)}`,
+    chatId: 'c1',
+    kind,
+    at: new Date(2026, 6, 19, 12, minuto),
+    text,
+    intentDirective: null,
+    operationalRuleRef: null,
+    meta: {},
   };
 }
 
 function intent(topic = 'relacionamento'): ConversationIntent {
   return {
-    id: 'i1', chatId: 'c1', directive: 'speak', speechAct: 'explain', topic,
-    references: [], urgency: 'normal', operationalRuleRef: 'RO-X', fundamento: 'f',
-    timingHintMs: null, formedAt: new Date('2026-07-19T12:00:00.000Z'),
+    id: 'i1',
+    chatId: 'c1',
+    directive: 'speak',
+    speechAct: 'explain',
+    topic,
+    references: [],
+    urgency: 'normal',
+    operationalRuleRef: 'RO-X',
+    fundamento: 'f',
+    timingHintMs: null,
+    formedAt: new Date('2026-07-19T12:00:00.000Z'),
   };
 }
 
-function contexto(entries: MemoryEntry[], inboundAtual: string, sinal: string | null = null): ConversationContextView {
+function contexto(
+  entries: MemoryEntry[],
+  inboundAtual: string,
+  sinal: string | null = null,
+): ConversationContextView {
   return {
     chatId: 'c1',
     session: { chatId: 'c1', turns: entries.length, lastInboundAt: null, lastOutboundAt: null },
     recentEntries: entries,
-    recentOutboundTexts: entries.filter((e) => e.kind === 'outbound' && e.text !== null).map((e) => e.text ?? '').reverse(),
+    recentOutboundTexts: entries
+      .filter((e) => e.kind === 'outbound' && e.text !== null)
+      .map((e) => e.text ?? '')
+      .reverse(),
     lastPercept: {
       envelope: { text: inboundAtual },
       enrichment: { perceivedPurpose: 'service_request', detectedIntentSignal: sinal },
@@ -82,7 +103,10 @@ describe('memoriaDaConversa · derivada do diálogo ativo (nunca persistida)', (
   });
 
   it('objetivo = intenção do Planner; hipótese = sinal PERCEBIDO (nunca decisão)', () => {
-    const m = memoriaDaConversa(intent('acompanhamento do caso'), contexto(dialogoApostas(), 'uns 3 anos', 'parece relatar perda em apostas'));
+    const m = memoriaDaConversa(
+      intent('acompanhamento do caso'),
+      contexto(dialogoApostas(), 'uns 3 anos', 'parece relatar perda em apostas'),
+    );
     expect(m.objetivoAtual).toBe('acompanhamento do caso');
     expect(m.hipoteseAtual).toBe('parece relatar perda em apostas');
   });
@@ -115,7 +139,10 @@ describe('continuidade multi-turno · a conversa nunca volta ao começo', () => 
   });
 
   it('sem pergunta anterior respondida ⇒ sem fio (primeiro contato não inventa passado)', () => {
-    const m = memoriaDaConversa(intent(), contexto([entry('inbound', 'perdi muito dinheiro', 1)], 'perdi muito dinheiro'));
+    const m = memoriaDaConversa(
+      intent(),
+      contexto([entry('inbound', 'perdi muito dinheiro', 1)], 'perdi muito dinheiro'),
+    );
     expect(m.fioDaConversa).toBeNull();
   });
 });

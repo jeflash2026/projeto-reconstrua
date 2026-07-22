@@ -6,11 +6,7 @@
 // alterar a autenticação, o isolamento por atribuição, nem a persistência.
 import { cookies } from 'next/headers';
 import { API_BASE, sendJson } from './api';
-import {
-  advogadoSessionToken,
-  ADVOGADO_ID_COOKIE,
-  ADVOGADO_SESSION_COOKIE,
-} from './session';
+import { advogadoSessionToken, ADVOGADO_ID_COOKIE, ADVOGADO_SESSION_COOKIE } from './session';
 
 // ── AUTENTICAÇÃO (GO-LIVE-04: convite → senha INDIVIDUAL → login → sessão) ────
 // A senha global de transporte (segredo do portal) NÃO autentica mais pessoas:
@@ -24,7 +20,11 @@ export interface LoginResult {
 }
 
 export async function loginAdvogado(advogadoId: string, senha: string): Promise<LoginResult> {
-  if (ADVOGADO_TOKEN_LOGIN === '') return { ok: false, error: 'servidor sem segredo de acesso configurado (ADVOGADO_ACCESS_SECRET)' };
+  if (ADVOGADO_TOKEN_LOGIN === '')
+    return {
+      ok: false,
+      error: 'servidor sem segredo de acesso configurado (ADVOGADO_ACCESS_SECRET)',
+    };
   const id = advogadoId.trim();
   if (id === '' || senha === '') return { ok: false, error: 'informe o seu ID e a sua senha' };
 
@@ -33,17 +33,30 @@ export async function loginAdvogado(advogadoId: string, senha: string): Promise<
     const res = await fetch(`${API_BASE}/advogado-auth/login`, {
       method: 'POST',
       cache: 'no-store',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${ADVOGADO_TOKEN_LOGIN}` },
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${ADVOGADO_TOKEN_LOGIN}`,
+      },
       body: JSON.stringify({ advogadoId: id, senha }),
     });
     if (!res.ok) {
-      return { ok: false, error: res.status === 401 ? 'credenciais inválidas' : 'falha na autenticação — tente novamente' };
+      return {
+        ok: false,
+        error:
+          res.status === 401 ? 'credenciais inválidas' : 'falha na autenticação — tente novamente',
+      };
     }
   } catch {
     return { ok: false, error: 'API indisponível' };
   }
 
-  const opts = { httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 12 };
+  const opts = {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60 * 12,
+  };
   cookies().set(ADVOGADO_SESSION_COOKIE, advogadoSessionToken(ADVOGADO_TOKEN_LOGIN), opts);
   cookies().set(ADVOGADO_ID_COOKIE, id, opts);
   return { ok: true };
@@ -51,13 +64,21 @@ export async function loginAdvogado(advogadoId: string, senha: string): Promise<
 
 /** GO-LIVE-04: cria a senha própria a partir do CONVITE assinado do escritório. */
 export async function definirSenhaAdvogado(token: string, senha: string): Promise<LoginResult> {
-  if (ADVOGADO_TOKEN_LOGIN === '') return { ok: false, error: 'servidor sem segredo de acesso configurado (ADVOGADO_ACCESS_SECRET)' };
-  if (token.trim() === '' || senha === '') return { ok: false, error: 'convite e senha são obrigatórios' };
+  if (ADVOGADO_TOKEN_LOGIN === '')
+    return {
+      ok: false,
+      error: 'servidor sem segredo de acesso configurado (ADVOGADO_ACCESS_SECRET)',
+    };
+  if (token.trim() === '' || senha === '')
+    return { ok: false, error: 'convite e senha são obrigatórios' };
   try {
     const res = await fetch(`${API_BASE}/advogado-auth/definir-senha`, {
       method: 'POST',
       cache: 'no-store',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${ADVOGADO_TOKEN_LOGIN}` },
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${ADVOGADO_TOKEN_LOGIN}`,
+      },
       body: JSON.stringify({ token: token.trim(), senha }),
     });
     if (!res.ok) {
@@ -130,23 +151,32 @@ export async function solicitarDocumento(input: {
 }): Promise<SolicitacaoActionResult> {
   const id = advogadoIdAtual();
   if (!id) return { ok: false, error: 'sessão do advogado ausente', solicitacao: null };
-  const criada = await sendJson<Solicitacao & { anuncio?: { ok: boolean; erro: string | null } }>('POST', `/advogado/casos/${encodeURIComponent(input.caseId)}/document-requests`, {
-    documentName: input.documentName,
-    optionalMessage: input.optionalMessage,
-    clientId: input.clientId,
-    advogadoId: id,
-    requestedBy: id,
-    priority: input.priority,
-    dueAt: input.dueAt,
-    reminderPolicy: input.reminderPolicy,
-    ...(input.anexo !== undefined ? { anexo: input.anexo } : {}),
-  });
+  const criada = await sendJson<Solicitacao & { anuncio?: { ok: boolean; erro: string | null } }>(
+    'POST',
+    `/advogado/casos/${encodeURIComponent(input.caseId)}/document-requests`,
+    {
+      documentName: input.documentName,
+      optionalMessage: input.optionalMessage,
+      clientId: input.clientId,
+      advogadoId: id,
+      requestedBy: id,
+      priority: input.priority,
+      dueAt: input.dueAt,
+      reminderPolicy: input.reminderPolicy,
+      ...(input.anexo !== undefined ? { anexo: input.anexo } : {}),
+    },
+  );
   revalidatePath('/solicitacoes');
-  if (!criada) return { ok: false, error: 'não consegui criar a solicitação (API)', solicitacao: null };
+  if (!criada)
+    return { ok: false, error: 'não consegui criar a solicitação (API)', solicitacao: null };
   // Correção do teste real: falha de ENVIO ao cliente ficava invisível ("disse
   // enviado, não chegou"). Agora o advogado vê o erro literal do disparo.
   if (criada.anuncio && !criada.anuncio.ok) {
-    return { ok: true, error: `Solicitação criada, mas o ENVIO ao cliente FALHOU: ${criada.anuncio.erro ?? 'erro desconhecido'}. Confira o WhatsApp do cliente e reenvie pela solicitação.`, solicitacao: criada };
+    return {
+      ok: true,
+      error: `Solicitação criada, mas o ENVIO ao cliente FALHOU: ${criada.anuncio.erro ?? 'erro desconhecido'}. Confira o WhatsApp do cliente e reenvie pela solicitação.`,
+      solicitacao: criada,
+    };
   }
   return { ok: true, error: null, solicitacao: criada };
 }
@@ -157,26 +187,56 @@ export async function meuCanalWhatsApp(): Promise<string | null> {
   return r?.whatsapp ?? null;
 }
 
-export async function definirCanalWhatsApp(whatsapp: string): Promise<{ ok: boolean; error: string | null }> {
+export async function definirCanalWhatsApp(
+  whatsapp: string,
+): Promise<{ ok: boolean; error: string | null }> {
   const r = await sendJson<{ ok: boolean }>('PUT', '/advogado/perfil/canal', { whatsapp });
   revalidatePath('/perfil');
-  return r ? { ok: true, error: null } : { ok: false, error: 'não consegui salvar o número (verifique DDI+DDD+número)' };
+  return r
+    ? { ok: true, error: null }
+    : { ok: false, error: 'não consegui salvar o número (verifique DDI+DDD+número)' };
 }
 
-export async function cancelarSolicitacao(requestId: string, motivo: string): Promise<SolicitacaoActionResult> {
+export async function cancelarSolicitacao(
+  requestId: string,
+  motivo: string,
+): Promise<SolicitacaoActionResult> {
   const id = advogadoIdAtual();
   if (!id) return { ok: false, error: 'sessão do advogado ausente', solicitacao: null };
-  const r = await sendJson<Solicitacao>('POST', `/advogado/document-requests/${encodeURIComponent(requestId)}/cancelar`, { motivo, advogadoId: id });
+  const r = await sendJson<Solicitacao>(
+    'POST',
+    `/advogado/document-requests/${encodeURIComponent(requestId)}/cancelar`,
+    { motivo, advogadoId: id },
+  );
   revalidatePath('/solicitacoes');
   revalidatePath(`/solicitacoes/${requestId}`);
-  return r ? { ok: true, error: null, solicitacao: r } : { ok: false, error: 'não consegui cancelar (a solicitação pode não estar aberta)', solicitacao: null };
+  return r
+    ? { ok: true, error: null, solicitacao: r }
+    : {
+        ok: false,
+        error: 'não consegui cancelar (a solicitação pode não estar aberta)',
+        solicitacao: null,
+      };
 }
 
-export async function reabrirSolicitacao(requestId: string, motivo: string): Promise<SolicitacaoActionResult> {
+export async function reabrirSolicitacao(
+  requestId: string,
+  motivo: string,
+): Promise<SolicitacaoActionResult> {
   const id = advogadoIdAtual();
   if (!id) return { ok: false, error: 'sessão do advogado ausente', solicitacao: null };
-  const r = await sendJson<Solicitacao>('POST', `/advogado/document-requests/${encodeURIComponent(requestId)}/reabrir`, { motivo, advogadoId: id });
+  const r = await sendJson<Solicitacao>(
+    'POST',
+    `/advogado/document-requests/${encodeURIComponent(requestId)}/reabrir`,
+    { motivo, advogadoId: id },
+  );
   revalidatePath('/solicitacoes');
   revalidatePath(`/solicitacoes/${requestId}`);
-  return r ? { ok: true, error: null, solicitacao: r } : { ok: false, error: 'não consegui reabrir (só documentos recebidos podem ser reabertos)', solicitacao: null };
+  return r
+    ? { ok: true, error: null, solicitacao: r }
+    : {
+        ok: false,
+        error: 'não consegui reabrir (só documentos recebidos podem ser reabertos)',
+        solicitacao: null,
+      };
 }

@@ -11,7 +11,11 @@ import { GoLiveChecklist, GO_LIVE_ITEMS, type GoLiveCheck } from './go-live-chec
 import { HealthRuntime, online } from './health-runtime.js';
 import { ObservabilityRuntime } from './observability-runtime.js';
 import { SchedulerRuntime, type ScheduledTask, type SchedulerStore } from './scheduler-runtime.js';
-import { NotificationRuntime, type DeliveredNotification, type NotificationChannelPort } from './notification-runtime.js';
+import {
+  NotificationRuntime,
+  type DeliveredNotification,
+  type NotificationChannelPort,
+} from './notification-runtime.js';
 import type { NotificationIntentOut } from '../executive-brain/index.js';
 
 const NOW = new Date('2026-07-14T00:00:00.000Z');
@@ -27,7 +31,11 @@ class FakeSchedulerStore implements SchedulerStore {
     return Promise.resolve(this.tasks.get(id) ?? null);
   }
   due(now: Date): Promise<readonly ScheduledTask[]> {
-    return Promise.resolve([...this.tasks.values()].filter((t) => t.status === 'pending' && t.dueAt.getTime() <= now.getTime()));
+    return Promise.resolve(
+      [...this.tasks.values()].filter(
+        (t) => t.status === 'pending' && t.dueAt.getTime() <= now.getTime(),
+      ),
+    );
   }
   pendingCount(): Promise<number> {
     return Promise.resolve([...this.tasks.values()].filter((t) => t.status === 'pending').length);
@@ -69,7 +77,10 @@ describe('BootRuntime', () => {
 });
 
 describe('GoLiveChecklist — qualquer falha bloqueia produção', () => {
-  const passing: GoLiveCheck[] = GO_LIVE_ITEMS.map((item) => ({ item, run: () => Promise.resolve(true) }));
+  const passing: GoLiveCheck[] = GO_LIVE_ITEMS.map((item) => ({
+    item,
+    run: () => Promise.resolve(true),
+  }));
 
   it('todos os itens passando ⇒ produção liberada', async () => {
     const report = await new GoLiveChecklist(clock).verify(passing);
@@ -78,7 +89,9 @@ describe('GoLiveChecklist — qualquer falha bloqueia produção', () => {
   });
 
   it('UM item falhando ⇒ produção BLOQUEADA', async () => {
-    const withFailure = passing.map((c) => (c.item === 'integrity' ? { ...c, run: () => Promise.resolve(false) } : c));
+    const withFailure = passing.map((c) =>
+      c.item === 'integrity' ? { ...c, run: () => Promise.resolve(false) } : c,
+    );
     const report = await new GoLiveChecklist(clock).verify(withFailure);
     expect(report.ready).toBe(false);
   });
@@ -103,7 +116,15 @@ describe('GoLiveChecklist — qualquer falha bloqueia produção', () => {
 describe('SchedulerRuntime', () => {
   it('agenda (idempotente por id), vence e dispara uma única vez', async () => {
     const scheduler = new SchedulerRuntime(new FakeSchedulerStore());
-    const base = { id: 't1', chatId: 'c1', missionId: null, kind: 'remind_client' as const, dueAt: new Date(NOW.getTime() + 1000), note: null, createdAt: NOW };
+    const base = {
+      id: 't1',
+      chatId: 'c1',
+      missionId: null,
+      kind: 'remind_client' as const,
+      dueAt: new Date(NOW.getTime() + 1000),
+      note: null,
+      createdAt: NOW,
+    };
     await scheduler.schedule(base);
     await scheduler.schedule(base); // idempotente
     expect(await scheduler.pendingCount()).toBe(1);
@@ -116,14 +137,30 @@ describe('SchedulerRuntime', () => {
 
   it('cancelamento impede o disparo', async () => {
     const scheduler = new SchedulerRuntime(new FakeSchedulerStore());
-    await scheduler.schedule({ id: 't2', chatId: 'c1', missionId: null, kind: 'follow_deadline', dueAt: NOW, note: null, createdAt: NOW });
+    await scheduler.schedule({
+      id: 't2',
+      chatId: 'c1',
+      missionId: null,
+      kind: 'follow_deadline',
+      dueAt: NOW,
+      note: null,
+      createdAt: NOW,
+    });
     await scheduler.cancel('t2');
     expect(await scheduler.fireDue(new Date(NOW.getTime() + 1))).toHaveLength(0);
   });
 
   it('B4.4 — counts() reporta pendentes/enviados/cancelados (follow-ups)', async () => {
     const scheduler = new SchedulerRuntime(new FakeSchedulerStore());
-    const t = (id: string) => ({ id, chatId: 'c1', missionId: null, kind: 'remind_client' as const, dueAt: NOW, note: null, createdAt: NOW });
+    const t = (id: string) => ({
+      id,
+      chatId: 'c1',
+      missionId: null,
+      kind: 'remind_client' as const,
+      dueAt: NOW,
+      note: null,
+      createdAt: NOW,
+    });
     await scheduler.schedule(t('a'));
     await scheduler.schedule(t('b'));
     await scheduler.schedule(t('c'));
@@ -146,7 +183,12 @@ describe('NotificationRuntime — anti-spam', () => {
       channel: 'portal-operacao',
       audience: 'operador',
       reasonCode: reason,
-      provenance: { decisor: 'AHRI', tipo: 'DECISAO_OPERACIONAL_AUTOMATIZADA', fundamento: 'RO', operationalRuleRef: 'RO-N' },
+      provenance: {
+        decisor: 'AHRI',
+        tipo: 'DECISAO_OPERACIONAL_AUTOMATIZADA',
+        fundamento: 'RO',
+        operationalRuleRef: 'RO-N',
+      },
       formedAt: NOW,
     };
   }

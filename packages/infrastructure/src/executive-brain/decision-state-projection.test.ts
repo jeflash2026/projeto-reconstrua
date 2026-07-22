@@ -9,7 +9,13 @@ import type { StoredEvent, StoredProvenance } from '@reconstrua/application';
 import { InMemoryDecisionStateStore } from './decision-state-read-model.js';
 import { DecisionStateProjectionSubscriber } from './decision-state-projection-subscriber.js';
 
-const NO_PROV: StoredProvenance = { factRef: null, actor: null, decisionType: null, fundamento: null, operationalRuleRef: null };
+const NO_PROV: StoredProvenance = {
+  factRef: null,
+  actor: null,
+  decisionType: null,
+  fundamento: null,
+  operationalRuleRef: null,
+};
 
 function evt(over: Partial<StoredEvent>): StoredEvent {
   return {
@@ -92,32 +98,58 @@ describe('DecisionStateProjectionSubscriber · B4.1 encerramento (terminalState)
     const sub = new DecisionStateProjectionSubscriber(store);
     await sub.handle(evt({})); // truth.synthesized → truthEstablished
     await sub.handle(closeEvt()); // encerra
-    expect(await store.load('M1')).toMatchObject({ truthEstablished: true, terminalState: 'ENCERRADA' });
+    expect(await store.load('M1')).toMatchObject({
+      truthEstablished: true,
+      terminalState: 'ENCERRADA',
+    });
 
     // Uma nova Verdade (evento tardio) NÃO limpa a terminalidade (sticky).
     const store2 = new InMemoryDecisionStateStore();
     const sub2 = new DecisionStateProjectionSubscriber(store2);
     await sub2.handle(closeEvt()); // encerra primeiro
     // truth com missionId novo não idempotente porque truthEstablished era default; força re-save
-    await store2.save({ missionId: 'M1', truthEstablished: false, terminalState: 'ENCERRADA', updatedAt: new Date('2026-07-16T00:00:00.000Z') });
+    await store2.save({
+      missionId: 'M1',
+      truthEstablished: false,
+      terminalState: 'ENCERRADA',
+      updatedAt: new Date('2026-07-16T00:00:00.000Z'),
+    });
     await sub2.handle(evt({ id: 'E9' }));
-    expect(await store2.load('M1')).toMatchObject({ truthEstablished: true, terminalState: 'ENCERRADA' });
+    expect(await store2.load('M1')).toMatchObject({
+      truthEstablished: true,
+      terminalState: 'ENCERRADA',
+    });
   });
 
   it('derivação normal (sem terminalState) após encerramento NÃO reabre a missão', async () => {
     const store = new InMemoryDecisionStateStore();
     const sub = new DecisionStateProjectionSubscriber(store);
     await sub.handle(closeEvt());
-    await sub.handle(evt({ eventType: 'operational-state.derived', streamType: 'operational-state', payload: { missionId: 'M1' } }));
+    await sub.handle(
+      evt({
+        eventType: 'operational-state.derived',
+        streamType: 'operational-state',
+        payload: { missionId: 'M1' },
+      }),
+    );
     expect(await store.load('M1')).toMatchObject({ terminalState: 'ENCERRADA' });
   });
 });
 
 describe('DecisionStateProjectionSubscriber · B4.3 reabertura (reopened)', () => {
   const closeEvt = (): StoredEvent =>
-    evt({ eventType: 'operational-state.derived', streamType: 'operational-state', payload: { missionId: 'M1', terminalState: 'ENCERRADA' } });
+    evt({
+      eventType: 'operational-state.derived',
+      streamType: 'operational-state',
+      payload: { missionId: 'M1', terminalState: 'ENCERRADA' },
+    });
   const reopenEvt = (over: Partial<StoredEvent> = {}): StoredEvent =>
-    evt({ eventType: 'operational-state.derived', streamType: 'operational-state', payload: { missionId: 'M1', reopened: true }, ...over });
+    evt({
+      eventType: 'operational-state.derived',
+      streamType: 'operational-state',
+      payload: { missionId: 'M1', reopened: true },
+      ...over,
+    });
 
   it('reabertura EXPLÍCITA (reopened:true) LIMPA a terminalidade (ENCERRADA → em curso)', async () => {
     const store = new InMemoryDecisionStateStore();

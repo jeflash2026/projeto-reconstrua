@@ -1,4 +1,5 @@
 # W1‑01A — ALIR FOUNDATION
+
 ### Entregável de engenharia do item `W1‑01` (Onda 1). **Sem tela. Sem banco novo. Sem feature.**
 
 > O ALIR é a **identidade operacional do cliente** — o "sistema solar" em torno do qual tudo
@@ -12,6 +13,7 @@
 ---
 
 ## LEGENDA DE CLASSIFICAÇÃO (obrigatória para todo dado do ALIR)
+
 - **CANÔNICO** — verdade de origem, vive num agregado/event stream ou store canônico. O ALIR **lê**, nunca cria.
 - **DERIVADO** — projeção/fold de eventos canônicos (read model). Reconstruível.
 - **CALCULADO** — computado em tempo de leitura por um algoritmo determinístico (não persistido como verdade).
@@ -33,32 +35,32 @@
 latestStageId · lastDocumentId · lastEventId`. **É o "join key" oficial do ALIR** — já existe,
 será reutilizado, nada novo.
 
-| Órbita do ALIR | Fonte real (reutilizável) | Onde vive (namespace / stream / arquivo) | Classe | Existe? |
-|---|---|---|---|---|
-| **Índice / Identidade** | `MissionIdentity` | `identities` · `types.ts:40` | CANÔNICO (índice) | 🟢 |
-| **Pessoa** | Agregado `Person` (event‑sourced) + `identity.personId` | stream `person` (event store) · `domain/person` | CANÔNICO | 🟢 |
-| **Conversas** | `ConversationStore` (`MemoryEntry`) | `conv:<chatId>` / `conv-idx:<chatId>` · `document-stores.ts:111` | CANÔNICO | 🟢 |
-| **Memória viva / AHRI** | `ClientMemory` (atributos, estilo, tempos, docs) | `client-memory` · `living-memory/client-memory.ts` | DERIVADO | 🟢 |
-| **Documentos** | `DocumentLink` + stream `document` + `ClientMemory.documentsSent/Pending` + texto | `document-link`, `document-text`, `client-memory`, stream `document` | CANÔNICO + DERIVADO (pendências) | 🟢 |
-| **Missão · Verdade · Estado · Etapa** | `MissionSnapshot` via `decision-state` + `identity.latest*Id` | `decision-state` · streams `operational-truth/state/stage` · `mission-snapshot.ts` | DERIVADO (snapshot) + CANÔNICO (eventos) | 🟢 |
-| **Encerramento / Reabertura** | `DecisionStateRecord.terminalState` | `decision-state` · `decision-state-read-model.ts:24` | DERIVADO | 🟢 |
-| **Workflow / Progresso** | `MissionProgress` | `workflow` · `workflow-runtime.ts:26` | DERIVADO | 🟢 |
-| **Acompanhamento / Recorrência** | `ScheduledTask` | `scheduler` · `scheduler-runtime.ts` | TEMPORÁRIO | 🟢 |
-| **Operação (fila humana)** | `HandoffTask` | `handoff` · `human-handoff-runtime.ts:13` | CANÔNICO | 🟢 |
-| **Atribuição (advogado)** | `CaseAssignment` | `assignments` · `juridical-work.ts:46` | CANÔNICO | 🟢 |
-| **Situação Jurídica / Processo** | `JuridicalEntry` + stream `process` | `juridical` · `juridical-work.ts:34` · `domain/process` | CANÔNICO | 🟢 (parcial) |
-| **Equipe / Responsável** | `StaffMember` | `staff` · `staff-directory.ts:17` | CANÔNICO | 🟢 |
-| **Decisões / Auditoria** | `DecisionRequest` + event store (append‑only) | `decisions` · event store | CANÔNICO | 🟢 |
-| **Timeline** | Event store (StoredEvent, hash‑chain) | `pg-event-store` / streams do cliente | CANÔNICO | 🟢 |
-| **Qualidade (AHRI/Shadow)** | `ShadowReport` | `shadow` / `shadow-by-id` · `production/shadow.ts` | EXTERNO/DERIVADO | 🟢 |
-| **Config (nº oficial, etc.)** | `ProductionConfig` | `config` · `document-stores.ts:55` | EXTERNO | 🟢 |
-| **Próxima ação** | `NextBestActionPlanner` (Executive Brain) — algoritmo | `executive-brain` runtime (não persiste por cliente) | CALCULADO | 🟡 algoritmo existe; não exposto por cliente |
-| **Perícia / Laudo** | — (ato humano do perito) | (nenhum) | CANÔNICO | 🔴 ausente → `W1‑03` |
-| **Estágio Comercial (funil 1→12)** | — (só existe `operational-stage`, que é operacional) | (nenhum comercial) | DERIVADO | 🔴 ausente → `W1‑04` |
-| **Situação Comercial / Venda / Sociedade** | — | (nenhum) | CANÔNICO | 🔴 ausente → Onda 2/3 |
-| **Financeiro / Honorário / Distribuição** | — | (nenhum) | CANÔNICO/CALCULADO | 🔴 ausente → Onda 3 |
-| **Escritório Parceiro** | — | (nenhum) | CANÔNICO | 🔴 ausente → Onda 2 |
-| **Portal do Cliente** | — | (nenhum) | EXTERNO | 🔴 ausente → futuro |
+| Órbita do ALIR                             | Fonte real (reutilizável)                                                         | Onde vive (namespace / stream / arquivo)                                           | Classe                                   | Existe?                                      |
+| ------------------------------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------- |
+| **Índice / Identidade**                    | `MissionIdentity`                                                                 | `identities` · `types.ts:40`                                                       | CANÔNICO (índice)                        | 🟢                                           |
+| **Pessoa**                                 | Agregado `Person` (event‑sourced) + `identity.personId`                           | stream `person` (event store) · `domain/person`                                    | CANÔNICO                                 | 🟢                                           |
+| **Conversas**                              | `ConversationStore` (`MemoryEntry`)                                               | `conv:<chatId>` / `conv-idx:<chatId>` · `document-stores.ts:111`                   | CANÔNICO                                 | 🟢                                           |
+| **Memória viva / AHRI**                    | `ClientMemory` (atributos, estilo, tempos, docs)                                  | `client-memory` · `living-memory/client-memory.ts`                                 | DERIVADO                                 | 🟢                                           |
+| **Documentos**                             | `DocumentLink` + stream `document` + `ClientMemory.documentsSent/Pending` + texto | `document-link`, `document-text`, `client-memory`, stream `document`               | CANÔNICO + DERIVADO (pendências)         | 🟢                                           |
+| **Missão · Verdade · Estado · Etapa**      | `MissionSnapshot` via `decision-state` + `identity.latest*Id`                     | `decision-state` · streams `operational-truth/state/stage` · `mission-snapshot.ts` | DERIVADO (snapshot) + CANÔNICO (eventos) | 🟢                                           |
+| **Encerramento / Reabertura**              | `DecisionStateRecord.terminalState`                                               | `decision-state` · `decision-state-read-model.ts:24`                               | DERIVADO                                 | 🟢                                           |
+| **Workflow / Progresso**                   | `MissionProgress`                                                                 | `workflow` · `workflow-runtime.ts:26`                                              | DERIVADO                                 | 🟢                                           |
+| **Acompanhamento / Recorrência**           | `ScheduledTask`                                                                   | `scheduler` · `scheduler-runtime.ts`                                               | TEMPORÁRIO                               | 🟢                                           |
+| **Operação (fila humana)**                 | `HandoffTask`                                                                     | `handoff` · `human-handoff-runtime.ts:13`                                          | CANÔNICO                                 | 🟢                                           |
+| **Atribuição (advogado)**                  | `CaseAssignment`                                                                  | `assignments` · `juridical-work.ts:46`                                             | CANÔNICO                                 | 🟢                                           |
+| **Situação Jurídica / Processo**           | `JuridicalEntry` + stream `process`                                               | `juridical` · `juridical-work.ts:34` · `domain/process`                            | CANÔNICO                                 | 🟢 (parcial)                                 |
+| **Equipe / Responsável**                   | `StaffMember`                                                                     | `staff` · `staff-directory.ts:17`                                                  | CANÔNICO                                 | 🟢                                           |
+| **Decisões / Auditoria**                   | `DecisionRequest` + event store (append‑only)                                     | `decisions` · event store                                                          | CANÔNICO                                 | 🟢                                           |
+| **Timeline**                               | Event store (StoredEvent, hash‑chain)                                             | `pg-event-store` / streams do cliente                                              | CANÔNICO                                 | 🟢                                           |
+| **Qualidade (AHRI/Shadow)**                | `ShadowReport`                                                                    | `shadow` / `shadow-by-id` · `production/shadow.ts`                                 | EXTERNO/DERIVADO                         | 🟢                                           |
+| **Config (nº oficial, etc.)**              | `ProductionConfig`                                                                | `config` · `document-stores.ts:55`                                                 | EXTERNO                                  | 🟢                                           |
+| **Próxima ação**                           | `NextBestActionPlanner` (Executive Brain) — algoritmo                             | `executive-brain` runtime (não persiste por cliente)                               | CALCULADO                                | 🟡 algoritmo existe; não exposto por cliente |
+| **Perícia / Laudo**                        | — (ato humano do perito)                                                          | (nenhum)                                                                           | CANÔNICO                                 | 🔴 ausente → `W1‑03`                         |
+| **Estágio Comercial (funil 1→12)**         | — (só existe `operational-stage`, que é operacional)                              | (nenhum comercial)                                                                 | DERIVADO                                 | 🔴 ausente → `W1‑04`                         |
+| **Situação Comercial / Venda / Sociedade** | —                                                                                 | (nenhum)                                                                           | CANÔNICO                                 | 🔴 ausente → Onda 2/3                        |
+| **Financeiro / Honorário / Distribuição**  | —                                                                                 | (nenhum)                                                                           | CANÔNICO/CALCULADO                       | 🔴 ausente → Onda 3                          |
+| **Escritório Parceiro**                    | —                                                                                 | (nenhum)                                                                           | CANÔNICO                                 | 🔴 ausente → Onda 2                          |
+| **Portal do Cliente**                      | —                                                                                 | (nenhum)                                                                           | EXTERNO                                  | 🔴 ausente → futuro                          |
 
 **Conclusão da descoberta:** ~80% das órbitas do ALIR **já têm fonte real e reutilizável**. As
 ausentes (perícia, estágio comercial, comercial, financeiro, escritório, portal) **não serão
@@ -75,84 +77,95 @@ não emite eventos.** Consumido pelo SO (Onda 1+) e, quando útil, como contexto
 snapshot, que permanece a fronteira do Brain — o ALIR **não** substitui `MissionSnapshot`).
 
 ### Documentação campo‑a‑campo
+
 Cada campo segue as 9 dimensões exigidas: **Origem · Responsável (quem altera) · Quem consome ·
 Quando atualiza · Derivado|Persistido · Reconstruível · Classe**. (Descrição na 1ª coluna.)
 
 **§ Meta (cabeçalho da projeção)**
-| Campo | Origem | Quem altera | Consome | Quando atualiza | Deriv/Persist | Reconstruível | Classe |
-|---|---|---|---|---|---|---|---|
-| `clienteId` (identidade do cliente) | `MissionIdentity` | R2 (reconhecimento) | SO | ao reconhecer cliente | Persistido (índice) | Sim | CANÔNICO |
-| `chatId` (contato WhatsApp) | `MissionIdentity` | webhook/R1 | SO/AHRI | 1º contato | Persistido | Sim | CANÔNICO |
-| `projectedAt` (quando projetado) | Runtime ALIR | Runtime | SO | a cada recomposição | Derivado | Sim | CALCULADO |
-| `schemaVersion` / `contentHash` | Runtime ALIR | Runtime | SO/observabilidade | a cada mudança | Derivado | Sim | CALCULADO |
+
+| Campo                               | Origem            | Quem altera         | Consome            | Quando atualiza       | Deriv/Persist       | Reconstruível | Classe    |
+| ----------------------------------- | ----------------- | ------------------- | ------------------ | --------------------- | ------------------- | ------------- | --------- |
+| `clienteId` (identidade do cliente) | `MissionIdentity` | R2 (reconhecimento) | SO                 | ao reconhecer cliente | Persistido (índice) | Sim           | CANÔNICO  |
+| `chatId` (contato WhatsApp)         | `MissionIdentity` | webhook/R1          | SO/AHRI            | 1º contato            | Persistido          | Sim           | CANÔNICO  |
+| `projectedAt` (quando projetado)    | Runtime ALIR      | Runtime             | SO                 | a cada recomposição   | Derivado            | Sim           | CALCULADO |
+| `schemaVersion` / `contentHash`     | Runtime ALIR      | Runtime             | SO/observabilidade | a cada mudança        | Derivado            | Sim           | CALCULADO |
 
 **§ Pessoa**
-| Campo | Origem | Quem altera | Consome | Quando | D/P | Recon. | Classe |
-|---|---|---|---|---|---|---|---|
-| `pessoa.personId` | `identity.personId` | R2 | SO | ao reconhecer | Persistido | Sim | CANÔNICO |
-| `pessoa.identidadeCivil` (opaca) | stream `person` / `CivilIdentity` | R2 | SO | ao reconhecer | Persistido (evento) | Sim | CANÔNICO |
-| `pessoa.origemReconhecimento` | `RecognitionOrigin` | R2 | SO | ao reconhecer | Persistido | Sim | CANÔNICO |
-| `pessoa.atributos` (nome, cidade…) | `ClientMemory.attributes` | Extrator de memória | SO | a cada conversa | Derivado | Sim | DERIVADO |
+
+| Campo                              | Origem                            | Quem altera         | Consome | Quando          | D/P                 | Recon. | Classe   |
+| ---------------------------------- | --------------------------------- | ------------------- | ------- | --------------- | ------------------- | ------ | -------- |
+| `pessoa.personId`                  | `identity.personId`               | R2                  | SO      | ao reconhecer   | Persistido          | Sim    | CANÔNICO |
+| `pessoa.identidadeCivil` (opaca)   | stream `person` / `CivilIdentity` | R2                  | SO      | ao reconhecer   | Persistido (evento) | Sim    | CANÔNICO |
+| `pessoa.origemReconhecimento`      | `RecognitionOrigin`               | R2                  | SO      | ao reconhecer   | Persistido          | Sim    | CANÔNICO |
+| `pessoa.atributos` (nome, cidade…) | `ClientMemory.attributes`         | Extrator de memória | SO      | a cada conversa | Derivado            | Sim    | DERIVADO |
 
 **§ Contato & AHRI**
-| Campo | Origem | Quem altera | Consome | Quando | D/P | Recon. | Classe |
-|---|---|---|---|---|---|---|---|
-| `ahri.estiloConversa` | `ClientMemory.conversationStyle` | memória | SO | a cada turno | Derivado | Sim | DERIVADO |
-| `ahri.tempoRespostaMedioMs` | `ClientMemory.avgResponseMs` | memória | SO | a cada resposta | Derivado | Sim | DERIVADO |
-| `ahri.primeiroContatoAt/ultimoContatoAt` | `ClientMemory` | memória | SO | a cada msg | Derivado | Sim | DERIVADO |
-| `ahri.qualidade` (Shadow) | `ShadowReport` | Shadow | SO/Supervisor | ao auditar turno | Derivado | Sim | EXTERNO |
+
+| Campo                                    | Origem                           | Quem altera | Consome       | Quando           | D/P      | Recon. | Classe   |
+| ---------------------------------------- | -------------------------------- | ----------- | ------------- | ---------------- | -------- | ------ | -------- |
+| `ahri.estiloConversa`                    | `ClientMemory.conversationStyle` | memória     | SO            | a cada turno     | Derivado | Sim    | DERIVADO |
+| `ahri.tempoRespostaMedioMs`              | `ClientMemory.avgResponseMs`     | memória     | SO            | a cada resposta  | Derivado | Sim    | DERIVADO |
+| `ahri.primeiroContatoAt/ultimoContatoAt` | `ClientMemory`                   | memória     | SO            | a cada msg       | Derivado | Sim    | DERIVADO |
+| `ahri.qualidade` (Shadow)                | `ShadowReport`                   | Shadow      | SO/Supervisor | ao auditar turno | Derivado | Sim    | EXTERNO  |
 
 **§ Documentos**
-| Campo | Origem | Quem altera | Consome | Quando | D/P | Recon. | Classe |
-|---|---|---|---|---|---|---|---|
-| `documentos.enviados[]` (ref, sha256, mime) | `DocumentLink` + stream `document` | R3 (reconhecimento) | SO | ao receber doc | Persistido | Sim | CANÔNICO |
-| `documentos.pendentes[]` | `ClientMemory.documentsPending` / snapshot | Brain/memória | SO | ao pedir/receber | Derivado | Sim | DERIVADO |
-| `documentos.textoExtraido` | `document-text` cache | leitura de doc | SO | ao ler doc | Derivado (cache) | Sim | CALCULADO |
+
+| Campo                                       | Origem                                     | Quem altera         | Consome | Quando           | D/P              | Recon. | Classe    |
+| ------------------------------------------- | ------------------------------------------ | ------------------- | ------- | ---------------- | ---------------- | ------ | --------- |
+| `documentos.enviados[]` (ref, sha256, mime) | `DocumentLink` + stream `document`         | R3 (reconhecimento) | SO      | ao receber doc   | Persistido       | Sim    | CANÔNICO  |
+| `documentos.pendentes[]`                    | `ClientMemory.documentsPending` / snapshot | Brain/memória       | SO      | ao pedir/receber | Derivado         | Sim    | DERIVADO  |
+| `documentos.textoExtraido`                  | `document-text` cache                      | leitura de doc      | SO      | ao ler doc       | Derivado (cache) | Sim    | CALCULADO |
 
 **§ Missão (caso corrente)**
-| Campo | Origem | Quem altera | Consome | Quando | D/P | Recon. | Classe |
-|---|---|---|---|---|---|---|---|
-| `missao.missionId/caseId/processId` | `MissionIdentity` | mission‑runtime | SO | ao criar/vincular | Persistido | Sim | CANÔNICO |
-| `missao.stageCode` (etapa) | `MissionSnapshot`/`operational-stage` | R6 represent‑stage | SO/Brain | ao representar | Derivado | Sim | DERIVADO |
-| `missao.stateCode` (estado) | `MissionSnapshot`/`operational-state` | R6 derive‑state | SO/Brain | ao derivar | Derivado | Sim | DERIVADO |
-| `missao.truthEstablished` | `DecisionStateRecord` | R6 build‑truth | SO/Brain | ao sintetizar verdade | Derivado | Sim | DERIVADO |
-| `missao.terminalState` (ENCERRADA) | `DecisionStateRecord.terminalState` | CloseMission/Reopen | SO/Brain | ao encerrar/reabrir | Derivado | Sim | DERIVADO |
-| `missao.progresso[]` | `MissionProgress` (workflow) | workflow‑runtime | SO | a cada passo | Derivado | Sim | DERIVADO |
-| `missao.acompanhamento` | `ScheduledTask` (scheduler) | scheduler‑runtime | SO | ao agendar/disparar | Persistido (transitório) | Sim | TEMPORÁRIO |
+
+| Campo                               | Origem                                | Quem altera         | Consome  | Quando                | D/P                      | Recon. | Classe     |
+| ----------------------------------- | ------------------------------------- | ------------------- | -------- | --------------------- | ------------------------ | ------ | ---------- |
+| `missao.missionId/caseId/processId` | `MissionIdentity`                     | mission‑runtime     | SO       | ao criar/vincular     | Persistido               | Sim    | CANÔNICO   |
+| `missao.stageCode` (etapa)          | `MissionSnapshot`/`operational-stage` | R6 represent‑stage  | SO/Brain | ao representar        | Derivado                 | Sim    | DERIVADO   |
+| `missao.stateCode` (estado)         | `MissionSnapshot`/`operational-state` | R6 derive‑state     | SO/Brain | ao derivar            | Derivado                 | Sim    | DERIVADO   |
+| `missao.truthEstablished`           | `DecisionStateRecord`                 | R6 build‑truth      | SO/Brain | ao sintetizar verdade | Derivado                 | Sim    | DERIVADO   |
+| `missao.terminalState` (ENCERRADA)  | `DecisionStateRecord.terminalState`   | CloseMission/Reopen | SO/Brain | ao encerrar/reabrir   | Derivado                 | Sim    | DERIVADO   |
+| `missao.progresso[]`                | `MissionProgress` (workflow)          | workflow‑runtime    | SO       | a cada passo          | Derivado                 | Sim    | DERIVADO   |
+| `missao.acompanhamento`             | `ScheduledTask` (scheduler)           | scheduler‑runtime   | SO       | ao agendar/disparar   | Persistido (transitório) | Sim    | TEMPORÁRIO |
 
 **§ Operação & Responsáveis**
-| Campo | Origem | Quem altera | Consome | Quando | D/P | Recon. | Classe |
-|---|---|---|---|---|---|---|---|
-| `operacao.handoffsAbertos[]` | `HandoffTask` | Brain (escala) | SO/Operador | ao escalar | Persistido | Sim | CANÔNICO |
-| `operacao.atribuicao` (advogado) | `CaseAssignment` | Administrador | SO/Advogado | ao atribuir | Persistido | Sim | CANÔNICO |
-| `operacao.responsaveis[]` | `StaffMember` | Admin | SO | ao alocar | Persistido | Sim | CANÔNICO |
+
+| Campo                            | Origem           | Quem altera    | Consome     | Quando      | D/P        | Recon. | Classe   |
+| -------------------------------- | ---------------- | -------------- | ----------- | ----------- | ---------- | ------ | -------- |
+| `operacao.handoffsAbertos[]`     | `HandoffTask`    | Brain (escala) | SO/Operador | ao escalar  | Persistido | Sim    | CANÔNICO |
+| `operacao.atribuicao` (advogado) | `CaseAssignment` | Administrador  | SO/Advogado | ao atribuir | Persistido | Sim    | CANÔNICO |
+| `operacao.responsaveis[]`        | `StaffMember`    | Admin          | SO          | ao alocar   | Persistido | Sim    | CANÔNICO |
 
 **§ Jurídico / Processo**
-| Campo | Origem | Quem altera | Consome | Quando | D/P | Recon. | Classe |
-|---|---|---|---|---|---|---|---|
-| `juridico.processo` (nº, movimentações) | stream `process` + `JuridicalEntry` | Advogado | SO | a cada andamento | Persistido | Sim | CANÔNICO |
-| `juridico.pendencias[]` (prazos, docs) | `JuridicalEntry` (kind=prazo/documento) | Advogado | SO | ao registrar | Persistido | Sim | CANÔNICO |
+
+| Campo                                   | Origem                                  | Quem altera | Consome | Quando           | D/P        | Recon. | Classe   |
+| --------------------------------------- | --------------------------------------- | ----------- | ------- | ---------------- | ---------- | ------ | -------- |
+| `juridico.processo` (nº, movimentações) | stream `process` + `JuridicalEntry`     | Advogado    | SO      | a cada andamento | Persistido | Sim    | CANÔNICO |
+| `juridico.pendencias[]` (prazos, docs)  | `JuridicalEntry` (kind=prazo/documento) | Advogado    | SO      | ao registrar     | Persistido | Sim    | CANÔNICO |
 
 **§ Timeline & Auditoria**
-| Campo | Origem | Quem altera | Consome | Quando | D/P | Recon. | Classe |
-|---|---|---|---|---|---|---|---|
-| `timeline[]` (eventos do cliente) | Event store (streams do cliente) | domínio | SO | a cada evento | Persistido (append‑only) | Sim | CANÔNICO |
-| `auditoria.decisoes[]` | `DecisionRequest` + event store | domínio | SO/Supervisor | a cada decisão | Persistido | Sim | CANÔNICO |
+
+| Campo                             | Origem                           | Quem altera | Consome       | Quando         | D/P                      | Recon. | Classe   |
+| --------------------------------- | -------------------------------- | ----------- | ------------- | -------------- | ------------------------ | ------ | -------- |
+| `timeline[]` (eventos do cliente) | Event store (streams do cliente) | domínio     | SO            | a cada evento  | Persistido (append‑only) | Sim    | CANÔNICO |
+| `auditoria.decisoes[]`            | `DecisionRequest` + event store  | domínio     | SO/Supervisor | a cada decisão | Persistido               | Sim    | CANÔNICO |
 
 **§ Próxima ação**
-| Campo | Origem | Quem altera | Consome | Quando | D/P | Recon. | Classe |
-|---|---|---|---|---|---|---|---|
-| `proximaAcao` | `NextBestActionPlanner` (Brain) | algoritmo determinístico | SO | ao recompor ALIR | **Não persistido** (calculado) | Sim | CALCULADO |
+
+| Campo         | Origem                          | Quem altera              | Consome | Quando           | D/P                            | Recon. | Classe    |
+| ------------- | ------------------------------- | ------------------------ | ------- | ---------------- | ------------------------------ | ------ | --------- |
+| `proximaAcao` | `NextBestActionPlanner` (Brain) | algoritmo determinístico | SO      | ao recompor ALIR | **Não persistido** (calculado) | Sim    | CALCULADO |
 
 **§ Slots explicitamente ausentes (sem produtor hoje — nunca inventados)**
-| Campo | Estado | Nasce em |
-|---|---|---|
-| `pericia` (laudo, resultado) | `null` | `W1‑03` |
-| `estagioComercial` (funil 1→12) | `null` | `W1‑04` |
-| `comercial` (venda/sociedade) | `null` | Onda 2/3 |
-| `financeiro` (honorário/distribuição/aReceber) | `null` | Onda 3 |
-| `escritorio` (parceiro) | `null` | Onda 2 |
-| `portalCliente` | `null` | futuro |
+
+| Campo                                          | Estado | Nasce em |
+| ---------------------------------------------- | ------ | -------- |
+| `pericia` (laudo, resultado)                   | `null` | `W1‑03`  |
+| `estagioComercial` (funil 1→12)                | `null` | `W1‑04`  |
+| `comercial` (venda/sociedade)                  | `null` | Onda 2/3 |
+| `financeiro` (honorário/distribuição/aReceber) | `null` | Onda 3   |
+| `escritorio` (parceiro)                        | `null` | Onda 2   |
+| `portalCliente`                                | `null` | futuro   |
 
 > **Invariante do contrato:** todo campo do ALIR ou aponta para uma fonte **CANÔNICA/DERIVADA
 > existente**, ou é **CALCULADO em leitura**, ou é **slot ausente declarado**. Nunca há dado
@@ -175,6 +188,7 @@ verdade**. Duas propriedades constitucionais:
    decisão de materializar/quando é do **W1‑01B**; a Foundation apenas autoriza o cache derivado.
 
 **Reuso‑primeiro (escada aplicada):**
+
 - **Reutilizar:** `MissionIdentity`, `MissionSnapshot`, `ClientMemory`, `DocumentLink`,
   `MissionProgress`, `HandoffTask`, `CaseAssignment`, `JuridicalEntry`, `StaffMember`,
   `ScheduledTask`, event store, `ShadowReport`, `ProductionConfig`, `NextBestActionPlanner`.
@@ -237,16 +251,16 @@ divergência. Reconstrução é idempotente e determinística (mesmas fontes →
 Só inicia **após homologação desta Foundation**. Tarefas ordenadas, cada uma reutilizando infra
 existente, **sem tela**:
 
-| # | Tarefa (W1‑01B) | Reutiliza | Entrega |
-|---|---|---|---|
-| B‑1 | **`ALIRView` (contrato TS)** + tipos das órbitas + slots ausentes | tipos de `application` | interface de leitura oficial |
-| B‑2 | **`ALIRComposer`** (composição lazy sobre `MissionIdentity` + read models) | todos os stores mapeados | projeção correta sob demanda |
-| B‑3 | **Cache derivado** `alir` (namespace no `JsonStore`) | `JsonStore`/`PgJsonStore` | leitura rápida (descartável) |
-| B‑4 | **`ALIRInvalidationSubscriber`** (marca sujo/recompoe por evento) | `serialized-subscriber`, dispatcher | atualização orientada a evento |
-| B‑5 | **Reconstrução** (recompor 1 cliente / todos) | `rehydrator`, projectors | comando de rebuild idempotente |
-| B‑6 | **Versionamento** (`schemaVersion`,`contentHash`) | — (puro) | invalidção por esquema + detecção de divergência |
-| B‑7 | **Auditoria & observabilidade** | `observability-runtime` | traço de composição/reconstrução |
-| B‑8 | **Testes** (composição, invalidação, reconstrução, ausência de PII, slots vazios) | vitest suíte | verdes + auditoria de completude |
+| #   | Tarefa (W1‑01B)                                                                   | Reutiliza                           | Entrega                                          |
+| --- | --------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------ |
+| B‑1 | **`ALIRView` (contrato TS)** + tipos das órbitas + slots ausentes                 | tipos de `application`              | interface de leitura oficial                     |
+| B‑2 | **`ALIRComposer`** (composição lazy sobre `MissionIdentity` + read models)        | todos os stores mapeados            | projeção correta sob demanda                     |
+| B‑3 | **Cache derivado** `alir` (namespace no `JsonStore`)                              | `JsonStore`/`PgJsonStore`           | leitura rápida (descartável)                     |
+| B‑4 | **`ALIRInvalidationSubscriber`** (marca sujo/recompoe por evento)                 | `serialized-subscriber`, dispatcher | atualização orientada a evento                   |
+| B‑5 | **Reconstrução** (recompor 1 cliente / todos)                                     | `rehydrator`, projectors            | comando de rebuild idempotente                   |
+| B‑6 | **Versionamento** (`schemaVersion`,`contentHash`)                                 | — (puro)                            | invalidção por esquema + detecção de divergência |
+| B‑7 | **Auditoria & observabilidade**                                                   | `observability-runtime`             | traço de composição/reconstrução                 |
+| B‑8 | **Testes** (composição, invalidação, reconstrução, ausência de PII, slots vazios) | vitest suíte                        | verdes + auditoria de completude                 |
 
 **Critérios de aceite do W1‑01B:** (a) dado um cliente real, `ALIRComposer` devolve todas as
 órbitas com fonte real e os slots ausentes como `null`/vazio (sem invenção); (b) um evento em
@@ -257,6 +271,7 @@ qualquer órbita invalida/atualiza o ALIR daquele cliente; (c) `rebuild` reprodu
 ---
 
 ## HOMOLOGAÇÃO DA FOUNDATION (W1‑01A)
+
 Peço sua homologação de que: **(1)** o mapa de fontes está correto e completo; **(2)** o contrato
 do ALIR e a classificação de cada campo estão aprovados; **(3)** a estratégia de projeção
 (composta, sem nova verdade), atualização (invalidação por evento) e reconstrução (100% derivada)

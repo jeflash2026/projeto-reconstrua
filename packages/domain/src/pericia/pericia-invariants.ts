@@ -32,12 +32,7 @@ export const periciaEntityInvariants: ReadonlyArray<Invariant<PericiaAggregate>>
 
 // (B) Manifesto completo das 3 invariantes do Canon e onde cada uma é garantida.
 export type EnforcementLocus =
-  | 'entity'
-  | 'event-store'
-  | 'projection'
-  | 'cqrs'
-  | 'use-case'
-  | 'cross-entity';
+  'entity' | 'event-store' | 'projection' | 'cqrs' | 'use-case' | 'cross-entity';
 
 export interface PericiaInvariantSpec {
   readonly id: string;
@@ -47,7 +42,22 @@ export interface PericiaInvariantSpec {
 }
 
 export const PERICIA_INVARIANTS_MANIFEST: ReadonlyArray<PericiaInvariantSpec> = [
-  { id: 'INV-PE-01', canonReference: 'DF-17', description: 'É etapa operacional especializada, não papel humano.', enforcement: 'entity' },
-  { id: 'INV-PE-02', canonReference: 'DF-17', description: 'Distinta do PERITO; jamais se confunde com o papel humano.', enforcement: 'entity' },
-  { id: 'INV-PE-03', canonReference: 'Lei 2', description: 'Ocupa a missão como etapa única enquanto vigente.', enforcement: 'event-store' },
+  {
+    id: 'INV-PE-01',
+    canonReference: 'DF-17',
+    description: 'É etapa operacional especializada, não papel humano.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-PE-02',
+    canonReference: 'DF-17',
+    description: 'Distinta do PERITO; jamais se confunde com o papel humano.',
+    enforcement: 'entity',
+  },
+  {
+    id: 'INV-PE-03',
+    canonReference: 'Lei 2',
+    description: 'Ocupa a missão como etapa única enquanto vigente.',
+    enforcement: 'event-store',
+  },
 ];

@@ -7,7 +7,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { MissionContextAssembler } from './mission-context-assembler.js';
 import type { MissionExecutor } from './mission-executor.js';
-import { mergeIdentity, type MissionFacts, type MissionIdentity, type MissionUseCaseIntent, type UseCaseOutcome } from './types.js';
+import {
+  mergeIdentity,
+  type MissionFacts,
+  type MissionIdentity,
+  type MissionUseCaseIntent,
+  type UseCaseOutcome,
+} from './types.js';
 import type { MissionUseCase } from './use-case.js';
 
 export interface PipelineRun {

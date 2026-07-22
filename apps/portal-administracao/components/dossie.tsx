@@ -11,14 +11,26 @@ const CONF: Record<string, { label: string; cls: string }> = {
   baixa: { label: 'Confiança baixa', cls: 'cc-tag-critico' },
 };
 
-const Lista = ({ titulo, itens, vazio, tone }: { titulo: string; itens: string[]; vazio: string; tone?: string }): ReactElement => (
+const Lista = ({
+  titulo,
+  itens,
+  vazio,
+  tone,
+}: {
+  titulo: string;
+  itens: string[];
+  vazio: string;
+  tone?: string;
+}): ReactElement => (
   <div className="dossie-block">
     <div className="dossie-block-title">{titulo}</div>
     {itens.length === 0 ? (
       <p className="dossie-empty">{vazio}</p>
     ) : (
       <ul className={`dossie-list${tone ? ` ${tone}` : ''}`}>
-        {itens.map((x, i) => <li key={i}>{x}</li>)}
+        {itens.map((x, i) => (
+          <li key={i}>{x}</li>
+        ))}
       </ul>
     )}
   </div>
@@ -36,7 +48,11 @@ const Dossie = async ({ chatId }: { chatId: string }): Promise<ReactElement | nu
           <div className="dossie-kicker">Parecer inicial · AHRI</div>
           <h2 className="dossie-title">Dossiê Jurídico</h2>
         </div>
-        {conf ? <span className={`cc-tag ${conf.cls} dossie-conf`}>{conf.label}</span> : <span className="cc-tag cc-tag-informacao dossie-conf">Em apuração</span>}
+        {conf ? (
+          <span className={`cc-tag ${conf.cls} dossie-conf`}>{conf.label}</span>
+        ) : (
+          <span className="cc-tag cc-tag-informacao dossie-conf">Em apuração</span>
+        )}
       </div>
 
       <p className="dossie-resumo">{d.resumoExecutivo}</p>
@@ -44,7 +60,9 @@ const Dossie = async ({ chatId }: { chatId: string }): Promise<ReactElement | nu
       {/* Ranking das teses */}
       <div className="dossie-block-title">Hipóteses jurídicas (ranking)</div>
       {d.hipoteses.length === 0 ? (
-        <p className="dossie-empty">Ainda sem tese sustentável — reunir os fatos e a documentação básica.</p>
+        <p className="dossie-empty">
+          Ainda sem tese sustentável — reunir os fatos e a documentação básica.
+        </p>
       ) : (
         <ol className="dossie-teses">
           {d.hipoteses.map((t) => (
@@ -52,7 +70,9 @@ const Dossie = async ({ chatId }: { chatId: string }): Promise<ReactElement | nu
               <div className="dossie-tese-top">
                 <span className="dossie-pos">{t.posicao}</span>
                 <span className="dossie-tese-nome">{t.hipotese}</span>
-                <span className={`cc-tag ${CONF[t.confianca]?.cls ?? 'cc-tag-informacao'}`}>{CONF[t.confianca]?.label ?? t.confianca}</span>
+                <span className={`cc-tag ${CONF[t.confianca]?.cls ?? 'cc-tag-informacao'}`}>
+                  {CONF[t.confianca]?.label ?? t.confianca}
+                </span>
               </div>
               <p className="dossie-tese-just">{t.justificativa}</p>
               <p className="dossie-tese-fund">Fundamento: {t.fundamento}</p>
@@ -62,16 +82,44 @@ const Dossie = async ({ chatId }: { chatId: string }): Promise<ReactElement | nu
       )}
 
       <div className="dossie-cols">
-        <Lista titulo="Evidências encontradas" itens={d.evidenciasEncontradas} vazio="Nenhuma ainda." tone="ok" />
-        <Lista titulo="Evidências ausentes" itens={d.evidenciasAusentes} vazio="Nada faltando." tone="warn" />
-        <Lista titulo="Documentos reconhecidos" itens={d.documentosReconhecidos} vazio="Nenhum recebido." tone="ok" />
-        <Lista titulo="Documentos pendentes" itens={d.documentosPendentes} vazio="Nenhum pendente." tone="warn" />
-        <Lista titulo="Contratos encontrados" itens={d.contratosEncontrados} vazio="Nenhum identificado." />
+        <Lista
+          titulo="Evidências encontradas"
+          itens={d.evidenciasEncontradas}
+          vazio="Nenhuma ainda."
+          tone="ok"
+        />
+        <Lista
+          titulo="Evidências ausentes"
+          itens={d.evidenciasAusentes}
+          vazio="Nada faltando."
+          tone="warn"
+        />
+        <Lista
+          titulo="Documentos reconhecidos"
+          itens={d.documentosReconhecidos}
+          vazio="Nenhum recebido."
+          tone="ok"
+        />
+        <Lista
+          titulo="Documentos pendentes"
+          itens={d.documentosPendentes}
+          vazio="Nenhum pendente."
+          tone="warn"
+        />
+        <Lista
+          titulo="Contratos encontrados"
+          itens={d.contratosEncontrados}
+          vazio="Nenhum identificado."
+        />
         <Lista titulo="Riscos" itens={d.riscos} vazio="Nenhum risco mapeado." tone="warn" />
       </div>
 
       <div className="dossie-cols">
-        <Lista titulo="Próximas ações recomendadas" itens={d.proximasAcoes} vazio="Sem ações no momento." />
+        <Lista
+          titulo="Próximas ações recomendadas"
+          itens={d.proximasAcoes}
+          vazio="Sem ações no momento."
+        />
         <Lista titulo="Observações da IA" itens={d.observacoesIA} vazio="Sem observações." />
       </div>
 
@@ -83,7 +131,9 @@ const Dossie = async ({ chatId }: { chatId: string }): Promise<ReactElement | nu
             {d.timeline.map((e, i) => (
               <li key={i}>
                 <span className="when">{e.em ? new Date(e.em).toLocaleString('pt-BR') : '—'}</span>
-                <div>{e.rotulo} <span className="cc-source">{e.fonte}</span></div>
+                <div>
+                  {e.rotulo} <span className="cc-source">{e.fonte}</span>
+                </div>
               </li>
             ))}
           </ul>
@@ -95,33 +145,62 @@ const Dossie = async ({ chatId }: { chatId: string }): Promise<ReactElement | nu
         <summary>Como a AHRI chegou nesta conclusão</summary>
         <div className="dossie-explica-body">
           <Lista titulo="Fatos utilizados" itens={d.explicacao.fatosUtilizados} vazio="—" />
-          <Lista titulo="Documentos considerados" itens={d.explicacao.documentosConsiderados} vazio="—" />
+          <Lista
+            titulo="Documentos considerados"
+            itens={d.explicacao.documentosConsiderados}
+            vazio="—"
+          />
           <div className="dossie-block">
             <div className="dossie-block-title">Hipóteses avaliadas</div>
             <ul className="dossie-list">
-              {d.explicacao.hipotesesAvaliadas.map((h) => <li key={h.ref}>{h.ref} — {h.confianca}</li>)}
+              {d.explicacao.hipotesesAvaliadas.map((h) => (
+                <li key={h.ref}>
+                  {h.ref} — {h.confianca}
+                </li>
+              ))}
             </ul>
           </div>
           <div className="dossie-block">
             <div className="dossie-block-title">Hipóteses descartadas</div>
-            {d.explicacao.hipotesesDescartadas.length === 0 ? <p className="dossie-empty">Nenhuma concorrente.</p> : (
+            {d.explicacao.hipotesesDescartadas.length === 0 ? (
+              <p className="dossie-empty">Nenhuma concorrente.</p>
+            ) : (
               <ul className="dossie-list warn">
-                {d.explicacao.hipotesesDescartadas.map((h) => <li key={h.ref}>{h.ref} — {h.motivo}</li>)}
+                {d.explicacao.hipotesesDescartadas.map((h) => (
+                  <li key={h.ref}>
+                    {h.ref} — {h.motivo}
+                  </li>
+                ))}
               </ul>
             )}
           </div>
-          <p className="dossie-crit">Estratégia vencedora: <strong>{d.explicacao.estrategiaVencedora ?? '—'}</strong> · Confiança: {d.explicacao.confianca ?? '—'} · Critério: {d.explicacao.criterios}</p>
+          <p className="dossie-crit">
+            Estratégia vencedora: <strong>{d.explicacao.estrategiaVencedora ?? '—'}</strong> ·
+            Confiança: {d.explicacao.confianca ?? '—'} · Critério: {d.explicacao.criterios}
+          </p>
         </div>
       </details>
 
       {/* Rastreabilidade */}
       <div className="dossie-meta">
-        <span>strategyRef: <b>{d.strategyRef ?? '—'}</b></span>
-        <span>decisionId: <b>{d.decisionId ?? '—'}</b></span>
-        <span>correlationId: <b>{d.correlationId ?? '—'}</b></span>
-        <span>Mission: <b>{d.missionId ?? '—'}</b></span>
-        <span>Catálogo: <b>{d.versaoCatalogo}</b></span>
-        <span>Gerado: <b>{new Date(d.geradoEm).toLocaleString('pt-BR')}</b></span>
+        <span>
+          strategyRef: <b>{d.strategyRef ?? '—'}</b>
+        </span>
+        <span>
+          decisionId: <b>{d.decisionId ?? '—'}</b>
+        </span>
+        <span>
+          correlationId: <b>{d.correlationId ?? '—'}</b>
+        </span>
+        <span>
+          Mission: <b>{d.missionId ?? '—'}</b>
+        </span>
+        <span>
+          Catálogo: <b>{d.versaoCatalogo}</b>
+        </span>
+        <span>
+          Gerado: <b>{new Date(d.geradoEm).toLocaleString('pt-BR')}</b>
+        </span>
       </div>
     </section>
   );

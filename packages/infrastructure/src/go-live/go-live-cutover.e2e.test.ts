@@ -21,27 +21,53 @@ const CHAT = '5511966665555@s.whatsapp.net';
 
 class TestClock implements Clock {
   private t = new Date(T0.getTime());
-  now(): Date { return new Date(this.t.getTime()); }
-  advance(ms: number): void { this.t = new Date(this.t.getTime() + ms); }
+  now(): Date {
+    return new Date(this.t.getTime());
+  }
+  advance(ms: number): void {
+    this.t = new Date(this.t.getTime() + ms);
+  }
 }
 class SeqUuid implements UuidGenerator {
   private n = 0;
-  next(): Uuid { this.n += 1; return toUuid(`00000000-0000-4000-8000-${String(this.n).padStart(12, '0')}`); }
+  next(): Uuid {
+    this.n += 1;
+    return toUuid(`00000000-0000-4000-8000-${String(this.n).padStart(12, '0')}`);
+  }
 }
 
 function envelope(text: string, messageId: string): InboundEnvelope {
   return {
-    messageId, chatId: CHAT, from: CHAT, kind: 'text', text,
-    mediaUrl: null, mediaMimeType: null, fileName: null, location: null, contact: null,
-    reactionEmoji: null, reactionToMessageId: null, editedText: null, deletedMessageId: null,
-    silenceMs: null, timestamp: T0,
+    messageId,
+    chatId: CHAT,
+    from: CHAT,
+    kind: 'text',
+    text,
+    mediaUrl: null,
+    mediaMimeType: null,
+    fileName: null,
+    location: null,
+    contact: null,
+    reactionEmoji: null,
+    reactionToMessageId: null,
+    editedText: null,
+    deletedMessageId: null,
+    silenceMs: null,
+    timestamp: T0,
   };
 }
 
 function harness(pipeline?: PipelineMode) {
   const clock = new TestClock();
   const gateway = new InMemoryConversationGateway(clock);
-  const live = assembleGoLive({ clock, uuid: new SeqUuid(), gateway, sleeper: new FakeSleeper(clock), rng: () => 0.5, ...(pipeline ? { pipeline } : {}) });
+  const live = assembleGoLive({
+    clock,
+    uuid: new SeqUuid(),
+    gateway,
+    sleeper: new FakeSleeper(clock),
+    rng: () => 0.5,
+    ...(pipeline ? { pipeline } : {}),
+  });
   return { live, gateway, clock };
 }
 
@@ -73,7 +99,8 @@ describe('GO-LIVE 10E · cutover — o pipeline autônomo é o único caminho of
       await live.conversation.receive(envelope('quero rever meu consignado', 'M1'));
       expect(gateway.texts().length).toBeGreaterThanOrEqual(1);
       const registrouAutonomo = eventSpy.mock.calls.some(
-        (c) => c[0] === 'pipeline' && typeof c[1] === 'string' && c[1].startsWith('autonomous corr='),
+        (c) =>
+          c[0] === 'pipeline' && typeof c[1] === 'string' && c[1].startsWith('autonomous corr='),
       );
       expect(registrouAutonomo).toBe(true);
     } finally {

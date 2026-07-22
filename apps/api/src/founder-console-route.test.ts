@@ -41,7 +41,11 @@ describe('Founder Console HTTP', () => {
 
   it('POST /founder/ask responde de Read Models', async () => {
     const app = harness();
-    const response = await app.inject({ method: 'POST', url: '/founder/ask', payload: { question: 'quantos clientes temos?' } });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/founder/ask',
+      payload: { question: 'quantos clientes temos?' },
+    });
     expect(response.statusCode).toBe(200);
     const body: { available: boolean; decidesNothing: boolean } = response.json();
     expect(body.available).toBe(true);

@@ -17,17 +17,25 @@ const INFO: Record<WhatsAppMediaType, string> = {
 
 /** Cifra `plain` exatamente como o WhatsApp: AES-256-CBC + MAC de 10 bytes. */
 function encryptLikeWhatsApp(plain: Buffer, mediaKey: Buffer, type: WhatsAppMediaType): Buffer {
-  const expanded = Buffer.from(hkdfSync('sha256', mediaKey, Buffer.alloc(32), Buffer.from(INFO[type]), 112));
+  const expanded = Buffer.from(
+    hkdfSync('sha256', mediaKey, Buffer.alloc(32), Buffer.from(INFO[type]), 112),
+  );
   const iv = expanded.subarray(0, 16);
   const cipherKey = expanded.subarray(16, 48);
   const macKey = expanded.subarray(48, 80);
   const cipher = createCipheriv('aes-256-cbc', cipherKey, iv);
   const ciphertext = Buffer.concat([cipher.update(plain), cipher.final()]);
-  const mac = createHmac('sha256', macKey).update(Buffer.concat([iv, ciphertext])).digest().subarray(0, 10);
+  const mac = createHmac('sha256', macKey)
+    .update(Buffer.concat([iv, ciphertext]))
+    .digest()
+    .subarray(0, 10);
   return Buffer.concat([ciphertext, mac]);
 }
 
-const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('foto-do-rg-frente')]);
+const JPEG = Buffer.concat([
+  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+  Buffer.from('foto-do-rg-frente'),
+]);
 
 describe('decryptWhatsAppMedia · protocolo padrão do WhatsApp', () => {
   it('round-trip: cifrado com HKDF/AES/MAC ⇒ decifra byte a byte', () => {
@@ -69,10 +77,18 @@ describe('DirectWhatsAppMediaClient · o payload REAL do webhook', () => {
       return Promise.resolve(new Uint8Array(encrypted));
     });
     const fetched = await client.fetch(
-      webhook({ url: 'https://mmg.whatsapp.net/d/f/abc.enc', mediaKey: mediaKey.toString('base64'), mimetype: 'image/jpeg' }),
+      webhook({
+        url: 'https://mmg.whatsapp.net/d/f/abc.enc',
+        mediaKey: mediaKey.toString('base64'),
+        mimetype: 'image/jpeg',
+      }),
     );
     expect(urls).toEqual(['https://mmg.whatsapp.net/d/f/abc.enc']);
-    expect(fetched).toEqual({ base64: JPEG.toString('base64'), mime: 'image/jpeg', fileName: null });
+    expect(fetched).toEqual({
+      base64: JPEG.toString('base64'),
+      mime: 'image/jpeg',
+      fileName: null,
+    });
   });
 
   it('documentMessage preserva fileName e usa as chaves de documento', async () => {
@@ -82,11 +98,20 @@ describe('DirectWhatsAppMediaClient · o payload REAL do webhook', () => {
     const client = new DirectWhatsAppMediaClient(() => Promise.resolve(new Uint8Array(encrypted)));
     const fetched = await client.fetch(
       webhook(
-        { url: 'https://mmg.whatsapp.net/d/f/doc.enc', mediaKey: mediaKey.toString('base64'), mimetype: 'application/pdf', fileName: 'HISCON.pdf' },
+        {
+          url: 'https://mmg.whatsapp.net/d/f/doc.enc',
+          mediaKey: mediaKey.toString('base64'),
+          mimetype: 'application/pdf',
+          fileName: 'HISCON.pdf',
+        },
         'documentMessage',
       ),
     );
-    expect(fetched).toEqual({ base64: pdf.toString('base64'), mime: 'application/pdf', fileName: 'HISCON.pdf' });
+    expect(fetched).toEqual({
+      base64: pdf.toString('base64'),
+      mime: 'application/pdf',
+      fileName: 'HISCON.pdf',
+    });
   });
 
   it('mediaKey como BYTES serializados (objeto {"0":n,…} — payload real da Evolution) ⇒ decifra igual', async () => {
@@ -98,32 +123,53 @@ describe('DirectWhatsAppMediaClient · o payload REAL do webhook', () => {
     });
     const client = new DirectWhatsAppMediaClient(() => Promise.resolve(new Uint8Array(encrypted)));
     const fetched = await client.fetch(
-      webhook({ url: 'https://mmg.whatsapp.net/d/f/abc.enc', mediaKey: serializado, mimetype: 'image/jpeg' }),
+      webhook({
+        url: 'https://mmg.whatsapp.net/d/f/abc.enc',
+        mediaKey: serializado,
+        mimetype: 'image/jpeg',
+      }),
     );
-    expect(fetched).toEqual({ base64: JPEG.toString('base64'), mime: 'image/jpeg', fileName: null });
+    expect(fetched).toEqual({
+      base64: JPEG.toString('base64'),
+      mime: 'image/jpeg',
+      fileName: null,
+    });
   });
 
   it('sem url/mediaKey (texto puro) ⇒ null sem download', async () => {
     const client = new DirectWhatsAppMediaClient(() => {
       throw new Error('nao deveria baixar');
     });
-    expect(await client.fetch({ data: { key: { id: 'M' }, message: { conversation: 'oi' } } })).toBeNull();
+    expect(
+      await client.fetch({ data: { key: { id: 'M' }, message: { conversation: 'oi' } } }),
+    ).toBeNull();
     expect(await client.fetch(webhook({ mimetype: 'image/jpeg' }))).toBeNull();
   });
 
   it('download falhou ⇒ null (a captura loga e a progressão tardia cobre)', async () => {
     const client = new DirectWhatsAppMediaClient(() => Promise.resolve(null));
-    const fetched = await client.fetch(webhook({ url: 'https://mmg.whatsapp.net/x.enc', mediaKey: randomBytes(32).toString('base64') }));
+    const fetched = await client.fetch(
+      webhook({
+        url: 'https://mmg.whatsapp.net/x.enc',
+        mediaKey: randomBytes(32).toString('base64'),
+      }),
+    );
     expect(fetched).toBeNull();
   });
 });
 
 describe('ChainedMediaGateway · ordem e curto-circuito', () => {
-  const entrega = (m: FetchedMedia | null): MediaGatewayPort => ({ fetch: () => Promise.resolve(m) });
+  const entrega = (m: FetchedMedia | null): MediaGatewayPort => ({
+    fetch: () => Promise.resolve(m),
+  });
 
   it('primeiro null ⇒ tenta o próximo; primeiro conteúdo vence', async () => {
     const media: FetchedMedia = { base64: 'QUJD', mime: 'image/jpeg', fileName: null };
-    const chain = new ChainedMediaGateway([entrega(null), entrega(media), entrega({ base64: 'X', mime: 'x', fileName: null })]);
+    const chain = new ChainedMediaGateway([
+      entrega(null),
+      entrega(media),
+      entrega({ base64: 'X', mime: 'x', fileName: null }),
+    ]);
     expect(await chain.fetch({})).toEqual(media);
   });
 

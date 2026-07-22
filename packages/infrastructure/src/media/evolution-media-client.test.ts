@@ -10,7 +10,10 @@ import { EvolutionMediaClient } from './evolution-media-client.js';
 
 const CONFIG = { baseUrl: 'http://evolution:8080/', instance: 'INST', apiKey: 'k' };
 
-function httpStub(responder: (url: string, body: unknown) => HttpResponse): { client: HttpClient; calls: number[] } {
+function httpStub(responder: (url: string, body: unknown) => HttpResponse): {
+  client: HttpClient;
+  calls: number[];
+} {
   const calls: number[] = [];
   return {
     calls,
@@ -49,7 +52,10 @@ describe('EvolutionMediaClient · base64 embutido no webhook (base64:true)', () 
     const fetched = await client.fetch({
       data: {
         key: { id: 'MSG-2' },
-        message: { base64: 'QUJD', documentMessage: { mimetype: 'application/pdf', fileName: 'HISCON.pdf' } },
+        message: {
+          base64: 'QUJD',
+          documentMessage: { mimetype: 'application/pdf', fileName: 'HISCON.pdf' },
+        },
       },
     });
     expect(fetched).toEqual({ base64: 'QUJD', mime: 'application/pdf', fileName: 'HISCON.pdf' });
@@ -80,7 +86,13 @@ describe('EvolutionMediaClient · base64 embutido no webhook (base64:true)', () 
     const client = new EvolutionMediaClient(http.client, CONFIG);
     const fetched = await client.fetch({
       data: {
-        key: { id: 'MSG-3', remoteJid: '5517996332346@s.whatsapp.net', fromMe: false, senderLid: '123@lid', participant: '' },
+        key: {
+          id: 'MSG-3',
+          remoteJid: '5517996332346@s.whatsapp.net',
+          fromMe: false,
+          senderLid: '123@lid',
+          participant: '',
+        },
         message: { imageMessage: { mimetype: 'image/jpeg' } },
       },
     });
@@ -95,7 +107,12 @@ describe('EvolutionMediaClient · base64 embutido no webhook (base64:true)', () 
   it('PRODUÇÃO REAL (12ª rodada): Evolution responde HTTP 201 com o base64 ⇒ ACEITO (res.ok, não ===200)', async () => {
     const http = httpStub(() => ({
       status: 201,
-      body: { mediaType: 'imageMessage', fileName: '3EB0.jpeg', mimetype: 'image/jpeg', base64: JPEG_B64 },
+      body: {
+        mediaType: 'imageMessage',
+        fileName: '3EB0.jpeg',
+        mimetype: 'image/jpeg',
+        base64: JPEG_B64,
+      },
     }));
     const client = new EvolutionMediaClient(http.client, CONFIG);
     const fetched = await client.fetch({
@@ -111,7 +128,10 @@ describe('EvolutionMediaClient · base64 embutido no webhook (base64:true)', () 
     const http = httpStub(() => ({ status: 400, body: { message: 'Message not found' } }));
     const client = new EvolutionMediaClient(http.client, CONFIG);
     const fetched = await client.fetch({
-      data: { key: { id: 'MSG-4', remoteJid: '5517996332346@s.whatsapp.net', fromMe: false }, message: {} },
+      data: {
+        key: { id: 'MSG-4', remoteJid: '5517996332346@s.whatsapp.net', fromMe: false },
+        message: {},
+      },
     });
     expect(fetched).toBeNull();
   });

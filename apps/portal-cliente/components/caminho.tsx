@@ -5,7 +5,7 @@ import type { ReactElement } from 'react';
 import type { EtapaTimeline } from '../lib/api';
 
 const FRASES: Record<string, { concluida: string; futura: string }> = {
-  'Documentação': {
+  Documentação: {
     concluida: 'Recebi e organizei toda a sua documentação.',
     futura: 'Vamos organizar a sua documentação juntos.',
   },
@@ -13,17 +13,23 @@ const FRASES: Record<string, { concluida: string; futura: string }> = {
     concluida: 'Nossa equipe concluiu a análise técnica do seu caso.',
     futura: 'Depois, nossa equipe técnica analisa o seu caso.',
   },
-  'Processo': {
+  Processo: {
     concluida: 'Seu processo foi conduzido até a conclusão.',
     futura: 'Depois, um advogado assume a condução do seu processo.',
   },
-  'Conclusão': {
+  Conclusão: {
     concluida: 'Chegamos à conclusão desta etapa.',
     futura: 'E por fim, a conclusão — eu te aviso em cada passo até lá.',
   },
 };
 
-const Caminho = ({ etapas, agora }: { etapas: readonly EtapaTimeline[]; agora: string }): ReactElement => (
+const Caminho = ({
+  etapas,
+  agora,
+}: {
+  etapas: readonly EtapaTimeline[];
+  agora: string;
+}): ReactElement => (
   <ol className="caminho">
     {etapas.map((e) => (
       <li key={e.titulo} className={e.situacao}>
@@ -32,7 +38,9 @@ const Caminho = ({ etapas, agora }: { etapas: readonly EtapaTimeline[]; agora: s
           <span className="caminho__titulo">{e.titulo}</span>
           {e.situacao === 'atual' ? <span className="caminho__aqui">você está aqui</span> : null}
           <p className="caminho__frase">
-            {e.situacao === 'atual' ? agora : FRASES[e.titulo]?.[e.situacao === 'concluida' ? 'concluida' : 'futura'] ?? ''}
+            {e.situacao === 'atual'
+              ? agora
+              : (FRASES[e.titulo]?.[e.situacao === 'concluida' ? 'concluida' : 'futura'] ?? '')}
           </p>
         </div>
       </li>

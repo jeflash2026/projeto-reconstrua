@@ -28,7 +28,10 @@ export class PgMigrationClient implements MigrationDb {
     await this.sql.unsafe(sql);
   }
 
-  async rows<T = Record<string, unknown>>(text: string, params: readonly unknown[] = []): Promise<T[]> {
+  async rows<T = Record<string, unknown>>(
+    text: string,
+    params: readonly unknown[] = [],
+  ): Promise<T[]> {
     const result = await this.sql.unsafe(text, params);
     return result as T[];
   }

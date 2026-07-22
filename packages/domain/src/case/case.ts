@@ -65,7 +65,8 @@ export class CaseAggregate extends AggregateRoot<CaseId> {
         new CanonViolationError({
           invariantId: 'INV-CA-01',
           canonReference: `${CANON_REF}; INV-CA-01; DF-08`,
-          message: 'O Caso deve pertencer a exatamente uma Missão (INV-CA-01; não existe Caso fora de Missão).',
+          message:
+            'O Caso deve pertencer a exatamente uma Missão (INV-CA-01; não existe Caso fora de Missão).',
         }),
       );
     }
@@ -75,7 +76,8 @@ export class CaseAggregate extends AggregateRoot<CaseId> {
         new CanonViolationError({
           invariantId: TRACE_ID,
           canonReference: TRACE_REF,
-          message: 'Reconhecimento de Caso sem responsável autorizado identificado (DF-12; Art. 14º).',
+          message:
+            'Reconhecimento de Caso sem responsável autorizado identificado (DF-12; Art. 14º).',
         }),
       );
     }

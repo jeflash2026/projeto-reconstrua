@@ -24,7 +24,11 @@ const EncerrarForm = ({ missionId }: { missionId: string }): ReactElement => {
     setStatus(null);
     const result = await encerrarMission(missionId, reason.trim() === '' ? null : reason.trim());
     if (result && result.closed) {
-      setStatus(result.skipped ? 'Processo já estava encerrado.' : 'Processo encerrado. A AHRI não fará mais acompanhamento.');
+      setStatus(
+        result.skipped
+          ? 'Processo já estava encerrado.'
+          : 'Processo encerrado. A AHRI não fará mais acompanhamento.',
+      );
       setConfirming(false);
       router.refresh();
     } else {
@@ -51,32 +55,56 @@ const EncerrarForm = ({ missionId }: { missionId: string }): ReactElement => {
     <div className="card" style={{ marginBottom: 16 }}>
       <h3>Ciclo de vida do processo</h3>
       <p style={{ margin: '0 0 8px', color: 'var(--text-dim)' }}>
-        Encerrar finaliza o processo e cala a AHRI. Reabrir (fato jurídico legítimo) devolve
-        o processo ao acompanhamento automático.
+        Encerrar finaliza o processo e cala a AHRI. Reabrir (fato jurídico legítimo) devolve o
+        processo ao acompanhamento automático.
       </p>
       <div className="form-row">
         <input
           type="text"
           placeholder="Motivo (opcional)"
           value={reason}
-          onChange={(e) => { setReason(e.target.value); }}
+          onChange={(e) => {
+            setReason(e.target.value);
+          }}
           style={{ flex: 1 }}
         />
         {confirming ? (
           <>
-            <button className="primary" disabled={busy} onClick={() => { void submit(); }}>
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={() => {
+                void submit();
+              }}
+            >
               Confirmar encerramento
             </button>
-            <button disabled={busy} onClick={() => { setConfirming(false); }}>
+            <button
+              disabled={busy}
+              onClick={() => {
+                setConfirming(false);
+              }}
+            >
               Cancelar
             </button>
           </>
         ) : (
           <>
-            <button disabled={busy} onClick={() => { setConfirming(true); setStatus(null); }}>
+            <button
+              disabled={busy}
+              onClick={() => {
+                setConfirming(true);
+                setStatus(null);
+              }}
+            >
               Encerrar processo
             </button>
-            <button disabled={busy} onClick={() => { void reopen(); }}>
+            <button
+              disabled={busy}
+              onClick={() => {
+                void reopen();
+              }}
+            >
               Reabrir processo
             </button>
           </>

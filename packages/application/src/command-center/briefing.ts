@@ -75,7 +75,10 @@ export function gerarBriefing(input: BriefingInputs): Briefing {
       id: 'casos-criticos',
       categoria: 'caso-critico',
       severidade: 'critico',
-      titulo: input.casosCriticos === 1 ? '1 caso precisa de atenção imediata.' : `${String(input.casosCriticos)} casos precisam de atenção imediata.`,
+      titulo:
+        input.casosCriticos === 1
+          ? '1 caso precisa de atenção imediata.'
+          : `${String(input.casosCriticos)} casos precisam de atenção imediata.`,
       detalhe: 'Prazos ou situações que não podem esperar.',
       fonte: 'read-model:operational-metrics',
       href: '/missoes?prioridade=critica',
@@ -148,7 +151,10 @@ export function gerarBriefing(input: BriefingInputs): Briefing {
       id: 'dossies-prontos',
       categoria: 'dossies-prontos',
       severidade: 'oportunidade',
-      titulo: input.dossiesProntos === 1 ? '1 dossiê jurídico ficou pronto.' : `${String(input.dossiesProntos)} dossiês jurídicos ficaram prontos.`,
+      titulo:
+        input.dossiesProntos === 1
+          ? '1 dossiê jurídico ficou pronto.'
+          : `${String(input.dossiesProntos)} dossiês jurídicos ficaram prontos.`,
       detalhe: 'Prontos para liberar ao advogado responsável.',
       fonte: 'read-model:mission/dossies',
       href: '/inteligencia/dossies',
@@ -171,7 +177,11 @@ export function gerarBriefing(input: BriefingInputs): Briefing {
   }
 
   // ── OPORTUNIDADE — confiança do catálogo subiu ──────────────────────────────
-  if (input.confiancaMediaCatalogo !== null && input.confiancaMediaAnterior !== null && input.confiancaMediaCatalogo > input.confiancaMediaAnterior) {
+  if (
+    input.confiancaMediaCatalogo !== null &&
+    input.confiancaMediaAnterior !== null &&
+    input.confiancaMediaCatalogo > input.confiancaMediaAnterior
+  ) {
     candidatos.push({
       id: 'confianca-subiu',
       categoria: 'confianca-catalogo',
@@ -190,7 +200,10 @@ export function gerarBriefing(input: BriefingInputs): Briefing {
       id: 'novos-clientes',
       categoria: 'novos-clientes',
       severidade: 'informacao',
-      titulo: input.novosClientesHoje === 1 ? '1 novo cliente chegou hoje.' : `${String(input.novosClientesHoje)} novos clientes chegaram hoje.`,
+      titulo:
+        input.novosClientesHoje === 1
+          ? '1 novo cliente chegou hoje.'
+          : `${String(input.novosClientesHoje)} novos clientes chegaram hoje.`,
       detalhe: null,
       fonte: 'read-model:dashboard.newClientsToday',
       href: '/clientes',
@@ -214,7 +227,10 @@ export function gerarBriefing(input: BriefingInputs): Briefing {
 
   // Ranqueia: severidade primeiro; dentro dela, maior relevância; empate estável por id.
   const insights = candidatos.sort(
-    (a, b) => ORDEM[a.severidade] - ORDEM[b.severidade] || (b.valor ?? 0) - (a.valor ?? 0) || a.id.localeCompare(b.id),
+    (a, b) =>
+      ORDEM[a.severidade] - ORDEM[b.severidade] ||
+      (b.valor ?? 0) - (a.valor ?? 0) ||
+      a.id.localeCompare(b.id),
   );
 
   const saudacao = saudacaoDe(input.now, input.founderName);

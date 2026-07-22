@@ -14,7 +14,9 @@ describe('GoalSelector', () => {
   const gs = new GoalSelector();
 
   it('matéria humana ou Canon silente ⇒ escalar (precedência absoluta)', () => {
-    expect(gs.select(snap({ matterRequiresHuman: true, stageCode: 'ANALISE' }))).toBe('escalate_to_human');
+    expect(gs.select(snap({ matterRequiresHuman: true, stageCode: 'ANALISE' }))).toBe(
+      'escalate_to_human',
+    );
     expect(gs.select(snap({ canonSilent: true }))).toBe('escalate_to_human');
   });
 

@@ -27,7 +27,11 @@ describe('computeOperationalMetrics (B4.4)', () => {
           { missionId: 'M3', createdAt: new Date('2026-07-01T00:00:00Z') },
         ],
         terminals: [
-          { missionId: 'M1', terminalState: 'ENCERRADA', updatedAt: new Date('2026-07-05T00:00:00Z') },
+          {
+            missionId: 'M1',
+            terminalState: 'ENCERRADA',
+            updatedAt: new Date('2026-07-05T00:00:00Z'),
+          },
           { missionId: 'M2', terminalState: null, updatedAt: new Date('2026-07-03T00:00:00Z') },
         ],
         reopenedCount: 4,
@@ -50,11 +54,26 @@ describe('computeOperationalMetrics (B4.4)', () => {
       base({
         interactions: [
           // 4 dias / (5-1) = 1 dia por interação
-          { messageCount: 5, firstContactAt: new Date('2026-07-01T00:00:00Z'), lastContactAt: new Date('2026-07-05T00:00:00Z'), documentsPending: 0 },
+          {
+            messageCount: 5,
+            firstContactAt: new Date('2026-07-01T00:00:00Z'),
+            lastContactAt: new Date('2026-07-05T00:00:00Z'),
+            documentsPending: 0,
+          },
           // 2 dias / (3-1) = 1 dia
-          { messageCount: 3, firstContactAt: new Date('2026-07-01T00:00:00Z'), lastContactAt: new Date('2026-07-03T00:00:00Z'), documentsPending: 0 },
+          {
+            messageCount: 3,
+            firstContactAt: new Date('2026-07-01T00:00:00Z'),
+            lastContactAt: new Date('2026-07-03T00:00:00Z'),
+            documentsPending: 0,
+          },
           // uma só mensagem: sem intervalo (ignorada)
-          { messageCount: 1, firstContactAt: new Date('2026-07-01T00:00:00Z'), lastContactAt: new Date('2026-07-01T00:00:00Z'), documentsPending: 0 },
+          {
+            messageCount: 1,
+            firstContactAt: new Date('2026-07-01T00:00:00Z'),
+            lastContactAt: new Date('2026-07-01T00:00:00Z'),
+            documentsPending: 0,
+          },
         ],
       }),
     );
@@ -69,8 +88,16 @@ describe('computeOperationalMetrics (B4.4)', () => {
           { missionId: 'M2', createdAt: new Date('2026-07-01T00:00:00Z') },
         ],
         terminals: [
-          { missionId: 'M1', terminalState: 'ENCERRADA', updatedAt: new Date('2026-07-03T00:00:00Z') }, // 2 dias
-          { missionId: 'M2', terminalState: 'ENCERRADA', updatedAt: new Date('2026-07-05T00:00:00Z') }, // 4 dias
+          {
+            missionId: 'M1',
+            terminalState: 'ENCERRADA',
+            updatedAt: new Date('2026-07-03T00:00:00Z'),
+          }, // 2 dias
+          {
+            missionId: 'M2',
+            terminalState: 'ENCERRADA',
+            updatedAt: new Date('2026-07-05T00:00:00Z'),
+          }, // 4 dias
         ],
       }),
     );

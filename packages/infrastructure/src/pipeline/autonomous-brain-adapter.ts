@@ -55,13 +55,53 @@ function toConversationIntents(intent: BrainIntent): readonly ConversationIntent
   };
   switch (intent.kind) {
     case 'conversation':
-      return [{ ...common, directive: intent.directive, speechAct: intent.speechAct, topic: intent.topic, references: intent.references, urgency: intent.urgency, timingHintMs: null }];
+      return [
+        {
+          ...common,
+          directive: intent.directive,
+          speechAct: intent.speechAct,
+          topic: intent.topic,
+          references: intent.references,
+          urgency: intent.urgency,
+          timingHintMs: null,
+        },
+      ];
     case 'wait':
-      return [{ ...common, directive: 'wait', speechAct: null, topic: null, references: [], urgency: 'low', timingHintMs: intent.untilHintMs }];
+      return [
+        {
+          ...common,
+          directive: 'wait',
+          speechAct: null,
+          topic: null,
+          references: [],
+          urgency: 'low',
+          timingHintMs: intent.untilHintMs,
+        },
+      ];
     case 'stop':
-      return [{ ...common, directive: 'stop', speechAct: null, topic: null, references: [intent.reasonCode], urgency: 'low', timingHintMs: null }];
+      return [
+        {
+          ...common,
+          directive: 'stop',
+          speechAct: null,
+          topic: null,
+          references: [intent.reasonCode],
+          urgency: 'low',
+          timingHintMs: null,
+        },
+      ];
     case 'escalation':
-      return [{ ...common, directive: 'handoff', speechAct: null, topic: null, references: [intent.role, intent.reasonCode], urgency: 'normal', timingHintMs: null }];
+      return [
+        {
+          ...common,
+          directive: 'handoff',
+          speechAct: null,
+          topic: null,
+          references: [intent.role, intent.reasonCode],
+          urgency: 'normal',
+          timingHintMs: null,
+        },
+      ];
     case 'use_case':
     case 'notification':
       return [];
@@ -84,7 +124,10 @@ function toPerceptView(percept: Percept): PerceptView {
 
 function toMemoryView(context: ConversationContextView, now: Date): BrainMemoryView {
   const lastOut = context.session.lastOutboundAt;
-  return { turnCount: context.session.turns, lastOutboundAgoMs: lastOut ? now.getTime() - lastOut.getTime() : null };
+  return {
+    turnCount: context.session.turns,
+    lastOutboundAgoMs: lastOut ? now.getTime() - lastOut.getTime() : null,
+  };
 }
 
 function toMissionFacts(percept: Percept): MissionFacts {
@@ -101,7 +144,17 @@ function toMissionFacts(percept: Percept): MissionFacts {
     mimeType: e.mediaMimeType,
     occurredAt: e.timestamp,
     ...(relevance
-      ? { perceivedRelevance: { kind: 'event-relevance' as const, value: relevance, provenance: { perceivedBy: 'perception', perceivedAt: percept.perceivedAt, evidenceRef: e.messageId } } }
+      ? {
+          perceivedRelevance: {
+            kind: 'event-relevance' as const,
+            value: relevance,
+            provenance: {
+              perceivedBy: 'perception',
+              perceivedAt: percept.perceivedAt,
+              evidenceRef: e.messageId,
+            },
+          },
+        }
       : {}),
   };
 }

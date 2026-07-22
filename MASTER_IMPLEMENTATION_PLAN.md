@@ -1,4 +1,5 @@
 # PROJETO RECONSTRUA — MASTER IMPLEMENTATION PLAN
+
 ### O único documento mestre da execução
 
 > **Arquitetura conceitual CONGELADA.** Este plano **não cria conceitos** — consolida a
@@ -6,6 +7,7 @@
 > um plano executável. A partir daqui: **modo engenharia**.
 >
 > **Regras permanentes da execução:**
+>
 > 1. **Todo código responde a um item deste plano.** Código sem item (ex.: `W1‑03`) não deve existir.
 > 2. **Entregamos CAPACIDADES DE NEGÓCIO, não funcionalidades.** Uma capacidade pode cruzar vários
 >    módulos, mas é **homologada como uma unidade de negócio**.
@@ -17,13 +19,13 @@
 
 ## 1. AS ONDAS = AS 5 CAPACIDADES EMPRESARIAIS
 
-| Onda | Capacidade de negócio (unidade de homologação) | "Quando terminar, eu consigo…" |
-|---|---|---|
-| **Onda 1** | **Operar clientes reais** (capturar → qualificar → ALIR unificado) | operar clientes reais de ponta a ponta |
-| **Onda 2** | **Vender um cliente qualificado** (Modelo A) | vender clientes reais e receber |
-| **Onda 3** | **Administrar uma sociedade** (Modelo B + Financeiro) | administrar sociedades e distribuir honorários |
-| **Onda 4** | **Administrar a empresa inteira** (Dashboard‑resposta + Governança + Auth/LGPD) | governar a empresa por perguntas e decisões |
-| **Onda 5** | **Escalar o negócio** (Autonomia + Evolução) | escalar sem depender do fundador |
+| Onda       | Capacidade de negócio (unidade de homologação)                                  | "Quando terminar, eu consigo…"                 |
+| ---------- | ------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **Onda 1** | **Operar clientes reais** (capturar → qualificar → ALIR unificado)              | operar clientes reais de ponta a ponta         |
+| **Onda 2** | **Vender um cliente qualificado** (Modelo A)                                    | vender clientes reais e receber                |
+| **Onda 3** | **Administrar uma sociedade** (Modelo B + Financeiro)                           | administrar sociedades e distribuir honorários |
+| **Onda 4** | **Administrar a empresa inteira** (Dashboard‑resposta + Governança + Auth/LGPD) | governar a empresa por perguntas e decisões    |
+| **Onda 5** | **Escalar o negócio** (Autonomia + Evolução)                                    | escalar sem depender do fundador               |
 
 **Critério de conclusão de cada Onda:** a capacidade correspondente é **homologada com dados
 reais** (ou de homologação fiéis), não apenas "as telas existem".
@@ -34,25 +36,25 @@ reais** (ou de homologação fiéis), não apenas "as telas existem".
 
 Legenda: 🟢 já existe no núcleo · 🟡 existe parcial (falta projeção/uso) · 🔴 a construir.
 
-| Entidade | Estado | Onde nasce/vive |
-|---|---|---|
-| **Pessoa** | 🟢 | núcleo (identidade) |
-| **Missão** (caso) | 🟢 | mission‑runtime |
-| **Documento** | 🟡 | recebido/reconhecido; falta acervo durável no ALIR |
-| **Perícia / Laudo** | 🔴 | ato humano do perito (registrar resultado) |
-| **Verdade do caso** | 🟢 | executive‑brain (truth) |
-| **Estado Operacional** | 🟢 | projeção (ENCERRADA/reaberta/etc.) |
-| **ALIR** (identidade operacional) | 🔴 | **projeção unificada** sobre tudo do cliente |
-| **Estágio Comercial** (funil 1→12) | 🔴 | projeção comercial sobre a missão |
-| **Escritório Parceiro** | 🔴 | cadastro comercial |
-| **Venda** (Modelo A) | 🔴 | ato comercial (oferta→venda→recebimento) |
-| **Sociedade** (Modelo B) | 🔴 | ato comercial (atribuição→condução→encerramento) |
-| **Honorário** | 🔴 | apuração financeira do êxito |
-| **Distribuição** | 🔴 | partilha Reconstrua × escritório × investidor |
-| **Lançamento Financeiro** (a receber/pagar) | 🔴 | módulo financeiro |
-| **Colaborador / Papel** | 🔴 | equipe + auth por papel |
-| **Decisão / Ato Auditável** | 🟢 | event store (append‑only) |
-| **Conexão WhatsApp** | 🟢 | whatsapp-connection runtime |
+| Entidade                                    | Estado | Onde nasce/vive                                    |
+| ------------------------------------------- | ------ | -------------------------------------------------- |
+| **Pessoa**                                  | 🟢     | núcleo (identidade)                                |
+| **Missão** (caso)                           | 🟢     | mission‑runtime                                    |
+| **Documento**                               | 🟡     | recebido/reconhecido; falta acervo durável no ALIR |
+| **Perícia / Laudo**                         | 🔴     | ato humano do perito (registrar resultado)         |
+| **Verdade do caso**                         | 🟢     | executive‑brain (truth)                            |
+| **Estado Operacional**                      | 🟢     | projeção (ENCERRADA/reaberta/etc.)                 |
+| **ALIR** (identidade operacional)           | 🔴     | **projeção unificada** sobre tudo do cliente       |
+| **Estágio Comercial** (funil 1→12)          | 🔴     | projeção comercial sobre a missão                  |
+| **Escritório Parceiro**                     | 🔴     | cadastro comercial                                 |
+| **Venda** (Modelo A)                        | 🔴     | ato comercial (oferta→venda→recebimento)           |
+| **Sociedade** (Modelo B)                    | 🔴     | ato comercial (atribuição→condução→encerramento)   |
+| **Honorário**                               | 🔴     | apuração financeira do êxito                       |
+| **Distribuição**                            | 🔴     | partilha Reconstrua × escritório × investidor      |
+| **Lançamento Financeiro** (a receber/pagar) | 🔴     | módulo financeiro                                  |
+| **Colaborador / Papel**                     | 🔴     | equipe + auth por papel                            |
+| **Decisão / Ato Auditável**                 | 🟢     | event store (append‑only)                          |
+| **Conexão WhatsApp**                        | 🟢     | whatsapp-connection runtime                        |
 
 **Núcleo já pronto (não replanejar):** event sourcing (append‑only, hash‑chain), read models,
 Executive Brain determinístico, acompanhamento recorrente, encerramento/reabertura, métricas
@@ -64,21 +66,21 @@ operacionais, segurança de produção (requireBearer), observabilidade durável
 
 Os 13 módulos do Admin OS, mapeados às operações (Operational OS) e à Onda que os entrega.
 
-| Módulo | Operações (OP) | Onda |
-|---|---|---|
-| **Operação** (fila/handoffs) | OP‑01..08, T3, T4 | 1 |
-| **Clientes / ALIR** | OP‑01..10, T1 | 1 |
-| **Documentos** | OP‑04..06 | 1 |
-| **Jurídico / Perícia** | OP‑07..09 | 1 |
-| **Escritórios Parceiros** | OP‑T6 | 2 |
-| **Modelo A — Venda** | OP‑A1..A5, OP‑10 | 2 |
-| **Modelo B — Sociedade** | OP‑B1..B9 | 3 |
-| **Financeiro** | OP‑A4, B7, B8, T12 | 3 |
-| **Dashboard Executivo** (respostas) | agrega todas | 4 |
-| **Relatórios** | agrega todas | 4 |
-| **Equipe / Acessos** | OP‑T7, T11 | 4 |
-| **AHRI** (Shadow/qualidade) | OP‑T8 | 4 |
-| **Configurações / Autonomia** | OP‑T5, T9 + backups/monitor | 5 |
+| Módulo                              | Operações (OP)              | Onda |
+| ----------------------------------- | --------------------------- | ---- |
+| **Operação** (fila/handoffs)        | OP‑01..08, T3, T4           | 1    |
+| **Clientes / ALIR**                 | OP‑01..10, T1               | 1    |
+| **Documentos**                      | OP‑04..06                   | 1    |
+| **Jurídico / Perícia**              | OP‑07..09                   | 1    |
+| **Escritórios Parceiros**           | OP‑T6                       | 2    |
+| **Modelo A — Venda**                | OP‑A1..A5, OP‑10            | 2    |
+| **Modelo B — Sociedade**            | OP‑B1..B9                   | 3    |
+| **Financeiro**                      | OP‑A4, B7, B8, T12          | 3    |
+| **Dashboard Executivo** (respostas) | agrega todas                | 4    |
+| **Relatórios**                      | agrega todas                | 4    |
+| **Equipe / Acessos**                | OP‑T7, T11                  | 4    |
+| **AHRI** (Shadow/qualidade)         | OP‑T8                       | 4    |
+| **Configurações / Autonomia**       | OP‑T5, T9 + backups/monitor | 5    |
 
 ---
 
@@ -114,9 +116,10 @@ homologadas**. O **ALIR é dependência dura de tudo** — por isso abre a Onda 
 > Cada item tem ID (`W#‑NN`). **Todo commit referencia um ID.** Cada Onda lista:
 > **Itens · Critérios de aceite (negócio) · Definição de concluído (engenharia) · Migração · Rollback.**
 
-### ONDA 1 — OPERAR CLIENTES REAIS  *(capacidade: operar clientes de ponta a ponta)*
+### ONDA 1 — OPERAR CLIENTES REAIS _(capacidade: operar clientes de ponta a ponta)_
 
 **Itens**
+
 - `W1‑01` Projeção **ALIR unificado** (read model) consolidando pessoa, missão, verdade, estado, documentos, timeline, próxima ação — **só lê read models** (DF‑08).
 - `W1‑02` Entidade **Documento** durável no ALIR (acervo por caso: tipo, origem, status, evidência).
 - `W1‑03` Ato **Perícia/Laudo**: registrar resultado (direito confirmado/afastado) como evento.
@@ -139,9 +142,10 @@ projeção reconstruível a partir do event store.
 **Rollback:** desligar a projeção/rotas novas por flag; núcleo intacto (projeções são
 recriáveis). Nenhuma migração destrutiva de dados.
 
-### ONDA 2 — VENDER UM CLIENTE QUALIFICADO  *(capacidade: Modelo A)*
+### ONDA 2 — VENDER UM CLIENTE QUALIFICADO _(capacidade: Modelo A)_
 
 **Itens**
+
 - `W2‑01` Entidade **Escritório Parceiro** (cadastro, modelo A/B, condições) — OP‑T6.
 - `W2‑02` Entidade **Venda** (OP‑A1..A3): empacotar ALIR, ofertar, confirmar venda (evento).
 - `W2‑03` **Recebimento A** (OP‑A4): lançamento "a receber → recebido", preço (R$400, parametrizável), conciliação.
@@ -158,9 +162,10 @@ rastreável (origem/estado/responsável); testes de venda + recebimento; homolog
 **Migração:** novas entidades comerciais como eventos/projeções; nada retroativo.
 **Rollback:** flags por módulo comercial; venda cancelável por evento (OP‑cancelar), sem apagamento.
 
-### ONDA 3 — ADMINISTRAR UMA SOCIEDADE  *(capacidade: Modelo B + Financeiro)*
+### ONDA 3 — ADMINISTRAR UMA SOCIEDADE _(capacidade: Modelo B + Financeiro)_
 
 **Itens**
+
 - `W3‑01` Entidade **Sociedade** (OP‑B1): atribuir caso ao advogado/escritório (isolado).
 - `W3‑02` **Andamento do processo** (OP‑B2/B3): registrar movimentações; ponte advogado→AHRI (reusa workflow/handoff existentes).
 - `W3‑03` **Encerrar processo** (OP‑B6) e **Reabrir** (OP‑B9) — reutiliza encerramento/reabertura já prontos.
@@ -178,9 +183,10 @@ honorário/distribuição/conciliação; homologação da capacidade "administra
 
 **Migração:** aditiva. **Rollback:** flags; distribuições/lançamentos reversíveis por evento.
 
-### ONDA 4 — ADMINISTRAR A EMPRESA INTEIRA  *(capacidade: governar por perguntas + decisões)*
+### ONDA 4 — ADMINISTRAR A EMPRESA INTEIRA _(capacidade: governar por perguntas + decisões)_
 
 **Itens**
+
 - `W4‑01` **Dashboard‑resposta** (as 7 perguntas do Enterprise/Admin OS), cada resposta = lista de operações por trás.
 - `W4‑02` **Relatórios** por período/origem/escritório/colaborador; exportação.
 - `W4‑03` **Auth real com papéis** (substitui segredo único) + **sucessão de acessos**; alçadas/delegação.
@@ -199,9 +205,10 @@ homologada; auditoria e LGPD funcionais; homologação da capacidade "administra
 **Migração:** introduzir auth por papel **sem quebrar** o acesso atual (transição por flag +
 sucessão). **Rollback:** manter segredo único como fallback até a homologação da auth por papel.
 
-### ONDA 5 — ESCALAR O NEGÓCIO  *(capacidade: autonomia + evolução)*
+### ONDA 5 — ESCALAR O NEGÓCIO _(capacidade: autonomia + evolução)_
 
 **Itens**
+
 - `W5‑01` **Backups automáticos + restauração testada** operados/monitorados pelo SO.
 - `W5‑02` **Monitoramento + alertas** ao CEO (queda/degradação/DLQ) — sem abrir logs.
 - `W5‑03` **Gestão de acessos/segredos e conexões pelo SO** (sem editar `.env` no terminal).
@@ -221,12 +228,12 @@ nos itens cobertos; homologação da capacidade "escalar".
 
 ## 6. ESTRATÉGIAS GLOBAIS
 
-**Migração (constitucional):** *append‑only, aditiva, reconstruível.* Novas capacidades entram
+**Migração (constitucional):** _append‑only, aditiva, reconstruível._ Novas capacidades entram
 como **novos eventos + novas projeções**; **nenhum evento histórico é reescrito**; toda projeção
 (inclusive ALIR) é reconstruível a partir do event store. Correção nunca é apagamento (Enterprise
 OS, Parte IV).
 
-**Rollback:** *feature flags por capacidade + reversão por evento.* Cada item entrega atrás de
+**Rollback:** _feature flags por capacidade + reversão por evento._ Cada item entrega atrás de
 flag; desligar a flag remove a capacidade sem tocar no núcleo. Atos comerciais/financeiros são
 **revertidos por evento de cancelamento/estorno**, nunca por delete. O núcleo cognitivo
 homologado permanece intocado.
@@ -256,5 +263,6 @@ origem/estado/responsável; (d) testado e homologado; (e) publicado. Sem os cinc
 ---
 
 ## PONTO DE PARTIDA
+
 Aguardo seu **"iniciar W1‑01"** (ou autorização da Onda 1). O primeiro item é o **ALIR unificado
 (`W1‑01`)** — a dependência dura de toda a empresa. A partir dele, tudo orbita.

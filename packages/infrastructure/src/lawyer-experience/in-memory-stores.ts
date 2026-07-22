@@ -33,13 +33,16 @@ export class InMemoryDecisionStore implements DecisionStore {
   }
   openFor(advogadoId: string): Promise<readonly DecisionRequest[]> {
     return Promise.resolve(
-      [...this.decisions.values()].filter((d) => d.advogadoId === advogadoId && d.status === 'open'),
+      [...this.decisions.values()].filter(
+        (d) => d.advogadoId === advogadoId && d.status === 'open',
+      ),
     );
   }
   byMissionAndType(missionId: string, type: LawyerDecisionType): Promise<DecisionRequest | null> {
     return Promise.resolve(
-      [...this.decisions.values()].find((d) => d.missionId === missionId && d.type === type && d.status === 'open') ??
-        null,
+      [...this.decisions.values()].find(
+        (d) => d.missionId === missionId && d.type === type && d.status === 'open',
+      ) ?? null,
     );
   }
 }

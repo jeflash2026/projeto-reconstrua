@@ -122,7 +122,9 @@ export class OperationalTruthAggregate extends AggregateRoot<OperationalTruthId>
       synthesizedBy: input.synthesizedBy,
     });
 
-    truth.addDomainEvent(new OperationalTruthSynthesized(input.id.toString(), truth.props.synthesizedAt));
+    truth.addDomainEvent(
+      new OperationalTruthSynthesized(input.id.toString(), truth.props.synthesizedAt),
+    );
     return Result.ok(truth);
   }
 

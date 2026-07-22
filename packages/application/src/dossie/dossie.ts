@@ -12,9 +12,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { evaluateCondition, type Condition } from '../executive-brain/conditions.js';
 import { deliberar } from '../executive-mind/executive-mind.js';
-import { fatosEstrategicos, type EntradasEstrategicas } from '../strategic-reasoning/fatos-estrategicos.js';
+import {
+  fatosEstrategicos,
+  type EntradasEstrategicas,
+} from '../strategic-reasoning/fatos-estrategicos.js';
 import { ESTRATEGIAS_CONSIGNADO_INSS } from '../strategic-reasoning/consignado-strategies.js';
-import { raciocinar, type CatalogoDeEstrategias, type Confianca, type EstrategiaSpec } from '../strategic-reasoning/strategic-reasoning.js';
+import {
+  raciocinar,
+  type CatalogoDeEstrategias,
+  type Confianca,
+  type EstrategiaSpec,
+} from '../strategic-reasoning/strategic-reasoning.js';
 
 export interface DossieTimelineEvento {
   readonly rotulo: string;
@@ -51,7 +59,10 @@ export interface TeseRanqueada {
 export interface DossieExplicacao {
   readonly fatosUtilizados: readonly string[];
   readonly documentosConsiderados: readonly string[];
-  readonly hipotesesAvaliadas: ReadonlyArray<{ readonly ref: string; readonly confianca: Confianca }>;
+  readonly hipotesesAvaliadas: ReadonlyArray<{
+    readonly ref: string;
+    readonly confianca: Confianca;
+  }>;
   readonly hipotesesDescartadas: ReadonlyArray<{ readonly ref: string; readonly motivo: string }>;
   readonly estrategiaVencedora: string | null;
   readonly confianca: Confianca | null;
@@ -126,7 +137,9 @@ export function montarDossie(input: DossieInputs): DossieJuridico {
   }));
 
   // Evidências: os fatos conhecidos (aprendidos) que instruem o caso.
-  const evidenciasEncontradas = (input.entradas.conhecimento ?? []).map((f) => `${f.factKey}=${f.valor}`);
+  const evidenciasEncontradas = (input.entradas.conhecimento ?? []).map(
+    (f) => `${f.factKey}=${f.valor}`,
+  );
 
   // Evidências ausentes: os fatos que a tese principal REFORÇARIA, mas não constam.
   const evidenciasAusentes: string[] = [];
@@ -135,7 +148,9 @@ export function montarDossie(input: DossieInputs): DossieJuridico {
     const spec = specByRef.get(principal.ref);
     if (spec) {
       for (const c of spec.reforca ?? []) {
-        if (!evaluateCondition(c, facts)) for (const k of factKeys([c])) if (!evidenciasAusentes.includes(k)) evidenciasAusentes.push(k);
+        if (!evaluateCondition(c, facts))
+          for (const k of factKeys([c]))
+            if (!evidenciasAusentes.includes(k)) evidenciasAusentes.push(k);
       }
       for (const doc of spec.documentosEsperados ?? []) {
         if (!contemDoc(input.documentosReconhecidos, doc)) documentosPendentes.push(doc);
@@ -146,18 +161,30 @@ export function montarDossie(input: DossieInputs): DossieJuridico {
   // Próximas ações: a próxima melhor ação + prioridades condicionais do motor.
   const proximasAcoes: string[] = [];
   if (raciocinio.proximaMelhorAcao) proximasAcoes.push(raciocinio.proximaMelhorAcao.acao);
-  for (const p of raciocinio.prioridades) if (!proximasAcoes.includes(p.acao)) proximasAcoes.push(p.acao);
+  for (const p of raciocinio.prioridades)
+    if (!proximasAcoes.includes(p.acao)) proximasAcoes.push(p.acao);
 
   const riscos = raciocinio.riscos.map((r) => r.risco);
 
   // Observações da IA — sínteses auditáveis (nunca opinião inventada).
   const observacoesIA: string[] = [];
-  if (raciocinio.hipoteses.length > 1) observacoesIA.push(`${String(raciocinio.hipoteses.length)} teses concorrentes foram avaliadas; a de maior confiança prevaleceu.`);
-  if (documentosPendentes.length > 0) observacoesIA.push(`Faltam ${String(documentosPendentes.length)} documento(s) para instruir a tese principal.`);
-  if (evidenciasAusentes.length > 0) observacoesIA.push(`${String(evidenciasAusentes.length)} fato(s) reforçariam a tese, mas ainda não foram confirmados na conversa.`);
-  if (raciocinio.oportunidades.length > 0) observacoesIA.push(...raciocinio.oportunidades.map((o) => o.oportunidade));
+  if (raciocinio.hipoteses.length > 1)
+    observacoesIA.push(
+      `${String(raciocinio.hipoteses.length)} teses concorrentes foram avaliadas; a de maior confiança prevaleceu.`,
+    );
+  if (documentosPendentes.length > 0)
+    observacoesIA.push(
+      `Faltam ${String(documentosPendentes.length)} documento(s) para instruir a tese principal.`,
+    );
+  if (evidenciasAusentes.length > 0)
+    observacoesIA.push(
+      `${String(evidenciasAusentes.length)} fato(s) reforçariam a tese, mas ainda não foram confirmados na conversa.`,
+    );
+  if (raciocinio.oportunidades.length > 0)
+    observacoesIA.push(...raciocinio.oportunidades.map((o) => o.oportunidade));
 
-  const problema = typeof facts['problema_principal'] === 'string' ? String(facts['problema_principal']) : null;
+  const problema =
+    typeof facts['problema_principal'] === 'string' ? String(facts['problema_principal']) : null;
   const grau = decisao?.confidence ?? principal?.confianca ?? null;
 
   const resumoExecutivo = principal
@@ -168,7 +195,10 @@ export function montarDossie(input: DossieInputs): DossieJuridico {
     fatosUtilizados: principal ? [...principal.sustentadaPor, ...principal.reforcadaPor] : [],
     documentosConsiderados: input.documentosReconhecidos,
     hipotesesAvaliadas: raciocinio.hipoteses.map((h) => ({ ref: h.ref, confianca: h.confianca })),
-    hipotesesDescartadas: (decisao?.alternativasRegistradas ?? []).map((a) => ({ ref: a.strategyRef, motivo: a.motivoDaDerrota })),
+    hipotesesDescartadas: (decisao?.alternativasRegistradas ?? []).map((a) => ({
+      ref: a.strategyRef,
+      motivo: a.motivoDaDerrota,
+    })),
     estrategiaVencedora: decisao?.strategyRef ?? principal?.ref ?? null,
     confianca: grau,
     criterios: decisao?.auditoria.criterio ?? 'confiança > reforços > prioridade do domínio',

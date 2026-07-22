@@ -5,8 +5,17 @@
 // fraseado da Conversa. Um único lugar de montagem.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Clock, UuidGenerator } from '@reconstrua/domain';
-import type { ConversationStore, MemoryAttributeExtractorPort, MemoryStore } from '@reconstrua/application';
-import { MemoryIngestor, MemoryNoteWriter, MemoryRuntime, RelationshipRuntime } from '@reconstrua/application';
+import type {
+  ConversationStore,
+  MemoryAttributeExtractorPort,
+  MemoryStore,
+} from '@reconstrua/application';
+import {
+  MemoryIngestor,
+  MemoryNoteWriter,
+  MemoryRuntime,
+  RelationshipRuntime,
+} from '@reconstrua/application';
 import { InMemoryMemoryStore } from './in-memory-memory-store.js';
 import { PatternAttributeExtractor } from './fake-attribute-extractor.js';
 

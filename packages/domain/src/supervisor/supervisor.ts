@@ -65,7 +65,9 @@ export class SupervisorAggregate extends AggregateRoot<SupervisorId> {
    * DF-12). NÃO executa a supervisão: assembla o marco imutável (pessoa + missão +
    * autoridade) e valida a boa-formação.
    */
-  static designate(input: SupervisorDesignationInput): Result<SupervisorAggregate, CanonViolationError> {
+  static designate(
+    input: SupervisorDesignationInput,
+  ): Result<SupervisorAggregate, CanonViolationError> {
     // item 2 — a pessoa que exerce o papel.
     if (input.person == null) {
       return Result.err(
@@ -115,7 +117,9 @@ export class SupervisorAggregate extends AggregateRoot<SupervisorId> {
       designatedAt: new Date(input.designatedAt.getTime()),
     });
 
-    supervisor.addDomainEvent(new SupervisorDesignated(input.id.toString(), supervisor.props.designatedAt));
+    supervisor.addDomainEvent(
+      new SupervisorDesignated(input.id.toString(), supervisor.props.designatedAt),
+    );
     return Result.ok(supervisor);
   }
 

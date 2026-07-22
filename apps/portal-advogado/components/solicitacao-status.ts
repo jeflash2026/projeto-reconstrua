@@ -34,13 +34,22 @@ export function idadeDe(criadaEm: string, agora: Date = new Date()): string {
 }
 
 /** "vence amanhã" / "vence em 3 dias" / "vencida há 2 dias" — SLA humanizado. */
-export function prazoDe(dueAt: string | null, status: SolicitacaoStatus, agora: Date = new Date()): { texto: string; vencida: boolean } {
+export function prazoDe(
+  dueAt: string | null,
+  status: SolicitacaoStatus,
+  agora: Date = new Date(),
+): { texto: string; vencida: boolean } {
   if (dueAt === null) return { texto: 'sem prazo', vencida: false };
-  if (status === 'RECEIVED' || status === 'CANCELLED') return { texto: `prazo ${new Date(dueAt).toLocaleDateString('pt-BR')}`, vencida: false };
+  if (status === 'RECEIVED' || status === 'CANCELLED')
+    return { texto: `prazo ${new Date(dueAt).toLocaleDateString('pt-BR')}`, vencida: false };
   const ms = new Date(dueAt).getTime() - agora.getTime();
   if (ms < 0) {
     const d = dias(-ms);
-    return { texto: d === 0 ? 'vencida hoje' : d === 1 ? 'vencida há 1 dia' : `vencida há ${String(d)} dias`, vencida: true };
+    return {
+      texto:
+        d === 0 ? 'vencida hoje' : d === 1 ? 'vencida há 1 dia' : `vencida há ${String(d)} dias`,
+      vencida: true,
+    };
   }
   const d = dias(ms);
   if (d === 0) return { texto: 'vence hoje', vencida: false };
@@ -50,7 +59,8 @@ export function prazoDe(dueAt: string | null, status: SolicitacaoStatus, agora: 
 
 /** Urgente = prioridade alta OU prazo vencido/vencendo hoje (e ainda aberta). */
 export function ehUrgente(s: Solicitacao, agora: Date = new Date()): boolean {
-  const aberta = s.status === 'PENDING' || s.status === 'REOPENED' || s.status === 'AWAITING_CONFIRMATION';
+  const aberta =
+    s.status === 'PENDING' || s.status === 'REOPENED' || s.status === 'AWAITING_CONFIRMATION';
   if (!aberta) return false;
   if (s.priority === 'alta') return true;
   return s.dueAt !== null && new Date(s.dueAt).getTime() - agora.getTime() < DIA;
@@ -72,7 +82,12 @@ export function responsavelAtual(s: Solicitacao): string {
 }
 
 /** A mensagem que a AHRI enviará (preview do form — MESMO formato do backend). */
-export function previewMensagemAhri(documentName: string, optionalMessage: string, requestedBy: string, clienteNome = 'cliente'): string {
+export function previewMensagemAhri(
+  documentName: string,
+  optionalMessage: string,
+  requestedBy: string,
+  clienteNome = 'cliente',
+): string {
   const extra = optionalMessage.trim() ? `\n\n${optionalMessage.trim()}` : '';
   return (
     `Olá, ${clienteNome}.\n\n` +

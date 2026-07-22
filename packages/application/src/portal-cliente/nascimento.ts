@@ -107,7 +107,12 @@ export class NascimentoPortalRuntime {
       });
 
       // O LINK nasce: extensão temporária da identidade do WhatsApp (D4).
-      const token = emitirTokenCliente(cliente.clienteId, config.validadeLinkDias, now, config.tokenSecret);
+      const token = emitirTokenCliente(
+        cliente.clienteId,
+        config.validadeLinkDias,
+        now,
+        config.tokenSecret,
+      );
       const link = `${config.publicUrl.replace(/\/+$/, '')}/portal?t=${token}`;
 
       // A MENSAGEM nasce (texto homologado; entrega pelo pipeline canônico).

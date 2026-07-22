@@ -34,17 +34,45 @@ export const ROTULO_INICIAL: Readonly<Record<DocumentoInicial, string>> = {
 
 // ── Classificação determinística (regras explícitas; sem IA decidindo) ────────
 function normalizar(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
 // Sinais da CNH separados dos do RG (correção do teste real: CNH sozinha
 // completa a identidade; RG exige FRENTE E VERSO — duas imagens).
-const SINAIS_CNH = { frases: ['carteira nacional de habilitacao', 'habilitacao'], tokens: ['cnh'] } as const;
-const SINAIS_RG = { frases: ['registro geral', 'carteira de identidade', 'documento de identidade', 'orgao emissor', 'orgao expedidor', 'filiacao'], tokens: ['rg'] } as const;
+const SINAIS_CNH = {
+  frases: ['carteira nacional de habilitacao', 'habilitacao'],
+  tokens: ['cnh'],
+} as const;
+const SINAIS_RG = {
+  frases: [
+    'registro geral',
+    'carteira de identidade',
+    'documento de identidade',
+    'orgao emissor',
+    'orgao expedidor',
+    'filiacao',
+  ],
+  tokens: ['rg'],
+} as const;
 
-const SINAIS: Readonly<Record<DocumentoInicial, { frases: readonly string[]; tokens: readonly string[] }>> = {
+const SINAIS: Readonly<
+  Record<DocumentoInicial, { frases: readonly string[]; tokens: readonly string[] }>
+> = {
   CNIS: {
-    frases: ['hiscon', 'historico de emprestimo', 'emprestimos consignados', 'emprestimo consignado', 'extrato de consignacoes', 'extrato previdenciario', 'consignad'],
+    frases: [
+      'hiscon',
+      'historico de emprestimo',
+      'emprestimos consignados',
+      'emprestimo consignado',
+      'extrato de consignacoes',
+      'extrato previdenciario',
+      'consignad',
+    ],
     tokens: ['cnis'],
   },
   IDENTIDADE: {
@@ -55,11 +83,38 @@ const SINAIS: Readonly<Record<DocumentoInicial, { frases: readonly string[]; tok
     // 15ª rodada (conta de ÁGUA real ficou 'OUTRO'): sinais de faturas de
     // água/energia/gás — "Hidrometro: … Tipo de ligacao: AGUA E ESGOTO".
     frases: [
-      'comprovante de residencia', 'comprovante de endereco', 'conta de luz', 'conta de agua', 'conta de energia',
-      'energia eletrica', 'fatura de energia', 'saneamento', 'telefonica',
-      'hidrometro', 'agua e esgoto', 'abastecimento de agua', 'fatura de agua', 'consumo de agua', 'tipo de ligacao',
-      'sabesp', 'copasa', 'sanepar', 'sanasa', 'embasa', 'cedae', 'cagece', 'energisa', 'equatorial', 'neoenergia',
-      'comgas', 'elektro', 'coelba', 'celpe', 'celesc', 'cemig', 'copel',
+      'comprovante de residencia',
+      'comprovante de endereco',
+      'conta de luz',
+      'conta de agua',
+      'conta de energia',
+      'energia eletrica',
+      'fatura de energia',
+      'saneamento',
+      'telefonica',
+      'hidrometro',
+      'agua e esgoto',
+      'abastecimento de agua',
+      'fatura de agua',
+      'consumo de agua',
+      'tipo de ligacao',
+      'sabesp',
+      'copasa',
+      'sanepar',
+      'sanasa',
+      'embasa',
+      'cedae',
+      'cagece',
+      'energisa',
+      'equatorial',
+      'neoenergia',
+      'comgas',
+      'elektro',
+      'coelba',
+      'celpe',
+      'celesc',
+      'cemig',
+      'copel',
     ],
     tokens: ['dae', 'saae', 'enel', 'cpfl', 'edp'],
   },
@@ -73,7 +128,9 @@ export type SubtipoIdentidade = 'rg' | 'cnh';
 export function detectarSubtipoIdentidade(fileName: string, texto: string): SubtipoIdentidade {
   const corpo = normalizar(`${fileName} ${texto}`);
   const tokens = new Set(corpo.split(' '));
-  const pontosCnh = SINAIS_CNH.frases.filter((f) => corpo.includes(f)).length + SINAIS_CNH.tokens.filter((t) => tokens.has(t)).length;
+  const pontosCnh =
+    SINAIS_CNH.frases.filter((f) => corpo.includes(f)).length +
+    SINAIS_CNH.tokens.filter((t) => tokens.has(t)).length;
   return pontosCnh > 0 ? 'cnh' : 'rg';
 }
 
@@ -90,7 +147,8 @@ export function classificarDocumentoInicial(fileName: string, texto: string): Cl
   const pontuadas = DOCUMENTACAO_INICIAL.map((codigo) => {
     const s = SINAIS[codigo];
     const pontos =
-      s.frases.filter((f) => corpo.includes(f)).length + s.tokens.filter((t) => tokens.has(t)).length;
+      s.frases.filter((f) => corpo.includes(f)).length +
+      s.tokens.filter((t) => tokens.has(t)).length;
     return { codigo, pontos };
   });
   const max = Math.max(...pontuadas.map((p) => p.pontos));
@@ -115,7 +173,11 @@ export interface OnboardingDocumentalState {
   readonly atualizadoEm: Date;
 }
 
-export function novoOnboarding(chatId: string, missionId: string | null, now: Date): OnboardingDocumentalState {
+export function novoOnboarding(
+  chatId: string,
+  missionId: string | null,
+  now: Date,
+): OnboardingDocumentalState {
   return { chatId, missionId, recebidos: [], atualizadoEm: now };
 }
 
@@ -146,7 +208,10 @@ export function completo(state: OnboardingDocumentalState): boolean {
 }
 
 /** Rótulo humano do que pedir AGORA — sabe pedir "o verso do RG". */
-export function rotuloDoPendente(state: OnboardingDocumentalState, codigo: DocumentoInicial): string {
+export function rotuloDoPendente(
+  state: OnboardingDocumentalState,
+  codigo: DocumentoInicial,
+): string {
   if (codigo === 'IDENTIDADE') {
     const rgs = state.recebidos.filter((r) => r.codigo === 'IDENTIDADE' && r.subtipo !== 'cnh');
     if (rgs.length === 1) return 'o VERSO do RG (a parte de trás do documento)';
@@ -155,10 +220,15 @@ export function rotuloDoPendente(state: OnboardingDocumentalState, codigo: Docum
 }
 
 /** Rótulo humano do que acabou de ser registrado (a última entrada). */
-export function rotuloDoRegistrado(r: DocumentoInicialRecebido, state: OnboardingDocumentalState): string {
+export function rotuloDoRegistrado(
+  r: DocumentoInicialRecebido,
+  state: OnboardingDocumentalState,
+): string {
   if (r.codigo === 'IDENTIDADE') {
     if (r.subtipo === 'cnh') return 'CNH';
-    const faces = state.recebidos.filter((x) => x.codigo === 'IDENTIDADE' && x.subtipo !== 'cnh').length;
+    const faces = state.recebidos.filter(
+      (x) => x.codigo === 'IDENTIDADE' && x.subtipo !== 'cnh',
+    ).length;
     return faces >= 2 ? 'RG (frente e verso)' : 'a primeira face do RG';
   }
   return r.codigo === 'CNIS' ? 'HISCON' : 'comprovante de endereço';
@@ -237,10 +307,17 @@ export class OnboardingDocumentalRuntime {
     const atual = (await this.deps.store.load(chatId)) ?? novoOnboarding(chatId, missionId, now);
     if (completo(atual)) {
       // Jornada 1 já concluída: documentos novos pertencem ao acervo/Jornada 2.
-      return { classificacao: 'OUTRO', jaRecebido: false, faltando: [], classificacaoPendente: false, progresso: null };
+      return {
+        classificacao: 'OUTRO',
+        jaRecebido: false,
+        faltando: [],
+        classificacaoPendente: false,
+        progresso: null,
+      };
     }
 
-    const texto = this.deps.leitor !== null ? await this.deps.leitor.texto(documentId).catch(() => null) : null;
+    const texto =
+      this.deps.leitor !== null ? await this.deps.leitor.texto(documentId).catch(() => null) : null;
     const classificacao = classificarDocumentoInicial(fileName, texto ?? '');
     if (classificacao === 'OUTRO') {
       // Sem texto legível AINDA (o vínculo de mídia é assíncrono) ⇒ vale retentar.
@@ -256,14 +333,22 @@ export class OnboardingDocumentalRuntime {
     // Já completo para este código ⇒ reenvio não duplica. IDENTIDADE via RG
     // aceita a SEGUNDA face (frente + verso) antes de fechar.
     if (codigoCompleto(atual, classificacao)) {
-      return { classificacao, jaRecebido: true, faltando: faltando(atual), classificacaoPendente: false, progresso: null };
+      return {
+        classificacao,
+        jaRecebido: true,
+        faltando: faltando(atual),
+        classificacaoPendente: false,
+        progresso: null,
+      };
     }
 
     const recebido: DocumentoInicialRecebido = {
       codigo: classificacao,
       documentId,
       em: now,
-      ...(classificacao === 'IDENTIDADE' ? { subtipo: detectarSubtipoIdentidade(fileName, texto ?? '') } : {}),
+      ...(classificacao === 'IDENTIDADE'
+        ? { subtipo: detectarSubtipoIdentidade(fileName, texto ?? '') }
+        : {}),
     };
     const state: OnboardingDocumentalState = {
       ...atual,
@@ -273,7 +358,13 @@ export class OnboardingDocumentalRuntime {
     };
     await this.deps.store.save(state);
     await this.sincronizarPendencias(state);
-    return { classificacao, jaRecebido: false, faltando: faltando(state), classificacaoPendente: false, progresso: mensagemDeProgresso(state) };
+    return {
+      classificacao,
+      jaRecebido: false,
+      faltando: faltando(state),
+      classificacaoPendente: false,
+      progresso: mensagemDeProgresso(state),
+    };
   }
 
   /** A jornada está 100%? (fonte do estado ANALISE_ADMINISTRATIVA da conversa) */
@@ -297,7 +388,11 @@ export class OnboardingDocumentalRuntime {
     if (state === null) return null;
     const prox = proximo(state);
     const rotuloRecebido = (r: DocumentoInicialRecebido): string =>
-      r.codigo === 'IDENTIDADE' ? (r.subtipo === 'cnh' ? 'CNH' : 'RG (uma das faces)') : ROTULO_INICIAL[r.codigo];
+      r.codigo === 'IDENTIDADE'
+        ? r.subtipo === 'cnh'
+          ? 'CNH'
+          : 'RG (uma das faces)'
+        : ROTULO_INICIAL[r.codigo];
     const ultimo = state.recebidos[state.recebidos.length - 1] ?? null;
     return {
       recebidos: state.recebidos.map(rotuloRecebido),
@@ -311,6 +406,8 @@ export class OnboardingDocumentalRuntime {
   /** Pendências por CÓDIGO canônico → ALIR/Readiness (a mesma verdade em toda parte). */
   private async sincronizarPendencias(state: OnboardingDocumentalState): Promise<void> {
     if (this.deps.pendencias === null) return;
-    await this.deps.pendencias.setPendingDocuments(state.chatId, faltando(state)).catch(() => undefined);
+    await this.deps.pendencias
+      .setPendingDocuments(state.chatId, faltando(state))
+      .catch(() => undefined);
   }
 }

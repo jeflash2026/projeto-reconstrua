@@ -26,6 +26,9 @@ export default defineWorkspace([
       name: 'conformance',
       include: ['tests/conformance/**/*.test.ts'],
       environment: 'node',
+      // A suite ainda nao tem arquivos (.gitkeep desde o 1o commit) — sem isto,
+      // 'No test files found' derrubava o job Conformidade em TODO push.
+      passWithNoTests: true,
     },
   },
   {

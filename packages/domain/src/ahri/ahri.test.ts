@@ -46,27 +46,39 @@ describe('AhriAggregate — assunção de responsabilidade operacional (DF-09; I
   });
 
   it('AH-DE-MISSAO — sem Missão é recusada (item 12)', () => {
-    // @ts-expect-error item 12: a Missão é obrigatória.
-    const result = AhriAggregate.assumeOperationalResponsibility({ ...validInput(), mission: undefined });
+    const result = AhriAggregate.assumeOperationalResponsibility({
+      ...validInput(),
+      // @ts-expect-error item 12: a Missão é obrigatória.
+      mission: undefined,
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('AH-DE-MISSAO');
   });
 
   it('INV-AH-02 — sem Regra Operacional de fundamento é recusada (DF-09)', () => {
-    // @ts-expect-error INV-AH-02: a Regra Operacional é obrigatória.
-    const result = AhriAggregate.assumeOperationalResponsibility({ ...validInput(), governingRule: undefined });
+    const result = AhriAggregate.assumeOperationalResponsibility({
+      ...validInput(),
+      // @ts-expect-error INV-AH-02: a Regra Operacional é obrigatória.
+      governingRule: undefined,
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('INV-AH-02');
   });
 
   it('INV-AH-02 — sem FUNDAMENTO citado é recusada (registro DF-09)', () => {
-    const result = AhriAggregate.assumeOperationalResponsibility({ ...validInput(), fundamento: '   ' });
+    const result = AhriAggregate.assumeOperationalResponsibility({
+      ...validInput(),
+      fundamento: '   ',
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('INV-AH-02');
   });
 
   it('AH-AUDITAVEL — datação inválida é recusada (Lei 4; Art. 14º)', () => {
-    const result = AhriAggregate.assumeOperationalResponsibility({ ...validInput(), assumedAt: new Date('x') });
+    const result = AhriAggregate.assumeOperationalResponsibility({
+      ...validInput(),
+      assumedAt: new Date('x'),
+    });
     expect(result.isErr()).toBe(true);
     expect(result.unwrapErr().invariantId).toBe('AH-AUDITAVEL');
   });

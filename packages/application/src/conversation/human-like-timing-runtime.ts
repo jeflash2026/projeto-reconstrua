@@ -25,7 +25,11 @@ export class HumanLikeTimingRuntime {
    * @param outboundLength tamanho (chars) da resposta a digitar
    * @param timingHintMs   dica de tempo do Brain (ms), respeitada como piso adicional
    */
-  compute(inboundLength: number, outboundLength: number, timingHintMs: number | null = null): DeliveryTiming {
+  compute(
+    inboundLength: number,
+    outboundLength: number,
+    timingHintMs: number | null = null,
+  ): DeliveryTiming {
     const p = this.policy;
 
     const rawReading = Math.min(inboundLength * p.readMsPerChar, p.maxReadMs);

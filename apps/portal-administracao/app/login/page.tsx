@@ -54,7 +54,10 @@ const LoginPage = (): ReactElement => {
             <p className="page-sub">Informe a senha de acesso do administrador.</p>
             <form
               className="form-row"
-              onSubmit={(e) => { e.preventDefault(); void entrar(); }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void entrar();
+              }}
               style={{ flexDirection: 'column', alignItems: 'stretch' }}
             >
               <input
@@ -62,7 +65,9 @@ const LoginPage = (): ReactElement => {
                 placeholder="Senha de acesso"
                 value={senha}
                 autoFocus
-                onChange={(e) => { setSenha(e.target.value); }}
+                onChange={(e) => {
+                  setSenha(e.target.value);
+                }}
               />
               <button type="submit" className="primary" disabled={busy || senha.trim() === ''}>
                 Entrar
@@ -72,12 +77,15 @@ const LoginPage = (): ReactElement => {
         ) : (
           <>
             <p className="page-sub">
-              Nenhum administrador cadastrado ainda. Informe seu nome para concluir o cadastro
-              do primeiro administrador.
+              Nenhum administrador cadastrado ainda. Informe seu nome para concluir o cadastro do
+              primeiro administrador.
             </p>
             <form
               className="form-row"
-              onSubmit={(e) => { e.preventDefault(); void cadastrar(); }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void cadastrar();
+              }}
               style={{ flexDirection: 'column', alignItems: 'stretch' }}
             >
               <input
@@ -85,7 +93,9 @@ const LoginPage = (): ReactElement => {
                 placeholder="Seu nome completo"
                 value={nome}
                 autoFocus
-                onChange={(e) => { setNome(e.target.value); }}
+                onChange={(e) => {
+                  setNome(e.target.value);
+                }}
               />
               <button type="submit" className="primary" disabled={busy || nome.trim() === ''}>
                 Cadastrar e entrar
@@ -93,7 +103,11 @@ const LoginPage = (): ReactElement => {
             </form>
           </>
         )}
-        {erro ? <div className="error-box" style={{ marginTop: 12 }}>{erro}</div> : null}
+        {erro ? (
+          <div className="error-box" style={{ marginTop: 12 }}>
+            {erro}
+          </div>
+        ) : null}
       </div>
     </div>
   );

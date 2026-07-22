@@ -20,7 +20,9 @@ const DocumentosPage = async (): Promise<ReactElement> => {
       <h1 className="page-title">Documentos</h1>
       <p className="page-sub">Documentos reconhecidos nos processos atribuídos a você.</p>
       {!docs ? (
-        <div className="error-box">API indisponível ou identificação ausente (defina no Perfil).</div>
+        <div className="error-box">
+          API indisponível ou identificação ausente (defina no Perfil).
+        </div>
       ) : docs.length === 0 ? (
         <div className="card empty">Nenhum documento nos seus processos.</div>
       ) : (

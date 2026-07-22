@@ -120,7 +120,9 @@ export function runEventStoreContract(label: string, makeHarness: () => EventSto
       expect(pending.length).toBeGreaterThanOrEqual(2);
       await outbox.markPublished(pending.map((e) => e.id));
       const afterPublish = await outbox.fetchUnpublished(100);
-      expect(afterPublish.map((e) => e.id)).not.toEqual(expect.arrayContaining(pending.map((e) => e.id)));
+      expect(afterPublish.map((e) => e.id)).not.toEqual(
+        expect.arrayContaining(pending.map((e) => e.id)),
+      );
     });
 
     it('reidratação genérica reconstrói o estado a partir dos eventos', async () => {

@@ -32,7 +32,8 @@ export const FOLLOW_UP_RULES: readonly OperationalRuleSpec[] = [
       references: ['reengajamento'],
       urgency: 'normal',
     },
-    fundamento: 'Art. 9º (INV-07: sempre há próxima ação) + RO-R8-004 (reengajamento respeitoso); RO-R7-001',
+    fundamento:
+      'Art. 9º (INV-07: sempre há próxima ação) + RO-R8-004 (reengajamento respeitoso); RO-R7-001',
   },
   // GO-LIVE 9B: o follow-up que fala do CASO exige o FATO caseExists (Truth Layer);
   // sem caso, o timeout reengaja como RELAÇÃO — nunca afirmando caso inexistente.
@@ -56,7 +57,8 @@ export const FOLLOW_UP_RULES: readonly OperationalRuleSpec[] = [
       references: ['acompanhamento-agendado'],
       urgency: 'normal',
     },
-    fundamento: 'Art. 9º (INV-07) + RO-R6-002 (acompanhamento) — a AHRI jamais abandona um cliente; RO-R7-001; GO-LIVE 9B',
+    fundamento:
+      'Art. 9º (INV-07) + RO-R6-002 (acompanhamento) — a AHRI jamais abandona um cliente; RO-R7-001; GO-LIVE 9B',
   },
   {
     ref: 'RO-4C-FOLLOWUP-TIMEOUT-RELATE',
@@ -78,7 +80,8 @@ export const FOLLOW_UP_RULES: readonly OperationalRuleSpec[] = [
       references: ['reengajamento'],
       urgency: 'normal',
     },
-    fundamento: 'Art. 9º (INV-07) + RO-R8-004 (reengajamento respeitoso); GO-LIVE 9B (relação ≠ caso)',
+    fundamento:
+      'Art. 9º (INV-07) + RO-R8-004 (reengajamento respeitoso); GO-LIVE 9B (relação ≠ caso)',
   },
 ];
 
@@ -94,7 +97,11 @@ export const FOLLOW_UP_RULES: readonly OperationalRuleSpec[] = [
 // regra CONGELADA do DEFAULT_RULE_CATALOG, sem reescrevê-la.
 // Regras que dependem de mídia (RECOGNIZE/INGEST já em 2D), de destino não publicado
 // (NOTIFY-HUMAN) ou de ajuste de UX (EXPLAIN, DOC-REQUEST) permanecem para sprints próprios.
-const APPROVED_ADDITIONS: readonly string[] = ['RO-DEADLINE-WARN-001', 'RO-META-ESCALATE-CANON-001', 'RO-STOP-CONCLUDED-001'];
+const APPROVED_ADDITIONS: readonly string[] = [
+  'RO-DEADLINE-WARN-001',
+  'RO-META-ESCALATE-CANON-001',
+  'RO-STOP-CONCLUDED-001',
+];
 const APPROVED_FROM_DEFAULT: readonly OperationalRuleSpec[] = DEFAULT_RULE_CATALOG.filter((r) =>
   APPROVED_ADDITIONS.includes(r.ref),
 );

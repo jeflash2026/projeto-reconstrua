@@ -41,7 +41,8 @@ export const MISSION_RULE_CATALOG: readonly OperationalRuleSpec[] = [
     ],
     blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
     action: { kind: 'use_case', useCase: 'OnboardClient', references: [] },
-    fundamento: 'R1/R2 + nascimento da Missão (INV-17) + R6; RO-R7-001; GO-LIVE 9C (relação ≠ onboarding)',
+    fundamento:
+      'R1/R2 + nascimento da Missão (INV-17) + R6; RO-R7-001; GO-LIVE 9C (relação ≠ onboarding)',
   },
   {
     ref: 'RO-2D-ONBOARD-DOC',
@@ -53,7 +54,8 @@ export const MISSION_RULE_CATALOG: readonly OperationalRuleSpec[] = [
     ],
     blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
     action: { kind: 'use_case', useCase: 'OnboardClient', references: ['artefato-documental'] },
-    fundamento: 'R1/R2 + INV-17 — o documento é fato de domínio que inaugura o atendimento; GO-LIVE 9C',
+    fundamento:
+      'R1/R2 + INV-17 — o documento é fato de domínio que inaugura o atendimento; GO-LIVE 9C',
   },
   {
     ref: 'RO-2D-GREET',
@@ -64,7 +66,14 @@ export const MISSION_RULE_CATALOG: readonly OperationalRuleSpec[] = [
       { fact: 'perceptKind', op: 'eq', value: 'text' },
     ],
     blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
-    action: { kind: 'conversation', directive: 'speak', speechAct: 'greet', topic: 'boas-vindas', references: [], urgency: 'normal' },
+    action: {
+      kind: 'conversation',
+      directive: 'speak',
+      speechAct: 'greet',
+      topic: 'boas-vindas',
+      references: [],
+      urgency: 'normal',
+    },
     fundamento: 'Art. 15º (assistiva) + RO-R8-001',
   },
   // ── Flows 2 & 3: documento → ingestão + resposta ───────────────────────────
@@ -89,7 +98,14 @@ export const MISSION_RULE_CATALOG: readonly OperationalRuleSpec[] = [
     priority: 50,
     preconditions: [{ fact: 'perceptKind', op: 'in', value: ['pdf', 'document', 'image'] }],
     blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
-    action: { kind: 'conversation', directive: 'speak', speechAct: 'inform', topic: 'documento recebido', references: [], urgency: 'normal' },
+    action: {
+      kind: 'conversation',
+      directive: 'speak',
+      speechAct: 'inform',
+      topic: 'documento recebido',
+      references: [],
+      urgency: 'normal',
+    },
     fundamento: 'Art. 15º + RO-R8-002 (continuidade)',
   },
   // ── GO-LIVE 9B: RELACIONAMENTO ≠ CASO. O antigo RO-2D-EXPLAIN (topic
@@ -106,7 +122,14 @@ export const MISSION_RULE_CATALOG: readonly OperationalRuleSpec[] = [
       { fact: 'caseExists', op: 'falsy' },
     ],
     blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
-    action: { kind: 'conversation', directive: 'speak', speechAct: 'explain', topic: 'relacionamento', references: [], urgency: 'normal' },
+    action: {
+      kind: 'conversation',
+      directive: 'speak',
+      speechAct: 'explain',
+      topic: 'relacionamento',
+      references: [],
+      urgency: 'normal',
+    },
     fundamento: 'Art. 15º + RO-R8-002; GO-LIVE 9B (relação ≠ caso)',
   },
   {
@@ -119,7 +142,14 @@ export const MISSION_RULE_CATALOG: readonly OperationalRuleSpec[] = [
       { fact: 'caseExists', op: 'truthy' },
     ],
     blocks: [{ fact: 'matterRequiresHuman', op: 'truthy' }],
-    action: { kind: 'conversation', directive: 'speak', speechAct: 'explain', topic: 'acompanhamento do caso', references: [], urgency: 'normal' },
+    action: {
+      kind: 'conversation',
+      directive: 'speak',
+      speechAct: 'explain',
+      topic: 'acompanhamento do caso',
+      references: [],
+      urgency: 'normal',
+    },
     fundamento: 'Art. 15º + RO-R8-002; GO-LIVE 9B (só com caseExists da Truth Layer)',
   },
 ];

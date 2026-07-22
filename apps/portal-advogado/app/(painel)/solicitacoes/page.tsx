@@ -13,7 +13,9 @@ const SolicitacoesPage = async (): Promise<ReactElement> => {
     return (
       <>
         <h1 className="page-title">Solicitações de Documentos</h1>
-        <div className="error-box">Não consegui falar com a operação agora. Tente novamente em instantes.</div>
+        <div className="error-box">
+          Não consegui falar com a operação agora. Tente novamente em instantes.
+        </div>
       </>
     );
   }
@@ -23,9 +25,13 @@ const SolicitacoesPage = async (): Promise<ReactElement> => {
       <div className="sol-header">
         <div>
           <h1 className="page-title">Solicitações de Documentos</h1>
-          <p className="page-sub">Você pede aqui; a AHRI conversa com o cliente e avisa quando o documento chegar.</p>
+          <p className="page-sub">
+            Você pede aqui; a AHRI conversa com o cliente e avisa quando o documento chegar.
+          </p>
         </div>
-        <Link href="/solicitacoes/nova" className="sol-btn sol-btn-primario">+ Solicitar documento</Link>
+        <Link href="/solicitacoes/nova" className="sol-btn sol-btn-primario">
+          + Solicitar documento
+        </Link>
       </div>
       <SolicitacoesList solicitacoes={data.solicitacoes} />
     </>

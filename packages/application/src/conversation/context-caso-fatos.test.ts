@@ -12,8 +12,15 @@ import type { Session } from './ports.js';
 const NOW = new Date('2026-07-18T12:00:00.000Z');
 
 const SESSION: Session = {
-  chatId: 'c1', openedAt: NOW, lastInboundAt: null, lastOutboundAt: null, turns: 1,
-  presence: 'available', awaitingDocuments: false, status: 'active', lastSilenceNoticeAt: null,
+  chatId: 'c1',
+  openedAt: NOW,
+  lastInboundAt: null,
+  lastOutboundAt: null,
+  turns: 1,
+  presence: 'available',
+  awaitingDocuments: false,
+  status: 'active',
+  lastSilenceNoticeAt: null,
 };
 
 function runtimes() {
@@ -28,14 +35,18 @@ function runtimes() {
 describe('ConversationContextRuntime · casoFatos (PC-R4)', () => {
   it('provider presente → pacote no contexto', async () => {
     const { sessions, memory } = runtimes();
-    const ctx = new ConversationContextRuntime(sessions, memory, {}, () => Promise.resolve('FATOS DO CASO'));
+    const ctx = new ConversationContextRuntime(sessions, memory, {}, () =>
+      Promise.resolve('FATOS DO CASO'),
+    );
     const view = await ctx.build('c1', null, NOW);
     expect(view.casoFatos).toBe('FATOS DO CASO');
   });
 
   it('provider que FALHA → null (a conversa nunca quebra)', async () => {
     const { sessions, memory } = runtimes();
-    const ctx = new ConversationContextRuntime(sessions, memory, {}, () => Promise.reject(new Error('boom')));
+    const ctx = new ConversationContextRuntime(sessions, memory, {}, () =>
+      Promise.reject(new Error('boom')),
+    );
     const view = await ctx.build('c1', null, NOW);
     expect(view.casoFatos).toBeNull();
   });

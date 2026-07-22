@@ -7,7 +7,12 @@ import { ExponentialBackoffRetryPolicy } from './retry-policy.js';
 
 describe('ExponentialBackoffRetryPolicy', () => {
   it('cresce exponencialmente e respeita o teto', () => {
-    const p = new ExponentialBackoffRetryPolicy({ baseMs: 100, factor: 2, maxMs: 500, maxAttempts: 10 });
+    const p = new ExponentialBackoffRetryPolicy({
+      baseMs: 100,
+      factor: 2,
+      maxMs: 500,
+      maxAttempts: 10,
+    });
     expect(p.decide(1)).toEqual({ retry: true, delayMs: 100 });
     expect(p.decide(2)).toEqual({ retry: true, delayMs: 200 });
     expect(p.decide(3)).toEqual({ retry: true, delayMs: 400 });
@@ -16,7 +21,12 @@ describe('ExponentialBackoffRetryPolicy', () => {
   });
 
   it('desiste (→ Dead Letter) ao atingir maxAttempts (poison detection)', () => {
-    const p = new ExponentialBackoffRetryPolicy({ baseMs: 100, factor: 2, maxMs: 1000, maxAttempts: 3 });
+    const p = new ExponentialBackoffRetryPolicy({
+      baseMs: 100,
+      factor: 2,
+      maxMs: 1000,
+      maxAttempts: 3,
+    });
     expect(p.decide(1).retry).toBe(true);
     expect(p.decide(2).retry).toBe(true);
     expect(p.decide(3)).toEqual({ retry: false, delayMs: 0 });
@@ -25,10 +35,20 @@ describe('ExponentialBackoffRetryPolicy', () => {
 
   it('jitter é determinístico com RNG injetado e fica dentro dos limites', () => {
     const high = new ExponentialBackoffRetryPolicy({
-      baseMs: 1000, factor: 1, maxMs: 1000, maxAttempts: 5, jitter: 0.5, random: () => 1,
+      baseMs: 1000,
+      factor: 1,
+      maxMs: 1000,
+      maxAttempts: 5,
+      jitter: 0.5,
+      random: () => 1,
     });
     const low = new ExponentialBackoffRetryPolicy({
-      baseMs: 1000, factor: 1, maxMs: 1000, maxAttempts: 5, jitter: 0.5, random: () => 0,
+      baseMs: 1000,
+      factor: 1,
+      maxMs: 1000,
+      maxAttempts: 5,
+      jitter: 0.5,
+      random: () => 0,
     });
     expect(high.decide(1).delayMs).toBe(1500); // 1000 * (1 + 0.5)
     expect(low.decide(1).delayMs).toBe(500); // 1000 * (1 - 0.5)

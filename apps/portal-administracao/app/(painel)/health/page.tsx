@@ -12,12 +12,18 @@ const HealthPage = async (): Promise<ReactElement> => {
       <h1 className="page-title">Health</h1>
       <p className="page-sub">
         Estado geral:{' '}
-        {data ? <span className={`badge ${healthBadgeClass(data.overall)}`}>{data.overall}</span> : <span className="badge bad">API OFFLINE</span>}
+        {data ? (
+          <span className={`badge ${healthBadgeClass(data.overall)}`}>{data.overall}</span>
+        ) : (
+          <span className="badge bad">API OFFLINE</span>
+        )}
       </p>
       {!data ? (
         <div className="error-box">API indisponível.</div>
       ) : data.components.length === 0 ? (
-        <div className="card empty">Nenhum componente reportou saúde ainda — execute o Boot Runtime.</div>
+        <div className="card empty">
+          Nenhum componente reportou saúde ainda — execute o Boot Runtime.
+        </div>
       ) : (
         <div className="table-wrap">
           <table>
@@ -42,7 +48,9 @@ const HealthPage = async (): Promise<ReactElement> => {
                   </td>
                   <td>{formatMs(c.responseMs)}</td>
                   <td>{c.queueDepth ?? '—'}</td>
-                  <td>{c.memoryBytes === null ? '—' : `${(c.memoryBytes / 1048576).toFixed(1)} MB`}</td>
+                  <td>
+                    {c.memoryBytes === null ? '—' : `${(c.memoryBytes / 1048576).toFixed(1)} MB`}
+                  </td>
                   <td>{formatDate(c.lastProcessedAt)}</td>
                   <td>{formatDate(c.reportedAt)}</td>
                   <td>{c.detail ?? '—'}</td>

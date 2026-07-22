@@ -9,7 +9,11 @@ import type { FastifyInstance } from 'fastify';
 import type { Clock, Uuid, UuidGenerator } from '@reconstrua/domain';
 import { toUuid } from '@reconstrua/domain';
 import type { InboundEnvelope } from '@reconstrua/application';
-import { assembleAdminOperation, FakeSleeper, type AssembledAdminOperation } from '@reconstrua/infrastructure';
+import {
+  assembleAdminOperation,
+  FakeSleeper,
+  type AssembledAdminOperation,
+} from '@reconstrua/infrastructure';
 import { buildAdminServer } from './admin-server.js';
 
 class TestClock implements Clock {
@@ -73,7 +77,12 @@ describe('Admin Portal API', () => {
   it('GET /admin/dashboard — métricas reais dos read models', async () => {
     const res = await call({ method: 'GET', url: '/admin/dashboard' });
     expect(res.statusCode).toBe(200);
-    const body: { activeClients: number; messageCount: number; expectedFees: null; overall: string } = res.json();
+    const body: {
+      activeClients: number;
+      messageCount: number;
+      expectedFees: null;
+      overall: string;
+    } = res.json();
     expect(body.activeClients).toBe(1);
     expect(body.messageCount).toBeGreaterThanOrEqual(1);
     expect(body.expectedFees).toBeNull(); // sem fonte → nunca inventado
@@ -87,7 +96,12 @@ describe('Admin Portal API', () => {
   it('GET /admin/clients/:chatId — memória, relationship, conversa e missões', async () => {
     const res = await call({ method: 'GET', url: `/admin/clients/${encodeURIComponent(CHAT)}` });
     expect(res.statusCode).toBe(200);
-    const body: { memory: { messageCount: number }; relationship: { summary: string }; conversation: unknown[]; missions: unknown[] } = res.json();
+    const body: {
+      memory: { messageCount: number };
+      relationship: { summary: string };
+      conversation: unknown[];
+      missions: unknown[];
+    } = res.json();
     expect(body.memory.messageCount).toBe(1);
     expect(body.relationship.summary.length).toBeGreaterThan(0);
     expect(body.conversation.length).toBeGreaterThan(0);
@@ -100,8 +114,17 @@ describe('Admin Portal API', () => {
     expect(missions.length).toBeGreaterThanOrEqual(1);
     expect(missions[0]?.chatId).toBe(CHAT);
 
-    const detail = await call({ method: 'GET', url: `/admin/missions/${missions[0]?.missionId ?? ''}` });
-    const body: { timeline: Array<{ eventType: string; actor: string | null; operationalRuleRef: string | null }> } = detail.json();
+    const detail = await call({
+      method: 'GET',
+      url: `/admin/missions/${missions[0]?.missionId ?? ''}`,
+    });
+    const body: {
+      timeline: Array<{
+        eventType: string;
+        actor: string | null;
+        operationalRuleRef: string | null;
+      }>;
+    } = detail.json();
     expect(body.timeline.some((e) => e.eventType === 'mission.created')).toBe(true);
     expect(body.timeline.every((e) => e.actor === 'AHRI')).toBe(true);
     expect(body.timeline.every((e) => (e.operationalRuleRef ?? '').startsWith('RO-'))).toBe(true);
@@ -113,7 +136,11 @@ describe('Admin Portal API', () => {
   });
 
   it('B4.1 — encerrar missão inexistente → 404', async () => {
-    const res = await call({ method: 'POST', url: '/admin/missions/nao-existe/encerrar', payload: { reason: 'x' } });
+    const res = await call({
+      method: 'POST',
+      url: '/admin/missions/nao-existe/encerrar',
+      payload: { reason: 'x' },
+    });
     expect(res.statusCode).toBe(404);
   });
 
@@ -122,7 +149,11 @@ describe('Admin Portal API', () => {
     const missions: Array<{ missionId: string }> = list.json();
     const missionId = missions[0]?.missionId ?? '';
 
-    const res = await call({ method: 'POST', url: `/admin/missions/${missionId}/encerrar`, payload: { reason: 'perícia concluída' } });
+    const res = await call({
+      method: 'POST',
+      url: `/admin/missions/${missionId}/encerrar`,
+      payload: { reason: 'perícia concluída' },
+    });
     expect(res.statusCode).toBe(200);
     const body: { closed: boolean; skipped: boolean; stateId: string | null } = res.json();
     expect(body.closed).toBe(true);
@@ -131,12 +162,18 @@ describe('Admin Portal API', () => {
 
     // A timeline registra a derivação do Estado terminal (auditável, com proveniência).
     const detail = await call({ method: 'GET', url: `/admin/missions/${missionId}` });
-    const detailBody: { timeline: Array<{ eventType: string; streamType: string; actor: string | null }> } = detail.json();
+    const detailBody: {
+      timeline: Array<{ eventType: string; streamType: string; actor: string | null }>;
+    } = detail.json();
     expect(detailBody.timeline.some((e) => e.streamType === 'operational-state')).toBe(true);
   });
 
   it('B4.3 — reabrir missão inexistente → 404', async () => {
-    const res = await call({ method: 'POST', url: '/admin/missions/nao-existe/reabrir', payload: { reason: 'x' } });
+    const res = await call({
+      method: 'POST',
+      url: '/admin/missions/nao-existe/reabrir',
+      payload: { reason: 'x' },
+    });
     expect(res.statusCode).toBe(404);
   });
 
@@ -149,7 +186,11 @@ describe('Admin Portal API', () => {
     const beforeBody: { timeline: unknown[] } = before.json();
     const beforeLen = beforeBody.timeline.length;
 
-    const res = await call({ method: 'POST', url: `/admin/missions/${missionId}/reabrir`, payload: { reason: 'novo fato jurídico' } });
+    const res = await call({
+      method: 'POST',
+      url: `/admin/missions/${missionId}/reabrir`,
+      payload: { reason: 'novo fato jurídico' },
+    });
     expect(res.statusCode).toBe(200);
     const body: { reopened: boolean; stateId: string | null } = res.json();
     expect(body.reopened).toBe(true);
@@ -166,10 +207,17 @@ describe('Admin Portal API', () => {
     const res = await call({ method: 'GET', url: '/admin/metrics/operacional' });
     expect(res.statusCode).toBe(200);
     const m: {
-      totalProcessos: number; processosAtivos: number; processosEncerrados: number; processosReabertos: number;
-      followUpsPendentes: number; followUpsEnviados: number;
-      tempoMedioEntreInteracoesMs: number | null; tempoMedioAteEncerramentoMs: number | null;
-      casosPorAdvogado: Record<string, number>; casosPorEtapa: Record<string, number>; casosAguardandoCliente: number;
+      totalProcessos: number;
+      processosAtivos: number;
+      processosEncerrados: number;
+      processosReabertos: number;
+      followUpsPendentes: number;
+      followUpsEnviados: number;
+      tempoMedioEntreInteracoesMs: number | null;
+      tempoMedioAteEncerramentoMs: number | null;
+      casosPorAdvogado: Record<string, number>;
+      casosPorEtapa: Record<string, number>;
+      casosAguardandoCliente: number;
     } = res.json();
 
     expect(m.totalProcessos).toBe(1);
@@ -194,12 +242,17 @@ describe('Admin Portal API', () => {
     const member: { id: string; active: boolean } = created.json();
     expect(member.active).toBe(true);
 
-    const deactivated = await call({ method: 'PATCH', url: `/admin/staff/${member.id}`, payload: { active: false } });
+    const deactivated = await call({
+      method: 'PATCH',
+      url: `/admin/staff/${member.id}`,
+      payload: { active: false },
+    });
     const deactivatedBody: { active: boolean } = deactivated.json();
     expect(deactivatedBody.active).toBe(false);
 
     const listed = await call({ method: 'GET', url: '/admin/staff/advogado' });
-    const body: { members: unknown[]; workload: { role: string; openHandoffs: number } } = listed.json();
+    const body: { members: unknown[]; workload: { role: string; openHandoffs: number } } =
+      listed.json();
     expect(body.members).toHaveLength(1);
     expect(body.workload.role).toBe('advogado');
 
@@ -214,7 +267,11 @@ describe('Admin Portal API', () => {
     const antesBody: { bootstrapped: boolean } = antes.json();
     expect(antesBody.bootstrapped).toBe(false);
 
-    const criar = await call({ method: 'POST', url: '/admin/bootstrap', payload: { name: 'Jessé Fundador' } });
+    const criar = await call({
+      method: 'POST',
+      url: '/admin/bootstrap',
+      payload: { name: 'Jessé Fundador' },
+    });
     expect(criar.statusCode).toBe(200);
     const criarBody: { bootstrapped: boolean; member: { name: string } } = criar.json();
     expect(criarBody.member.name).toBe('Jessé Fundador');
@@ -225,7 +282,11 @@ describe('Admin Portal API', () => {
     expect(depoisBody.bootstrapped).toBe(true);
 
     // Segundo bootstrap (corrida/duplo clique/link vazado) → 409, NUNCA cria outro.
-    const denovo = await call({ method: 'POST', url: '/admin/bootstrap', payload: { name: 'Intruso' } });
+    const denovo = await call({
+      method: 'POST',
+      url: '/admin/bootstrap',
+      payload: { name: 'Intruso' },
+    });
     expect(denovo.statusCode).toBe(409);
     const admins = await call({ method: 'GET', url: '/admin/staff/administrador' });
     const adminsBody: { members: unknown[] } = admins.json();
@@ -234,7 +295,11 @@ describe('Admin Portal API', () => {
 
   it('bootstrap exige o Bearer do Admin (nunca público)', async () => {
     const get = await app.inject({ method: 'GET', url: '/admin/bootstrap' });
-    const post = await app.inject({ method: 'POST', url: '/admin/bootstrap', payload: { name: 'X' } });
+    const post = await app.inject({
+      method: 'POST',
+      url: '/admin/bootstrap',
+      payload: { name: 'X' },
+    });
     expect(get.statusCode).toBe(401);
     expect(post.statusCode).toBe(401);
   });
@@ -244,7 +309,11 @@ describe('Admin Portal API', () => {
     const briefingBody: { greeting: string } = briefing.json();
     expect(briefingBody.greeting.length).toBeGreaterThan(0);
 
-    const ask = await call({ method: 'POST', url: '/admin/founder/ask', payload: { question: 'quantos clientes temos?' } });
+    const ask = await call({
+      method: 'POST',
+      url: '/admin/founder/ask',
+      payload: { question: 'quantos clientes temos?' },
+    });
     const answer: { answer: string; provenance: string; decidesNothing: true } = ask.json();
     expect(answer.answer).toContain('1');
     expect(answer.provenance.length).toBeGreaterThan(0);
@@ -277,7 +346,11 @@ describe('Admin Portal API', () => {
   });
 
   it('BL-2.1 — Bearer inválido ⇒ 401', async () => {
-    const res = await app.inject({ method: 'GET', url: '/admin/dashboard', headers: { authorization: 'Bearer ERRADO' } });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin/dashboard',
+      headers: { authorization: 'Bearer ERRADO' },
+    });
     expect(res.statusCode).toBe(401);
   });
 

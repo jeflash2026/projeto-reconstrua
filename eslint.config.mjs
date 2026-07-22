@@ -7,13 +7,7 @@ import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: [
-      '**/dist/**',
-      '**/.next/**',
-      '**/coverage/**',
-      '**/node_modules/**',
-      '**/.turbo/**',
-    ],
+    ignores: ['**/dist/**', '**/.next/**', '**/coverage/**', '**/node_modules/**', '**/.turbo/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -28,10 +22,7 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
-      '@typescript-eslint/explicit-function-return-type': [
-        'error',
-        { allowExpressions: true },
-      ],
+      '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: true }],
       // Params/vars prefixados com `_` são intencionalmente não usados: um adapter
       // pode não consumir um argumento que o port (interface) exige de outro. A
       // convenção `^_` preserva a fidelidade da assinatura ao contrato sem falso positivo.

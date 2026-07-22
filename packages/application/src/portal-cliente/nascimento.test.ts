@@ -21,9 +21,17 @@ const SECRET = 'segredo-portal';
 
 function resumo(over: Partial<ClienteResumo>): ClienteResumo {
   return {
-    clienteId: 'cli-1', chatId: 'c1', missionId: 'm1', quem: 'Maria',
-    status: 'PRONTO_AGUARDANDO_MODALIDADE', modalidade: null, pronto: true,
-    faltando: [], saude: 'GREEN', ultimoContatoAt: NOW, pedidosConfirmadosEm: null,
+    clienteId: 'cli-1',
+    chatId: 'c1',
+    missionId: 'm1',
+    quem: 'Maria',
+    status: 'PRONTO_AGUARDANDO_MODALIDADE',
+    modalidade: null,
+    pronto: true,
+    faltando: [],
+    saude: 'GREEN',
+    ultimoContatoAt: NOW,
+    pedidosConfirmadosEm: null,
     ...over,
   };
 }
@@ -91,7 +99,11 @@ describe('Nascimento · o momento acontece (sem clique humano)', () => {
     expect(r.nascidos).toEqual(['cli-1']);
     // O FATO (com o que foi DITO — Lei 10):
     expect(liberacao.salvos).toHaveLength(1);
-    expect(liberacao.salvos[0]).toMatchObject({ clienteId: 'cli-1', chatId: 'c1', estimativaDiasInformada: 12 });
+    expect(liberacao.salvos[0]).toMatchObject({
+      clienteId: 'cli-1',
+      chatId: 'c1',
+      estimativaDiasInformada: 12,
+    });
 
     // A MENSAGEM (D2 revisado — conteúdo homologado):
     const msg = comunicador.mensagens[0];

@@ -4,10 +4,21 @@
 // turno re-sintetiza uma nova Verdade a partir dos fatos da missão. Persiste
 // OperationalTruthSynthesized.
 // ─────────────────────────────────────────────────────────────────────────────
-import { OperationalTruthAggregate, OperationalTruthId, OperationalTruthMissionRef, SynthesisResponsibleRef } from '@reconstrua/domain';
+import {
+  OperationalTruthAggregate,
+  OperationalTruthId,
+  OperationalTruthMissionRef,
+  SynthesisResponsibleRef,
+} from '@reconstrua/domain';
 import { foundedProvenance } from '../provenance.js';
 import { failedOutcome, type UseCaseOutcome } from '../types.js';
-import { persistNew, successOutcome, type MissionContext, type MissionUseCase, type UseCaseDeps } from '../use-case.js';
+import {
+  persistNew,
+  successOutcome,
+  type MissionContext,
+  type MissionUseCase,
+  type UseCaseDeps,
+} from '../use-case.js';
 
 export class BuildTruthUseCase implements MissionUseCase {
   readonly name = 'BuildTruth';
@@ -27,7 +38,8 @@ export class BuildTruthUseCase implements MissionUseCase {
       synthesizedAt: ctx.now,
       synthesizedBy: SynthesisResponsibleRef.fromString(this.deps.config.ahriResponsibleId),
     });
-    if (result.isErr()) return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
+    if (result.isErr())
+      return failedOutcome(this.name, this.streamType, result.unwrapErr().message);
 
     const appended = await persistNew(
       this.deps.appender,
@@ -38,6 +50,8 @@ export class BuildTruthUseCase implements MissionUseCase {
       foundedProvenance(ctx.intent, ctx.identity.missionId),
       { missionId: ctx.identity.missionId },
     );
-    return successOutcome(this.name, this.streamType, truthId, appended, { latestTruthId: truthId });
+    return successOutcome(this.name, this.streamType, truthId, appended, {
+      latestTruthId: truthId,
+    });
   }
 }

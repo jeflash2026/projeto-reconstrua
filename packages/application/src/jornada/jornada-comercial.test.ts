@@ -424,3 +424,31 @@ describe('escada de cobrança — nunca a mesma cobrança duas vezes', () => {
     expect(responderTurno(emTriagem(3), texto('mandei sim'))).toBe('');
   });
 });
+
+// ── CASO MARILEIDE (2026-07-22): saudação + preâmbulo antes do nome ──────────
+describe('caso Marileide — "Olá bom dia meu nome completo X" captura o nome', () => {
+  it('a frase EXATA da cliente real captura o nome limpo', () => {
+    const c = capturarIdentificacao('Olá bom dia meu nome completo Marileide Brites Prates Costa', {
+      nome: null,
+      cidade: null,
+    });
+    expect(c.nome).toBe('Marileide Brites Prates Costa');
+  });
+  it('variações comuns também capturam', () => {
+    expect(
+      capturarIdentificacao('Boa tarde, meu nome é João Pedro Alves', { nome: null, cidade: null })
+        .nome,
+    ).toBe('João Pedro Alves');
+    expect(capturarIdentificacao('oi, me chamo Ana Clara', { nome: null, cidade: null }).nome).toBe(
+      'Ana Clara',
+    );
+  });
+  it('"Moro em São José dos Campos interior de São Paulo" continua NÃO virando nome', () => {
+    expect(
+      capturarIdentificacao('Moro em São José dos Campos interior de São Paulo', {
+        nome: null,
+        cidade: null,
+      }).nome,
+    ).toBeNull();
+  });
+});

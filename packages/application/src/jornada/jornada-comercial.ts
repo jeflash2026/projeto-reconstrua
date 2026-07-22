@@ -114,7 +114,14 @@ export function capturarIdentificacao(
   texto: string,
   atual: { nome: string | null; cidade: string | null },
 ): { nome: string | null; cidade: string | null } {
-  const t = texto.trim();
+  // Caso Marileide (2026-07-22): saudações INICIAIS caem antes de qualquer
+  // análise — "Boa tarde, meu nome é João" tem vírgula de saudação, não de
+  // separação nome/cidade; sem esta limpeza, "Boa tarde" virava o nome.
+  const t = texto
+    .trim()
+    .replace(/^(ol[áa]|oi+|opa|hey)[,!.\s]+/i, '')
+    .replace(/^(bom\s+dia|boa\s+tarde|boa\s+noite)[,!.\s]+/i, '')
+    .trim();
   if (t === '' || ehSaudacaoPura(t)) return { nome: null, cidade: null };
 
   const limparCidade = (s: string): string =>
@@ -122,8 +129,18 @@ export function capturarIdentificacao(
       .replace(/^(sou\s+de|moro\s+em|de|da|do|em)\s+/i, '')
       .replace(/\s*[-–]\s*[A-Z]{2}$/u, (m) => m)
       .trim();
+  // Caso Marileide (2026-07-22, cliente real): "Olá bom dia meu nome completo
+  // Marileide…" — saudações e preâmbulos ("meu nome completo") precisam cair
+  // ANTES do filtro pareceNome, senão o nome legítimo é rejeitado por tamanho.
   const limparNome = (s: string): string =>
-    s.replace(/^(me\s+chamo|meu\s+nome\s+[ée]|sou\s+a|sou\s+o|sou)\s+/i, '').trim();
+    s
+      .replace(/^(ol[áa]|oi+|opa)[,!.\s]+/i, '')
+      .replace(/^(bom\s+dia|boa\s+tarde|boa\s+noite)[,!.\s]+/i, '')
+      .replace(
+        /^(me\s+chamo|meu\s+nome\s+completo\s+(?:[ée]\s+)?|meu\s+nome\s+[ée]\s+|meu\s+nome\s+|sou\s+a\s+|sou\s+o\s+|sou\s+)/i,
+        '',
+      )
+      .trim();
 
   // "Isabel Rodrigues eu sou de santa ernestina" (SEM vírgula) — o conector
   // "sou de"/"moro em" separa nome e cidade na mesma frase.

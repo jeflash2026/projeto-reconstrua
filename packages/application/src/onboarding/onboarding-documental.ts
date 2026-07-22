@@ -82,9 +82,17 @@ const SINAIS: Readonly<
   COMPROVANTE_RESIDENCIA: {
     // 15ª rodada (conta de ÁGUA real ficou 'OUTRO'): sinais de faturas de
     // água/energia/gás — "Hidrometro: … Tipo de ligacao: AGUA E ESGOTO".
+    // Cliente real 2026-07-22 (21 97449-1893): DECLARAÇÃO DE RESIDÊNCIA
+    // (documento assinado declarando onde mora) também é comprovante válido.
     frases: [
       'comprovante de residencia',
       'comprovante de endereco',
+      'declaracao de residencia',
+      'declaracao de endereco',
+      'declaro que resido',
+      'declaro para os devidos fins que resido',
+      'declaro ser residente',
+      'residente e domiciliad',
       'conta de luz',
       'conta de agua',
       'conta de energia',

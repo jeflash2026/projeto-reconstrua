@@ -85,6 +85,20 @@ describe('Decreto · classificação DETERMINÍSTICA dos 3 obrigatórios', () =>
       'COMPROVANTE_RESIDENCIA',
     );
   });
+  it('cliente real 2026-07-22 — DECLARAÇÃO DE RESIDÊNCIA assinada ⇒ COMPROVANTE', () => {
+    expect(
+      classificarDocumentoInicial(
+        'IMG_0001.jpg',
+        'DECLARAÇÃO DE RESIDÊNCIA — Eu, Fulana de Tal, declaro para os devidos fins que resido na Rua X, nº 10, Rio de Janeiro - RJ.',
+      ),
+    ).toBe('COMPROVANTE_RESIDENCIA');
+    expect(
+      classificarDocumentoInicial(
+        'declaracao.pdf',
+        'Declaro ser residente e domiciliada no endereço abaixo, firmando a presente declaração.',
+      ),
+    ).toBe('COMPROVANTE_RESIDENCIA');
+  });
   it('nada reconhecível OU empate ⇒ OUTRO (jamais adivinhar)', () => {
     expect(classificarDocumentoInicial('IMG_9999.jpg', '')).toBe('OUTRO');
     expect(classificarDocumentoInicial('doc.pdf', 'texto qualquer sem sinais')).toBe('OUTRO');

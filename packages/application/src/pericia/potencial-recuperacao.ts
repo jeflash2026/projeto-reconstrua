@@ -32,7 +32,12 @@ function mesAbsoluto(competencia: string | null): number | null {
 }
 
 /** Parcelas JÁ descontadas até `hoje` (inclusive a competência corrente).
- *  Sem competência de início legível ⇒ 0 (nunca inventa). */
+ *  GARANTIA 100% REAL (processo judicial — decreto 2026-07-22): só conta quando
+ *  os dados são COERENTES. Sem início legível ⇒ 0; início no futuro ⇒ 0; e —
+ *  crucial — SEM um LIMITE confiável (competência de fim OU quantidade de
+ *  parcelas) ⇒ 0: não se EXTRAPOLA de início até hoje, porque não há como afirmar
+ *  quantas parcelas foram descontadas (um contrato encerrado seria contado como
+ *  ativo por anos). Nunca inventa; na dúvida, NÃO conta. */
 export function parcelasDescontadasAteHoje(contrato: ContratoHiscon, hoje: Date): number {
   const inicio =
     mesAbsoluto(contrato.competenciaInicio) ??
@@ -42,12 +47,34 @@ export function parcelasDescontadasAteHoje(contrato: ContratoHiscon, hoje: Date)
       : null);
   if (inicio === null) return 0;
   const atual = hoje.getUTCFullYear() * 12 + hoje.getUTCMonth();
-  let parcelas = atual - inicio + 1; // a competência de início conta
-  if (parcelas < 0) return 0; // desconto ainda não começou
+  const decorridas = atual - inicio + 1; // a competência de início conta
+  if (decorridas <= 0) return 0; // desconto ainda não começou (início no futuro)
+
   const fim = mesAbsoluto(contrato.competenciaFim);
+  const qtde = contrato.qtdeParcelas;
+  // Sem fim NEM quantidade legível não há teto confiável ⇒ não extrapola (0).
+  if (fim === null && qtde === null) return 0;
+
+  let parcelas = decorridas;
   if (fim !== null) parcelas = Math.min(parcelas, fim - inicio + 1);
-  if (contrato.qtdeParcelas !== null) parcelas = Math.min(parcelas, contrato.qtdeParcelas);
+  if (qtde !== null) parcelas = Math.min(parcelas, qtde);
   return Math.max(0, parcelas);
+}
+
+/** Valor de parcela CONFIÁVEL para o cálculo, ou null (não conta). Uma parcela
+ *  mensal jamais excede o valor emprestado (quando legível) — se exceder, o campo
+ *  foi lido errado (o valor do empréstimo caiu na casa da parcela), então NÃO é
+ *  usado: fica DECLARADO como "sem valor legível", nunca somado com dado inventado. */
+export function valorParcelaConfiavel(contrato: ContratoHiscon): number | null {
+  const vp = contrato.valorParcela;
+  if (vp === null || vp <= 0) return null;
+  if (
+    contrato.valorEmprestado !== null &&
+    contrato.valorEmprestado > 0 &&
+    vp > contrato.valorEmprestado
+  )
+    return null;
+  return vp;
 }
 
 export interface PotencialDeContrato {
@@ -77,14 +104,15 @@ export function potencialDeRecuperacao(
   let contratosSemValor = 0;
   for (const c of contratos) {
     const parcelas = parcelasDescontadasAteHoje(c, hoje);
-    const valor = c.valorParcela !== null ? parcelas * c.valorParcela : null;
+    const parcela = valorParcelaConfiavel(c);
+    const valor = parcela !== null ? parcelas * parcela : null;
     if (valor === null) contratosSemValor += 1;
     else total += valor;
     porContrato.push({
       contrato: c.contrato,
       bancoNome: c.bancoNome,
       parcelasDescontadas: parcelas,
-      valorParcela: c.valorParcela,
+      valorParcela: parcela,
       valorDescontado: valor,
     });
   }

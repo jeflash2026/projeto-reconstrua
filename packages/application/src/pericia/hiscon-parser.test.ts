@@ -271,3 +271,25 @@ describe('helpers — datas dos dois formatos', () => {
     expect(dataCurta('10/02/26')?.toISOString().slice(0, 10)).toBe('2026-02-10');
   });
 });
+
+describe('dedup de contratos (caso 2026-07-22)', () => {
+  it('o MESMO número de contrato repetido entra UMA vez só (evita inflar o potencial)', () => {
+    const texto = `HISTÓRICO DE
+EMPRÉSTIMO CONSIGNADO
+CONTRATO: 12345
+BANCO: 001 - BANCO DO BRASIL
+VALOR PARCELA: R$100,00
+
+CONTRATO: 12345
+BANCO: 001 - BANCO DO BRASIL
+VALOR PARCELA: R$100,00
+
+CONTRATO: 67890
+BANCO: 002 - BANCO X
+VALOR PARCELA: R$200,00
+`;
+    const e = parseHisconDetalhado(texto);
+    expect(e.contratos).toHaveLength(2);
+    expect(e.contratos.map((c) => c.contrato).sort()).toEqual(['12345', '67890']);
+  });
+});

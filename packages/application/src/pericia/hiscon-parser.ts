@@ -205,6 +205,17 @@ export function parseHisconDetalhado(textoBruto: string): HisconExtraido {
     });
   }
 
+  // DEDUP por número de contrato (caso 2026-07-22): um HISCON enviado 2× ou uma
+  // transcrição que repete páginas gerava o MESMO contrato várias vezes, e o
+  // potencial somava cada cópia. O número do contrato é ÚNICO no HISCON ⇒ mantém
+  // a primeira ocorrência de cada um.
+  const vistos = new Set<string>();
+  const contratosUnicos = contratos.filter((c) => {
+    if (vistos.has(c.contrato)) return false;
+    vistos.add(c.contrato);
+    return true;
+  });
+
   return {
     beneficiario: nomeMatch?.[1]?.trim() ?? null,
     numeroBeneficio: campo(texto, 'N[ºo°]? ?Benef[íi]cio'),
@@ -212,7 +223,7 @@ export function parseHisconDetalhado(textoBruto: string): HisconExtraido {
     especieBeneficio: campo(texto, 'Benef[íi]cio\\s*\\n\\s*([A-ZÀ-Ú ]+)') ?? extrairEspecie(texto),
     bancoPagamento: campo(texto, 'Pago em'),
     margens,
-    contratos,
+    contratos: contratosUnicos,
   };
 }
 

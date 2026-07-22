@@ -38,8 +38,13 @@ function contrato(sobrescreve: Partial<ContratoHiscon>): ContratoHiscon {
 }
 
 describe('parcelasDescontadasAteHoje', () => {
-  it('início 03/2026 e hoje 07/2026 ⇒ 5 parcelas (competência de início conta)', () => {
-    expect(parcelasDescontadasAteHoje(contrato({ competenciaInicio: '03/2026' }), HOJE)).toBe(5);
+  it('início 03/2026 com qtde ⇒ 5 parcelas (a competência de início conta)', () => {
+    expect(
+      parcelasDescontadasAteHoje(
+        contrato({ competenciaInicio: '03/2026', qtdeParcelas: 84 }),
+        HOJE,
+      ),
+    ).toBe(5);
   });
 
   it('contrato ENCERRADO: fim 05/2026 limita (03..05 = 3 parcelas, não 5)', () => {
@@ -60,16 +65,28 @@ describe('parcelasDescontadasAteHoje', () => {
     ).toBe(84);
   });
 
-  it('desconto FUTURO (início 09/2026) ⇒ 0; competência ilegível ⇒ 0', () => {
-    expect(parcelasDescontadasAteHoje(contrato({ competenciaInicio: '09/2026' }), HOJE)).toBe(0);
-    expect(parcelasDescontadasAteHoje(contrato({ competenciaInicio: 'xx/26' }), HOJE)).toBe(0);
-    expect(parcelasDescontadasAteHoje(contrato({}), HOJE)).toBe(0);
+  it('GARANTIA 100% REAL: sem fim NEM quantidade ⇒ 0 (não extrapola até hoje)', () => {
+    // Antes contava início→hoje (chute). Agora, sem teto confiável, não conta.
+    expect(parcelasDescontadasAteHoje(contrato({ competenciaInicio: '03/2026' }), HOJE)).toBe(0);
   });
 
-  it('sem competência de início, usa a data do PRIMEIRO DESCONTO como fallback', () => {
+  it('desconto FUTURO (início 09/2026) ⇒ 0; competência ilegível ⇒ 0', () => {
     expect(
       parcelasDescontadasAteHoje(
-        contrato({ dataPrimeiroDesconto: new Date('2026-05-07T00:00:00.000Z') }),
+        contrato({ competenciaInicio: '09/2026', qtdeParcelas: 84 }),
+        HOJE,
+      ),
+    ).toBe(0);
+    expect(
+      parcelasDescontadasAteHoje(contrato({ competenciaInicio: 'xx/26', qtdeParcelas: 84 }), HOJE),
+    ).toBe(0);
+    expect(parcelasDescontadasAteHoje(contrato({ qtdeParcelas: 84 }), HOJE)).toBe(0);
+  });
+
+  it('sem competência de início, usa a data do PRIMEIRO DESCONTO (com teto) como fallback', () => {
+    expect(
+      parcelasDescontadasAteHoje(
+        contrato({ dataPrimeiroDesconto: new Date('2026-05-07T00:00:00.000Z'), qtdeParcelas: 84 }),
         HOJE,
       ),
     ).toBe(3); // 05, 06, 07
@@ -80,9 +97,14 @@ describe('potencialDeRecuperacao', () => {
   it('soma parcelas × valor por contrato; sem valor de parcela entra como 0 e é DECLARADO', () => {
     const resultado = potencialDeRecuperacao(
       [
-        contrato({ competenciaInicio: '03/2026', valorParcela: 200 }), // 5 × 200 = 1000
-        contrato({ contrato: 'C-2', competenciaInicio: '06/2026', valorParcela: 150.5 }), // 2 × 150,50 = 301
-        contrato({ contrato: 'C-3', competenciaInicio: '01/2026' }), // sem valor ⇒ 0
+        contrato({ competenciaInicio: '03/2026', qtdeParcelas: 84, valorParcela: 200 }), // 5 × 200 = 1000
+        contrato({
+          contrato: 'C-2',
+          competenciaInicio: '06/2026',
+          qtdeParcelas: 84,
+          valorParcela: 150.5,
+        }), // 2 × 150,50 = 301
+        contrato({ contrato: 'C-3', competenciaInicio: '01/2026', qtdeParcelas: 84 }), // sem valor ⇒ 0
       ],
       HOJE,
     );
@@ -94,5 +116,23 @@ describe('potencialDeRecuperacao', () => {
       parcelasDescontadas: 5,
       valorDescontado: 1000,
     });
+  });
+
+  it('GARANTIA 100% REAL: valor-parcela MAIOR que o emprestado é lido errado ⇒ NÃO conta', () => {
+    // Caso real: o valor do empréstimo (R$25.635) caiu na casa da parcela.
+    const resultado = potencialDeRecuperacao(
+      [
+        contrato({
+          competenciaInicio: '03/2026',
+          qtdeParcelas: 84,
+          valorParcela: 25635.01,
+          valorEmprestado: 26.58,
+        }),
+      ],
+      HOJE,
+    );
+    expect(resultado.total).toBe(0);
+    expect(resultado.contratosSemValor).toBe(1);
+    expect(resultado.porContrato[0]?.valorDescontado).toBeNull();
   });
 });

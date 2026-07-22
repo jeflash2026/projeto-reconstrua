@@ -24,6 +24,11 @@ export interface LocalFirstReaderDeps {
   /** O leitor por IA — usado para imagens SEMPRE e para PDF só como fallback. */
   readonly vision: DocumentReaderPort;
   readonly minCharsLocais?: number;
+  /** TRAVA DE QUALIDADE (decreto 2026-07-22): valida o texto extraído LOCALMENTE
+   *  antes de confiar nele. Devolve false ⇒ a extração local não é confiável
+   *  (ex.: um HISCON cujas colunas embaralharam e perdeu os blocos CONTRATO:)
+   *  ⇒ cai na Vision. Ausente ⇒ só o piso de caracteres decide. */
+  readonly validarLocal?: (texto: string) => boolean;
   readonly log?: (message: string) => void;
 }
 
@@ -38,12 +43,22 @@ export class LocalFirstDocumentReader implements DocumentReaderPort {
     if (mime === 'application/pdf') {
       const local = await this.deps.extractor.extract(bytes).catch(() => null);
       if (local !== null && local.length >= this.minChars) {
-        this.deps.log?.(`leitura LOCAL do PDF (${String(local.length)} chars) — custo zero`);
-        return { texto: local, tokensIn: null, tokensOut: null, metodo: 'local' };
+        // TRAVA DE QUALIDADE: se um validador foi dado e REPROVA o texto local
+        // (ex.: HISCON sem blocos CONTRATO: — colunas embaralhadas), NÃO confia:
+        // cai na Vision, que o parser sabe ler. Protege a análise jurídica.
+        if (this.deps.validarLocal !== undefined && !this.deps.validarLocal(local)) {
+          this.deps.log?.(
+            `extração LOCAL reprovada na trava de qualidade (${String(local.length)} chars) — caindo na Vision`,
+          );
+        } else {
+          this.deps.log?.(`leitura LOCAL do PDF (${String(local.length)} chars) — custo zero`);
+          return { texto: local, tokensIn: null, tokensOut: null, metodo: 'local' };
+        }
+      } else {
+        this.deps.log?.(
+          `PDF sem camada de texto útil (${String(local?.length ?? 0)} chars) — caindo na Vision`,
+        );
       }
-      this.deps.log?.(
-        `PDF sem camada de texto útil (${String(local?.length ?? 0)} chars) — caindo na Vision`,
-      );
     }
     // Imagem, ou PDF que não passou no portão local ⇒ IA.
     const visto = await this.deps.vision.read(bytes, mime);

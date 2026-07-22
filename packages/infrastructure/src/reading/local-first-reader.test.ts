@@ -87,4 +87,37 @@ describe('LocalFirstDocumentReader', () => {
     expect(r?.metodo).toBe('vision');
     expect(vision.calls).toBe(1);
   });
+
+  it('TRAVA DE QUALIDADE: HISCON local SEM blocos CONTRATO: ⇒ reprova e cai na Vision', async () => {
+    // Texto substancial (passa o piso) mas é um HISCON com as colunas
+    // embaralhadas — perdeu os "CONTRATO:". O validador reprova ⇒ Vision.
+    const hisconGarbled =
+      'INSTITUTO NACIONAL DO SEGURO SOCIAL HISTÓRICO DE EMPRÉSTIMO CONSIGNADO ' +
+      'MARIA HELENA situacao ativo margem consignável valores embaralhados sem os blocos esperados';
+    const extractor = new FakeExtractor(hisconGarbled);
+    const vision = new FakeVision();
+    const validarLocal = (t: string): boolean =>
+      !/HIST[ÓO]RICO DE\s+EMPR[ÉE]STIMO CONSIGNADO/i.test(t) || /^CONTRATO\s*:/im.test(t);
+    const r = await new LocalFirstDocumentReader({ extractor, vision, validarLocal }).read(
+      bytes,
+      'application/pdf',
+    );
+    expect(r?.metodo).toBe('vision'); // a trava mandou para a Vision
+    expect(vision.calls).toBe(1);
+  });
+
+  it('TRAVA DE QUALIDADE: HISCON local COM blocos CONTRATO: ⇒ usa o local (custo zero)', async () => {
+    const hisconBom =
+      'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO\nMARIA\n\nCONTRATO: 2907363341\nBANCO: 341 - BANCO ITAU SA\nSITUAÇÃO: Ativo';
+    const extractor = new FakeExtractor(hisconBom);
+    const vision = new FakeVision();
+    const validarLocal = (t: string): boolean =>
+      !/HIST[ÓO]RICO DE\s+EMPR[ÉE]STIMO CONSIGNADO/i.test(t) || /^CONTRATO\s*:/im.test(t);
+    const r = await new LocalFirstDocumentReader({ extractor, vision, validarLocal }).read(
+      bytes,
+      'application/pdf',
+    );
+    expect(r?.metodo).toBe('local');
+    expect(vision.calls).toBe(0);
+  });
 });

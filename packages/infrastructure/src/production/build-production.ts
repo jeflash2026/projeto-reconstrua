@@ -446,6 +446,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         config.llm.anthropicApiKey,
         config.llm.anthropicModel,
       ),
+      // TRAVA DE QUALIDADE do HISCON: se o texto local é um HISCON (tem o
+      // cabeçalho) mas PERDEU os blocos "CONTRATO:" (colunas embaralhadas na
+      // extração local), reprova ⇒ Vision. Outros documentos: confia no local.
+      validarLocal: (texto) =>
+        !/HIST[ÓO]RICO DE\s+EMPR[ÉE]STIMO CONSIGNADO/i.test(texto) || /^CONTRATO\s*:/im.test(texto),
       log: (message) => observability.event('reading', message, clock.now()),
     }),
     cache: new JsonDocumentTextCache(json),

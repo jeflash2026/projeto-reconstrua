@@ -342,9 +342,17 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
     ? 'É possível, mas somente conseguimos afirmar após analisar gratuitamente o seu HISCON (histórico de empréstimos consignados do INSS). '
     : '';
 
+  // Decreto de humanização (2026-07-22): pergunta LIVRE do cliente, em QUALQUER
+  // etapa (fora o primeiro contato), vai para a conversa humana (LLM) — que
+  // responde de verdade e retoma o passo pendente. Cobrança seca no lugar de
+  // resposta é comportamento de robô.
+  const perguntaLivre =
+    !entrada.primeiroContato && prefixoDireito === '' && ehPerguntaLivre(entrada.texto);
+
   switch (etapa) {
     case 'IDENTIFICACAO': {
       if (entrada.primeiroContato) return prefixoDireito + MENSAGENS_JORNADA.boasVindas;
+      if (perguntaLivre) return '';
       if (r.nome !== null && r.cidade === null) {
         // A nuance do decreto: "muito prazer Isabel, e de que cidade você fala?"
         return prefixoDireito + MENSAGENS_JORNADA.pedirCidade(r.nome);
@@ -361,6 +369,7 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
         // Identificação recém-completa ⇒ explicação + pergunta de interesse (uma mensagem).
         return prefixoDireito + MENSAGENS_JORNADA.explicacaoConsentimento(r.nome ?? '');
       }
+      if (perguntaLivre) return '';
       if (r.recusou) return prefixoDireito + MENSAGENS_JORNADA.recusa;
       return prefixoDireito + MENSAGENS_JORNADA.reforcoConsentimento;
     }

@@ -383,3 +383,44 @@ describe('caso Lucas — desconfiança, desistência e perguntas tratadas como h
     }
   });
 });
+
+// ── DECRETO DE HUMANIZAÇÃO (2026-07-22): pergunta = resposta humana, sempre ──
+describe('humanização — pergunta livre delega à conversa humana em QUALQUER etapa', () => {
+  it('IDENTIFICACAO (fora do 1º contato): pergunta ⇒ LLM responde e retoma', () => {
+    expect(responderTurno(fatos(), texto('como funciona isso?'))).toBe('');
+    expect(responderTurno(fatos({ nome: 'Ana' }), texto('quanto custa?'))).toBe('');
+  });
+  it('CONSENTIMENTO: pergunta ⇒ LLM; identificação recém-completa continua com a explicação', () => {
+    expect(
+      responderTurno(fatos({ nome: 'Ana', cidade: 'X' }), texto('vocês são um escritório?')),
+    ).toBe('');
+    expect(
+      responderTurno(fatos({ nome: 'Ana', cidade: 'X', ultimaCaptura: 'cidade' }), texto('X')),
+    ).toContain('interesse em fazer essa análise?');
+  });
+  it('1º contato segue com as boas-vindas mesmo sendo pergunta (a resposta É a acolhida)', () => {
+    expect(responderTurno(fatos(), texto('como funciona?', true))).toBe(
+      MENSAGENS_JORNADA.boasVindas,
+    );
+  });
+  it('pergunta de DIREITO mantém a resposta canônica (nunca delegada)', () => {
+    expect(responderTurno(fatos({ nome: 'A', cidade: 'B' }), texto('tenho direito?'))).toContain(
+      'somente conseguimos afirmar',
+    );
+  });
+});
+
+describe('escada de cobrança — nunca a mesma cobrança duas vezes', () => {
+  const emTriagem = (cobrancas: number) =>
+    fatos(
+      { nome: 'M', cidade: 'X', consentiu: true, cobrancasSeguidas: cobrancas },
+      { docsRecebidos: 1, proximoDocumento: 'comprovante de endereço' },
+    );
+  it('1ª = padrão; 2ª = reforço com oferta de ajuda; 3ª+ = conversa humana (LLM)', () => {
+    expect(responderTurno(emTriagem(1), texto('mandei sim'))).toContain('Estou aguardando');
+    const reforco = responderTurno(emTriagem(2), texto('mandei sim'));
+    expect(reforco).toContain('Só reforçando');
+    expect(reforco).toContain('me avise que eu te oriento');
+    expect(responderTurno(emTriagem(3), texto('mandei sim'))).toBe('');
+  });
+});

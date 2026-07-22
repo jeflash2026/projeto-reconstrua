@@ -868,7 +868,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     perception: llm.perception,
     // Decreto 2026-07-20: enquanto a Jornada Comercial está ativa, a resposta é
     // AUTORADA pelo Journey Runtime (determinística); concluída ⇒ LLM normal.
-    expression: new JourneyGovernedExpression(jornadaComercial, llm.expression),
+    // Humanização (decreto 2026-07-22): com LLM REAL, o roteiro autorado do
+    // funil é REDITO com voz humana (fatos/pedidos intactos; fallback verbatim).
+    expression: new JourneyGovernedExpression(
+      jornadaComercial,
+      llm.expression,
+      llm.provider !== 'offline',
+    ),
     brain: fullLoop,
     gateway,
     sessions,

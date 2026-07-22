@@ -7,8 +7,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import {
   REAQUECIMENTO_HORAS_PARA_FRIO,
+  RETOMADA_MINUTOS_SEM_RESPOSTA,
   derivarEstagioLead,
   mensagemDeReaquecimento,
+  mensagemDeRetomada,
   podeReaquecer,
   type EstagioLead,
   type FatosDaJornada,
@@ -45,6 +47,18 @@ export interface ReaquecimentoDeps {
   /** O MESMO canal das mensagens automáticas (gateway + memória da conversa). */
   readonly enviar: (chatId: string, texto: string) => Promise<void>;
   readonly clock: Clock;
+  /** RETOMADA AUTOMÁTICA (decreto 2026-07-22): minutos desde a última mensagem
+   *  do CLIENTE ainda sem resposta nossa — null quando já respondida. Ausente
+   *  ⇒ a varredura de retomada não roda (só o reaquecimento manual). */
+  readonly minutosSemResposta?: (chatId: string) => Promise<number | null>;
+  readonly observability?: { event(area: string, message: string, at: Date): void };
+}
+
+const NS_RETOMADA = 'retomada';
+
+interface RetomadaPersisted {
+  readonly chatId: string;
+  readonly tentativas: readonly string[]; // ISO
 }
 
 export class ReaquecimentoService {
@@ -114,5 +128,54 @@ export class ReaquecimentoService {
       tentativas: [...h.tentativas, { em: now.toISOString(), estagio }],
     } satisfies HistoricoPersisted);
     return { ok: true, estagio };
+  }
+
+  /** RETOMADA AUTOMÁTICA (decreto 2026-07-22): varre as conversas cuja ÚLTIMA
+   *  palavra foi do cliente sem resposta nossa (turno caído) há 30+ minutos e
+   *  CONTINUA o fluxo do ponto exato — com desculpa pela demora. Guardrails:
+   *  1 retomada por 24h por conversa, máximo 3 (mesma régua do reaquecimento).
+   *  Best-effort: roda no tick temporal; falha nunca derruba o tick. */
+  async varreduraRetomada(now: Date): Promise<number> {
+    const detector = this.deps.minutosSemResposta;
+    if (!detector) return 0;
+    let retomadas = 0;
+    const chats = await this.deps.json.keys(NS_JORNADA);
+    for (const chatId of chats) {
+      try {
+        const minutos = await detector(chatId);
+        if (minutos === null || minutos < RETOMADA_MINUTOS_SEM_RESPOSTA) continue;
+        const fatos = await this.deps.jornada.fatos(chatId);
+        if (derivarEstagioLead(fatos) === null) continue; // concluída
+        if (fatos.registro.desistiu) continue; // desistiu: só reaquecimento MANUAL
+        const raw = (await this.deps.json.get(NS_RETOMADA, chatId)) as RetomadaPersisted | null;
+        const tentativas = raw?.tentativas ?? [];
+        const veredicto = podeReaquecer(
+          tentativas.map((t) => new Date(t)),
+          now,
+        );
+        if (!veredicto.pode) continue;
+        const texto = mensagemDeRetomada({
+          nome: fatos.registro.nome,
+          cidade: fatos.registro.cidade,
+          consentiu: fatos.registro.consentiu,
+          proximoDocumento: fatos.proximoDocumento,
+          docsRecebidos: fatos.docsRecebidos,
+        });
+        await this.deps.enviar(chatId, texto);
+        await this.deps.json.put(NS_RETOMADA, chatId, {
+          chatId,
+          tentativas: [...tentativas, now.toISOString()],
+        } satisfies RetomadaPersisted);
+        this.deps.observability?.event(
+          'retomada',
+          `conversa caída retomada chat=${chatId} silêncio=${String(minutos)}min`,
+          now,
+        );
+        retomadas += 1;
+      } catch {
+        // best-effort por conversa: uma falha nunca impede as demais
+      }
+    }
+    return retomadas;
   }
 }

@@ -102,3 +102,46 @@ export function mensagemDeReaquecimento(estagio: EstagioLead, d: DadosDoReaqueci
 function primeiroNome(nome: string): string {
   return nome.trim().split(/\s+/)[0] ?? nome;
 }
+
+// ── RETOMADA AUTOMÁTICA (decreto 2026-07-22) ─────────────────────────────────
+// Conversa CAÍDA = a última palavra foi do CLIENTE e a AHRI não respondeu
+// (falha de turno). Diferente do reaquecimento (cliente sumiu): aqui a culpa é
+// NOSSA — a retomada pede desculpa e CONTINUA o fluxo do ponto exato.
+
+/** Minutos de silêncio nosso a partir dos quais a conversa conta como caída. */
+export const RETOMADA_MINUTOS_SEM_RESPOSTA = 30;
+
+export interface DadosDaRetomada {
+  readonly nome: string | null;
+  readonly cidade: string | null;
+  readonly consentiu: boolean;
+  readonly proximoDocumento: string | null;
+  readonly docsRecebidos: number;
+}
+
+/** A mensagem que CONTINUA o fluxo do ponto exato onde a conversa caiu. */
+export function mensagemDeRetomada(d: DadosDaRetomada): string {
+  const desculpa = 'Desculpe a demora no retorno — tivemos uma instabilidade por aqui. ';
+  const proximo = d.proximoDocumento ?? 'o documento pendente';
+  if (d.docsRecebidos > 0 || d.consentiu) {
+    return (
+      desculpa +
+      `Retomando o seu atendimento do ponto onde paramos: preciso de ${proximo}. Pode enviar foto ou print por aqui mesmo. Qualquer dúvida, estou à disposição.`
+    );
+  }
+  if (d.nome !== null && d.cidade !== null) {
+    return (
+      desculpa +
+      'Retomando: nossa equipe analisa o seu consignado do INSS para verificar se existe alguma irregularidade nos descontos do benefício — a análise é gratuita e sem compromisso. Você tem interesse em fazer essa análise?'
+    );
+  }
+  if (d.nome !== null) {
+    return (
+      desculpa + `Retomando o seu atendimento: e de qual cidade você fala, ${primeiroNome(d.nome)}?`
+    );
+  }
+  return (
+    desculpa +
+    'Retomando o seu atendimento: pode me informar o seu nome completo e a cidade onde mora?'
+  );
+}

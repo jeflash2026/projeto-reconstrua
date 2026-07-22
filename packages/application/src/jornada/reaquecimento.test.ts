@@ -91,3 +91,32 @@ describe('mensagemDeReaquecimento', () => {
     }
   });
 });
+
+describe('mensagemDeRetomada (conversa caída — a culpa é NOSSA)', () => {
+  it('continua do ponto exato: docs em curso pede o próximo; identificado pede interesse; sem nada pede identificação', async () => {
+    const { mensagemDeRetomada } = await import('./reaquecimento.js');
+    const base = {
+      nome: 'Maria Silva',
+      cidade: 'Campinas',
+      consentiu: false,
+      proximoDocumento: 'o VERSO do RG (a parte de trás do documento)',
+      docsRecebidos: 1,
+    };
+    const comDocs = mensagemDeRetomada(base);
+    expect(comDocs).toContain('Desculpe a demora');
+    expect(comDocs).toContain('o VERSO do RG');
+    const identificada = mensagemDeRetomada({ ...base, docsRecebidos: 0 });
+    expect(identificada).toContain('interesse em fazer essa análise?');
+    const soNome = mensagemDeRetomada({ ...base, docsRecebidos: 0, cidade: null });
+    expect(soNome).toContain('qual cidade');
+    expect(soNome).toContain('Maria');
+    const semNada = mensagemDeRetomada({
+      nome: null,
+      cidade: null,
+      consentiu: false,
+      proximoDocumento: null,
+      docsRecebidos: 0,
+    });
+    expect(semNada).toContain('nome completo e a cidade');
+  });
+});

@@ -15,6 +15,7 @@ import {
   ehAdiamento,
   ehDesistencia,
   interpretarInteresse,
+  vaiReceberCobranca,
   novaJornada,
   registroDoTurnoConcluido,
   responderTurno,
@@ -37,6 +38,7 @@ interface Persisted {
   readonly aguardandoProgressao?: boolean;
   readonly avisosDeAdiamento?: number;
   readonly desistiu?: boolean;
+  readonly cobrancasSeguidas?: number;
   readonly atualizadoEm: string;
 }
 
@@ -58,6 +60,7 @@ export class JornadaComercialRuntime {
       aguardandoProgressao: raw.aguardandoProgressao === true,
       avisosDeAdiamento: raw.avisosDeAdiamento ?? 0,
       desistiu: raw.desistiu === true,
+      cobrancasSeguidas: raw.cobrancasSeguidas ?? 0,
       atualizadoEm: new Date(raw.atualizadoEm),
     };
   }
@@ -183,6 +186,17 @@ export class JornadaComercialRuntime {
         );
         return;
       }
+      // ESCADA DE COBRANÇA (2026-07-22): texto que cairá na cobrança conta o
+      // degrau — 1ª padrão, 2ª reforço, 3ª+ conversa humana (nunca eco mudo).
+      if (etapa === 'TRIAGEM' && vaiReceberCobranca(texto)) {
+        await this.salvar({
+          ...r,
+          cobrancasSeguidas: r.cobrancasSeguidas + 1,
+          ultimaCaptura: null,
+          atualizadoEm: now,
+        });
+        return;
+      }
       // TRIAGEM/CONCLUIDA: nada a capturar; limpa a nuance do turno anterior.
       if (r.ultimaCaptura !== null)
         await this.salvar({ ...r, ultimaCaptura: null, atualizadoEm: now });
@@ -245,11 +259,17 @@ export class JornadaComercialRuntime {
     await this.concluirProgressao(chatId).catch(() => undefined);
     const r = await this.carregar(chatId);
     // Documento chegando = a espera acabou E a desistência foi superada.
-    if (r.avisosDeAdiamento > 0 || r.ultimaCaptura === 'adiamento' || r.desistiu) {
+    if (
+      r.avisosDeAdiamento > 0 ||
+      r.ultimaCaptura === 'adiamento' ||
+      r.desistiu ||
+      r.cobrancasSeguidas > 0
+    ) {
       await this.salvar({
         ...r,
         avisosDeAdiamento: 0,
         desistiu: false,
+        cobrancasSeguidas: 0,
         ultimaCaptura: null,
         atualizadoEm: this.deps.clock.now(),
       }).catch(() => undefined);

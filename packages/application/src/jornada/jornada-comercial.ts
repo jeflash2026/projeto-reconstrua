@@ -37,6 +37,11 @@ export interface JornadaRecord {
    *  cobrança de documento CESSA; despedida respeitosa uma vez, e o canal fica
    *  humano (LLM) até ele retomar (interesse novo ou documento chegando). */
   readonly desistiu: boolean;
+  /** ESCADA DE COBRANÇA (2026-07-22, conversas mudas em produção): a cobrança
+   *  determinística era IDÊNTICA a cada turno e o guard anti-eco silenciava a
+   *  conversa para sempre. 1ª cobrança = padrão; 2ª = reforço com oferta de
+   *  ajuda; 3ª+ = a conversa humana (LLM) assume. Zera quando documento chega. */
+  readonly cobrancasSeguidas: number;
   readonly atualizadoEm: Date;
 }
 
@@ -51,6 +56,7 @@ export function novaJornada(chatId: string, now: Date): JornadaRecord {
     aguardandoProgressao: false,
     avisosDeAdiamento: 0,
     desistiu: false,
+    cobrancasSeguidas: 0,
     atualizadoEm: now,
   };
 }
@@ -198,6 +204,19 @@ export function ehPerguntaLivre(texto: string): boolean {
   return PERGUNTA_LIVRE.test(texto.trim());
 }
 
+/** Este texto, na TRIAGEM, cairá na COBRANÇA de documento? (nenhum outro
+ *  manejo o captura). O runtime usa para contar a escada de cobrança. */
+export function vaiReceberCobranca(texto: string): boolean {
+  return (
+    !ehDesconfianca(texto) &&
+    !ehDesistencia(texto) &&
+    !ehAdiamento(texto) &&
+    !ehAgradecimentoPuro(texto) &&
+    !ehPerguntaLivre(texto) &&
+    !ehPerguntaDeDireito(texto)
+  );
+}
+
 /** Um candidato a NOME precisa PARECER nome: sem '?', sem dígitos, até 6
  *  palavras e sem vocabulário do funil ("posso ter mais informações…" NUNCA é
  *  nome — defeito real do primeiro contato da Denise). */
@@ -240,6 +259,9 @@ export const MENSAGENS_JORNADA = {
     `Vou precisar de três documentos, um por vez. O primeiro: ${proximo}. Pode enviar foto ou print por aqui mesmo.`,
   aguardandoDocumento: (proximo: string): string =>
     `Estou aguardando: ${proximo}. Pode enviar foto ou print por aqui, no seu tempo.`,
+  // Escada de cobrança: o 2º pedido NUNCA repete o 1º — reforça e oferece ajuda.
+  aguardandoDocumentoReforco: (proximo: string): string =>
+    `Só reforçando: para dar sequência à sua análise, preciso de ${proximo}. Se estiver com qualquer dificuldade para enviar (foto, tamanho do arquivo, formato), me avise que eu te oriento.`,
   ackDocumento:
     'Recebi o documento. Um instante enquanto faço o registro — assim que concluir, te confirmo o próximo passo.',
   documentoRegistrado: (registrado: string, proximo: string): string =>
@@ -370,6 +392,13 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
       // Decreto: pergunta LIVRE do cliente ⇒ a conversa humana (LLM) responde e
       // retoma o foco — nunca a cobrança seca no lugar da resposta.
       if (prefixoDireito === '' && ehPerguntaLivre(entrada.texto)) return '';
+      // ESCADA DE COBRANÇA: 1ª = padrão; 2ª = reforço com oferta de ajuda;
+      // 3ª+ = a conversa humana (LLM) assume — o eco idêntico morreu aqui.
+      if (r.cobrancasSeguidas >= 3) return '';
+      if (r.cobrancasSeguidas === 2)
+        return (
+          prefixoDireito + MENSAGENS_JORNADA.aguardandoDocumentoReforco(proximo) + extraConjuge
+        );
       return prefixoDireito + MENSAGENS_JORNADA.aguardandoDocumento(proximo) + extraConjuge;
     }
     case 'CONCLUIDA':

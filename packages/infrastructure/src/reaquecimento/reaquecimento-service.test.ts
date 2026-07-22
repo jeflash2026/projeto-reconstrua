@@ -99,3 +99,62 @@ describe('ReaquecimentoService', () => {
     expect(enviados).toHaveLength(0);
   });
 });
+
+describe('varreduraRetomada (conversas caídas — automática, com guardrails)', () => {
+  function harnessRetomada(
+    leads: Record<string, FatosDaJornada>,
+    semResposta: Record<string, number | null>,
+  ) {
+    const json = new InMemoryJsonStore();
+    for (const chatId of Object.keys(leads)) void json.put('jornada', chatId, { chatId });
+    const enviados: { chatId: string; texto: string }[] = [];
+    const service = new ReaquecimentoService({
+      json,
+      jornada: {
+        fatos: (chatId) => {
+          const f = leads[chatId];
+          if (!f) return Promise.reject(new Error('sem jornada'));
+          return Promise.resolve(f);
+        },
+      },
+      enviar: (chatId, texto) => {
+        enviados.push({ chatId, texto });
+        return Promise.resolve();
+      },
+      clock: new TestClock(),
+      minutosSemResposta: (chatId) => Promise.resolve(semResposta[chatId] ?? null),
+    });
+    return { service, enviados };
+  }
+
+  it('retoma SÓ a conversa caída (30min+ sem resposta); respondida e recente ficam quietas', async () => {
+    const { service, enviados } = harnessRetomada(
+      {
+        caida: fatosDe({ ...novaJornada('caida', ONTEM), nome: 'Maria' }, 1),
+        respondida: fatosDe(novaJornada('respondida', ONTEM), 1),
+        recente: fatosDe(novaJornada('recente', ONTEM), 1),
+      },
+      { caida: 45, respondida: null, recente: 10 },
+    );
+    const n = await service.varreduraRetomada(NOW);
+    expect(n).toBe(1);
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]?.chatId).toBe('caida');
+    expect(enviados[0]?.texto).toContain('Desculpe a demora');
+  });
+
+  it('guardrail: segunda varredura no MESMO dia não reenvia; desistiu nunca é retomado automaticamente', async () => {
+    const { service, enviados } = harnessRetomada(
+      {
+        caida: fatosDe({ ...novaJornada('caida', ONTEM), nome: 'M' }, 1),
+        desistente: fatosDe({ ...novaJornada('desistente', ONTEM), desistiu: true }, 1),
+      },
+      { caida: 45, desistente: 90 },
+    );
+    await service.varreduraRetomada(NOW);
+    const n2 = await service.varreduraRetomada(NOW);
+    expect(n2).toBe(0);
+    expect(enviados).toHaveLength(1); // só a caída, só uma vez
+    expect(enviados.some((e) => e.chatId === 'desistente')).toBe(false);
+  });
+});

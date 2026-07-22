@@ -724,6 +724,19 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       await convMemory.recordOutbound(chatId, texto, receipt.providerMessageId);
     },
     clock,
+    // RETOMADA AUTOMÁTICA: conversa caída = último registro relevante da
+    // memória é INBOUND (o cliente falou e nós não) — minutos desde então.
+    minutosSemResposta: async (chatId) => {
+      const entradas = await convMemory.recent(chatId, 12);
+      for (let i = entradas.length - 1; i >= 0; i -= 1) {
+        const e = entradas[i];
+        if (!e) continue;
+        if (e.kind === 'outbound') return null; // já respondida
+        if (e.kind === 'inbound') return (clock.now().getTime() - e.at.getTime()) / 60_000;
+      }
+      return null; // sem inbound registrado: nada a retomar
+    },
+    observability,
   });
   const context = new ConversationContextRuntime(
     sessions,
@@ -1161,7 +1174,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       },
       // 15ª rodada: documento novo supera a progressão pendente do anterior.
       aoReceberDocumento: (chatId) => jornadaComercial.aoReceberDocumento(chatId),
-      varredura: (now) => documentRequestAutonomia.varredura(now),
+      varredura: async (now) => {
+        await documentRequestAutonomia.varredura(now);
+        // Decreto 2026-07-22: conversas CAÍDAS (cliente sem resposta) são
+        // retomadas automaticamente no MESMO motor temporal — best-effort.
+        await reaquecimento.varreduraRetomada(now).catch(() => undefined);
+      },
     },
     // Medidor de Custo: o turno inteiro roda com o chatId em contexto.
     custos,

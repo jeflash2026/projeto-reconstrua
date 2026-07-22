@@ -105,48 +105,42 @@ describe('Decreto · classificação DETERMINÍSTICA dos 3 obrigatórios', () =>
   });
 });
 
-describe('Decreto Tráfego Pago · ordem FIXA e contabilidade', () => {
-  it('a ordem é RG/CNH → comprovante de endereço → HISCON. Sempre.', () => {
-    expect(DOCUMENTACAO_INICIAL).toEqual(['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS']);
+describe('Decreto HISCON-ONLY (2026-07-22) · contabilidade', () => {
+  it('a documentação inicial obrigatória é APENAS o HISCON', () => {
+    expect(DOCUMENTACAO_INICIAL).toEqual(['CNIS']);
     const s = novoOnboarding(CHAT, 'M-1', NOW);
-    expect(proximo(s)).toBe('IDENTIDADE'); // RG/CNH primeiro (decreto revoga o HISCON-first do 15B)
-    expect(faltando(s)).toHaveLength(3);
+    expect(proximo(s)).toBe('CNIS');
+    expect(faltando(s)).toHaveLength(1);
     expect(completo(s)).toBe(false);
   });
 });
 
 describe('Decreto · runtime da jornada', () => {
-  it('semeia na criação da missão: os TRÊS pendentes sincronizados (RG primeiro)', async () => {
+  it('semeia na criação da missão: SÓ o HISCON pendente (decreto HISCON-only)', async () => {
     const h = harness();
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
     expect(await h.runtime.estaCompleto(CHAT)).toBe(false);
-    expect(h.pendenciasGravadas.at(-1)).toEqual(['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS']);
+    expect(h.pendenciasGravadas.at(-1)).toEqual(['CNIS']);
     const visao = await h.runtime.visao(CHAT);
-    expect(visao?.proximo).toContain('RG');
+    expect(visao?.proximo).toContain('HISCON');
   });
 
-  it('RG exige FRENTE E VERSO: a primeira face NÃO fecha a identidade; a AHRI pede o verso', async () => {
+  it('documentos ESPONTÂNEOS (RG/comprovante) registram, mas SÓ o HISCON completa', async () => {
     const h = harness({
       f: 'registro geral órgão emissor',
-      v: 'carteira de identidade filiação',
       d2: 'fatura de energia elétrica',
       d3: 'histórico de empréstimo consignado',
     });
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
 
     const r1 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'f', 'IMG_1.jpg', NOW);
-    expect(r1.classificacao).toBe('IDENTIDADE');
-    // O defeito do teste real: com UMA face, ela seguia para o comprovante. Agora pede o VERSO.
-    expect((await h.runtime.visao(CHAT))?.proximo).toContain('VERSO do RG');
-    expect(h.pendenciasGravadas.at(-1)).toContain('IDENTIDADE'); // ainda pendente no ALIR
-
-    const r1b = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'v', 'IMG_2.jpg', NOW);
-    expect(r1b.classificacao).toBe('IDENTIDADE');
-    expect((await h.runtime.visao(CHAT))?.proximo).toContain('comprovante de endereço'); // frente+verso ⇒ próximo
+    expect(r1.classificacao).toBe('IDENTIDADE'); // registrado no acervo
+    expect((await h.runtime.visao(CHAT))?.proximo).toContain('HISCON'); // pendente segue o HISCON
 
     const r2 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd2', 'IMG_3.jpg', NOW);
     expect(r2.classificacao).toBe('COMPROVANTE_RESIDENCIA');
     expect((await h.runtime.visao(CHAT))?.proximo).toContain('HISCON');
+    expect(await h.runtime.estaCompleto(CHAT)).toBe(false);
 
     const r3 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd3', 'doc.pdf', NOW);
     expect(r3.classificacao).toBe('CNIS');
@@ -155,14 +149,14 @@ describe('Decreto · runtime da jornada', () => {
     expect(h.pendenciasGravadas.at(-1)).toEqual([]); // ALIR/Readiness: nada pendente
   });
 
-  it('CNH sozinha COMPLETA a identidade (não pede verso)', async () => {
+  it('CNH espontânea registra como CNH; o pendente segue sendo o HISCON', async () => {
     const h = harness({ c: 'carteira nacional de habilitação' });
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
     const r = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'c', 'IMG_1.jpg', NOW);
     expect(r.classificacao).toBe('IDENTIDADE');
     const visao = await h.runtime.visao(CHAT);
     expect(visao?.recebidos).toContain('CNH');
-    expect(visao?.proximo).toContain('comprovante de endereço'); // nada de verso
+    expect(visao?.proximo).toContain('HISCON');
   });
 
   it('TERCEIRA imagem de RG não duplica (identidade já completa)', async () => {
@@ -175,7 +169,7 @@ describe('Decreto · runtime da jornada', () => {
   });
 
   it('documento do MESMO tipo reenviado não duplica a contabilidade', async () => {
-    const h = harness({ d1: 'hiscon', d2: 'extrato de consignações' });
+    const h = harness({ d1: 'conta de luz', d2: 'fatura de energia elétrica' });
     await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
     await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'a.pdf', NOW);
     const r = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd2', 'b.pdf', NOW);
@@ -227,6 +221,8 @@ describe('Decreto · runtime da jornada', () => {
     const h = harness({ d1: 'hiscon' });
     const r = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'x.pdf', NOW);
     expect(r.classificacao).toBe('CNIS');
-    expect((await h.runtime.visao(CHAT))?.faltando).toHaveLength(2);
+    // Decreto HISCON-only: o próprio HISCON era o único obrigatório ⇒ completa.
+    expect((await h.runtime.visao(CHAT))?.faltando).toHaveLength(0);
+    expect(await h.runtime.estaCompleto(CHAT)).toBe(true);
   });
 });

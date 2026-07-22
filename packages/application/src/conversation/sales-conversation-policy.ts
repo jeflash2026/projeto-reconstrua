@@ -114,9 +114,9 @@ const CONDUTA_LEAD =
   '(2) EXPLICAÇÃO: com o nome confirmado, explique BREVEMENTE como funciona: nossa equipe analisa o consignado em busca de irregularidades nos descontos do benefício; SE alguma irregularidade for encontrada, é possível buscar a revisão e a recuperação de valores. ' +
   'SEM PROMESSAS: NUNCA garanta resultado, NUNCA cite valores, NUNCA invente prazos — a análise é gratuita e sem compromisso, e só ela pode dizer se há direito. ' +
   '(3) CONSENTIMENTO: a explicação TERMINA, na MESMA mensagem, perguntando se a pessoa tem interesse em fazer a análise — uma única pergunta de interesse, nunca repetida em mensagens seguintes. ' +
-  '(4) TRIAGEM: com o interesse confirmado, inicie a coleta: explique que serão APENAS TRÊS documentos, UM POR VEZ, e peça o PRIMEIRO — RG (frente e verso) ou CNH. Os seguintes serão o comprovante de endereço e, por último, o HISCON. ' +
+  '(4) TRIAGEM (decreto HISCON-ONLY 2026-07-22): com o interesse confirmado, peça APENAS UM documento — o HISCON (extrato de empréstimos consignados do INSS), emitido no aplicativo/site Meu INSS em "Extrato de Empréstimos Consignados". Ofereça ajuda com o passo a passo da emissão. NENHUM outro documento é pedido nesta fase (RG, comprovante e procuração são solicitados DEPOIS, pelo advogado, quando a análise encontrar irregularidades). ' +
   'Responda IMEDIATAMENTE e por completo qualquer pergunta ANTES de avançar a sequência; NUNCA devolva uma pergunta antes de responder a dúvida. ' +
-  'Mensagens CURTAS (menos de 80 palavras). NUNCA peça vários documentos de uma vez. NUNCA peça contratos, procuração ou qualquer documento fora dos três da triagem. ' +
+  'Mensagens CURTAS (menos de 80 palavras). NUNCA peça vários documentos de uma vez. NUNCA peça contratos, procuração ou qualquer documento além do HISCON. ' +
   'ELIMINE perguntas de curiosidade que não avancem a sequência. Otimize: confiança, clareza, acolhimento e o avanço da triagem';
 
 /** A pessoa enviou um ARQUIVO nesta mensagem? (fato do envelope — nunca inferido) */
@@ -133,7 +133,7 @@ function condutaOnboarding(context: ConversationContextView): string {
       ? `${ob.recebidos.length > 0 ? `Já recebidos e CONFIRMADOS: ${ob.recebidos.join('; ')}. ` : ''}` +
         `Ainda faltam: ${ob.faltando.length > 0 ? ob.faltando.join('; ') : 'nenhum'}. ` +
         `${ob.proximo !== null ? `Solicite AGORA, nesta resposta, APENAS o próximo: ${ob.proximo}. ` : ''}`
-      : 'A contabilidade ainda não registrou nenhum recebimento: comece pelo RG (frente e verso) ou CNH. ';
+      : 'A contabilidade ainda não registrou nenhum recebimento: peça o HISCON. ';
   // Correção GO-LIVE (3 rodadas de teste real): no turno em que um arquivo
   // chega, a AHRI (a) JAMAIS nega o recebimento ("ainda não chegou" foi dito a
   // uma cliente que ACABARA de mandar o verso), (b) JAMAIS pula etapa e
@@ -148,13 +148,11 @@ function condutaOnboarding(context: ConversationContextView): string {
       'É PROIBIDO dizer que não chegou, pedir reenvio ou PEDIR QUALQUER documento nesta resposta — a confirmação do registro e o pedido do próximo documento chegam em uma mensagem automática logo em seguida. '
     : '';
   return (
-    'ESTADO: ONBOARDING_DOCUMENTAL (Jornada 1 — triagem). Sua missão é levar o cliente até 100% da documentação inicial FIXA — ' +
-    'exatamente TRÊS documentos, UM POR VEZ, nesta ordem: RG (frente e verso) ou CNH, comprovante de endereço, e HISCON. ' +
+    'ESTADO: ONBOARDING_DOCUMENTAL (Jornada 1 — decreto HISCON-ONLY 2026-07-22). Sua missão é obter UM ÚNICO documento: o HISCON (extrato de empréstimos consignados do INSS), emitido no app/site Meu INSS em "Extrato de Empréstimos Consignados". Ajude com o passo a passo da emissão sempre que houver dúvida. ' +
     situacao +
     arquivoAgora +
     'Confirme com naturalidade cada documento que o cliente enviar e peça IMEDIATAMENTE o próximo que falta — um por vez, nunca vários. ' +
-    'RG exige FRENTE E VERSO (duas fotos); CNH sozinha vale pela identidade completa. ' +
-    'Se a pessoa disser que NÃO tem comprovante de endereço no próprio nome, o comprovante em nome do CÔNJUGE é aceito — diga isso a ela. ' +
+    'Se o cliente enviar espontaneamente outros documentos (RG, comprovante), agradeça e confirme o registro — mas NUNCA os peça: nesta fase só o HISCON é solicitado. ' +
     'NUNCA diga que vai analisar o caso agora, NUNCA encerre o atendimento e NUNCA deixe o cliente aguardando: enquanto faltar documento, a conversa continua. ' +
     'É PROIBIDO solicitar QUALQUER outro documento nesta fase: NUNCA peça contratos, procuração, extratos, comprovantes bancários ou documentos judiciais — complementares só nascem do Painel do Advogado (Jornada 2). ' +
     'Responda IMEDIATAMENTE qualquer dúvida; NÃO faça perguntas que não avancem a documentação obrigatória'

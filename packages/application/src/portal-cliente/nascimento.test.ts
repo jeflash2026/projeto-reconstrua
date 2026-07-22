@@ -107,7 +107,7 @@ describe('Nascimento · o momento acontece (sem clique humano)', () => {
 
     // A MENSAGEM (D2 revisado — conteúdo homologado):
     const msg = comunicador.mensagens[0];
-    expect(msg?.texto).toContain('Recebi toda a sua documentação inicial');
+    expect(msg?.texto).toContain('Recebi o seu HISCON');
     expect(msg?.texto).toContain('até 12 dias úteis');
     expect(msg?.texto).toContain('estarei aqui.'); // a frase final OBRIGATÓRIA
     // O LINK verbatim, com token VÁLIDO do cliente certo:
@@ -171,10 +171,10 @@ describe('mensagemNascimento (D2 — revisado pelo decreto "Jornada Documental I
     const m = mensagemNascimento(10, 'https://x/portal?t=abc');
     for (const trecho of [
       // 1. Recebemos toda a documentação inicial (os 3 nomeados):
-      'Recebi toda a sua documentação inicial: HISCON, RG ou CNH e comprovante de endereço',
+      'Recebi o seu HISCON',
       // (sentimento: terminou a primeira etapa; nada mais a enviar espontaneamente)
-      'Essa primeira etapa está concluída',
-      'você não precisa enviar mais nada por enquanto',
+      'a documentação desta primeira etapa está completa',
+      'Você não precisa enviar mais nada por enquanto',
       // 2. Entrou na análise administrativa:
       'etapa de análise administrativa',
       // 3. Prazo esperado:

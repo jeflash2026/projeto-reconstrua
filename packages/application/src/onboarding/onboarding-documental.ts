@@ -1,29 +1,34 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // JORNADA 1 — DOCUMENTAÇÃO INICIAL (Decreto "Jornada Documental Inicial";
-// ordem revisada pelo decreto do Tráfego Pago de 2026-07-20, que REVOGA o
-// "HISCON First" do 15B).
+// REFORMULADA pelo decreto HISCON-ONLY de 2026-07-22, que revoga a ordem de
+// três documentos do Tráfego Pago).
 //
-// A documentação inicial é FIXA. Sempre. Nunca depende do advogado:
-//   1. RG (frente e verso) ou CNH (código canônico IDENTIDADE)
-//   2. Comprovante de endereço (COMPROVANTE_RESIDENCIA)
-//   3. HISCON (código canônico CNIS — extrato de consignações)
+// A documentação inicial agora é UM ÚNICO documento:
+//   1. HISCON (código canônico CNIS — extrato de empréstimos consignados)
 //
-// Este módulo é a CONTABILIDADE CANÔNICA da jornada: qual documento obrigatório
-// já chegou (classificação determinística sobre o TEXTO transcrito pelo Reader
-// — a IA apenas transcreve; a decisão vem de regras explícitas) e qual é o
-// PRÓXIMO a solicitar (ordem fixa acima — um documento por vez).
+// A AHRI explica o trabalho, tira dúvidas sobre irregularidades e direitos,
+// coleta nome + cidade e, com o interesse confirmado, pede APENAS o HISCON.
+// A análise/perícia estuda o HISCON e gera o dossiê; ENCONTRADAS
+// irregularidades, o contato é retomado e o RESTANTE da documentação
+// (RG/CNH, comprovante de endereço, procuração) é solicitado PELO ADVOGADO
+// via DocumentRequest (Jornada 2 — Painel do Advogado, com presets).
 //
-// Enquanto faltar QUALQUER um dos três ⇒ missão da conversa ONBOARDING_DOCUMENTAL.
-// Com os três completos ⇒ ANALISE_ADMINISTRATIVA (a AHRI muda automaticamente).
-// Documentos complementares NÃO pertencem a esta jornada (Jornada 2 =
-// DocumentRequest, exclusivo do Painel do Advogado).
+// O classificador continua reconhecendo RG/CNH e comprovante (o cliente pode
+// enviar espontaneamente e o registro é aproveitado) — mas só o HISCON é
+// OBRIGATÓRIO para a jornada inicial completar.
+//
+// Enquanto faltar o HISCON ⇒ missão da conversa ONBOARDING_DOCUMENTAL.
+// Com o HISCON ⇒ ANALISE_ADMINISTRATIVA (a AHRI muda automaticamente).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Os TRÊS documentos obrigatórios, na ORDEM FIXA de solicitação
- *  (decreto Tráfego Pago: RG/CNH → comprovante de endereço → HISCON). */
-export const DOCUMENTACAO_INICIAL = ['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS'] as const;
-export type DocumentoInicial = (typeof DOCUMENTACAO_INICIAL)[number];
+/** Os documentos que o classificador RECONHECE (tipo canônico). */
+export const DOCUMENTOS_CONHECIDOS = ['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS'] as const;
+export type DocumentoInicial = (typeof DOCUMENTOS_CONHECIDOS)[number];
 export type ClassificacaoInicial = DocumentoInicial | 'OUTRO';
+
+/** O(s) documento(s) OBRIGATÓRIO(S) da jornada inicial — decreto HISCON-ONLY
+ *  (2026-07-22): apenas o HISCON; o restante é do advogado (Jornada 2). */
+export const DOCUMENTACAO_INICIAL: readonly DocumentoInicial[] = ['CNIS'];
 
 /** Rótulos que a AHRI usa com o cliente (nunca o código técnico). */
 export const ROTULO_INICIAL: Readonly<Record<DocumentoInicial, string>> = {
@@ -152,7 +157,7 @@ export function classificarDocumentoInicial(fileName: string, texto: string): Cl
   const corpo = normalizar(`${fileName} ${texto}`);
   if (corpo === '') return 'OUTRO';
   const tokens = new Set(corpo.split(' '));
-  const pontuadas = DOCUMENTACAO_INICIAL.map((codigo) => {
+  const pontuadas = DOCUMENTOS_CONHECIDOS.map((codigo) => {
     const s = SINAIS[codigo];
     const pontos =
       s.frases.filter((f) => corpo.includes(f)).length +

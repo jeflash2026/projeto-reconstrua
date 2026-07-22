@@ -133,18 +133,22 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
     expect(r).toContain('interesse em fazer essa análise?');
     expect(r).not.toMatch(/garant|promet/i);
   });
-  it('consentiu ⇒ inicia a triagem pedindo o PRIMEIRO documento (RG f/v ou CNH)', () => {
+  it('consentiu ⇒ inicia a triagem pedindo APENAS o HISCON (decreto 2026-07-22)', () => {
     const r = responderTurno(
-      fatos({
-        nome: 'Isabel',
-        cidade: 'Santa Ernestina',
-        consentiu: true,
-        ultimaCaptura: 'consentimento',
-      }),
+      fatos(
+        {
+          nome: 'Isabel',
+          cidade: 'Santa Ernestina',
+          consentiu: true,
+          ultimaCaptura: 'consentimento',
+        },
+        { proximoDocumento: 'HISCON (histórico de empréstimos consignados do INSS)' },
+      ),
       texto('sim'),
     );
-    expect(r).toContain('três documentos, um por vez');
-    expect(r).toContain('RG (frente e verso) ou CNH');
+    expect(r).toContain('apenas UM documento');
+    expect(r).toContain('HISCON');
+    expect(r).toContain('Meu INSS');
   });
   it('recusa ⇒ despedida gentil, sem insistência', () => {
     const r = responderTurno(

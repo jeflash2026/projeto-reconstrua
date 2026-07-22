@@ -161,8 +161,9 @@ describe('15A · a política por ESTADO da missão', () => {
     expect(p.conduta).toContain('SEM PROMESSAS');
     expect(p.conduta).toContain('NUNCA garanta resultado');
     expect(p.conduta).toContain('interesse em fazer a análise');
-    expect(p.conduta).toContain('APENAS TRÊS documentos, UM POR VEZ');
-    expect(p.conduta).toContain('RG (frente e verso) ou CNH');
+    expect(p.conduta).toContain('APENAS UM documento');
+    expect(p.conduta).toContain('HISCON');
+    expect(p.conduta).toContain('Meu INSS');
     expect(p.conduta).toContain('Responda IMEDIATAMENTE');
     expect(p.conduta).toContain('NUNCA devolva uma pergunta antes de responder');
     expect(p.conduta).toContain('menos de 80 palavras');
@@ -225,14 +226,12 @@ describe('15A · a política por ESTADO da missão', () => {
 });
 
 describe('Decreto · JORNADA 1 — ONBOARDING_DOCUMENTAL', () => {
-  it('substitui a curiosidade; documentação FIXA de TRÊS, na ordem do decreto, um por vez', () => {
+  it('substitui a curiosidade; a missão é UM documento — o HISCON (decreto 2026-07-22)', () => {
     const p = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL' }));
     expect(p.substituiCuriosidade).toBe(true);
-    expect(p.conduta).toContain('100% da documentação inicial FIXA');
-    expect(p.conduta).toContain(
-      'nesta ordem: RG (frente e verso) ou CNH, comprovante de endereço, e HISCON',
-    );
-    expect(p.conduta).toContain('um por vez, nunca vários');
+    expect(p.conduta).toContain('UM ÚNICO documento: o HISCON');
+    expect(p.conduta).toContain('Meu INSS');
+    expect(p.conduta).toContain('NUNCA os peça: nesta fase só o HISCON é solicitado');
   });
 
   it('conduta DINÂMICA: confirma os recebidos e solicita AGORA o próximo que falta', () => {
@@ -251,9 +250,9 @@ describe('Decreto · JORNADA 1 — ONBOARDING_DOCUMENTAL', () => {
     expect(p.conduta).toContain('Solicite AGORA, nesta resposta, APENAS o próximo: RG ou CNH');
   });
 
-  it('sem contabilidade semeada ⇒ começa pelo RG/CNH (ordem do decreto)', () => {
+  it('sem contabilidade semeada ⇒ pede o HISCON (decreto HISCON-only)', () => {
     const p = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL', onboarding: null }));
-    expect(p.conduta).toContain('comece pelo RG (frente e verso) ou CNH');
+    expect(p.conduta).toContain('peça o HISCON');
   });
 
   it('nunca encerra, nunca "vou analisar", nunca deixa aguardando', () => {
@@ -315,20 +314,20 @@ describe('Decreto · ANALISE_ADMINISTRATIVA — conversa normal, zero pedido esp
   });
 });
 
-describe('Decreto Tráfego Pago — a triagem REVOGA o HISCON-first do 15B', () => {
-  it('a ordem da triagem é RG/CNH → comprovante → HISCON (um por vez)', () => {
+describe('Decreto HISCON-ONLY (2026-07-22) — a triagem pede SÓ o HISCON', () => {
+  it('a triagem do LEAD pede apenas o HISCON; o resto é do advogado', () => {
     const c = politicaDaMissao(contexto({ missao: 'LEAD' })).conduta;
-    expect(c).toContain('RG (frente e verso) ou CNH');
-    expect(c).toContain('comprovante de endereço e, por último, o HISCON');
+    expect(c).toContain('APENAS UM documento');
+    expect(c).toContain('solicitados DEPOIS, pelo advogado');
     expect(c).toContain('NUNCA peça vários documentos de uma vez');
   });
   it('a resposta canônica de elegibilidade continua citando SÓ o HISCON (fonte da análise)', () => {
     expect(RESPOSTA_ELEGIBILIDADE).toContain('HISCON');
     expect(RESPOSTA_ELEGIBILIDADE).not.toMatch(/contratos/i);
   });
-  it('ONBOARDING segue a MESMA ordem do decreto', () => {
+  it('ONBOARDING segue o decreto: obter o HISCON', () => {
     const c = politicaDaMissao(contexto({ missao: 'ONBOARDING_DOCUMENTAL' })).conduta;
-    expect(c).toContain('nesta ordem: RG (frente e verso) ou CNH');
+    expect(c).toContain('UM ÚNICO documento: o HISCON');
   });
   it('SEM PROMESSAS: nunca garantir resultado, valores ou prazos', () => {
     const c = politicaDaMissao(contexto({ missao: 'LEAD' })).conduta;

@@ -7,7 +7,11 @@ import { useRouter } from 'next/navigation';
 import { solicitarDocumento } from '../lib/actions';
 import { previewMensagemAhri } from './solicitacao-status';
 
+// Decreto HISCON-ONLY (2026-07-22): o atendimento inicial coleta SÓ o HISCON;
+// RG/CNH e comprovante de endereço são solicitados AQUI, pelo advogado, com um
+// clique — presets prontos na primeira categoria.
 const CATEGORIAS: Readonly<Record<string, readonly string[]>> = {
+  'Documentação do cliente': ['RG (frente e verso) ou CNH', 'Comprovante de endereço'],
   Representação: ['Procuração', 'Contrato de honorários assinado'],
   'Benefício INSS': [
     'Carta de Concessão',
@@ -49,7 +53,7 @@ const NovaSolicitacaoForm = ({
       setClientId(c.chatId);
     }
   };
-  const [categoria, setCategoria] = useState<string>('Representação');
+  const [categoria, setCategoria] = useState<string>('Documentação do cliente');
   const [documento, setDocumento] = useState('');
   const [prioridade, setPrioridade] = useState<'normal' | 'alta'>('normal');
   const [prazo, setPrazo] = useState('');

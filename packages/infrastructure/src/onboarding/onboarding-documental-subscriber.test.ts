@@ -90,26 +90,21 @@ function harness(textos: Record<string, string | null>, chatResolvivel = true) {
 }
 
 describe('Decreto · a jornada alimentada pelos eventos reais', () => {
-  it('mission.created semeia (3 pendentes) e cada documento leva até 100%', async () => {
+  it('mission.created semeia (HISCON pendente) e cada documento leva até 100%', async () => {
     const h = harness({
       d1: 'histórico de empréstimo consignado INSS',
       d2: 'carteira nacional de habilitação',
       d3: 'fatura de energia elétrica',
     });
     await h.subscriber.handle(missaoCriada);
-    expect(h.pendencias.at(-1)).toEqual(['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS']);
+    expect(h.pendencias.at(-1)).toEqual(['CNIS']);
     expect(await h.runtime.estaCompleto(CHAT)).toBe(false); // ⇒ ONBOARDING_DOCUMENTAL
 
+    // Decreto HISCON-only: o próprio HISCON COMPLETA a jornada inicial.
     await h.subscriber.handle(docReconhecido('d1', 'doc.pdf'));
-    expect((await h.runtime.visao(CHAT))?.proximo).toContain('RG'); // HISCON chegou fora de ordem; o próximo é o RG
-    // 5ª rodada — PROGRESSÃO AUTOMÁTICA: a AHRI avisa sozinha e pede o próximo.
-    expect(h.progressos[0]).toContain('✅ Registrado: HISCON');
-    expect(h.progressos[0]).toContain('Agora me manda, por favor: RG');
-
-    await h.subscriber.handle(docReconhecido('d2', 'IMG_1.jpg'));
-    expect(h.progressos[1]).toContain('✅ Registrado: CNH');
-    await h.subscriber.handle(docReconhecido('d3', 'IMG_2.jpg'));
-    expect(h.progressos[2]).toContain('documentação inicial está completa');
+    // 5ª rodada — PROGRESSÃO AUTOMÁTICA: a AHRI avisa sozinha (aqui, a conclusão).
+    expect(h.progressos[0]).toContain('Registrado: HISCON');
+    expect(h.progressos[0]).toContain('documentação inicial está completa');
 
     expect(await h.runtime.estaCompleto(CHAT)).toBe(true); // ⇒ ANALISE_ADMINISTRATIVA
     expect(h.pendencias.at(-1)).toEqual([]); // ALIR/Readiness: nada pendente
@@ -162,7 +157,7 @@ describe('Decreto · a jornada alimentada pelos eventos reais', () => {
     await subscriber.handle(docReconhecido('dY', 'IMG_7777.jpg')); // NÃO lança
     expect(esperas).toBeGreaterThanOrEqual(2);
     expect((await runtime.visao(CHAT))?.recebidos.some((r) => r.includes('RG'))).toBe(true);
-    expect((await runtime.visao(CHAT))?.proximo).toContain('VERSO do RG'); // e já sabe pedir o verso
+    expect((await runtime.visao(CHAT))?.proximo).toContain('HISCON'); // pendente segue o decreto HISCON-only
   });
 
   it('chat da missão irresolúvel ⇒ LANÇA (a projeção pode estar um ciclo atrás)', async () => {

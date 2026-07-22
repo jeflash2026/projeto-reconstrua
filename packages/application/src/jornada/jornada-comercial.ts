@@ -281,9 +281,11 @@ export const MENSAGENS_JORNADA = {
     'Só para eu confirmar: você tem interesse em fazer a análise gratuita do seu consignado?',
   recusa:
     'Sem problemas, respeito a sua decisão. Fico à disposição — se mudar de ideia ou tiver qualquer dúvida sobre a análise, é só me chamar por aqui.',
+  // Decreto HISCON-ONLY (2026-07-22): a análise inicial precisa de UM documento.
   iniciarTriagem: (proximo: string): string =>
     'Ótimo, vamos começar.\n\n' +
-    `Vou precisar de três documentos, um por vez. O primeiro: ${proximo}. Pode enviar foto ou print por aqui mesmo.`,
+    `Para a análise eu preciso de apenas UM documento: ${proximo}.\n\n` +
+    'Você consegue emitir pelo aplicativo ou site Meu INSS, na opção "Extrato de Empréstimos Consignados". Pode enviar o PDF ou fotos das páginas por aqui mesmo — e se tiver qualquer dificuldade para emitir, me avise que eu te explico o passo a passo.',
   aguardandoDocumento: (proximo: string): string =>
     `Estou aguardando: ${proximo}. Pode enviar foto ou print por aqui, no seu tempo.`,
   // Escada de cobrança: o 2º pedido NUNCA repete o 1º — reforça e oferece ajuda.

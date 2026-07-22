@@ -111,7 +111,7 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
 
     // "sim" ⇒ consentimento registrado ⇒ triagem começa pelo RG f/v ou CNH.
     const inicio = await h.turno('sim');
-    expect(inicio).toContain('três documentos, um por vez');
+    expect(inicio).toContain('apenas UM documento');
     expect(inicio).toContain('RG (frente e verso) ou CNH');
     expect(await h.jornada.etapa(CHAT)).toBe('TRIAGEM');
 
@@ -146,7 +146,7 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
     await h.turno('Isabel, de Santa Ernestina');
     expect(await h.turno('não quero agora')).toBe(MENSAGENS_JORNADA.recusa);
     const r = await h.turno('pensei melhor, quero sim');
-    expect(r).toContain('três documentos');
+    expect(r).toContain('apenas UM documento');
   });
 
   it('falha do store da jornada JAMAIS silencia: delega ao LLM', async () => {

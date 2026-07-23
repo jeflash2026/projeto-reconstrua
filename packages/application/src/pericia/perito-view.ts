@@ -80,7 +80,14 @@ export class PeritoView {
       (c) => c.clienteId === clienteId || c.chatId === clienteId,
     );
     if (cliente === undefined) return null;
+    return this.contratosDoResumo(cliente, now);
+  }
 
+  /** Núcleo da leitura de contratos a partir de um cliente JÁ resolvido — evita
+   *  re-listar todos os clientes por item (o que tornava as varreduras O(n²) e
+   *  travava a home do perito). Usado por contratos(), planilhaGeral() e
+   *  todosComHiscon(), que listam UMA vez e reaproveitam este núcleo. */
+  private async contratosDoResumo(cliente: ClienteResumo, now?: Date): Promise<ContratosDoCliente> {
     const documentIds =
       cliente.missionId !== null ? await this.deps.documentosDaMissao(cliente.missionId) : [];
     const textos: string[] = [];
@@ -143,11 +150,11 @@ export class PeritoView {
    *  uma vez (o dono pediu 2026-07-23). Só o detalhado (formato do documento). */
   async planilhaGeral(now?: Date): Promise<PlanilhaGerada> {
     const ref = now ?? new Date();
-    const clientes = await this.deps.clientes.list(now);
+    const clientes = await this.deps.clientes.list(now); // lista UMA vez (O(n))
     const linhas: ReadonlyArray<string | number | null>[] = [];
     for (const cliente of clientes) {
-      const c = await this.contratos(cliente.clienteId, now);
-      if (c === null || c.detalhado.contratos.length === 0) continue;
+      const c = await this.contratosDoResumo(cliente, now);
+      if (c.detalhado.contratos.length === 0) continue;
       const plan = planilhaDeContratosDetalhada(cliente.quem, c.detalhado, ref);
       for (const linha of plan.linhas) linhas.push([cliente.quem, ...linha]);
     }
@@ -169,11 +176,11 @@ export class PeritoView {
    *  todo mundo que já entregou o HISCON, não só a fila de sociedade. Mesma fonte
    *  do CSV geral; cada linha traz nº de contratos e o status atual da jornada. */
   async todosComHiscon(now?: Date): Promise<readonly ClienteComHiscon[]> {
-    const clientes = await this.deps.clientes.list(now);
+    const clientes = await this.deps.clientes.list(now); // lista UMA vez (O(n))
     const out: ClienteComHiscon[] = [];
     for (const cliente of clientes) {
-      const c = await this.contratos(cliente.clienteId, now);
-      if (c === null || c.detalhado.contratos.length === 0) continue;
+      const c = await this.contratosDoResumo(cliente, now);
+      if (c.detalhado.contratos.length === 0) continue;
       out.push({
         clienteId: cliente.clienteId,
         chatId: cliente.chatId,

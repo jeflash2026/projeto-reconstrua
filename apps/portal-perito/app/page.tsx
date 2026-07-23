@@ -35,10 +35,15 @@ const CentralPerito = async (): Promise<ReactElement> => {
   const emPrazo = todos.filter((c) => c.status === 'AGUARDANDO_10_DIAS');
   const prazoVencido = todos.filter((c) => c.status === 'AGUARDANDO_SOCIO');
   // TODOS os clientes com HISCON legível — o perito trabalha da ENTREGA, não só
-  // da fila de sociedade (Decreto 2026-07-23).
+  // da fila de sociedade (Decreto 2026-07-23). Com TIMEOUT: se a varredura demorar
+  // (cache frio), a página abre mesmo assim — nunca trava o login.
   const comHiscon =
-    (await getJson<{ clientes: ClienteComHiscon[] }>('/admin/jornada/pericia/todos-com-hiscon'))
-      ?.clientes ?? [];
+    (
+      await getJson<{ clientes: ClienteComHiscon[] }>(
+        '/admin/jornada/pericia/todos-com-hiscon',
+        20000,
+      )
+    )?.clientes ?? [];
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>

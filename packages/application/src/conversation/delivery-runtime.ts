@@ -40,6 +40,11 @@ export interface DeliveryRuntimeDeps {
 }
 
 export class DeliveryRuntime {
+  /** Conversas com um drain EM ANDAMENTO — impede que dois laços de entrega
+   *  (ex.: o turno e um disparo temporal) processem a MESMA fila em paralelo e
+   *  reclamem a mesma pendência (raiz da mensagem enviada 2×). */
+  private readonly drenando = new Set<string>();
+
   constructor(private readonly deps: DeliveryRuntimeDeps) {}
 
   /** Entrega UMA mensagem com cadência humana completa. */
@@ -89,17 +94,25 @@ export class DeliveryRuntime {
    */
   async drain(context: ConversationContextView): Promise<readonly DeliveredMessage[]> {
     const { queue, delay, presence, clock, policy } = this.deps;
+    // UM drain por conversa de cada vez: se já há um laço drenando este chat, não
+    // concorre — o laço em andamento entrega todas as pendências (inclusive as que
+    // acabaram de entrar). Sem isso, dois laços pegam a mesma pendência e enviam 2×.
+    if (this.drenando.has(context.chatId)) return [];
+    this.drenando.add(context.chatId);
     const delivered: DeliveredMessage[] = [];
-    let first = true;
-
-    for (;;) {
-      const next = await queue.nextPending(context.chatId);
-      if (!next) break;
-      if (!first) {
-        await delay.wait(policy.interMessageMs);
+    try {
+      let first = true;
+      for (;;) {
+        const next = await queue.nextPending(context.chatId);
+        if (!next) break;
+        if (!first) {
+          await delay.wait(policy.interMessageMs);
+        }
+        first = false;
+        delivered.push(await this.deliverOne(next, context));
       }
-      first = false;
-      delivered.push(await this.deliverOne(next, context));
+    } finally {
+      this.drenando.delete(context.chatId);
     }
 
     if (delivered.length > 0) {

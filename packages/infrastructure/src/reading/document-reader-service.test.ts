@@ -105,6 +105,15 @@ describe('DocumentReaderService (CAT-03A)', () => {
     expect(reader.calls).toBe(1); // segunda vez veio do cache
   });
 
+  it('leitura CONCORRENTE do mesmo documento ⇒ visão chamada UMA vez (dedup em voo)', async () => {
+    const { service, reader } = await makeKit({ readerText: 'UM SO' });
+    // Duas leituras simultâneas ANTES do cache popular: a 2ª aguarda a 1ª, não relê.
+    const [a, b] = await Promise.all([service.readById('DOC-1'), service.readById('DOC-1')]);
+    expect(a).toBe('UM SO');
+    expect(b).toBe('UM SO');
+    expect(reader.calls).toBe(1); // custo justo: 1 leitura por conteúdo
+  });
+
   it('sem vínculo ⇒ null', async () => {
     const { service } = await makeKit({ readerText: 'X', withLink: false });
     expect(await service.readById('DOC-1')).toBeNull();

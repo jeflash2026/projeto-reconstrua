@@ -116,9 +116,12 @@ describe('15C-1 · mensagens autoradas', () => {
   it('cliente / confirmação / lembrete / advogado — formatos do decreto', () => {
     const s = estado({ documentName: 'Procuração' });
     expect(mensagemAoCliente(s, 'Jessé')).toContain(
-      'Dr. João Silva, responsável pelo seu processo, solicitou um documento complementar',
+      'Seu caso já foi estudado e encontramos algumas irregularidades',
     );
-    expect(mensagemAoCliente(s, 'Jessé')).toContain('Documento solicitado:\nProcuração');
+    expect(mensagemAoCliente(s, 'Jessé')).toContain(
+      'o(a) Dr(a). Dr. João Silva precisa do seguinte documento:',
+    );
+    expect(mensagemAoCliente(s, 'Jessé')).toContain('Procuração');
     expect(perguntaDeConfirmacao([s, estado({ documentName: 'Carta de Concessão' })])).toBe(
       'Recebi seu arquivo! Só confirmando: ele é **Procuração** ou **Carta de Concessão**?',
     );

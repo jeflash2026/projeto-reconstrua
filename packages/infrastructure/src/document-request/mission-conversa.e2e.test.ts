@@ -248,8 +248,9 @@ describe('15C-3 · disparo PROATIVO (Parte 3)', () => {
     const criada = await h.runtime.criar(NOVA);
     const r = await h.comunicador.anunciar(criada.unwrap());
     expect(r.ok).toBe(true);
-    expect(h.enviadas[0]).toContain('Olá, Jessé.');
-    expect(h.enviadas[0]).toContain('Documento solicitado:\nProcuração');
+    expect(h.enviadas[0]).toMatch(/(Bom dia|Boa tarde|Boa noite), Jessé\./);
+    expect(h.enviadas[0]).toContain('precisa do seguinte documento:');
+    expect(h.enviadas[0]).toContain('Procuração');
     expect(h.outbounds[0]).toBe(h.enviadas[0]); // a conversa fica ciente
     expect((await h.store.porId(NOVA.requestId))?.lastMessagedAt).not.toBeNull(); // messaged registrado
   });

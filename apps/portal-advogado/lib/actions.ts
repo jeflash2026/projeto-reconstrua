@@ -145,6 +145,8 @@ export async function solicitarDocumento(input: {
   priority?: 'normal' | 'alta';
   dueAt?: string;
   reminderPolicy?: 'nenhum' | '24h' | '48h' | '72h' | 'semanal';
+  /** Nome do advogado (o Dr(a) que a AHRI cita ao cliente) — nunca o UUID. */
+  requestedByName?: string;
   /** Decreto Tráfego Pago · B1: documento para ASSINATURA (procuração/contrato
    *  de honorários) — a AHRI envia o arquivo anexado ao cliente. */
   anexo?: { fileName: string; mimeType: string; base64: string };
@@ -159,7 +161,8 @@ export async function solicitarDocumento(input: {
       optionalMessage: input.optionalMessage,
       clientId: input.clientId,
       advogadoId: id,
-      requestedBy: id,
+      // O cliente vê o NOME do advogado, nunca o identificador interno.
+      requestedBy: input.requestedByName?.trim() ? input.requestedByName.trim() : id,
       priority: input.priority,
       dueAt: input.dueAt,
       reminderPolicy: input.reminderPolicy,

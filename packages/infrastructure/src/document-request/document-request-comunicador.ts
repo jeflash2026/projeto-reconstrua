@@ -48,8 +48,8 @@ export class DocumentRequestComunicador {
       const anexo = d.anexos ? await d.anexos.porRequest(state.requestId).catch(() => null) : null;
       const texto =
         anexo !== null
-          ? mensagemDeAssinatura(state, nome ?? '')
-          : mensagemAoCliente(state, nome ?? '');
+          ? mensagemDeAssinatura(state, nome ?? '', now)
+          : mensagemAoCliente(state, nome ?? '', now);
       const receipt = await d.gateway.sendText(state.clientId, texto);
       if (anexo !== null) {
         if (d.documentos) {

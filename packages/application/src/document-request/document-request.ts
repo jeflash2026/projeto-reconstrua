@@ -105,14 +105,41 @@ export function resumoDocumentRequests(
 
 // ── MENSAGENS autoradas (a AHRI entrega — nunca inventa) ──────────────────────
 
-/** Mensagem inicial ao CLIENTE ao criar a solicitação. Nome desconhecido ⇒ "Olá!". */
-export function mensagemAoCliente(state: DocumentRequestState, clienteNome: string): string {
+/** Saudação pelo horário de BRASÍLIA (o servidor roda em UTC; sem o fuso a
+ *  saudação sairia 3h adiantada). Bom dia (5–12), Boa tarde (12–18), Boa noite. */
+export function saudacaoPorHorario(now: Date = new Date()): string {
+  const hora = Number(
+    new Intl.DateTimeFormat('pt-BR', {
+      hour: 'numeric',
+      hour12: false,
+      timeZone: 'America/Sao_Paulo',
+    }).format(now),
+  );
+  if (hora >= 5 && hora < 12) return 'Bom dia';
+  if (hora >= 12 && hora < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+/** Saudação + nome do cliente ("Boa tarde, Maria." | "Boa tarde!"). */
+function abertura(clienteNome: string, now: Date): string {
+  const saud = saudacaoPorHorario(now);
+  return clienteNome.trim() !== '' ? `${saud}, ${clienteNome.trim()}.` : `${saud}!`;
+}
+
+/** Mensagem inicial ao CLIENTE ao criar a solicitação (documento SEM assinatura).
+ *  Saudação por horário + o Dr(a) responsável (state.requestedBy = NOME) + o
+ *  documento pedido. Nome do cliente desconhecido ⇒ saudação sem nome. */
+export function mensagemAoCliente(
+  state: DocumentRequestState,
+  clienteNome: string,
+  now: Date = new Date(),
+): string {
   const extra = state.optionalMessage ? `\n\n${state.optionalMessage}` : '';
-  const saudacao = clienteNome.trim() !== '' ? `Olá, ${clienteNome}.` : 'Olá!';
   return (
-    `${saudacao}\n\n` +
-    `${state.requestedBy}, responsável pelo seu processo, solicitou um documento complementar para dar continuidade ao andamento da ação.\n\n` +
-    `Documento solicitado:\n${state.documentName}${extra}\n\n` +
+    `${abertura(clienteNome, now)}\n\n` +
+    `Seu caso já foi estudado e encontramos algumas irregularidades. Para dar andamento, ` +
+    `o(a) Dr(a). ${state.requestedBy} precisa do seguinte documento:\n\n` +
+    `${state.documentName}${extra}\n\n` +
     `Assim que possível, envie por aqui.`
   );
 }

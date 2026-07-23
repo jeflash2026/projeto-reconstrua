@@ -81,18 +81,39 @@ export function responsavelAtual(s: Solicitacao): string {
   }
 }
 
-/** A mensagem que a AHRI enviará (preview do form — MESMO formato do backend). */
+/** Saudação por horário (preview no navegador do advogado — fuso local = Brasil). */
+function saudacaoPorHorarioBr(now: Date = new Date()): string {
+  const h = now.getHours();
+  if (h >= 5 && h < 12) return 'Bom dia';
+  if (h >= 12 && h < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+/** A mensagem que a AHRI enviará (preview do form — MESMO formato do backend:
+ *  saudação por horário + o Dr(a) responsável + texto conforme ser assinatura). */
 export function previewMensagemAhri(
   documentName: string,
   optionalMessage: string,
   requestedBy: string,
+  ehAssinatura = false,
   clienteNome = 'cliente',
+  now: Date = new Date(),
 ): string {
   const extra = optionalMessage.trim() ? `\n\n${optionalMessage.trim()}` : '';
+  const abertura = clienteNome.trim() ? `${saudacaoPorHorarioBr(now)}, ${clienteNome}.` : 'Olá!';
+  const doc = documentName.trim() || '—';
+  if (ehAssinatura) {
+    return (
+      `${abertura}\n\n` +
+      `Seu caso já foi estudado e encontramos algumas irregularidades. Agora o(a) Dr(a). ${requestedBy} precisa coletar a sua assinatura no documento a seguir:\n\n` +
+      `${doc}${extra}\n\n` +
+      `Vou te enviar o arquivo aqui em seguida — é só baixar, assinar e devolver por aqui mesmo. Assim que você devolver, eu registro e aviso o(a) Dr(a). ${requestedBy}.`
+    );
+  }
   return (
-    `Olá, ${clienteNome}.\n\n` +
-    `${requestedBy}, responsável pelo seu processo, solicitou um documento complementar para dar continuidade ao andamento da ação.\n\n` +
-    `Documento solicitado:\n${documentName.trim() || '—'}${extra}\n\n` +
+    `${abertura}\n\n` +
+    `Seu caso já foi estudado e encontramos algumas irregularidades. Para dar andamento, o(a) Dr(a). ${requestedBy} precisa do seguinte documento:\n\n` +
+    `${doc}${extra}\n\n` +
     `Assim que possível, envie por aqui.`
   );
 }

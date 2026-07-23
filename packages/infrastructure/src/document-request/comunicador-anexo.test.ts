@@ -73,9 +73,9 @@ describe('B1 · anúncio com ANEXO do advogado', () => {
     });
     const r = await h.comunicador.anunciar(criada);
     expect(r.ok).toBe(true);
-    expect(h.textos[0]).toContain('enviou um documento que precisa da sua assinatura');
+    expect(h.textos[0]).toContain('precisa coletar a sua assinatura no documento a seguir');
     expect(h.textos[0]).toContain('Procuração');
-    expect(h.textos[0]).toContain('assinar');
+    expect(h.textos[0]).toContain('assinar e devolver');
     expect(h.arquivos).toHaveLength(1);
     expect(h.arquivos[0]?.chatId).toBe(CHAT);
     expect(h.arquivos[0]?.anexo.fileName).toBe('procuracao.pdf');
@@ -88,7 +88,7 @@ describe('B1 · anúncio com ANEXO do advogado', () => {
     const criada = (await h.runtime.criar(NOVA)).unwrap();
     const r = await h.comunicador.anunciar(criada);
     expect(r.ok).toBe(true);
-    expect(h.textos[0]).toContain('solicitou um documento complementar');
+    expect(h.textos[0]).toContain('precisa do seguinte documento:');
     expect(h.arquivos).toHaveLength(0);
   });
 

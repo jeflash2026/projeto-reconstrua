@@ -68,8 +68,8 @@ const NovaSolicitacaoForm = ({
   const ehAssinatura = /procura[çc][ãa]o|honor[áa]rios/i.test(documento);
 
   const preview = useMemo(
-    () => previewMensagemAhri(documento, mensagem, requestedBy),
-    [documento, mensagem, requestedBy],
+    () => previewMensagemAhri(documento, mensagem, requestedBy, ehAssinatura),
+    [documento, mensagem, requestedBy, ehAssinatura],
   );
 
   const aoEscolherArquivo = (file: File | null): void => {
@@ -109,6 +109,7 @@ const NovaSolicitacaoForm = ({
           caseId: caseId.trim(),
           clientId: clientId.trim(),
           documentName: documento.trim(),
+          requestedByName: requestedBy,
           ...(mensagem.trim() !== '' ? { optionalMessage: mensagem.trim() } : {}),
           priority: prioridade,
           ...(prazo !== '' ? { dueAt: new Date(`${prazo}T23:59:59`).toISOString() } : {}),

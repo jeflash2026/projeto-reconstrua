@@ -9,6 +9,7 @@
 // (created → messaged → received quando o cliente devolver assinado).
 // ─────────────────────────────────────────────────────────────────────────────
 import type { DocumentRequestState } from '@reconstrua/domain';
+import { saudacaoPorHorario } from './document-request.js';
 
 export interface AnexoParaAssinatura {
   readonly fileName: string;
@@ -27,14 +28,23 @@ export interface EnviadorDeDocumento {
   sendDocument(chatId: string, anexo: AnexoParaAssinatura, caption: string): Promise<void>;
 }
 
-/** Mensagem AUTORADA que acompanha o documento a assinar (nunca inventada). */
-export function mensagemDeAssinatura(state: DocumentRequestState, clienteNome: string): string {
-  const saudacao = clienteNome.trim() !== '' ? `Olá, ${clienteNome}.` : 'Olá!';
+/** Mensagem AUTORADA que acompanha o documento a assinar (nunca inventada).
+ *  Saudação por horário + o Dr(a) responsável (state.requestedBy = NOME) + o
+ *  convite para baixar, assinar e devolver. O arquivo segue logo em seguida. */
+export function mensagemDeAssinatura(
+  state: DocumentRequestState,
+  clienteNome: string,
+  now: Date = new Date(),
+): string {
+  const saud = saudacaoPorHorario(now);
+  const abertura = clienteNome.trim() !== '' ? `${saud}, ${clienteNome.trim()}.` : `${saud}!`;
   const extra = state.optionalMessage ? `\n\n${state.optionalMessage}` : '';
   return (
-    `${saudacao}\n\n` +
-    `${state.requestedBy}, responsável pelo seu processo, enviou um documento que precisa da sua assinatura:\n` +
+    `${abertura}\n\n` +
+    `Seu caso já foi estudado e encontramos algumas irregularidades. Agora o(a) Dr(a). ` +
+    `${state.requestedBy} precisa coletar a sua assinatura no documento a seguir:\n\n` +
     `${state.documentName}${extra}\n\n` +
-    `Estou te mandando o arquivo aqui em seguida. Assim que assinar, é só devolver por aqui mesmo que eu registro e aviso a equipe.`
+    `Vou te enviar o arquivo aqui em seguida — é só baixar, assinar e devolver por aqui mesmo. ` +
+    `Assim que você devolver, eu registro e aviso o(a) Dr(a). ${state.requestedBy}.`
   );
 }

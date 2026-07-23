@@ -30,6 +30,18 @@ function isEntryKind(value: string): value is JuridicalEntryKind {
   return (ENTRY_KINDS as readonly string[]).includes(value);
 }
 
+/** Normaliza o canal do cliente para um JID válido do WhatsApp. Aceita já-JID
+ *  ('55...@s.whatsapp.net' / '...@g.us') OU número cru ('+55 17 99633-2346' →
+ *  '5517996332346@s.whatsapp.net') — assim o envio funciona mesmo quando o número
+ *  é digitado à mão com '+', espaços ou traços. Vazio/curto ⇒ '' (o chamador nega). */
+function normalizarCanalCliente(bruto: string): string {
+  const t = bruto.trim();
+  if (t === '') return '';
+  if (t.includes('@')) return t; // já é um JID (s.whatsapp.net / g.us)
+  const digitos = t.replace(/\D/g, '');
+  return digitos.length >= 10 ? `${digitos}@s.whatsapp.net` : '';
+}
+
 export function buildAdvogadoServer(
   op: AssembledAdvogadoOperation,
   opts: { readonly accessSecret?: string } = {},
@@ -217,8 +229,13 @@ export function buildAdvogadoServer(
     };
     if (!body.documentName?.trim())
       return reply.code(400).send({ error: 'documentName é obrigatório' });
-    if (!body.clientId?.trim())
-      return reply.code(400).send({ error: 'clientId é obrigatório (canal do cliente)' });
+    // Normaliza o canal do cliente: aceita JID pronto OU número cru (com +, espaços
+    // ou traços) — sem isso, um número digitado à mão nunca chegava ao WhatsApp.
+    const clienteCanal = normalizarCanalCliente(body.clientId ?? '');
+    if (clienteCanal === '')
+      return reply
+        .code(400)
+        .send({ error: 'cliente inválido: selecione o cliente ou informe um número válido' });
     if (!body.advogadoId?.trim())
       return reply.code(400).send({ error: 'advogadoId é obrigatório' });
     if (body.anexo !== undefined) {
@@ -238,7 +255,7 @@ export function buildAdvogadoServer(
     const criado = await op.documentRequests.criar({
       requestId: randomUUID(),
       caseId,
-      clientId: body.clientId,
+      clientId: clienteCanal,
       lawyerId: body.advogadoId,
       documentName: body.documentName,
       ...(body.optionalMessage !== undefined ? { optionalMessage: body.optionalMessage } : {}),

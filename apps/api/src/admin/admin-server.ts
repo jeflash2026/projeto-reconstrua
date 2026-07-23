@@ -400,6 +400,17 @@ export function buildAdminServer(
     return { planilhas: await op.perito.planilhasDaFila() };
   });
 
+  // CSV ÚNICO com TODOS os clientes que têm HISCON (coluna Cliente + contratos) —
+  // baixar o estudo inteiro de uma vez.
+  app.get('/admin/jornada/pericia/planilha-geral', async (_request, reply) => {
+    if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
+    const gerada = await op.perito.planilhaGeral();
+    return reply
+      .header('content-type', gerada.mime)
+      .header('content-disposition', `attachment; filename="${gerada.nomeArquivo}"`)
+      .send(gerada.conteudo);
+  });
+
   // ── JORNADA B (B-R3) — PERITO CONFIRMA os pedidos administrativos ─────────────
   // O ÚNICO fato persistido da Jornada B (homologado). Lei 8: grava o FATO (quem/
   // quando) e agenda a CONSEQUÊNCIA (10 dias) no scheduler EXISTENTE (idempotente

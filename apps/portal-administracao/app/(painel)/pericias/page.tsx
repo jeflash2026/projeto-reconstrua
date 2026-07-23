@@ -7,7 +7,7 @@ import Link from 'next/link';
 import type { ReactElement } from 'react';
 import AutoRefresh from '../../../components/auto-refresh';
 import StaffPanel from '../../../components/staff-panel';
-import { BaixarLote, PericiaAcoes } from '../../../components/pericia-acoes';
+import { BaixarLote, BaixarPlanilhaGeral, PericiaAcoes } from '../../../components/pericia-acoes';
 import { getJson, type JornadaCliente } from '../../../lib/api';
 import { formatDate } from '../../../lib/format';
 
@@ -50,6 +50,11 @@ const PericiasPage = async (): Promise<ReactElement> => {
           <div className="value">{handoff?.queue ?? '—'}</div>
           <div className="label">Escalonamentos aguardando perito</div>
         </div>
+      </div>
+
+      {/* Estudo COMPLETO: um único CSV com TODOS os clientes que têm HISCON. */}
+      <div className="form-row" style={{ marginBottom: 16 }}>
+        <BaixarPlanilhaGeral />
       </div>
 
       {!clientes ? (

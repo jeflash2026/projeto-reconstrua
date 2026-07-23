@@ -5,7 +5,12 @@
 // Reutiliza os comandos canônicos via Server Actions (Regra 3 / Lei 12).
 import { useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
-import { confirmarPedidos, fetchPlanilhaCliente, fetchPlanilhasLote } from '../lib/actions';
+import {
+  confirmarPedidos,
+  fetchPlanilhaCliente,
+  fetchPlanilhaGeral,
+  fetchPlanilhasLote,
+} from '../lib/actions';
 
 function baixarArquivo(nome: string, mime: string, conteudo: string): void {
   const blob = new Blob([conteudo], { type: mime });
@@ -123,6 +128,41 @@ export const BaixarLote = (): ReactElement => {
         }}
       >
         Baixar todas (uma por cliente)
+      </button>
+      {status ? <span style={{ color: 'var(--text-dim)' }}>{status}</span> : null}
+    </div>
+  );
+};
+
+/** Baixa TODOS os clientes com HISCON em UM único CSV (coluna Cliente). */
+export const BaixarPlanilhaGeral = (): ReactElement => {
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const baixar = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    setStatus(null);
+    const p = await fetchPlanilhaGeral();
+    if (p) {
+      baixarArquivo(p.nomeArquivo, p.mime, p.conteudo);
+      setStatus('CSV único de todos os clientes baixado.');
+    } else {
+      setStatus('Falha ao gerar o CSV geral.');
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="form-row" style={{ margin: 0 }}>
+      <button
+        className="primary"
+        disabled={busy}
+        onClick={() => {
+          void baixar();
+        }}
+      >
+        {busy ? 'Gerando…' : 'Baixar TODOS os clientes (CSV único)'}
       </button>
       {status ? <span style={{ color: 'var(--text-dim)' }}>{status}</span> : null}
     </div>

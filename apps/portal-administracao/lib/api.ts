@@ -412,6 +412,7 @@ export interface MigradosDoClienteView {
   porBanco: BancoComContratosView[];
   migracoes: MigracaoView[];
   totalMigrados: number;
+  potencialMigrados: number;
 }
 
 export interface MissionRow {

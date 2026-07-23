@@ -70,6 +70,8 @@ export interface MigradosDoCliente {
   readonly porBanco: readonly BancoComContratos[];
   readonly migracoes: readonly MigracaoDeContrato[];
   readonly totalMigrados: number;
+  /** Potencial de recuperação (já descontado) SÓ dos contratos migrados. */
+  readonly potencialMigrados: number;
 }
 
 export interface PericiaServiceDeps {
@@ -230,6 +232,7 @@ export class PericiaService {
         // O mapa resolve o banco de ORIGEM pelo documento inteiro (janela toda).
         migracoes: mapaDeMigracoes(janela, extraido.contratos),
         totalMigrados: migrados.length,
+        potencialMigrados: potencialDeRecuperacao(migrados, this.deps.clock.now()).total,
       });
     }
     return out;

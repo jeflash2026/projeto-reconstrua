@@ -13,8 +13,10 @@ import type { ClientesList, ClienteResumo } from '../clientes/clientes-list.js';
 import { parseHiscon, type HisconParse } from './hiscon.js';
 import { parseHisconDetalhado, type HisconExtraido } from './hiscon-parser.js';
 import {
+  COLUNAS_CONTRATOS_DETALHADA,
   planilhaDeContratos,
   planilhaDeContratosDetalhada,
+  type Planilha,
   type PlanilhaExporter,
 } from './planilha.js';
 
@@ -119,5 +121,32 @@ export class PeritoView {
       if (gerada !== null) out.push(gerada);
     }
     return out;
+  }
+
+  /** UM único arquivo com TODOS os clientes que têm HISCON legível — cada linha é
+   *  um contrato, com a coluna CLIENTE na frente. Para baixar o estudo inteiro de
+   *  uma vez (o dono pediu 2026-07-23). Só o detalhado (formato do documento). */
+  async planilhaGeral(now?: Date): Promise<PlanilhaGerada> {
+    const ref = now ?? new Date();
+    const clientes = await this.deps.clientes.list(now);
+    const linhas: ReadonlyArray<string | number | null>[] = [];
+    for (const cliente of clientes) {
+      const c = await this.contratos(cliente.clienteId, now);
+      if (c === null || c.detalhado.contratos.length === 0) continue;
+      const plan = planilhaDeContratosDetalhada(cliente.quem, c.detalhado, ref);
+      for (const linha of plan.linhas) linhas.push([cliente.quem, ...linha]);
+    }
+    const planilha: Planilha = {
+      nome: 'Contratos — todos os clientes',
+      colunas: ['Cliente', ...COLUNAS_CONTRATOS_DETALHADA],
+      linhas,
+    };
+    return {
+      clienteId: 'TODOS',
+      quem: 'Todos os clientes',
+      nomeArquivo: `contratos-todos-clientes.${this.deps.exporter.extensao}`,
+      mime: this.deps.exporter.mime,
+      conteudo: this.deps.exporter.gerar(planilha),
+    };
   }
 }

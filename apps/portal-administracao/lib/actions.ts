@@ -526,6 +526,29 @@ export async function assignCase(
 // ── REAQUECIMENTO DE LEADS (decreto 2026-07-22) — autorização MANUAL do admin:
 // cada clique reaquece UM lead (a AHRI envia a mensagem do estágio; guardrails
 // de intervalo/teto valem no servidor — nunca spam).
+/** CSV ÚNICO com TODOS os clientes (coluna Cliente + contratos). Autenticado. */
+export async function fetchPlanilhaGeral(): Promise<PlanilhaGerada | null> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/jornada/pericia/planilha-geral`, {
+      cache: 'no-store',
+      headers: ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {},
+    });
+    if (!res.ok) return null;
+    const conteudo = await res.text();
+    const disposition = res.headers.get('content-disposition') ?? '';
+    const nome = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'contratos-todos-clientes.csv';
+    return {
+      clienteId: 'TODOS',
+      quem: 'Todos os clientes',
+      nomeArquivo: nome,
+      mime: res.headers.get('content-type') ?? 'text/csv',
+      conteudo,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function autorizarReaquecimento(
   chatId: string,
 ): Promise<{ ok: boolean; error: string | null }> {

@@ -46,9 +46,10 @@ COPY apps/portal-administracao ./apps/portal-administracao
 COPY apps/portal-advogado ./apps/portal-advogado
 COPY apps/portal-cliente ./apps/portal-cliente
 COPY apps/portal-perito ./apps/portal-perito
+COPY apps/portal-socio ./apps/portal-socio
 COPY apps/landing-web ./apps/landing-web
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente --filter @reconstrua/portal-perito --filter @reconstrua/landing-web build
+RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente --filter @reconstrua/portal-perito --filter @reconstrua/portal-socio --filter @reconstrua/landing-web build
 
 FROM portal-build AS portal-admin
 ENV NODE_ENV=production
@@ -70,6 +71,12 @@ FROM portal-build AS portal-perito
 ENV NODE_ENV=production
 EXPOSE 3400
 CMD ["pnpm", "--filter", "@reconstrua/portal-perito", "start"]
+
+# Decreto 2026-07-23: Portal do SÓCIO — apartado do Admin (basePath /socios).
+FROM portal-build AS portal-socio
+ENV NODE_ENV=production
+EXPOSE 3600
+CMD ["pnpm", "--filter", "@reconstrua/portal-socio", "start"]
 
 # Decreto 2026-07-21: LANDING nova (Next 15) — a raiz pública do domínio.
 FROM portal-build AS landing-web

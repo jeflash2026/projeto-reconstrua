@@ -235,6 +235,36 @@ services:
       - default
       - npm-net
 
+  # Decreto 2026-07-23: Portal do SÓCIO — apartado (login por CPF; NPM /socios → :3600).
+  portal-socio:
+    build:
+      context: .
+      target: portal-socio
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      # API admin interna (rotas de login/definir-senha/painel do sócio); Bearer server-side.
+      API_URL: http://api:${ADMIN_PORT:-3102}
+      ADMIN_API_TOKEN: ${ADMIN_ACCESS_SECRET:-}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3600/socios/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    ports:
+      - '3600:3600'
+    networks:
+      - default
+      - npm-net
+
   # Decreto 2026-07-21: LANDING nova (raiz do domínio; NPM / → landing-web:3500).
   landing-web:
     build:

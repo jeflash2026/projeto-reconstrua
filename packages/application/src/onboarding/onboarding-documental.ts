@@ -167,7 +167,22 @@ export function classificarDocumentoInicial(fileName: string, texto: string): Cl
   const max = Math.max(...pontuadas.map((p) => p.pontos));
   if (max === 0) return 'OUTRO';
   const vencedoras = pontuadas.filter((p) => p.pontos === max);
-  return vencedoras.length === 1 ? (vencedoras[0] as { codigo: DocumentoInicial }).codigo : 'OUTRO';
+  const resultado =
+    vencedoras.length === 1 ? (vencedoras[0] as { codigo: DocumentoInicial }).codigo : 'OUTRO';
+
+  // O HISCON é DOCUMENTO JURÍDICO: exige evidência de consignado no CONTEÚDO —
+  // não basta o NOME do arquivo (caso José, 2026-07-22: mandou o "Histórico de
+  // Créditos"/benefício nomeado como hiscon; foi aceito e deu 0 contratos). Se o
+  // texto transcrito não traz sinal de consignado, NÃO é o HISCON ⇒ OUTRO (o
+  // funil pede o documento certo em vez de aceitar o errado em silêncio).
+  if (resultado === 'CNIS') {
+    const soTexto = normalizar(texto);
+    // Só reprova quando HÁ texto transcrito e ele NÃO traz consignado (documento
+    // ERRADO — caso José). Texto vazio = transcrição ainda não pronta ⇒ segue o
+    // fluxo (o classificador roda de novo com o texto e aí a evidência é exigida).
+    if (soTexto !== '' && !SINAIS.CNIS.frases.some((f) => soTexto.includes(f))) return 'OUTRO';
+  }
+  return resultado;
 }
 
 // ── Estado da jornada (read model; um por conversa) ───────────────────────────

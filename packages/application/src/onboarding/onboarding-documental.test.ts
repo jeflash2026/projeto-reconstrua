@@ -47,14 +47,24 @@ function harness(textos: Record<string, string | null> = {}) {
 }
 
 describe('Decreto · classificação DETERMINÍSTICA dos 3 obrigatórios', () => {
-  it('HISCON: pelo texto transcrito ou pelo nome do arquivo', () => {
+  it('HISCON: exige evidência de consignado NO CONTEÚDO (não basta o nome)', () => {
     expect(
       classificarDocumentoInicial('doc.pdf', 'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO - INSS'),
     ).toBe('CNIS');
-    expect(classificarDocumentoInicial('hiscon-julho.pdf', '')).toBe('CNIS');
     expect(classificarDocumentoInicial('extrato.pdf', 'Extrato de consignações do benefício')).toBe(
       'CNIS',
     );
+    // Sem texto (transcrição ainda não chegou): o nome do arquivo ainda vale —
+    // a evidência de conteúdo é exigida quando o texto existe (abaixo).
+    expect(classificarDocumentoInicial('hiscon-julho.pdf', '')).toBe('CNIS');
+    // Caso José (2026-07-22): "Histórico de Créditos"/benefício nomeado como hiscon
+    // — conteúdo é de PAGAMENTO de benefício, não de empréstimos ⇒ OUTRO (re-pede).
+    expect(
+      classificarDocumentoInicial(
+        'hiscon.pdf',
+        'INSS - Histórico de Créditos Espécie: 87 - BENEFÍCIO DE PRESTAÇÃO CONTINUADA Créditos do Benefício R$ 1.146,00 CARTAO MAGNETICO Pago',
+      ),
+    ).toBe('OUTRO');
   });
   it('RG/CNH: registro geral, habilitação, órgão emissor', () => {
     expect(

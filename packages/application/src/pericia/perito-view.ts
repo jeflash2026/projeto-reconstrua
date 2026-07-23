@@ -51,6 +51,17 @@ export interface PlanilhaGerada {
   readonly conteudo: string;
 }
 
+/** Linha da lista "TODOS os clientes com HISCON legível" (Decreto 2026-07-23) —
+ *  o perito trabalha a partir da ENTREGA do HISCON, não do status de venda. */
+export interface ClienteComHiscon {
+  readonly clienteId: string;
+  readonly chatId: string;
+  readonly quem: string;
+  readonly totalContratos: number;
+  readonly status: string;
+  readonly ultimoContatoAt: Date | null;
+}
+
 export class PeritoView {
   constructor(private readonly deps: PeritoDeps) {}
 
@@ -63,7 +74,11 @@ export class PeritoView {
 
   /** Contratos organizados do cliente (todas as fontes lidas; merge determinístico). */
   async contratos(clienteId: string, now?: Date): Promise<ContratosDoCliente | null> {
-    const cliente = (await this.deps.clientes.list(now)).find((c) => c.clienteId === clienteId);
+    // Aceita o id CANÔNICO do cliente OU o chatId — a lista "todos com HISCON" o
+    // referencia por chatId, e ambos são únicos (nunca colidem).
+    const cliente = (await this.deps.clientes.list(now)).find(
+      (c) => c.clienteId === clienteId || c.chatId === clienteId,
+    );
     if (cliente === undefined) return null;
 
     const documentIds =
@@ -148,5 +163,28 @@ export class PeritoView {
       mime: this.deps.exporter.mime,
       conteudo: this.deps.exporter.gerar(planilha),
     };
+  }
+
+  /** TODOS os clientes com HISCON legível (Decreto 2026-07-23) — o perito enxerga
+   *  todo mundo que já entregou o HISCON, não só a fila de sociedade. Mesma fonte
+   *  do CSV geral; cada linha traz nº de contratos e o status atual da jornada. */
+  async todosComHiscon(now?: Date): Promise<readonly ClienteComHiscon[]> {
+    const clientes = await this.deps.clientes.list(now);
+    const out: ClienteComHiscon[] = [];
+    for (const cliente of clientes) {
+      const c = await this.contratos(cliente.clienteId, now);
+      if (c === null || c.detalhado.contratos.length === 0) continue;
+      out.push({
+        clienteId: cliente.clienteId,
+        chatId: cliente.chatId,
+        quem: cliente.quem,
+        totalContratos: c.detalhado.contratos.length,
+        status: cliente.status,
+        ultimoContatoAt: cliente.ultimoContatoAt,
+      });
+    }
+    return out.sort(
+      (a, b) => (b.ultimoContatoAt?.getTime() ?? 0) - (a.ultimoContatoAt?.getTime() ?? 0),
+    );
   }
 }

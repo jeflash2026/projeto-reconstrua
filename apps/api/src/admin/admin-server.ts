@@ -425,6 +425,14 @@ export function buildAdminServer(
     return { planilhas: await op.perito.planilhasDaFila() };
   });
 
+  // TODOS os clientes com HISCON legível (Decreto 2026-07-23) — o perito trabalha
+  // a partir da ENTREGA do HISCON, não só da fila de sociedade. Rota ESTÁTICA
+  // (resolvida antes da paramétrica :clienteId).
+  app.get('/admin/jornada/pericia/todos-com-hiscon', async (_request, reply) => {
+    if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
+    return { clientes: await op.perito.todosComHiscon() };
+  });
+
   // CSV ÚNICO com TODOS os clientes que têm HISCON (coluna Cliente + contratos) —
   // baixar o estudo inteiro de uma vez. Rota ESTÁTICA irmã de `/planilhas` e do
   // parâmetro `:clienteId` (find-my-way resolve estática antes de paramétrica).

@@ -45,3 +45,13 @@ export interface ClienteDaFila {
   ultimoContatoAt: string | null;
   pedidosConfirmadosEm: string | null;
 }
+
+/** TODOS os clientes com HISCON legível (Decreto 2026-07-23). */
+export interface ClienteComHiscon {
+  clienteId: string;
+  chatId: string;
+  quem: string;
+  totalContratos: number;
+  status: string;
+  ultimoContatoAt: string | null;
+}

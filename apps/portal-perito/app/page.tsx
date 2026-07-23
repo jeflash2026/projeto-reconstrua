@@ -5,7 +5,7 @@
 //    acompanha); vencido o prazo, o cliente vira "pronto p/ advogado" — a
 //    destinação ao advogado sócio é decisão EXCLUSIVA do Admin.
 import type { ReactElement } from 'react';
-import { getJson, type ClienteDaFila } from '../lib/api';
+import { getJson, type ClienteDaFila, type ClienteComHiscon } from '../lib/api';
 import { SairButton } from '../components/sair-button';
 import AcoesCliente from '../components/acoes-cliente';
 
@@ -34,6 +34,11 @@ const CentralPerito = async (): Promise<ReactElement> => {
   const fila = todos.filter((c) => c.status === 'PRONTO_AGUARDANDO_PERICIA');
   const emPrazo = todos.filter((c) => c.status === 'AGUARDANDO_10_DIAS');
   const prazoVencido = todos.filter((c) => c.status === 'AGUARDANDO_SOCIO');
+  // TODOS os clientes com HISCON legível — o perito trabalha da ENTREGA, não só
+  // da fila de sociedade (Decreto 2026-07-23).
+  const comHiscon =
+    (await getJson<{ clientes: ClienteComHiscon[] }>('/admin/jornada/pericia/todos-com-hiscon'))
+      ?.clientes ?? [];
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>
@@ -47,7 +52,57 @@ const CentralPerito = async (): Promise<ReactElement> => {
       </p>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <h3>Fila da perícia ({fila.length})</h3>
+        <h3>Todos os clientes com HISCON ({comHiscon.length})</h3>
+        <p className="page-sub" style={{ marginTop: 0 }}>
+          Todo mundo que já entregou um HISCON legível — baixe a planilha de qualquer um, ou o
+          estudo inteiro de uma vez.
+        </p>
+        <div className="form-row" style={{ marginBottom: 12 }}>
+          <a className="btn primary" href="/perito/api/planilha-geral">
+            Baixar TODOS os clientes (CSV único)
+          </a>
+        </div>
+        {comHiscon.length === 0 ? (
+          <div className="empty">Nenhum cliente com HISCON legível ainda.</div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>WhatsApp</th>
+                  <th>Contratos</th>
+                  <th>Último contato</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comHiscon.map((c) => (
+                  <tr key={c.chatId}>
+                    <td style={{ fontWeight: 600 }}>{c.quem}</td>
+                    <td className="mono" style={{ fontSize: 12 }}>
+                      {c.chatId}
+                    </td>
+                    <td>{c.totalContratos}</td>
+                    <td className="mono">{dataBr(c.ultimoContatoAt)}</td>
+                    <td>
+                      <a
+                        className="btn"
+                        href={`/perito/api/planilha/${encodeURIComponent(c.clienteId)}`}
+                      >
+                        Baixar planilha
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h3>Fila da perícia — sociedade ({fila.length})</h3>
         {fila.length === 0 ? (
           <div className="empty">Nenhum cliente aguardando perícia.</div>
         ) : (

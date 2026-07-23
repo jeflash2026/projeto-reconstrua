@@ -30,6 +30,21 @@ const NS_ONBOARDING = 'onboarding-documental';
 const NS_JORNADA = 'jornada';
 const JANELA_ANOS = 5;
 
+// Palavras que denunciam um CABEÇALHO/RÓTULO do HISCON (não um nome de pessoa) —
+// evita que "EMPRÉSTIMOS BANCÁRIOS", "EMPRÉSTIMO CONSIGNADO" etc. virem "nome".
+const NAO_E_NOME =
+  /EMPR[ÉE]ST|CONSIG|BANC|BENEF|HIST[ÓO]R|INSS|INSTITUT|SEGURO|SOCIAL|EXTRAT|NACION|CONTRAT|MARGEM|CART[ÃA]O|SALDO|PARCELA|VALOR|COMPET|DESCONT|[ÓO]RG[ÃA]O|ESP[ÉE]CIE|MENSAL|AVERBA/i;
+
+/** Heurística conservadora: parece o NOME de uma pessoa? (≥2 palavras, só letras,
+ *  sem termos de cabeçalho do documento). Em dúvida, retorna false — melhor cair
+ *  no nome da identidade do que exibir um rótulo do HISCON como se fosse o cliente. */
+function pareceNomeDePessoa(s: string): boolean {
+  const t = s.trim();
+  if (t.length < 5 || NAO_E_NOME.test(t)) return false;
+  if (!/^[A-ZÀ-Ú][A-ZÀ-Ú' ]+$/.test(t)) return false;
+  return t.split(/\s+/).length >= 2;
+}
+
 interface OnboardingPersisted {
   readonly chatId: string;
   readonly recebidos?: readonly { codigo: string; documentId: string; subtipo?: 'rg' | 'cnh' }[];
@@ -160,7 +175,8 @@ export class PericiaService {
     const texto = await this.deps.reader.readById(cnis.documentId).catch(() => null);
     if (texto === null) return null;
     const m = /EMPR[ÉE]STIMO CONSIGNADO\s*\n+\s*([A-ZÀ-Ú][A-ZÀ-Ú' ]{4,60}?)\s*\n/.exec(texto);
-    return m?.[1]?.replace(/\s+/g, ' ').trim() ?? null;
+    const candidato = m?.[1]?.replace(/\s+/g, ' ').trim() ?? null;
+    return candidato !== null && pareceNomeDePessoa(candidato) ? candidato : null;
   }
 
   private async extrairHiscon(chatId: string): Promise<HisconExtraido | null> {

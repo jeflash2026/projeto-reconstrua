@@ -135,7 +135,17 @@ export function buildAdvogadoServer(
     if (!body.missionId || !body.advogadoId || !body.assignedBy) {
       return reply.code(400).send({ error: 'missionId, advogadoId e assignedBy são obrigatórios' });
     }
-    const assignment = await op.work.assign(body.missionId, body.advogadoId, body.assignedBy);
+    // Resolve o chatId do cliente AGORA (ele está ativo) e o FIXA na atribuição —
+    // assim "meus clientes" no portal do advogado não depende da projeção futura.
+    await op.projector.refresh().catch(() => undefined);
+    const chatId =
+      op.projector.missions().find((m) => m.missionId === body.missionId)?.chatId ?? null;
+    const assignment = await op.work.assign(
+      body.missionId,
+      body.advogadoId,
+      body.assignedBy,
+      chatId,
+    );
     // Decreto Tráfego Pago: a AHRI AVISA o advogado no número cadastrado por ele
     // (best-effort: falta de canal/falha de envio nunca desfaz a atribuição).
     let aviso: 'enviado' | 'sem-canal' | 'falhou' = 'sem-canal';
@@ -146,9 +156,6 @@ export function buildAdvogadoServer(
           canais.find((c) => c.tipo === 'whatsapp' && c.preferido) ??
           canais.find((c) => c.tipo === 'whatsapp');
         if (canal) {
-          await op.projector.refresh().catch(() => undefined);
-          const chatId =
-            op.projector.missions().find((m) => m.missionId === body.missionId)?.chatId ?? null;
           const nome = chatId !== null ? await nomeDoClientePorChat(chatId) : body.missionId;
           await op.gateway.sendText(
             canal.endereco,
@@ -199,7 +206,8 @@ export function buildAdvogadoServer(
     const atribuicoes = await op.work.myMissions(advogadoId);
     const clientes = [];
     for (const a of atribuicoes) {
-      const chatId = missoes.find((m) => m.missionId === a.missionId)?.chatId ?? null;
+      // Prefere o chatId FIXADO na atribuição; cai na projeção para as antigas.
+      const chatId = a.chatId ?? missoes.find((m) => m.missionId === a.missionId)?.chatId ?? null;
       if (chatId === null) continue;
       clientes.push({ missionId: a.missionId, chatId, nome: await nomeDoClientePorChat(chatId) });
     }

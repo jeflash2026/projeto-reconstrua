@@ -54,6 +54,10 @@ export interface CaseAssignment {
   readonly advogadoId: string;
   readonly assignedBy: string; // administrador
   readonly assignedAt: Date;
+  /** Canal (chatId) do cliente FIXADO no ato da atribuição — o cliente está ativo
+   *  então. Torna a lista "meus clientes" independente da projeção posterior
+   *  (antes o chatId era resolvido em leitura e podia sumir). Ausente nas antigas. */
+  readonly chatId?: string | null;
 }
 
 export interface AssignmentStore {
@@ -94,12 +98,18 @@ export class AdvogadoWorkRuntime {
   ) {}
 
   // ── Atribuição (ato do Administrador) ───────────────────────────────────────
-  async assign(missionId: string, advogadoId: string, assignedBy: string): Promise<CaseAssignment> {
+  async assign(
+    missionId: string,
+    advogadoId: string,
+    assignedBy: string,
+    chatId?: string | null,
+  ): Promise<CaseAssignment> {
     const assignment: CaseAssignment = {
       missionId,
       advogadoId,
       assignedBy,
       assignedAt: this.clock.now(),
+      ...(chatId !== undefined && chatId !== null ? { chatId } : {}),
     };
     await this.assignments.save(assignment);
     return assignment;

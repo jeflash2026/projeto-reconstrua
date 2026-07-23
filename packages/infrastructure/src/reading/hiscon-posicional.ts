@@ -145,6 +145,31 @@ function numeroConfiavel(bruto: string): string | null {
   return limpo;
 }
 
+/** "100% real ou em branco" para TODO campo: um valor só é emitido se casar o
+ *  FORMATO esperado; senão '' — assim um rótulo/fragmento de outra coluna que
+ *  vazou (ex.: "QTDE PARCELAS: 24" na casa da competência fim, ou "DATA INCLUSÃO:"
+ *  na origem) NÃO vira dado errado no dossiê do perito. */
+const ehData = (s: string): boolean =>
+  /^\d{2}\/\d{4}$/.test(s) || /^\d{2}\/\d{2}\/\d{2,4}$/.test(s);
+const ehMoeda = (s: string): boolean => /^R?\$?[\d.]+,\d{2}$/.test(s);
+const ehQtde = (s: string): boolean => /^\d{1,3}$/.test(s);
+const soSe = (s: string, ok: (v: string) => boolean): string => {
+  const t = s.trim();
+  return ok(t) ? t : '';
+};
+
+/** Origem da averbação: mantém só o texto REAL da averbação/migração; remove
+ *  rótulos de outras colunas ("DATA INCLUSÃO:", "QTDE PARCELAS:") e códigos/
+ *  fragmentos soltos que vazam na faixa. */
+function limpaOrigem(s: string): string {
+  const t = s
+    .replace(/DATA INCLUS[ÃA]O:.*/i, '')
+    .replace(/QTDE PARCELAS:.*/i, '')
+    .trim();
+  const m = /(averba|migrado)/i.exec(t);
+  return m ? t.slice(m.index).replace(/\s+/g, ' ').trim() : '';
+}
+
 /** Reconstrói o HISCON a partir dos itens posicionais POR PÁGINA. Devolve o texto
  *  Formato A (que o parseHisconDetalhado lê) ou null se não houver tabela de
  *  contratos (não é um HISCON matriz — o chamador cai na extração comum). */
@@ -180,8 +205,8 @@ export function reconstruirHisconPosicional(
     let col = 0;
     for (const a of anc) {
       const v = (l: Linha | undefined, espaco = false): string => valorNaColuna(l, a, anc, espaco);
-      const ini = v(lIni);
-      const parc = v(lParc);
+      const ini = soSe(v(lIni), ehData);
+      const parc = soSe(v(lParc), ehMoeda);
       // Número CONFIÁVEL, senão marcador ÚNICO "CONFERIR-NO-HISCON" (o perito lê o
       // número exato no PDF; jamais um número possivelmente errado num processo).
       const num =
@@ -189,21 +214,26 @@ export function reconstruirHisconPosicional(
         `CONFERIR-NO-HISCON-P${String(pageIdx + 1)}C${String(col + 1)}`;
       col += 1;
       if (ini === '' && parc === '') continue;
-      blocos.push(
-        [
-          `CONTRATO: ${num.replace(/\s+/g, '')}`,
-          `BANCO: ${v(lBanco, true)}`,
-          `SITUAÇÃO: ${v(lSit, true)}`,
-          `ORIGEM DA AVERBAÇÃO: ${v(lOrig, true)}`,
-          `DATA INCLUSÃO: ${v(lIncl)}`,
-          `COMPETÊNCIA INÍCIO DE DESCONTO: ${ini}`,
-          `COMPETÊNCIA FIM DE DESCONTO: ${v(lFim)}`,
-          `QTDE PARCELAS: ${v(lQtd)}`,
-          `VALOR PARCELA: ${parc}`,
-          `EMPRESTADO: ${v(lEmpr)}`,
-          `PRIMEIRO DESCONTO: ${v(lPrim)}`,
-        ].join('\n'),
-      );
+      // Campos rotulados. Só entram se o valor for VÁLIDO — uma linha em branco
+      // ("RÓTULO: \n") faz a regex do parser (\s* casa a quebra de linha) PULAR e
+      // capturar o rótulo seguinte. Então campo inválido = linha OMITIDA (o parser
+      // devolve null corretamente e nada de outra coluna vaza).
+      const campos: ReadonlyArray<readonly [string, string]> = [
+        ['BANCO', v(lBanco, true)],
+        ['SITUAÇÃO', v(lSit, true)],
+        ['ORIGEM DA AVERBAÇÃO', limpaOrigem(v(lOrig, true))],
+        ['DATA INCLUSÃO', soSe(v(lIncl), ehData)],
+        ['COMPETÊNCIA INÍCIO DE DESCONTO', ini],
+        ['COMPETÊNCIA FIM DE DESCONTO', soSe(v(lFim), ehData)],
+        ['QTDE PARCELAS', soSe(v(lQtd), ehQtde)],
+        ['VALOR PARCELA', parc],
+        ['EMPRESTADO', soSe(v(lEmpr), ehMoeda)],
+        ['PRIMEIRO DESCONTO', soSe(v(lPrim), ehData)],
+      ];
+      const linhasBloco = [`CONTRATO: ${num.replace(/\s+/g, '')}`];
+      for (const [rotulo, valor] of campos)
+        if (valor !== '') linhasBloco.push(`${rotulo}: ${valor}`);
+      blocos.push(linhasBloco.join('\n'));
     }
   }
   if (blocos.filter((b) => b.startsWith('CONTRATO:')).length === 0) return null;

@@ -117,4 +117,33 @@ describe('reconstruirHisconPosicional', () => {
     // Mas os DADOS FINANCEIROS continuam certos (o potencial não depende do nº).
     expect(e.contratos[0]?.valorParcela).toBeCloseTo(200);
   });
+
+  it('campo com valor NÃO-formato (fim que não é data) é OMITIDO, sem vazar p/ outro', () => {
+    const L = (t: string, y: number) => item(t, 120, y);
+    const A = (t: string, y: number) => item(t, 150, y);
+    const matriz = [
+      A('123456789', 20),
+      L('BANCO', 40),
+      A('001', 40),
+      A('-', 43),
+      A('X', 46),
+      L('COMPETÊNCIA INÍCIO DE DESCONTO', 70),
+      A('03/2026', 70),
+      L('FIM DE DESCONTO', 85),
+      A('58', 85), // NÃO é data (poluição) ⇒ deve ser omitido, não virar fim
+      L('QTDE PARCELAS', 100),
+      A('84', 100),
+      L('VALOR PARCELA', 115),
+      A('R$200,00', 115),
+      L('EMPRESTADO', 130),
+      A('R$10.000,00', 130),
+    ];
+    const e = parseHisconDetalhado(reconstruirHisconPosicional([matriz]) as string);
+    expect(e.contratos).toHaveLength(1);
+    expect(e.contratos[0]?.competenciaFim).toBeNull(); // omitido, não "58"
+    // e os campos vizinhos seguem intactos (nada vazou para a casa do fim):
+    expect(e.contratos[0]?.qtdeParcelas).toBe(84);
+    expect(e.contratos[0]?.valorParcela).toBeCloseTo(200);
+    expect(e.contratos[0]?.competenciaInicio).toBe('03/2026');
+  });
 });

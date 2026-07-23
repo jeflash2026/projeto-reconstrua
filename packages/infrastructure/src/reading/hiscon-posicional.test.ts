@@ -88,4 +88,33 @@ describe('reconstruirHisconPosicional', () => {
     const semTabela = [item('CONTA DE LUZ', 150, 100), item('R$ 120,00', 150, 80)];
     expect(reconstruirHisconPosicional([semTabela])).toBeNull();
   });
+
+  it('número POLUÍDO (competência grudada) ⇒ marca "conferir", nunca um número errado', () => {
+    // O nº fica ABAIXO do banco (y<40) na faixa da coluna; aqui um fragmento de
+    // data ("202603") grudou no número real ⇒ 15 dígitos ⇒ não confiável.
+    const L = (t: string, y: number) => item(t, 120, y);
+    const A = (t: string, y: number) => item(t, 150, y);
+    const matriz = [
+      A('202603', 20),
+      A('120819670', 26),
+      L('BANCO', 40),
+      A('001-X', 40),
+      L('COMPETÊNCIA INÍCIO DE DESCONTO', 70),
+      A('03/2026', 70),
+      L('FIM DE DESCONTO', 85),
+      A('02/2032', 85),
+      L('QTDE PARCELAS', 100),
+      A('84', 100),
+      L('VALOR PARCELA', 115),
+      A('R$200,00', 115),
+      L('EMPRESTADO', 130),
+      A('R$10.000,00', 130),
+    ];
+    const e = parseHisconDetalhado(reconstruirHisconPosicional([matriz]) as string);
+    expect(e.contratos).toHaveLength(1);
+    // 100% real ou não mostra: número incerto vira marcador de conferência.
+    expect(e.contratos[0]?.contrato).toMatch(/^CONFERIR-NO-HISCON/);
+    // Mas os DADOS FINANCEIROS continuam certos (o potencial não depende do nº).
+    expect(e.contratos[0]?.valorParcela).toBeCloseTo(200);
+  });
 });

@@ -113,6 +113,38 @@ function secao(textoPagina: string): string {
   return 'EMPRÉSTIMOS BANCÁRIOS';
 }
 
+/** O número de contrato é impresso ROTACIONADO e QUEBRADO em vários fragmentos na
+ *  faixa da coluna (abaixo da linha do banco). Monta na ordem de leitura (x asc,
+ *  y asc). */
+function numeroDaColuna(linhas: readonly Linha[], ancoraX: number, bancoY: number): string {
+  return linhas
+    .filter((l) => l.y < bancoY)
+    .flatMap((l) => l.cells)
+    .filter((c) => Math.abs(c.x - ancoraX) <= 16 && /\d/.test(c.s))
+    .sort((a, b) => a.x - b.x || a.y - b.y)
+    .map((c) => c.s)
+    .join('');
+}
+
+/** Número CONFIÁVEL ou null. Decreto "100% real ou não mostra": um número que
+ *  PARECE completo mas está errado é PIOR que um marcado para conferência (o
+ *  perito daria entrada errada). Aceita só dígitos+hífens, 8–13 dígitos, sem
+ *  barra/letra (mistura de campos) e sem competência (yyyymm) embutida — sinal
+ *  de que um fragmento de data grudou no número. Caso contrário, null. */
+function numeroConfiavel(bruto: string): string | null {
+  // Formatos REAIS de nº de contrato do HISCON: dígitos com hífen e/ou barra —
+  // "871682438", "22-871682438/21", "5802495674-4-331". Letra/outro ⇒ mistura de
+  // campos ⇒ null. O teto de 13 dígitos barra os poluídos (ex.: um fragmento de
+  // competência "202603" grudado dá 14–15 dígitos), e o teste de yyyymm embutido
+  // é a rede final contra data colada.
+  if (bruto === '' || /[^\d\s/-]/.test(bruto)) return null;
+  const limpo = bruto.replace(/[^\d/-]/g, '');
+  const digitos = limpo.replace(/\D/g, '');
+  if (digitos.length < 8 || digitos.length > 13) return null;
+  if (/20[12]\d(0[1-9]|1[0-2])/.test(digitos)) return null;
+  return limpo;
+}
+
 /** Reconstrói o HISCON a partir dos itens posicionais POR PÁGINA. Devolve o texto
  *  Formato A (que o parseHisconDetalhado lê) ou null se não houver tabela de
  *  contratos (não é um HISCON matriz — o chamador cai na extração comum). */
@@ -121,7 +153,7 @@ export function reconstruirHisconPosicional(
 ): string | null {
   const blocos: string[] = [];
   let secaoAtual = '';
-  for (const itens of paginas) {
+  for (const [pageIdx, itens] of paginas.entries()) {
     const linhas = linhasDaPagina(itens);
     const lIni = acha(linhas, /IN[ÍI]CIO DE DESCONT/i);
     const lFim = acha(linhas, /FIM DE DESCONT/i);
@@ -137,9 +169,8 @@ export function reconstruirHisconPosicional(
     const lEmpr = acha(linhas, /EMPRESTADO/i);
     const lPrim = acha(linhas, /PRIMEIRO DESCONT/i);
     const anc = ancoras([lIni, lFim, lQtd, lParc, lEmpr, lPrim, lIncl]);
-    const lNum = linhas
-      .filter((l) => l.cells.some((c) => /^\d{5,}$/.test(c.s)))
-      .sort((a, b) => a.y - b.y)[0];
+    // O número fica ABAIXO (em Y) da linha do banco; sem banco, usa um piso seguro.
+    const bancoY = lBanco !== undefined ? lBanco.y : 42;
     const textoPagina = itens.map((i) => i.str).join(' ');
     const sec = secao(textoPagina);
     if (sec !== secaoAtual) {
@@ -151,7 +182,11 @@ export function reconstruirHisconPosicional(
       const v = (l: Linha | undefined, espaco = false): string => valorNaColuna(l, a, anc, espaco);
       const ini = v(lIni);
       const parc = v(lParc);
-      const num = v(lNum) || `POS-${String(blocos.length)}-${String(col)}`;
+      // Número CONFIÁVEL, senão marcador ÚNICO "CONFERIR-NO-HISCON" (o perito lê o
+      // número exato no PDF; jamais um número possivelmente errado num processo).
+      const num =
+        numeroConfiavel(numeroDaColuna(linhas, a, bancoY)) ??
+        `CONFERIR-NO-HISCON-P${String(pageIdx + 1)}C${String(col + 1)}`;
       col += 1;
       if (ini === '' && parc === '') continue;
       blocos.push(

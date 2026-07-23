@@ -36,3 +36,4 @@ export * from './inteligencia/index.js';
 export * from './document-request/index.js';
 export * from './onboarding/index.js';
 export * from './jornada/index.js';
+export * from './socios/index.js';

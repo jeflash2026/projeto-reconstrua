@@ -32,6 +32,7 @@ import {
   pacoteDeEstado,
   AdvogadoAhriBridge,
   AdvogadoAuthRuntime,
+  SocioAuthRuntime,
   AdvogadoWorkRuntime,
   BootRuntime,
   ClientesList,
@@ -196,6 +197,7 @@ import {
   PdfTextExtractor,
 } from '../reading/index.js';
 import { PericiaService } from '../pericia/index.js';
+import { JsonSocioStore, JsonSocioCredenciaisStore, SociosService } from '../socios/index.js';
 import { MedidorDeCusto } from '../custos/index.js';
 import { ReaquecimentoService } from '../reaquecimento/index.js';
 import {
@@ -251,6 +253,10 @@ export interface AssembledProduction {
   readonly pericia: PericiaService;
   /** Decreto 2026-07-21: convite→senha própria→login do PERITO (Auth Runtime, papel 'perito'). */
   readonly peritoAuth: AdvogadoAuthRuntime;
+  /** Decreto 2026-07-23: rateio do potencial + cadastro/painel do SÓCIO (login por CPF). */
+  readonly socios: SociosService;
+  /** Decreto 2026-07-23: convite (link) → CPF+senha → login do SÓCIO. */
+  readonly socioAuth: SocioAuthRuntime;
   /** CAT-03A: transforma um documento em texto bruto (disponível; sem gatilho automático). */
   readonly documentReader: DocumentReaderService;
   /** Medidor de Custo (2026-07-21): registros de gasto de IA por conversa/leitura. */
@@ -485,6 +491,27 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       env['PERICIA_TETO_JUROS_MENSAL'] !== undefined && env['PERICIA_TETO_JUROS_MENSAL'] !== ''
         ? Number(env['PERICIA_TETO_JUROS_MENSAL'])
         : null,
+  });
+
+  // Decreto 2026-07-23 (Painel de Sócios): identidade por CPF, cadastro pelo Admin,
+  // link (convite→CPF+senha→login) e rateio do potencial recuperável de TODOS os
+  // HISCON. A base do rateio é a MESMA fonte do Financeiro (pericia.potencialDeTodos)
+  // — o sócio vê exatamente a carteira que o Centro de Comando enxerga.
+  const socioStore = new JsonSocioStore(json);
+  const socioCredenciais = new JsonSocioCredenciaisStore(json);
+  const socioAuth = new SocioAuthRuntime({
+    socios: socioStore,
+    credenciais: socioCredenciais,
+    secret: env['ADMIN_ACCESS_SECRET'] ?? '',
+  });
+  const socios = new SociosService({
+    socios: socioStore,
+    credenciais: socioCredenciais,
+    clock,
+    base: async () => {
+      const p = await pericia.potencialDeTodos().catch(() => null);
+      return { total: p?.total ?? 0, clientes: p?.porCliente.length ?? 0 };
+    },
   });
 
   const mediaCapture = new MediaCaptureRuntime({
@@ -1269,6 +1296,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     mediaCapture,
     pericia,
     peritoAuth,
+    socios,
+    socioAuth,
     documentReader,
     custos,
     reaquecimento,

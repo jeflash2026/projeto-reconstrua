@@ -131,6 +131,31 @@ export function buildAdminServer(
         senha: string,
       ): Promise<{ ok: true; advogadoId: string; nome: string } | { ok: false; error: string }>;
     };
+    /** Decreto 2026-07-23: cadastro/lista/painel dos SÓCIOS (identidade por CPF). */
+    readonly socios?: {
+      cadastrar(input: {
+        cpf: string;
+        nome: string;
+        percentualBps: number;
+        ativo?: boolean;
+      }): Promise<{ ok: true; socio: unknown } | { ok: false; error: string }>;
+      listaAdmin(): Promise<readonly unknown[]>;
+      painel(cpf: string): Promise<unknown>;
+    };
+    /** Decreto 2026-07-23: convite (link) → CPF+senha → login do SÓCIO. */
+    readonly socioAuth?: {
+      emitirConvite(cpf: string, now: Date): Promise<string | null>;
+      definirSenha(
+        token: string,
+        cpf: string,
+        senha: string,
+        now: Date,
+      ): Promise<{ ok: true; cpf: string; nome: string } | { ok: false; error: string }>;
+      login(
+        cpf: string,
+        senha: string,
+      ): Promise<{ ok: true; cpf: string; nome: string } | { ok: false; error: string }>;
+    };
   } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: false });
@@ -736,6 +761,72 @@ export function buildAdminServer(
     const result = await opts.peritoAuth.login(body.peritoId, body.senha);
     if (!result.ok) return reply.code(401).send({ error: result.error });
     return { ok: true, peritoId: result.advogadoId, nome: result.nome };
+  });
+
+  // ── SÓCIOS (Decreto 2026-07-23) — o Admin cadastra o sócio (CPF+nome+participação)
+  //    e gera o LINK; o sócio cria a PRÓPRIA senha confirmando o CPF e entra só com
+  //    CPF+senha. Rateio do potencial recuperável de TODOS os HISCON. Rotas atrás do
+  //    Bearer do Admin (só os portais o têm — o portal do sócio repassa o login).
+  app.post('/admin/socios/cadastrar', async (request, reply) => {
+    if (!opts.socios) return reply.code(503).send({ error: 'painel de sócios indisponível' });
+    const body = request.body as {
+      cpf?: string;
+      nome?: string;
+      percentualBps?: number;
+      ativo?: boolean;
+    };
+    if (!body.cpf || !body.nome || typeof body.percentualBps !== 'number')
+      return reply.code(400).send({ error: 'cpf, nome e percentualBps são obrigatórios' });
+    const result = await opts.socios.cadastrar({
+      cpf: body.cpf,
+      nome: body.nome,
+      percentualBps: body.percentualBps,
+      ...(body.ativo !== undefined ? { ativo: body.ativo } : {}),
+    });
+    if (!result.ok) return reply.code(400).send({ error: result.error });
+    return { ok: true, socio: result.socio };
+  });
+
+  app.get('/admin/socios', async (_request, reply) => {
+    if (!opts.socios) return reply.code(503).send({ error: 'painel de sócios indisponível' });
+    return { socios: await opts.socios.listaAdmin() };
+  });
+
+  app.post('/admin/socios/convite', async (request, reply) => {
+    if (!opts.socioAuth) return reply.code(503).send({ error: 'painel de sócios indisponível' });
+    const body = request.body as { cpf?: string };
+    if (!body.cpf) return reply.code(400).send({ error: 'cpf obrigatório' });
+    const token = await opts.socioAuth.emitirConvite(body.cpf, new Date());
+    if (token === null) return reply.code(404).send({ error: 'sócio não encontrado ou inativo' });
+    return { cpf: body.cpf, token, validadeDias: 7 };
+  });
+
+  app.post('/admin/socio/definir-senha', async (request, reply) => {
+    if (!opts.socioAuth) return reply.code(503).send({ error: 'painel de sócios indisponível' });
+    const body = request.body as { token?: string; cpf?: string; senha?: string };
+    if (!body.token || !body.cpf || !body.senha)
+      return reply.code(400).send({ error: 'token, cpf e senha são obrigatórios' });
+    const result = await opts.socioAuth.definirSenha(body.token, body.cpf, body.senha, new Date());
+    if (!result.ok) return reply.code(400).send({ error: result.error });
+    return { ok: true, cpf: result.cpf, nome: result.nome };
+  });
+
+  app.post('/admin/socio/login', async (request, reply) => {
+    if (!opts.socioAuth) return reply.code(503).send({ error: 'painel de sócios indisponível' });
+    const body = request.body as { cpf?: string; senha?: string };
+    if (!body.cpf || !body.senha)
+      return reply.code(400).send({ error: 'cpf e senha são obrigatórios' });
+    const result = await opts.socioAuth.login(body.cpf, body.senha);
+    if (!result.ok) return reply.code(401).send({ error: result.error });
+    return { ok: true, cpf: result.cpf, nome: result.nome };
+  });
+
+  app.get('/admin/socio/painel/:cpf', async (request, reply) => {
+    if (!opts.socios) return reply.code(503).send({ error: 'painel de sócios indisponível' });
+    const { cpf } = request.params as { cpf: string };
+    const painel = await opts.socios.painel(cpf);
+    if (painel === null) return reply.code(404).send({ error: 'sócio não encontrado ou inativo' });
+    return painel;
   });
 
   // ── DOSSIÊ PERICIAL (Decreto 2026-07-21) — o HISCON parseado para o PERITO:

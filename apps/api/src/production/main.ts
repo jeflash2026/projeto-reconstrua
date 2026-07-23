@@ -101,6 +101,9 @@ async function main(): Promise<void> {
     custos: prod.custos,
     // Reaquecimento de leads frios — autorizado pelo admin, lead a lead.
     reaquecimento: prod.reaquecimento,
+    // Decreto 2026-07-23: cadastro/lista/painel + convite (link)→CPF+senha→login do sócio.
+    socios: prod.socios,
+    socioAuth: prod.socioAuth,
   });
   const advogado = buildAdvogadoServer(prod.advogadoView, {
     accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',

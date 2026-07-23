@@ -192,11 +192,18 @@ describe('parseHisconDetalhado · o documento REAL da produção', () => {
     ]);
   });
 
-  it('janela de 5 anos: contrato de 2024 dentro; VALOR PAGO vazio ⇒ null', () => {
+  it('janela por COMPETÊNCIA FIM: ativo/recente dentro, encerrado antigo fora', () => {
     const hoje = new Date('2026-07-21T00:00:00Z');
+    // Os 5 do fixture são ATIVOS (fim 2033/2034) ou sem competência ⇒ todos dentro.
     expect(contratosDaJanela(extraido.contratos, hoje, 5)).toHaveLength(5);
-    // Janela de 1 ano (corte 21/07/2025): só o contrato de 02/2026 permanece.
-    expect(contratosDaJanela(extraido.contratos, hoje, 1)).toHaveLength(1);
+    // Filtro TEMPORAL real: encerrado há +5 anos = FORA; encerrado recente e ativo
+    // = DENTRO (independe do tipo — o filtro é pela última competência de desconto).
+    const base = extraido.contratos[0];
+    if (base === undefined) throw new Error('fixture vazio');
+    const antigo = { ...base, competenciaInicio: '01/2010', competenciaFim: '12/2014' };
+    const recente = { ...base, competenciaInicio: '01/2023', competenciaFim: '12/2024' };
+    const ativo = { ...base, competenciaInicio: '01/2025', competenciaFim: '12/2032' };
+    expect(contratosDaJanela([antigo, recente, ativo], hoje, 5)).toHaveLength(2);
     const semPago = extraido.contratos.find((c) => c.contrato === '0123528811531');
     expect(semPago?.valorPago).toBeNull();
   });

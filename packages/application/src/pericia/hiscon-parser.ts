@@ -234,18 +234,47 @@ function extrairEspecie(texto: string): string | null {
 
 // ── visões para o PERITO e para o ADMIN ──────────────────────────────────────
 
-/** Contratos incluídos nos últimos N anos (5 = janela pericial padrão). */
+/** Mês absoluto (ano×12 + mês) de uma competência "mm/aaaa" ou "dd/mm/aa[aa]";
+ *  null se ilegível (século pivotado em 70). */
+function mesDaCompetencia(comp: string | null): number | null {
+  if (comp === null) return null;
+  const t = comp.trim();
+  const mmAaaa = /^(\d{2})\/(\d{4})$/.exec(t);
+  if (mmAaaa !== null) {
+    const m = Number(mmAaaa[1]);
+    return m >= 1 && m <= 12 ? Number(mmAaaa[2]) * 12 + (m - 1) : null;
+  }
+  const ddMmAa = /^\d{2}\/(\d{2})\/(\d{2}|\d{4})$/.exec(t);
+  if (ddMmAa !== null) {
+    const m = Number(ddMmAa[1]);
+    const aaStr = ddMmAa[2] ?? '';
+    const aa = Number(aaStr);
+    const ano = aaStr.length === 4 ? aa : aa >= 70 ? 1900 + aa : 2000 + aa;
+    return m >= 1 && m <= 12 ? ano * 12 + (m - 1) : null;
+  }
+  return null;
+}
+
+/** Contratos com desconto DENTRO da janela de N anos (tese de revisão do
+ *  consignado): a ÚLTIMA competência de desconto (fim). Ativo/futuro conta como
+ *  dentro; encerrado há mais de N anos fica FORA. Sem competência legível ⇒
+ *  dentro (o perito decide; nunca descarta). Vale para TODA modalidade
+ *  (empréstimo/consignado/RMC/RCC) — o filtro é temporal, não por tipo.
+ *  (2026-07-23: passou a usar a competência; a data de inclusão não é confiável
+ *  no layout matriz — o filtro dava tudo "dentro".) */
 export function contratosDaJanela(
   contratos: readonly ContratoHiscon[],
   hoje: Date,
   anos = 5,
 ): readonly ContratoHiscon[] {
-  const corte = new Date(
-    Date.UTC(hoje.getUTCFullYear() - anos, hoje.getUTCMonth(), hoje.getUTCDate()),
-  );
-  return contratos.filter(
-    (c) => c.dataInclusao === null || c.dataInclusao.getTime() >= corte.getTime(),
-  );
+  const corte = (hoje.getUTCFullYear() - anos) * 12 + hoje.getUTCMonth();
+  return contratos.filter((c) => {
+    const fim = mesDaCompetencia(c.competenciaFim);
+    if (fim !== null) return fim >= corte;
+    const ini = mesDaCompetencia(c.competenciaInicio);
+    if (ini !== null) return ini >= corte;
+    return true;
+  });
 }
 
 export interface BancoComContratos {

@@ -401,7 +401,8 @@ export function buildAdminServer(
   });
 
   // CSV ÚNICO com TODOS os clientes que têm HISCON (coluna Cliente + contratos) —
-  // baixar o estudo inteiro de uma vez.
+  // baixar o estudo inteiro de uma vez. Rota ESTÁTICA irmã de `/planilhas` e do
+  // parâmetro `:clienteId` (find-my-way resolve estática antes de paramétrica).
   app.get('/admin/jornada/pericia/planilha-geral', async (_request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
     const gerada = await op.perito.planilhaGeral();

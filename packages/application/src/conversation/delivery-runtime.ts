@@ -49,6 +49,23 @@ export class DeliveryRuntime {
   ): Promise<DeliveredMessage> {
     const { timing, delay, typing, gateway, sessions, memory, queue, clock } = this.deps;
 
+    // ANTI-REPETIÇÃO (caso Isaú, 2026-07-23): a MESMA mensagem saía 2× quando a
+    // fila era RE-DRENADA — envio ok mas `markSent` não confirmava, ou o pump de
+    // 10s e o drain do turno corriam juntos e reclamavam a mesma pendência. Se
+    // este texto JÁ saiu há pouco para este chat, NÃO reenvia ao cliente: só
+    // limpa a fila. Nunca repete uma mensagem idêntica em sequência.
+    const recentes = await memory
+      .recentOutboundTexts(msg.chatId, 3)
+      .catch(() => [] as readonly string[]);
+    if (recentes.includes(msg.text)) {
+      await queue.markSent(msg.id).catch(() => undefined);
+      return {
+        providerMessageId: 'ja-enviado',
+        text: msg.text,
+        timing: timing.compute(0, msg.text.length),
+      };
+    }
+
     const inboundLength = context.lastPercept?.envelope.text?.length ?? 0;
     const plan = timing.compute(inboundLength, msg.text.length);
 

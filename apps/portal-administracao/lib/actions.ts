@@ -11,6 +11,7 @@ import {
   type JornadaCliente,
   type StaffData,
   type StaffMember,
+  type SocioAdminView,
 } from './api';
 
 // ── AUTENTICAÇÃO (visitante → login → painel; nunca painel direto) ────────────
@@ -495,6 +496,62 @@ export async function gerarConvitePerito(
     if (host === '')
       return { link: null, error: 'não foi possível determinar o domínio da plataforma' };
     return { link: `${proto}://${host}/perito/convite?t=${data.token}`, error: null };
+  } catch {
+    return { link: null, error: 'API do Admin inacessível' };
+  }
+}
+
+// ── SÓCIOS (Decreto 2026-07-23) — cadastro (ato do Admin), lista com valor
+// estimado e geração do LINK de cadastro (o sócio cria a própria senha por CPF).
+export async function fetchSocios(): Promise<{ socios: SocioAdminView[] } | null> {
+  return getJson<{ socios: SocioAdminView[] }>('/admin/socios');
+}
+
+export async function cadastrarSocio(
+  cpf: string,
+  nome: string,
+  percentualBps: number,
+): Promise<{ ok: boolean; error: string | null }> {
+  const res = await sendJson<{ ok: true; socio: unknown } | { error: string }>(
+    'POST',
+    '/admin/socios/cadastrar',
+    { cpf, nome, percentualBps },
+  );
+  if (res === null) return { ok: false, error: 'API do Admin inacessível' };
+  if ('error' in res) return { ok: false, error: res.error };
+  return { ok: true, error: null };
+}
+
+export async function gerarConviteSocio(
+  cpf: string,
+): Promise<{ link: string | null; error: string | null }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/socios/convite`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
+      },
+      body: JSON.stringify({ cpf }),
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      let detail = `HTTP ${String(res.status)}`;
+      try {
+        const parsed = (await res.json()) as { error?: string };
+        if (typeof parsed.error === 'string' && parsed.error !== '') detail = parsed.error;
+      } catch {
+        /* corpo não-JSON */
+      }
+      return { link: null, error: detail };
+    }
+    const data = (await res.json()) as { token: string };
+    const h = headers();
+    const proto = h.get('x-forwarded-proto') ?? 'https';
+    const host = h.get('x-forwarded-host') ?? h.get('host') ?? '';
+    if (host === '')
+      return { link: null, error: 'não foi possível determinar o domínio da plataforma' };
+    return { link: `${proto}://${host}/socios/convite?t=${data.token}`, error: null };
   } catch {
     return { link: null, error: 'API do Admin inacessível' };
   }

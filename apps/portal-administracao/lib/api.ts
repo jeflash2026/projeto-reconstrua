@@ -482,6 +482,19 @@ export interface StaffData {
   };
 }
 
+// ── SÓCIOS (Decreto 2026-07-23) — linha do sócio na visão do Admin: participação
+// (bps + legível), se já criou senha pelo link e o valor estimado (fatia do
+// potencial recuperável total de hoje).
+export interface SocioAdminView {
+  cpf: string;
+  nome: string;
+  percentualBps: number;
+  percentual: string;
+  ativo: boolean;
+  temSenha: boolean;
+  valorEstimado: number;
+}
+
 export interface FounderBriefing {
   greeting: string;
   newClients: number;

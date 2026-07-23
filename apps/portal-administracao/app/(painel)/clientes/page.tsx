@@ -9,6 +9,7 @@ import type { ReactElement } from 'react';
 import AutoRefresh from '../../../components/auto-refresh';
 import JornadaAcoes, { type AdvogadoOption } from '../../../components/jornada-acoes';
 import CobrarHiscon from '../../../components/cobrar-hiscon';
+import DisparoEmLote from '../../../components/disparo-em-lote';
 import { getJson, type ClienteStatus, type JornadaCliente, type StaffData } from '../../../lib/api';
 import { formatDate } from '../../../lib/format';
 
@@ -165,6 +166,18 @@ const ClientsPage = async ({
         <div className="card empty">Nenhum cliente encontrado.</div>
       ) : (
         <>
+          {/* Totais por fase — visão rápida de quantos estão prontos para estudo. */}
+          <div className="grid stats" style={{ marginTop: 8, marginBottom: 8 }}>
+            <div className="card stat">
+              <div className="value">{comHiscon.length}</div>
+              <div className="label">Fase 1 — HISCON recebido (prontos p/ estudo)</div>
+            </div>
+            <div className="card stat">
+              <div className="value">{aguardando.length}</div>
+              <div className="label">Aguardando HISCON (em cobrança)</div>
+            </div>
+          </div>
+
           <h2 className="page-title" style={{ fontSize: '1.15rem', marginTop: 24 }}>
             ✅ HISCON recebido — Fase 1 completa{' '}
             <span className="badge ok">{comHiscon.length}</span>
@@ -183,6 +196,7 @@ const ClientsPage = async ({
             Entraram em contato mas ainda não enviaram o HISCON. Use “Cobrar HISCON” para a AHRI
             pedir o documento e concluir o cadastro.
           </p>
+          <DisparoEmLote chatIds={aguardando.map((c) => c.chatId)} />
           {aguardando.length === 0 ? (
             <div className="card empty">Ninguém pendente — todos enviaram o HISCON.</div>
           ) : (

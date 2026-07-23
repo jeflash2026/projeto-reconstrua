@@ -89,6 +89,19 @@ describe('reconstruirHisconPosicional', () => {
     expect(reconstruirHisconPosicional([semTabela])).toBeNull();
   });
 
+  it('captura o BENEFICIÁRIO do cabeçalho (o nome REAL da pessoa, não a cidade)', () => {
+    // O nome vem entre "EMPRÉSTIMO CONSIGNADO" e "Benefício" no HISCON real.
+    const cabecalho = [
+      item('EMPRÉSTIMO CONSIGNADO', 200, 800),
+      item('MARIA DAS DORES DA SILVA', 260, 800),
+      item('Benefício', 400, 800),
+    ];
+    const e = parseHisconDetalhado(
+      reconstruirHisconPosicional([[...cabecalho, ...matrizDeDuasColunas()]]) as string,
+    );
+    expect(e.beneficiario).toBe('MARIA DAS DORES DA SILVA');
+  });
+
   it('número POLUÍDO (competência grudada) ⇒ marca "conferir", nunca um número errado', () => {
     // O nº fica ABAIXO do banco (y<40) na faixa da coluna; aqui um fragmento de
     // data ("202603") grudou no número real ⇒ 15 dígitos ⇒ não confiável.

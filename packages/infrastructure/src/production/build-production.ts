@@ -351,6 +351,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     modalidade: modalidadeStore,
     venda: vendaStore,
     pedidos: pedidosStore,
+    // Nome REAL do beneficiário do HISCON prevalece sobre o capturado na conversa
+    // (que às vezes é a cidade). `pericia` é definido adiante; o closure só o acessa
+    // em runtime (na montagem da lista), quando tudo já está inicializado.
+    nomeAutoritativo: (chatId) => pericia.nomeDoHiscon(chatId),
   });
 
   // ── PORTAL DO CLIENTE · PC-R1/R3/R4: a projeção segura ÚNICA (Portal + AHRI) ──

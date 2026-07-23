@@ -147,6 +147,22 @@ export class PericiaService {
     return jornada?.nome ?? null;
   }
 
+  /** Nome do BENEFICIÁRIO direto do HISCON (o nome REAL da pessoa), do texto já
+   *  cacheado — regex leve, sem parsear os contratos. null se não há HISCON legível.
+   *  É a fonte autoritativa do nome do cliente (a AHRI às vezes captura a cidade). */
+  async nomeDoHiscon(chatId: string): Promise<string | null> {
+    const onboarding = (await this.deps.json.get(
+      NS_ONBOARDING,
+      chatId,
+    )) as OnboardingPersisted | null;
+    const cnis = onboarding?.recebidos?.find((r) => r.codigo === 'CNIS') ?? null;
+    if (cnis === null) return null;
+    const texto = await this.deps.reader.readById(cnis.documentId).catch(() => null);
+    if (texto === null) return null;
+    const m = /EMPR[ÉE]STIMO CONSIGNADO\s*\n+\s*([A-ZÀ-Ú][A-ZÀ-Ú' ]{4,60}?)\s*\n/.exec(texto);
+    return m?.[1]?.replace(/\s+/g, ' ').trim() ?? null;
+  }
+
   private async extrairHiscon(chatId: string): Promise<HisconExtraido | null> {
     const onboarding = (await this.deps.json.get(
       NS_ONBOARDING,

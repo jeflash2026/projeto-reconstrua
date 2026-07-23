@@ -237,5 +237,18 @@ export function reconstruirHisconPosicional(
     }
   }
   if (blocos.filter((b) => b.startsWith('CONTRATO:')).length === 0) return null;
-  return `Instituto Nacional do Seguro Social\nHISTÓRICO DE\nEMPRÉSTIMO CONSIGNADO\n\n${blocos.join('\n\n')}\n`;
+  // BENEFICIÁRIO: no HISCON o nome vem logo após "EMPRÉSTIMO CONSIGNADO" e antes de
+  // "Benefício" (ex.: "…EMPRÉSTIMO CONSIGNADO MARIA DO ROCIO MIRANDA BENETTI
+  // Benefício…"). Captura do texto de TODAS as páginas e injeta no cabeçalho no
+  // formato que o parseHisconDetalhado lê — o nome do cliente passa a ser o do
+  // documento, não o que a AHRI achou que fosse (às vezes a cidade).
+  const textoTodo = paginas.flatMap((p) => p.map((i) => i.str)).join(' ');
+  const nomeMatch = /EMPR[ÉE]STIMO CONSIGNADO\s+([A-ZÀ-Ú][A-ZÀ-Ú' ]{4,60}?)\s+Benef[íi]cio/i.exec(
+    textoTodo,
+  );
+  const beneficiario = nomeMatch?.[1]?.replace(/\s+/g, ' ').trim() ?? '';
+  const cabecalho = `Instituto Nacional do Seguro Social\nHISTÓRICO DE\nEMPRÉSTIMO CONSIGNADO${
+    beneficiario !== '' ? `\n${beneficiario}` : ''
+  }\n`;
+  return `${cabecalho}\n${blocos.join('\n\n')}\n`;
 }

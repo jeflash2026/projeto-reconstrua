@@ -132,6 +132,10 @@ export interface ClientesDeps {
   readonly modalidade: ModalidadeStore;
   readonly venda: VendaStore;
   readonly pedidos: PedidosAdministrativosStore;
+  /** Nome AUTORITATIVO do cliente (o beneficiário do HISCON), quando houver — é o
+   *  nome REAL da pessoa e prevalece sobre o que a AHRI capturou na conversa (que
+   *  às vezes é a cidade). Opcional (ausente ⇒ usa só o nome da identidade). */
+  readonly nomeAutoritativo?: (chatId: string) => Promise<string | null>;
 }
 
 export class ClientesList {
@@ -172,11 +176,14 @@ export class ClientesList {
     const venda = reconhecido ? await this.deps.venda.load(alir.clienteId) : null;
     const pedidos = reconhecido ? await this.deps.pedidos.load(alir.clienteId) : null;
 
+    // Nome REAL do HISCON prevalece sobre o capturado na conversa (que às vezes é
+    // a cidade — caso "São Roque"). Sem HISCON legível, mantém o da identidade.
+    const nomeHiscon = await this.deps.nomeAutoritativo?.(chatId).catch(() => null);
     return {
       clienteId: alir.clienteId,
       chatId,
       missionId: alir.operational.missao.missionId,
-      quem: alirQuem(alir),
+      quem: nomeHiscon ?? alirQuem(alir),
       status: deriveClienteStatus(
         alir,
         readiness,

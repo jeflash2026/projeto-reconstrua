@@ -47,6 +47,11 @@ export interface JornadaRuntimeDeps {
   readonly onboarding: OnboardingDocumentalRuntime;
   readonly observability: ObservabilityRuntime;
   readonly clock: Clock;
+  /** O caso JÁ está concluído (HISCON recebido / portal liberado) segundo uma
+   *  fonte confiável (living-memory), MESMO que o onboarding-documental tenha
+   *  divergido? Sem isto, a jornada re-pedia o HISCON já recebido (caso Maria
+   *  Angela, 2026-07-23). Opcional (ausente ⇒ só o onboarding decide). */
+  readonly casoConcluido?: (chatId: string) => Promise<boolean>;
 }
 
 export class JornadaComercialRuntime {
@@ -78,10 +83,17 @@ export class JornadaComercialRuntime {
   async fatos(chatId: string): Promise<FatosDaJornada> {
     const registro = await this.carregar(chatId);
     const visao = await this.deps.onboarding.visao(chatId).catch(() => null);
+    // O caso é concluído se o onboarding registrou o HISCON OU se uma fonte
+    // confiável (living-memory / portal liberado) diz que sim — cobre a divergência
+    // de projeção que fazia a AHRI re-pedir um HISCON já recebido.
+    const concluidoPorOutraFonte =
+      (await this.deps.casoConcluido?.(chatId).catch(() => false)) ?? false;
+    const onboardingCompleto =
+      visao !== null && visao.faltando.length === 0 && visao.recebidos.length > 0;
     return {
       registro,
       docsRecebidos: visao?.recebidos.length ?? 0,
-      docsCompletos: visao !== null && visao.faltando.length === 0 && visao.recebidos.length > 0,
+      docsCompletos: onboardingCompleto || concluidoPorOutraFonte,
       // Decreto HISCON-ONLY (2026-07-22): enquanto não há onboarding semeado
       // (ex.: lead que só consentiu), o próximo documento é SEMPRE o HISCON — NUNCA
       // RG/CNH (isso é da Jornada 2, conduzida pelo advogado no portal).

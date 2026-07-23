@@ -725,6 +725,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     onboarding: onboardingDocumental,
     observability,
     clock,
+    // O HISCON já foi recebido segundo a LIVING-MEMORY (a mesma fonte que libera o
+    // portal)? Se sim, o caso está concluído — a AHRI NUNCA re-pede o HISCON já
+    // enviado, mesmo que o onboarding-documental tenha divergido (caso Maria Angela).
+    casoConcluido: async (chatId) => {
+      const memoria = await memoryStore.load(chatId).catch(() => null);
+      return (memoria?.documentsSent ?? []).some((d) => /hiscon|consignad|cnis/i.test(d.label));
+    },
   });
   // Decreto 2026-07-22: REAQUECIMENTO DE LEADS — lista os frios e executa o
   // reaquecimento AUTORIZADO pelo admin (nada automático). Mesmo canal das

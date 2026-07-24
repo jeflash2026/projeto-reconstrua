@@ -11,6 +11,7 @@
 import type { Clock, UuidGenerator } from '@reconstrua/domain';
 import type { HumanRole } from '../executive-brain/index.js';
 import type { HumanHandoffRuntime } from '../go-live/index.js';
+import { normalizarCpf } from '../socios/socio-model.js';
 
 export type StaffRole = Exclude<HumanRole, 'administrador'> | 'administrador';
 
@@ -19,6 +20,9 @@ export interface StaffMember {
   readonly role: StaffRole;
   readonly name: string;
   readonly email: string | null;
+  /** CPF (só dígitos) usado como LOGIN humano do portal — em vez do UUID interno.
+   *  Opcional: sem CPF, o login segue pelo id (retrocompatível). */
+  readonly cpf?: string | null;
   readonly active: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -29,6 +33,9 @@ export interface StaffStore {
   byId(id: string): Promise<StaffMember | null>;
   byRole(role: StaffRole): Promise<readonly StaffMember[]>;
   all(): Promise<readonly StaffMember[]>;
+  /** Membro pelo CPF (só dígitos) — a identidade de login humana. Opcional na
+   *  porta: implementações antigas podem varrer all(); default provido abaixo. */
+  byCpf?(cpf: string): Promise<StaffMember | null>;
 }
 
 export interface StaffWorkload {
@@ -39,6 +46,13 @@ export interface StaffWorkload {
   readonly openHandoffs: number;
   /** Carga média: fila ÷ membros ativos (null sem membros). */
   readonly avgQueuePerMember: number | null;
+}
+
+/** Normaliza o CPF ou lança — usado ao DEFINIR o CPF (entrada explícita do admin). */
+function cpfValidoOuErro(bruto: string): string {
+  const norm = normalizarCpf(bruto);
+  if (norm === null) throw new Error('CPF inválido');
+  return norm;
 }
 
 /** GO-LIVE-05 — sinaliza tentativa de bootstrap com o sistema já inicializado. */
@@ -57,13 +71,21 @@ export class StaffDirectoryRuntime {
     private readonly uuid: UuidGenerator,
   ) {}
 
-  async register(role: StaffRole, name: string, email: string | null): Promise<StaffMember> {
+  async register(
+    role: StaffRole,
+    name: string,
+    email: string | null,
+    cpf?: string | null,
+  ): Promise<StaffMember> {
     const now = this.clock.now();
+    const cpfNorm = cpf != null && cpf !== '' ? normalizarCpf(cpf) : null;
+    if (cpf != null && cpf !== '' && cpfNorm === null) throw new Error('CPF inválido');
     const member: StaffMember = {
       id: this.uuid.next(),
       role,
       name: name.trim(),
       email,
+      cpf: cpfNorm,
       active: true,
       createdAt: now,
       updatedAt: now,
@@ -75,19 +97,34 @@ export class StaffDirectoryRuntime {
 
   async update(
     id: string,
-    patch: Partial<Pick<StaffMember, 'name' | 'email' | 'active'>>,
+    patch: Partial<Pick<StaffMember, 'name' | 'email' | 'active' | 'cpf'>>,
   ): Promise<StaffMember> {
     const current = await this.store.byId(id);
     if (!current) throw new Error(`membro não encontrado: ${id}`);
+    // CPF entra normalizado (só dígitos) — string vazia/null limpa o CPF.
+    const cpfPatch =
+      'cpf' in patch
+        ? { cpf: patch.cpf != null && patch.cpf !== '' ? cpfValidoOuErro(patch.cpf) : null }
+        : {};
     const next: StaffMember = {
       ...current,
       ...patch,
+      ...cpfPatch,
       id: current.id,
       role: current.role,
       updatedAt: this.clock.now(),
     };
     await this.store.save(next);
     return next;
+  }
+
+  /** Membro pelo CPF (só dígitos), com fallback de varredura se o store não expõe
+   *  byCpf. null se o CPF é inválido ou não há membro com ele. */
+  async byCpf(cpf: string): Promise<StaffMember | null> {
+    const norm = normalizarCpf(cpf);
+    if (norm === null) return null;
+    if (this.store.byCpf) return this.store.byCpf(norm);
+    return (await this.store.all()).find((m) => (m.cpf ?? null) === norm) ?? null;
   }
 
   async activate(id: string): Promise<StaffMember> {

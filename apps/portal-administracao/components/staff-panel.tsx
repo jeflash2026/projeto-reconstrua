@@ -9,13 +9,21 @@ import {
   gerarConviteAdvogado,
   gerarConvitePerito,
   setStaffActive,
+  setStaffCpf,
 } from '../lib/actions';
 import { formatDate } from '../lib/format';
+
+function formatarCpf(bruto: string | null | undefined): string {
+  const so = (bruto ?? '').replace(/\D/g, '');
+  if (so.length !== 11) return '';
+  return `${so.slice(0, 3)}.${so.slice(3, 6)}.${so.slice(6, 9)}-${so.slice(9)}`;
+}
 
 const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElement => {
   const [data, setData] = useState<StaffData | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [cpf, setCpf] = useState('');
   const [error, setError] = useState<string | null>(null);
   // GO-LIVE-04: convite do advogado (link de criação de senha) — só role advogado.
   const [convite, setConvite] = useState<{ id: string; link: string } | null>(null);
@@ -52,13 +60,32 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
       setError('Informe o nome.');
       return;
     }
-    const created = await createStaff(role, name, email.trim() === '' ? null : email);
+    const created = await createStaff(
+      role,
+      name,
+      email.trim() === '' ? null : email,
+      cpf.trim() === '' ? null : cpf,
+    );
     if (!created) {
-      setError('Falha ao cadastrar (API indisponível?).');
+      setError('Falha ao cadastrar (API indisponível? CPF inválido?).');
       return;
     }
     setName('');
     setEmail('');
+    setCpf('');
+    await load();
+  };
+
+  // Define/atualiza o CPF de login de um membro (o advogado passa a entrar por CPF).
+  const definirCpf = async (id: string, atual: string | null | undefined): Promise<void> => {
+    const entrada = window.prompt('CPF de login deste membro (só números):', atual ?? '');
+    if (entrada === null) return;
+    const res = await setStaffCpf(id, entrada);
+    if (!res.ok) {
+      setError(res.error ?? 'Falha ao definir o CPF.');
+      return;
+    }
+    setError(null);
     await load();
   };
 
@@ -114,6 +141,14 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
               setEmail(e.target.value);
             }}
           />
+          <input
+            placeholder="CPF de login (opcional)"
+            value={cpf}
+            inputMode="numeric"
+            onChange={(e) => {
+              setCpf(e.target.value);
+            }}
+          />
           <button
             className="primary"
             onClick={() => {
@@ -150,7 +185,7 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
                 <tr>
                   <th>Nome</th>
                   <th>E-mail</th>
-                  <th>ID (login no portal)</th>
+                  <th>CPF (login no portal)</th>
                   <th>Status</th>
                   <th>Cadastro</th>
                   <th>Ações</th>
@@ -162,7 +197,11 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
                     <td style={{ fontWeight: 600 }}>{m.name}</td>
                     <td>{m.email ?? '—'}</td>
                     <td className="mono" style={{ fontSize: 12 }}>
-                      {m.id}
+                      {formatarCpf(m.cpf) !== '' ? (
+                        formatarCpf(m.cpf)
+                      ) : (
+                        <span style={{ color: 'var(--text-dim)' }}>sem CPF (usa o id)</span>
+                      )}
                     </td>
                     <td>
                       {m.active ? (
@@ -190,6 +229,14 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
                           Gerar convite
                         </button>
                       ) : null}
+                      <button
+                        style={{ marginLeft: 6 }}
+                        onClick={() => {
+                          void definirCpf(m.id, m.cpf);
+                        }}
+                      >
+                        {formatarCpf(m.cpf) !== '' ? 'Alterar CPF' : 'Definir CPF'}
+                      </button>
                     </td>
                   </tr>
                 ))}

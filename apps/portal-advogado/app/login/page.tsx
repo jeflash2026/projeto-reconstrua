@@ -32,7 +32,7 @@ const LoginPage = (): ReactElement => {
       <div className="card">
         <h1 className="page-title">Identifique-se</h1>
         <p className="page-sub">
-          Entre com o seu ID e a sua senha. Ainda não tem senha? Use o link de convite que o
+          Entre com o seu CPF e a sua senha. Ainda não tem senha? Use o link de convite que o
           escritório enviou a você.
         </p>
         <form
@@ -45,7 +45,8 @@ const LoginPage = (): ReactElement => {
         >
           <input
             type="text"
-            placeholder="Seu ID de advogado"
+            inputMode="numeric"
+            placeholder="Seu CPF"
             value={id}
             autoFocus
             onChange={(e) => {

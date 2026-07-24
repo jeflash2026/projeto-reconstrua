@@ -11,6 +11,7 @@
 //    único no login (nunca revela se o ID existe ou qual fator falhou).
 // ─────────────────────────────────────────────────────────────────────────────
 import type { StaffStore } from '../admin-portal/staff-directory.js';
+import { normalizarCpf } from '../socios/socio-model.js';
 import { assinarTokenPortal, validarTokenPortalDetalhado } from './auth-tokens.js';
 import { SENHA_MINIMA, hashSenha, verificarSenha } from './senha.js';
 
@@ -55,9 +56,17 @@ export class AdvogadoAuthRuntime {
     this.usoConvite = deps.usoConvite ?? USO_CONVITE_ADVOGADO;
   }
 
-  /** Membro cadastrado, ativo e do papel certo? (guard único, fail-closed) */
-  private async advogadoAtivo(advogadoId: string): Promise<{ id: string; name: string } | null> {
-    const member = await this.deps.staff.byId(advogadoId);
+  /** Membro cadastrado, ativo e do papel certo? (guard único, fail-closed).
+   *  Aceita o identificador como CPF (só dígitos, login humano) OU o id interno
+   *  (UUID — convites/credenciais). O RETORNO é sempre o id interno, então o
+   *  convite, a senha (chaveada por id) e o isolamento seguem inalterados. */
+  private async advogadoAtivo(identificador: string): Promise<{ id: string; name: string } | null> {
+    const bruto = identificador.trim();
+    const cpf = normalizarCpf(bruto);
+    const member =
+      cpf !== null && this.deps.staff.byCpf
+        ? await this.deps.staff.byCpf(cpf)
+        : await this.deps.staff.byId(bruto);
     if (member === null || member.role !== this.role || !member.active) return null;
     return { id: member.id, name: member.name };
   }

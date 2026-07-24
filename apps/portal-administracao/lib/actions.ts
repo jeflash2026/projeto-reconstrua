@@ -95,8 +95,22 @@ export async function createStaff(
   role: string,
   name: string,
   email: string | null,
+  cpf?: string | null,
 ): Promise<StaffMember | null> {
-  return sendJson<StaffMember>('POST', '/admin/staff', { role, name, email });
+  return sendJson<StaffMember>('POST', '/admin/staff', { role, name, email, cpf: cpf ?? null });
+}
+
+/** Define/atualiza o CPF de LOGIN de um membro (o advogado passa a entrar por CPF). */
+export async function setStaffCpf(
+  id: string,
+  cpf: string,
+): Promise<{ ok: boolean; error: string | null }> {
+  const res = await sendJson<StaffMember & { error?: string }>('PATCH', `/admin/staff/${id}`, {
+    cpf,
+  });
+  if (res === null) return { ok: false, error: 'API do Admin inacessível' };
+  if ('error' in res && res.error) return { ok: false, error: res.error };
+  return { ok: true, error: null };
 }
 
 export async function setStaffActive(id: string, active: boolean): Promise<StaffMember | null> {

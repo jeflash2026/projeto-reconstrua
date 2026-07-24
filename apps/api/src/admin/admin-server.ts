@@ -1393,11 +1393,22 @@ export function buildAdminServer(
   });
 
   app.post('/admin/staff', async (request, reply) => {
-    const body = request.body as { role?: string; name?: string; email?: string | null };
+    const body = request.body as {
+      role?: string;
+      name?: string;
+      email?: string | null;
+      cpf?: string | null;
+    };
     if (!body.role || !isStaffRole(body.role) || !body.name) {
       return reply.code(400).send({ error: 'role e name são obrigatórios' });
     }
-    return op.staff.register(body.role, body.name, body.email ?? null);
+    try {
+      return await op.staff.register(body.role, body.name, body.email ?? null, body.cpf ?? null);
+    } catch (error) {
+      return reply
+        .code(400)
+        .send({ error: error instanceof Error ? error.message : 'falha ao cadastrar' });
+    }
   });
 
   // ── BOOTSTRAP (GO-LIVE-05) — one-time, SERVER-AUTHORITATIVE ──────────────────
@@ -1423,13 +1434,18 @@ export function buildAdminServer(
 
   app.patch('/admin/staff/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { name?: string; email?: string | null; active?: boolean };
+    const body = request.body as {
+      name?: string;
+      email?: string | null;
+      active?: boolean;
+      cpf?: string | null;
+    };
     try {
       return await op.staff.update(id, body);
     } catch (error) {
-      return reply
-        .code(404)
-        .send({ error: error instanceof Error ? error.message : 'não encontrado' });
+      // CPF inválido é erro do pedido (400); membro inexistente é 404.
+      const msg = error instanceof Error ? error.message : 'não encontrado';
+      return reply.code(msg.includes('CPF') ? 400 : 404).send({ error: msg });
     }
   });
 

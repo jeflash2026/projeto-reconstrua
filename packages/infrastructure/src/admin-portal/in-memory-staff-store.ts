@@ -20,4 +20,7 @@ export class InMemoryStaffStore implements StaffStore {
   all(): Promise<readonly StaffMember[]> {
     return Promise.resolve([...this.members.values()]);
   }
+  byCpf(cpf: string): Promise<StaffMember | null> {
+    return Promise.resolve([...this.members.values()].find((m) => (m.cpf ?? null) === cpf) ?? null);
+  }
 }

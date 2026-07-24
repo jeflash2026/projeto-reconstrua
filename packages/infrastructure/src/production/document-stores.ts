@@ -288,6 +288,10 @@ export class JsonStaffStore implements StaffStore {
   async all(): Promise<readonly StaffMember[]> {
     return (await this.store.list('staff')).map((m) => revive<StaffMember>(m));
   }
+  /** Membro pelo CPF (só dígitos) — a identidade de login humana do portal. */
+  async byCpf(cpf: string): Promise<StaffMember | null> {
+    return (await this.all()).find((m) => (m.cpf ?? null) === cpf) ?? null;
+  }
 }
 
 export class JsonAssignmentStore implements AssignmentStore {

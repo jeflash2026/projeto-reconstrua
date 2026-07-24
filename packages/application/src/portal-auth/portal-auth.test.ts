@@ -57,6 +57,7 @@ function harness(members: StaffMember[]) {
     byId: (id) => Promise.resolve(members.find((m) => m.id === id) ?? null),
     byRole: () => Promise.resolve([]),
     all: () => Promise.resolve(members),
+    byCpf: (cpf) => Promise.resolve(members.find((m) => (m.cpf ?? null) === cpf) ?? null),
   };
   const credenciais: CredenciaisStore = {
     load: (id) => Promise.resolve(creds.get(id) ?? null),
@@ -91,6 +92,22 @@ describe('AdvogadoAuthRuntime · convite → senha → login (fail-closed em tud
     expect(creds.get('adv-1')?.hash).not.toContain('senha-da-ana-123'); // nunca em claro
     const login = await auth.login('adv-1', 'senha-da-ana-123');
     expect(login).toEqual({ ok: true, advogadoId: 'adv-1', nome: 'Ana Lima' });
+  });
+
+  it('LOGIN por CPF resolve ao membro (retorno = id interno; id ainda funciona)', async () => {
+    const { auth } = harness([member({ id: 'adv-9', cpf: '22192008848', name: 'Juliano' })]);
+    const convite = await auth.emitirConvite('adv-9', NOW); // convite segue pelo id interno
+    await auth.definirSenha(convite ?? '', 'senha-do-juliano-1', NOW);
+    // Entra pelo CPF (com pontuação) — o retorno é sempre o id interno.
+    expect(await auth.login('221.920.088-48', 'senha-do-juliano-1')).toEqual({
+      ok: true,
+      advogadoId: 'adv-9',
+      nome: 'Juliano',
+    });
+    // Retrocompat: o id interno também continua entrando.
+    expect((await auth.login('adv-9', 'senha-do-juliano-1')).ok).toBe(true);
+    // CPF de outro não entra.
+    expect((await auth.login('11144477735', 'senha-do-juliano-1')).ok).toBe(false);
   });
 
   it('NUNCA cadastro público: convite só para advogado JÁ cadastrado e ATIVO', async () => {

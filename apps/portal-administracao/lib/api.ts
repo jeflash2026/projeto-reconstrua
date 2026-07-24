@@ -466,6 +466,8 @@ export interface StaffMember {
   role: string;
   name: string;
   email: string | null;
+  /** CPF (só dígitos) usado como login humano do portal; null = ainda pelo id. */
+  cpf?: string | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;

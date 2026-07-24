@@ -7,6 +7,7 @@ import Link from 'next/link';
 import type { ReactElement } from 'react';
 import AutoRefresh from '../../../components/auto-refresh';
 import JornadaAcoes, { type AdvogadoOption } from '../../../components/jornada-acoes';
+import AtribuirSocioDireto from '../../../components/atribuir-socio-direto';
 import {
   getJson,
   type JornadaCliente,
@@ -84,6 +85,8 @@ const MigradosPage = async (): Promise<ReactElement> => {
                     status={j.status}
                     advogados={advogados}
                   />
+                  {/* Migrado NÃO passa por perícia/10 dias: atribui direto a um advogado. */}
+                  <AtribuirSocioDireto missionId={j.missionId} advogados={advogados} />
                 </div>
               ) : null}
 

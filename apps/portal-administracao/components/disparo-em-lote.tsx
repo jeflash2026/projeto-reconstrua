@@ -2,8 +2,9 @@
 // DISPARO EM LOTE — cobra o HISCON de N clientes de uma vez (fase "Aguardando
 // HISCON"). Reutiliza o MESMO reaquecimento autorizado por cliente; a TRAVA DE 24h
 // (e o teto de tentativas) vale no SERVIDOR — clientes já cobrados nas últimas 24h
-// são pulados e voltam a ficar elegíveis só depois desse período. Sequencial de
-// propósito (nunca rajada), com relatório de enviados × não enviados.
+// são pulados e voltam a ficar elegíveis só depois desse período. A varredura PULA
+// os bloqueados e segue até cobrar N ELEGÍVEIS (não só os N primeiros da lista) —
+// assim "Cobrar de 10" envia 10 de verdade quando há elegíveis mais abaixo.
 import { useState, type ReactElement } from 'react';
 import { autorizarReaquecimento } from '../lib/actions';
 
@@ -11,7 +12,9 @@ const DisparoEmLote = ({ chatIds }: { chatIds: readonly string[] }): ReactElemen
   const total = chatIds.length;
   const [lote, setLote] = useState(Math.min(10, total));
   const [estado, setEstado] = useState<'ocioso' | 'disparando' | 'feito'>('ocioso');
-  const [res, setRes] = useState<{ enviados: number; naoEnviados: number } | null>(null);
+  const [res, setRes] = useState<{ enviados: number; pulados: number; varridos: number } | null>(
+    null,
+  );
 
   if (total === 0) return null;
   const n = Math.max(1, Math.min(lote || 1, total));
@@ -21,13 +24,17 @@ const DisparoEmLote = ({ chatIds }: { chatIds: readonly string[] }): ReactElemen
     setEstado('disparando');
     setRes(null);
     let enviados = 0;
-    let naoEnviados = 0;
-    for (const id of chatIds.slice(0, n)) {
+    let pulados = 0;
+    let varridos = 0;
+    // Percorre a lista INTEIRA pulando bloqueados até enviar N elegíveis.
+    for (const id of chatIds) {
+      if (enviados >= n) break;
+      varridos += 1;
       const r = await autorizarReaquecimento(id);
       if (r.ok) enviados += 1;
-      else naoEnviados += 1;
+      else pulados += 1;
     }
-    setRes({ enviados, naoEnviados });
+    setRes({ enviados, pulados, varridos });
     setEstado('feito');
   };
 
@@ -62,8 +69,11 @@ const DisparoEmLote = ({ chatIds }: { chatIds: readonly string[] }): ReactElemen
       </button>
       {res ? (
         <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-          Enviados: <strong>{res.enviados}</strong> · Não enviados: {res.naoEnviados} (já cobrados
-          nas últimas 24h ou inelegíveis)
+          Enviados: <strong>{res.enviados}</strong> · Pulados: {res.pulados} (já cobrados nas
+          últimas 24h ou inelegíveis)
+          {res.enviados < n
+            ? ` — sem mais elegíveis (varridos ${String(res.varridos)} de ${String(total)})`
+            : ''}
         </span>
       ) : (
         <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>

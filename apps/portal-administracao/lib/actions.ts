@@ -630,6 +630,10 @@ export async function autorizarReaquecimento(
         'content-type': 'application/json',
         ...(ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
       },
+      // Corpo JSON vazio OBRIGATÓRIO: com content-type application/json e sem body,
+      // o Fastify recusa com 400 "Bad Request" ANTES do handler — era por isso que
+      // NENHUM reaquecimento disparava (nem em lote, nem individual).
+      body: '{}',
       cache: 'no-store',
     });
     const body = (await res.json().catch(() => ({}))) as { error?: string };

@@ -186,16 +186,20 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
             const proximo =
               (await d.jornada.fatos?.(chatId).catch(() => null))?.proximoDocumento ??
               'o documento pendente';
-            await d.comunicador
-              .enviar(chatId, MENSAGENS_JORNADA.documentoNaoIdentificado(proximo))
-              .catch((e: unknown) => {
-                d.observability.error(
-                  'onboarding',
-                  'outro-envio',
-                  now,
-                  e instanceof Error ? e.message : String(e),
-                );
-              });
+            // Caso Maria José: reconhece o HISTÓRICO DE CRÉDITO e pede o HISCON certo;
+            // demais casos ⇒ mensagem genérica de documento não identificado.
+            const mensagem =
+              resultado.motivoOutro === 'historico-credito'
+                ? MENSAGENS_JORNADA.historicoDeCreditoRecebido
+                : MENSAGENS_JORNADA.documentoNaoIdentificado(proximo);
+            await d.comunicador.enviar(chatId, mensagem).catch((e: unknown) => {
+              d.observability.error(
+                'onboarding',
+                'outro-envio',
+                now,
+                e instanceof Error ? e.message : String(e),
+              );
+            });
             await d.jornada.concluirProgressao(chatId).catch(() => undefined);
           }
         }

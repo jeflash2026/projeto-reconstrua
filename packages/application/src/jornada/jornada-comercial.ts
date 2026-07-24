@@ -311,6 +311,12 @@ export const MENSAGENS_JORNADA = {
   adiamentoOkCurto: 'Combinado. Fico no aguardo — qualquer coisa, estou por aqui.',
   documentoNaoIdentificado: (proximo: string): string =>
     `Verifiquei aqui e essa imagem não parece ser o documento que estou aguardando (${proximo}). Pode conferir e enviar novamente? Qualquer dúvida, me chame.`,
+  // Caso Maria José (2026-07-24): a cliente enviou um HISTÓRICO DE CRÉDITO. A AHRI
+  // reconhece o documento e explica exatamente qual é o certo (o HISCON).
+  historicoDeCreditoRecebido:
+    'Recebi o seu documento, obrigada! Mas verifiquei aqui e ele é um HISTÓRICO DE CRÉDITO — não é o documento que preciso para a análise.\n\n' +
+    'Para o seu caso eu preciso do HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), emitido no Meu INSS na opção "Extrato de Empréstimos Consignados", com todos os contratos, em PDF.\n\n' +
+    'É só baixar esse PDF e me enviar aqui como anexo. Se quiser, eu te explico o passo a passo para localizar essa opção — é só me avisar.',
   // Caso Lucas: desconfiança ("cara de golpe") ⇒ resposta de SEGURANÇA.
   seguranca:
     'Sua cautela é correta — e desconfiar é importante mesmo. Alguns pontos para a sua segurança:\n\n' +

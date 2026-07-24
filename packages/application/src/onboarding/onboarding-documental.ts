@@ -133,6 +133,51 @@ const SINAIS: Readonly<
   },
 };
 
+// Sinais de HISTÓRICO DE CRÉDITO (SCR/Registrato do Banco Central, relatórios de
+// bureau) — documento que a cliente às vezes confunde com o HISCON. Ele CITA
+// "consignado" entre as operações de crédito, mas NÃO é o extrato do INSS.
+const SINAIS_HISTORICO_CREDITO: readonly string[] = [
+  'historico de credito',
+  'sistema de informacoes de credito',
+  'registrato',
+  'score de credito',
+  'score',
+  'consultas ao seu cpf',
+  'operacoes de credito',
+  'relatorio de credito',
+  'cadastro positivo',
+  'serasa',
+  'spc brasil',
+  'boa vista',
+  'cheque especial',
+  'cartao de credito',
+  'limite de credito',
+];
+
+// Sinais FORTES de que É o HISCON de verdade (o extrato do Meu INSS) — colunas e
+// cabeçalhos exclusivos do documento. Só estes autorizam aceitar um documento que
+// TAMBÉM traz marcas de histórico de crédito (evita falso-positivo/negativo).
+const SINAIS_HISCON_FORTE: readonly string[] = [
+  'hiscon',
+  'historico de emprestimo consignado',
+  'historico de emprestimos consignados',
+  'extrato de emprestimos consignados',
+  'extrato de consignacoes',
+  'origem da averbacao',
+  'competencia de desconto',
+  'banco consignatario',
+];
+
+/** O documento é um HISTÓRICO DE CRÉDITO (não o HISCON)? true quando traz marcas
+ *  de relatório de crédito E não traz um sinal FORTE de extrato de consignado. */
+export function pareceHistoricoDeCredito(texto: string): boolean {
+  const t = normalizar(texto);
+  if (t === '') return false;
+  const credito = SINAIS_HISTORICO_CREDITO.some((f) => t.includes(f));
+  const hisconForte = SINAIS_HISCON_FORTE.some((f) => t.includes(f));
+  return credito && !hisconForte;
+}
+
 export type SubtipoIdentidade = 'rg' | 'cnh';
 
 /** CNH ou RG? (só faz sentido quando a classificação foi IDENTIDADE).
@@ -177,10 +222,15 @@ export function classificarDocumentoInicial(fileName: string, texto: string): Cl
   // funil pede o documento certo em vez de aceitar o errado em silêncio).
   if (resultado === 'CNIS') {
     const soTexto = normalizar(texto);
-    // Só reprova quando HÁ texto transcrito e ele NÃO traz consignado (documento
-    // ERRADO — caso José). Texto vazio = transcrição ainda não pronta ⇒ segue o
-    // fluxo (o classificador roda de novo com o texto e aí a evidência é exigida).
-    if (soTexto !== '' && !SINAIS.CNIS.frases.some((f) => soTexto.includes(f))) return 'OUTRO';
+    if (soTexto !== '') {
+      // Caso Maria José (2026-07-24): HISTÓRICO DE CRÉDITO (SCR/Registrato) cita
+      // "consignado" e era aceito como HISCON. Se tem cara de relatório de crédito
+      // e não tem sinal FORTE de extrato do INSS ⇒ NÃO é o HISCON.
+      if (pareceHistoricoDeCredito(texto)) return 'OUTRO';
+      // Caso José: sem QUALQUER sinal de consignado ⇒ documento errado.
+      if (!SINAIS.CNIS.frases.some((f) => soTexto.includes(f))) return 'OUTRO';
+    }
+    // Texto vazio = transcrição ainda não pronta ⇒ segue o fluxo (re-roda depois).
   }
   return resultado;
 }
@@ -309,6 +359,9 @@ export interface ResultadoDeRecebimento {
   /** Excerto do texto transcrito usado na classificação (diagnóstico do
    *  classificador — 14ª rodada: 'OUTRO' com texto presente era mudo). */
   readonly textoExcerto?: string | null;
+  /** Por que ficou OUTRO — permite a mensagem CERTA (ex.: histórico de crédito
+   *  em vez do HISCON). null/ausente ⇒ genérico. */
+  readonly motivoOutro?: 'historico-credito' | null;
 }
 
 export class OnboardingDocumentalRuntime {
@@ -356,6 +409,7 @@ export class OnboardingDocumentalRuntime {
         classificacaoPendente: texto === null,
         progresso: null,
         textoExcerto: texto === null ? null : texto.slice(0, 200),
+        motivoOutro: pareceHistoricoDeCredito(texto ?? '') ? 'historico-credito' : null,
       };
     }
     // Já completo para este código ⇒ reenvio não duplica. IDENTIDADE via RG

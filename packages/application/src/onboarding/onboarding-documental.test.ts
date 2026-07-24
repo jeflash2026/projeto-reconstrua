@@ -65,6 +65,21 @@ describe('Decreto · classificação DETERMINÍSTICA dos 3 obrigatórios', () =>
         'INSS - Histórico de Créditos Espécie: 87 - BENEFÍCIO DE PRESTAÇÃO CONTINUADA Créditos do Benefício R$ 1.146,00 CARTAO MAGNETICO Pago',
       ),
     ).toBe('OUTRO');
+    // Caso Maria José (2026-07-24): HISTÓRICO DE CRÉDITO (SCR/Registrato) cita
+    // "consignado" entre as operações — NÃO é o HISCON ⇒ OUTRO (re-pede o certo).
+    expect(
+      classificarDocumentoInicial(
+        'documento.pdf',
+        'Registrato - Sistema de Informações de Crédito (SCR) - Banco Central do Brasil. Operações de crédito: Empréstimo consignado R$ 5.000,00; Cartão de crédito; Cheque especial. Score de crédito.',
+      ),
+    ).toBe('OUTRO');
+    // Mas um HISCON REAL que por acaso cite crédito segue sendo aceito (sinal FORTE).
+    expect(
+      classificarDocumentoInicial(
+        'extrato.pdf',
+        'Extrato de Empréstimos Consignados - Origem da averbação: Ativo. Banco consignatário. Competência de desconto 03/2026.',
+      ),
+    ).toBe('CNIS');
   });
   it('RG/CNH: registro geral, habilitação, órgão emissor', () => {
     expect(

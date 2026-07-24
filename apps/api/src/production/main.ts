@@ -104,6 +104,8 @@ async function main(): Promise<void> {
     // Decreto 2026-07-23: cadastro/lista/painel + convite (link)→CPF+senha→login do sócio.
     socios: prod.socios,
     socioAuth: prod.socioAuth,
+    // Decreto 2026-07-24: fluxo do perito (em perícia/10 dias, credenciais, resposta do banco).
+    periciaFluxo: prod.periciaFluxo,
   });
   const advogado = buildAdvogadoServer(prod.advogadoView, {
     accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',

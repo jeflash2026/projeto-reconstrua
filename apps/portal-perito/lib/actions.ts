@@ -60,3 +60,46 @@ export async function confirmarPedidos(clienteId: string): Promise<{ ok: boolean
   );
   return { ok: r !== null };
 }
+
+// ── FLUXO DA PERÍCIA (Decreto 2026-07-24) ────────────────────────────────────
+/** Baixou o estudo ⇒ entra em perícia (10 dias começam). Idempotente. */
+export async function iniciarPericia(
+  chatId: string,
+  clienteId: string,
+  quem: string,
+): Promise<{ ok: boolean }> {
+  const r = await postJson<{ ok?: boolean }>(
+    `/admin/jornada/pericia/${encodeURIComponent(chatId)}/iniciar`,
+    { clienteId, quem },
+  );
+  return { ok: r !== null };
+}
+
+/** Inicia a perícia de TODOS os aguardando de uma vez (o "baixar todos"). */
+export async function iniciarPericiaTodos(
+  itens: readonly { chatId: string; clienteId: string; quem: string }[],
+): Promise<{ ok: boolean; novos: number }> {
+  const r = await postJson<{ novos?: number }>('/admin/jornada/pericia/iniciar-todos', { itens });
+  return { ok: r !== null, novos: r?.novos ?? 0 };
+}
+
+export async function salvarCredenciais(
+  chatId: string,
+  email: string,
+  senha: string,
+  provedor: string,
+): Promise<{ ok: boolean }> {
+  const r = await postJson<{ ok?: boolean }>(
+    `/admin/jornada/pericia/${encodeURIComponent(chatId)}/credenciais`,
+    { email, senha, provedor },
+  );
+  return { ok: r !== null };
+}
+
+export async function salvarRespostaBanco(chatId: string, texto: string): Promise<{ ok: boolean }> {
+  const r = await postJson<{ ok?: boolean }>(
+    `/admin/jornada/pericia/${encodeURIComponent(chatId)}/resposta-banco`,
+    { texto },
+  );
+  return { ok: r !== null };
+}

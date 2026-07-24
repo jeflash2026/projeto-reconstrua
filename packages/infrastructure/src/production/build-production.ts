@@ -197,6 +197,7 @@ import {
   PdfTextExtractor,
 } from '../reading/index.js';
 import { PericiaService } from '../pericia/index.js';
+import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { JsonSocioStore, JsonSocioCredenciaisStore, SociosService } from '../socios/index.js';
 import { MedidorDeCusto } from '../custos/index.js';
 import { ReaquecimentoService } from '../reaquecimento/index.js';
@@ -251,6 +252,8 @@ export interface AssembledProduction {
   readonly mediaCapture: MediaCaptureRuntime;
   /** Decreto Dossiê Pericial: visão do PERITO (HISCON→contratos/migrados/indícios). */
   readonly pericia: PericiaService;
+  /** Decreto 2026-07-24: fluxo do perito (em perícia/10 dias, credenciais, resposta do banco). */
+  readonly periciaFluxo: PericiaFluxoService;
   /** Decreto 2026-07-21: convite→senha própria→login do PERITO (Auth Runtime, papel 'perito'). */
   readonly peritoAuth: AdvogadoAuthRuntime;
   /** Decreto 2026-07-23: rateio do potencial + cadastro/painel do SÓCIO (login por CPF). */
@@ -980,6 +983,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     exporter: new CsvPlanilhaExporter(),
   });
 
+  // Decreto 2026-07-24: FLUXO DA PERÍCIA — o perito baixa o estudo ⇒ 10 dias
+  // correndo; guarda credenciais + resposta do banco; vencido, vira "pronto p/
+  // advogado" com as provas. Estado próprio (ns 'pericia-fluxo'), por chatId.
+  const periciaFluxo = new PericiaFluxoService({ json, clock });
+
   // ── PORTAL DO CLIENTE · PC-R3: o NASCIMENTO (varredura sem clique humano) ─────
   // Brain decide (RO-CADASTRO-CONCLUIDO); fato liberacao-portal ANTES da mensagem
   // (envio único, Lei 8); entrega pelo pipeline canônico com cadência humana.
@@ -1295,6 +1303,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     databaseUrl,
     mediaCapture,
     pericia,
+    periciaFluxo,
     peritoAuth,
     socios,
     socioAuth,

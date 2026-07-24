@@ -61,3 +61,17 @@ export interface ClienteComHiscon {
   status: string;
   ultimoContatoAt: string | null;
 }
+
+/** Cliente EM PERÍCIA (Decreto 2026-07-24) — 10 dias correndo, com credenciais/resposta. */
+export interface PericiaEmFluxo {
+  chatId: string;
+  clienteId: string;
+  quem: string;
+  iniciadaEm: string;
+  credenciais: { email: string; senha: string; provedor: string } | null;
+  respostaBanco: { texto: string; registradaEm: string } | null;
+  prazoEm: string;
+  diasRestantes: number;
+  horasRestantes: number;
+  expirado: boolean;
+}

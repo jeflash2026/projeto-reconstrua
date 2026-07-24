@@ -39,3 +39,4 @@ export * from './whatsapp-connection/index.js';
 export * from './alir/index.js';
 export * from './portal-cliente/index.js';
 export * from './socios/index.js';
+export * from './pericia-fluxo/index.js';

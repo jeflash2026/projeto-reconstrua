@@ -157,6 +157,26 @@ export function buildAdminServer(
         senha: string,
       ): Promise<{ ok: true; cpf: string; nome: string } | { ok: false; error: string }>;
     };
+    /** Decreto 2026-07-24: fluxo do perito — em perícia (10 dias), credenciais, resposta do banco. */
+    readonly periciaFluxo?: {
+      iniciar(
+        chatId: string,
+        clienteId: string,
+        quem: string,
+      ): Promise<{ ok: true; jaEstava: boolean }>;
+      iniciarVarios(
+        itens: readonly { chatId: string; clienteId: string; quem: string }[],
+      ): Promise<{ novos: number; total: number }>;
+      salvarCredenciais(
+        chatId: string,
+        cred: { email: string; senha: string; provedor: string },
+      ): Promise<{ ok: boolean; error?: string }>;
+      salvarRespostaBanco(chatId: string, texto: string): Promise<{ ok: boolean; error?: string }>;
+      emAndamento(): Promise<readonly unknown[]>;
+      concluidas(): Promise<readonly unknown[]>;
+      listar(): Promise<readonly unknown[]>;
+      registro(chatId: string): Promise<unknown>;
+    };
   } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: false });
@@ -432,6 +452,61 @@ export function buildAdminServer(
   app.get('/admin/jornada/pericia/todos-com-hiscon', async (_request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
     return { clientes: await op.perito.todosComHiscon() };
+  });
+
+  // ── FLUXO DA PERÍCIA (Decreto 2026-07-24) — o perito BAIXOU ⇒ em perícia (10
+  //    dias); guarda credenciais e resposta do banco; vencido, vira "pronto p/
+  //    advogado". Rotas atrás do Bearer do Admin (o portal do perito as consome).
+  app.get('/admin/jornada/pericia/em-fluxo', async (_request, reply) => {
+    if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
+    return {
+      emAndamento: await opts.periciaFluxo.emAndamento(),
+      concluidas: await opts.periciaFluxo.concluidas(),
+    };
+  });
+
+  app.post('/admin/jornada/pericia/iniciar-todos', async (request, reply) => {
+    if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
+    const body = request.body as {
+      itens?: { chatId?: string; clienteId?: string; quem?: string }[];
+    };
+    const itens = (body.itens ?? [])
+      .filter((i) => i.chatId && i.clienteId)
+      .map((i) => ({ chatId: i.chatId ?? '', clienteId: i.clienteId ?? '', quem: i.quem ?? '' }));
+    return opts.periciaFluxo.iniciarVarios(itens);
+  });
+
+  app.post('/admin/jornada/pericia/:chatId/iniciar', async (request, reply) => {
+    if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
+    const { chatId } = request.params as { chatId: string };
+    const body = request.body as { clienteId?: string; quem?: string };
+    if (!body.clienteId) return reply.code(400).send({ error: 'clienteId é obrigatório' });
+    return opts.periciaFluxo.iniciar(chatId, body.clienteId, body.quem ?? '');
+  });
+
+  app.post('/admin/jornada/pericia/:chatId/credenciais', async (request, reply) => {
+    if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
+    const { chatId } = request.params as { chatId: string };
+    const body = request.body as { email?: string; senha?: string; provedor?: string };
+    if (!body.email?.trim() || !body.senha?.trim() || !body.provedor?.trim())
+      return reply.code(400).send({ error: 'email, senha e provedor são obrigatórios' });
+    const r = await opts.periciaFluxo.salvarCredenciais(chatId, {
+      email: body.email.trim(),
+      senha: body.senha.trim(),
+      provedor: body.provedor.trim(),
+    });
+    if (!r.ok) return reply.code(409).send({ error: r.error });
+    return { ok: true };
+  });
+
+  app.post('/admin/jornada/pericia/:chatId/resposta-banco', async (request, reply) => {
+    if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
+    const { chatId } = request.params as { chatId: string };
+    const body = request.body as { texto?: string };
+    if (!body.texto?.trim()) return reply.code(400).send({ error: 'texto é obrigatório' });
+    const r = await opts.periciaFluxo.salvarRespostaBanco(chatId, body.texto);
+    if (!r.ok) return reply.code(409).send({ error: r.error });
+    return { ok: true };
   });
 
   // ZIP com UM CSV POR CLIENTE (Decreto 2026-07-23) — "baixar todos" NÃO é um CSV

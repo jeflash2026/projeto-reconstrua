@@ -1,42 +1,72 @@
-// CENTRAL DO PERITO (Decreto 2026-07-21) — APENAS a função pericial:
-// 1) FILA: clientes prontos aguardando perícia → baixar planilha (contratos por
-//    banco, últimos 5 anos) e CONFIRMAR os pedidos administrativos;
-// 2) PRAZO: contagem regressiva dos 10 dias por cliente (a mesma que o Admin
-//    acompanha); vencido o prazo, o cliente vira "pronto p/ advogado" — a
-//    destinação ao advogado sócio é decisão EXCLUSIVA do Admin.
+// CENTRAL DO PERITO (Decreto 2026-07-24) — o fluxo em ETAPAS:
+//  1) AGUARDANDO PERÍCIA: clientes com HISCON legível ainda não trabalhados.
+//     Baixar (unitário ou todos) INICIA a perícia e o relógio de 10 dias.
+//  2) EM PERÍCIA (10 dias): o perito guarda as CREDENCIAIS (e-mail/senha/provedor
+//     do pedido administrativo) e a RESPOSTA DO BANCO; a contagem corre.
+//  3) CONCLUÍDAS: vencidos os 10 dias, o cliente já está em "Prontos p/ Advogado"
+//     no admin — com as credenciais e a resposta como prova do pedido.
 import type { ReactElement } from 'react';
-import { getJson, type ClienteDaFila, type ClienteComHiscon } from '../lib/api';
+import { getJson, type ClienteComHiscon, type PericiaEmFluxo } from '../lib/api';
 import { SairButton } from '../components/sair-button';
-import AcoesCliente from '../components/acoes-cliente';
+import {
+  BaixarEIniciar,
+  BaixarTodosEIniciar,
+  CredenciaisForm,
+  RespostaBancoForm,
+} from '../components/fluxo-pericia';
 
 export const dynamic = 'force-dynamic';
-
-const DEZ_DIAS_MS = 10 * 24 * 60 * 60 * 1000;
-
-function contagem(pedidosConfirmadosEm: string | null): string {
-  if (pedidosConfirmadosEm === null) return '—';
-  const fim = new Date(pedidosConfirmadosEm).getTime() + DEZ_DIAS_MS;
-  const resta = fim - Date.now();
-  if (resta <= 0) return 'prazo atingido';
-  const dias = Math.floor(resta / (24 * 60 * 60 * 1000));
-  const horas = Math.floor((resta % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-  return `${String(dias)}d ${String(horas)}h restantes`;
-}
 
 function dataBr(iso: string | null): string {
   if (iso === null) return '—';
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function contagem(p: PericiaEmFluxo): string {
+  if (p.expirado) return 'prazo vencido';
+  const dias = Math.floor(p.horasRestantes / 24);
+  const horas = p.horasRestantes % 24;
+  return `${String(dias)}d ${String(horas)}h restantes`;
+}
+
+function CredenciaisView({ p }: { p: PericiaEmFluxo }): ReactElement {
+  return (
+    <div style={{ margin: '8px 0' }}>
+      <strong style={{ fontSize: 13 }}>Credenciais do pedido:</strong>{' '}
+      {p.credenciais ? (
+        <span className="mono" style={{ fontSize: 12 }}>
+          {p.credenciais.provedor} · {p.credenciais.email} · {p.credenciais.senha}
+        </span>
+      ) : (
+        <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>ainda não informadas</span>
+      )}
+      <div style={{ marginTop: 4 }}>
+        <CredenciaisForm chatId={p.chatId} atual={p.credenciais} />
+      </div>
+    </div>
+  );
+}
+
+function RespostaView({ p }: { p: PericiaEmFluxo }): ReactElement {
+  return (
+    <div style={{ margin: '8px 0' }}>
+      <strong style={{ fontSize: 13 }}>Resposta do banco:</strong>{' '}
+      {p.respostaBanco ? (
+        <span style={{ fontSize: 13 }}>
+          {p.respostaBanco.texto}{' '}
+          <span style={{ color: 'var(--text-dim)' }}>({dataBr(p.respostaBanco.registradaEm)})</span>
+        </span>
+      ) : (
+        <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>sem resposta ainda</span>
+      )}
+      <div style={{ marginTop: 4 }}>
+        <RespostaBancoForm chatId={p.chatId} atual={p.respostaBanco} />
+      </div>
+    </div>
+  );
+}
+
 const CentralPerito = async (): Promise<ReactElement> => {
-  const todos =
-    (await getJson<{ clientes: ClienteDaFila[] }>('/admin/jornada/clientes'))?.clientes ?? [];
-  const fila = todos.filter((c) => c.status === 'PRONTO_AGUARDANDO_PERICIA');
-  const emPrazo = todos.filter((c) => c.status === 'AGUARDANDO_10_DIAS');
-  const prazoVencido = todos.filter((c) => c.status === 'AGUARDANDO_SOCIO');
-  // TODOS os clientes com HISCON legível — o perito trabalha da ENTREGA, não só
-  // da fila de sociedade (Decreto 2026-07-23). Com TIMEOUT: se a varredura demorar
-  // (cache frio), a página abre mesmo assim — nunca trava o login.
   const comHiscon =
     (
       await getJson<{ clientes: ClienteComHiscon[] }>(
@@ -44,6 +74,13 @@ const CentralPerito = async (): Promise<ReactElement> => {
         20000,
       )
     )?.clientes ?? [];
+  const fluxo = await getJson<{ emAndamento: PericiaEmFluxo[]; concluidas: PericiaEmFluxo[] }>(
+    '/admin/jornada/pericia/em-fluxo',
+  );
+  const emAndamento = fluxo?.emAndamento ?? [];
+  const concluidas = fluxo?.concluidas ?? [];
+  const emFluxo = new Set([...emAndamento, ...concluidas].map((p) => p.chatId));
+  const aguardando = comHiscon.filter((c) => !emFluxo.has(c.chatId));
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>
@@ -52,23 +89,21 @@ const CentralPerito = async (): Promise<ReactElement> => {
         <SairButton />
       </div>
       <p className="page-sub">
-        Baixe a planilha de contratos, faça os pedidos administrativos e confirme — a confirmação
-        inicia a contagem dos 10 dias.
+        Baixe o estudo do cliente para iniciar a perícia — a partir do download começam os 10 dias.
+        Guarde as credenciais e a resposta do banco; vencido o prazo, o caso vai ao advogado.
       </p>
 
+      {/* ── 1) AGUARDANDO PERÍCIA ─────────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <h3>Todos os clientes com HISCON ({comHiscon.length})</h3>
+        <h3>Aguardando perícia ({aguardando.length})</h3>
         <p className="page-sub" style={{ marginTop: 0 }}>
-          Todo mundo que já entregou um HISCON legível — baixe a planilha de qualquer um, ou o
-          estudo inteiro de uma vez.
+          Clientes com HISCON legível ainda não trabalhados. Baixar inicia a perícia (10 dias).
         </p>
         <div className="form-row" style={{ marginBottom: 12 }}>
-          <a className="btn primary" href="/perito/api/planilhas-zip">
-            Baixar TODOS (1 CSV por cliente · .zip)
-          </a>
+          <BaixarTodosEIniciar aguardando={aguardando} />
         </div>
-        {comHiscon.length === 0 ? (
-          <div className="empty">Nenhum cliente com HISCON legível ainda.</div>
+        {aguardando.length === 0 ? (
+          <div className="empty">Nenhum cliente aguardando — todos já estão em perícia.</div>
         ) : (
           <div className="table-wrap">
             <table>
@@ -82,7 +117,7 @@ const CentralPerito = async (): Promise<ReactElement> => {
                 </tr>
               </thead>
               <tbody>
-                {comHiscon.map((c) => (
+                {aguardando.map((c) => (
                   <tr key={c.chatId}>
                     <td style={{ fontWeight: 600 }}>{c.quem}</td>
                     <td className="mono" style={{ fontSize: 12 }}>
@@ -91,12 +126,7 @@ const CentralPerito = async (): Promise<ReactElement> => {
                     <td>{c.totalContratos}</td>
                     <td className="mono">{dataBr(c.ultimoContatoAt)}</td>
                     <td>
-                      <a
-                        className="btn"
-                        href={`/perito/api/planilha/${encodeURIComponent(c.clienteId)}`}
-                      >
-                        Baixar planilha
-                      </a>
+                      <BaixarEIniciar c={c} />
                     </td>
                   </tr>
                 ))}
@@ -106,81 +136,68 @@ const CentralPerito = async (): Promise<ReactElement> => {
         )}
       </div>
 
+      {/* ── 2) EM PERÍCIA (10 dias) ───────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <h3>Fila da perícia — sociedade ({fila.length})</h3>
-        {fila.length === 0 ? (
-          <div className="empty">Nenhum cliente aguardando perícia.</div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Último contato</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fila.map((c) => (
-                  <tr key={c.clienteId}>
-                    <td>{c.quem}</td>
-                    <td className="mono">{dataBr(c.ultimoContatoAt)}</td>
-                    <td>
-                      <AcoesCliente clienteId={c.clienteId} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h3>Aguardando o prazo dos pedidos ({emPrazo.length})</h3>
-        {emPrazo.length === 0 ? (
-          <div className="empty">Nenhum cliente com prazo correndo.</div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Pedidos confirmados em</th>
-                  <th>Contagem regressiva</th>
-                </tr>
-              </thead>
-              <tbody>
-                {emPrazo.map((c) => (
-                  <tr key={c.clienteId}>
-                    <td>{c.quem}</td>
-                    <td className="mono">{dataBr(c.pedidosConfirmadosEm)}</td>
-                    <td>
-                      <span className="badge accent">{contagem(c.pedidosConfirmadosEm)}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <div className="card">
-        <h3>Prazo atingido — prontos para o advogado ({prazoVencido.length})</h3>
+        <h3>Em perícia — 10 dias ({emAndamento.length})</h3>
         <p className="page-sub" style={{ marginTop: 0 }}>
-          A destinação ao advogado sócio é feita pelo Admin.
+          Pedido administrativo em andamento. Guarde as credenciais e a resposta do banco.
         </p>
-        {prazoVencido.length === 0 ? (
-          <div className="empty">Nenhum cliente com prazo concluído.</div>
+        {emAndamento.length === 0 ? (
+          <div className="empty">Nenhum cliente em perícia agora.</div>
         ) : (
-          <ul>
-            {prazoVencido.map((c) => (
-              <li key={c.clienteId}>
-                {c.quem} — pedidos confirmados em {dataBr(c.pedidosConfirmadosEm)}
-              </li>
-            ))}
-          </ul>
+          emAndamento.map((p) => (
+            <div
+              key={p.chatId}
+              className="card"
+              style={{ marginBottom: 12, background: 'var(--bg-elev)' }}
+            >
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <div>
+                  <strong>{p.quem}</strong>{' '}
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                    {p.chatId}
+                  </span>
+                </div>
+                <span className="badge accent">{contagem(p)}</span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                Iniciada em {dataBr(p.iniciadaEm)} · prazo até {dataBr(p.prazoEm)}
+              </div>
+              <CredenciaisView p={p} />
+              <RespostaView p={p} />
+              <a className="btn" href={`/perito/api/planilha/${encodeURIComponent(p.clienteId)}`}>
+                Rebaixar planilha
+              </a>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ── 3) CONCLUÍDAS (prazo vencido) ─────────────────────────────────── */}
+      <div className="card">
+        <h3>Concluídas — prontas p/ advogado ({concluidas.length})</h3>
+        <p className="page-sub" style={{ marginTop: 0 }}>
+          10 dias vencidos. Já aparecem em &quot;Prontos p/ Advogado&quot; no admin, com as
+          credenciais e a resposta do banco como prova do pedido.
+        </p>
+        {concluidas.length === 0 ? (
+          <div className="empty">Nenhuma perícia concluída ainda.</div>
+        ) : (
+          concluidas.map((p) => (
+            <div
+              key={p.chatId}
+              className="card"
+              style={{ marginBottom: 12, background: 'var(--bg-elev)' }}
+            >
+              <div>
+                <strong>{p.quem}</strong> — <span className="badge bad">prazo vencido</span>
+              </div>
+              <CredenciaisView p={p} />
+              <RespostaView p={p} />
+            </div>
+          ))
         )}
       </div>
     </main>

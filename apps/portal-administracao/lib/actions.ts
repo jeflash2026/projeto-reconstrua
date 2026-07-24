@@ -620,6 +620,25 @@ export async function fetchPlanilhaGeral(): Promise<PlanilhaGerada | null> {
   }
 }
 
+/** Perícias CONCLUÍDAS (10 dias vencidos) — com credenciais e resposta do banco,
+ *  como prova do pedido administrativo, para o advogado que receber o caso. */
+export interface PericiaConcluidaView {
+  chatId: string;
+  clienteId: string;
+  quem: string;
+  iniciadaEm: string;
+  prazoEm: string;
+  credenciais: { email: string; senha: string; provedor: string } | null;
+  respostaBanco: { texto: string; registradaEm: string } | null;
+}
+
+export async function fetchPericiasConcluidas(): Promise<PericiaConcluidaView[]> {
+  const r = await getJson<{ concluidas: PericiaConcluidaView[] }>(
+    '/admin/jornada/pericia/em-fluxo',
+  );
+  return r?.concluidas ?? [];
+}
+
 export async function autorizarReaquecimento(
   chatId: string,
 ): Promise<{ ok: boolean; error: string | null }> {

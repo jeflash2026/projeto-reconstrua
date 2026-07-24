@@ -38,3 +38,4 @@ export * from './onboarding/index.js';
 export * from './jornada/index.js';
 export * from './socios/index.js';
 export * from './geo/index.js';
+export * from './pericia-digital/index.js';

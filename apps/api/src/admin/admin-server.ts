@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
+import { zipStore, nomeArquivoSeguro } from '../util/zip.js';
 import {
   CATALOGO_CONSIGNADO_INSS,
   ESTRATEGIAS_CONSIGNADO_INSS,
@@ -431,6 +432,26 @@ export function buildAdminServer(
   app.get('/admin/jornada/pericia/todos-com-hiscon', async (_request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
     return { clientes: await op.perito.todosComHiscon() };
+  });
+
+  // ZIP com UM CSV POR CLIENTE (Decreto 2026-07-23) — "baixar todos" NÃO é um CSV
+  // único; é um .zip com o CSV de cada cliente que tem HISCON (todos os bancos e
+  // contratos dele num arquivo). Resiliente: cliente problemático é pulado (sem 500).
+  app.get('/admin/jornada/pericia/planilhas-zip', async (_request, reply) => {
+    if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
+    const planilhas = await op.perito.planilhasDeTodos();
+    const usados = new Map<string, number>();
+    const arquivos = planilhas.map((p, i) => {
+      const base = nomeArquivoSeguro(p.quem, `cliente-${String(i + 1)}`);
+      const n = (usados.get(base) ?? 0) + 1;
+      usados.set(base, n);
+      const nome = n === 1 ? `${base}.csv` : `${base} (${String(n)}).csv`;
+      return { name: nome, content: p.conteudo };
+    });
+    return reply
+      .header('content-type', 'application/zip')
+      .header('content-disposition', 'attachment; filename="contratos-por-cliente.zip"')
+      .send(zipStore(arquivos));
   });
 
   // CSV ÚNICO com TODOS os clientes que têm HISCON (coluna Cliente + contratos) —

@@ -63,8 +63,8 @@ const CentralPerito = async (): Promise<ReactElement> => {
           estudo inteiro de uma vez.
         </p>
         <div className="form-row" style={{ marginBottom: 12 }}>
-          <a className="btn primary" href="/perito/api/planilha-geral">
-            Baixar TODOS os clientes (CSV único)
+          <a className="btn primary" href="/perito/api/planilhas-zip">
+            Baixar TODOS (1 CSV por cliente · .zip)
           </a>
         </div>
         {comHiscon.length === 0 ? (

@@ -145,6 +145,32 @@ export class PeritoView {
     return out;
   }
 
+  /** Lote de TODOS os clientes com HISCON legível — UM CSV por cliente (Decreto
+   *  2026-07-23; o dono quer 1 arquivo por pessoa, não tudo num só). Lista uma vez
+   *  (O(n)); um cliente problemático NÃO derruba o lote (resiliente ⇒ sem 500). */
+  async planilhasDeTodos(now?: Date): Promise<readonly PlanilhaGerada[]> {
+    const ref = now ?? new Date();
+    const clientes = await this.deps.clientes.list(now);
+    const out: PlanilhaGerada[] = [];
+    for (const cliente of clientes) {
+      try {
+        const c = await this.contratosDoResumo(cliente, now);
+        if (c.detalhado.contratos.length === 0) continue;
+        const plan = planilhaDeContratosDetalhada(`Contratos — ${c.quem}`, c.detalhado, ref);
+        out.push({
+          clienteId: c.clienteId,
+          quem: c.quem,
+          nomeArquivo: `contratos-${c.clienteId}.${this.deps.exporter.extensao}`,
+          mime: this.deps.exporter.mime,
+          conteudo: this.deps.exporter.gerar(plan),
+        });
+      } catch {
+        /* cliente com documento problemático não interrompe o lote inteiro */
+      }
+    }
+    return out;
+  }
+
   /** UM único arquivo com TODOS os clientes que têm HISCON legível — cada linha é
    *  um contrato, com a coluna CLIENTE na frente. Para baixar o estudo inteiro de
    *  uma vez (o dono pediu 2026-07-23). Só o detalhado (formato do documento). */

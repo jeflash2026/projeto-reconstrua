@@ -639,6 +639,20 @@ export async function fetchPericiasConcluidas(): Promise<PericiaConcluidaView[]>
   return r?.concluidas ?? [];
 }
 
+/** MAPA DE CLIENTES (Decreto 2026-07-24) — distribuição por estado + cidades. */
+export interface MapaClientesView {
+  total: number;
+  comEstado: number;
+  semEstado: number;
+  comCidade: number;
+  porEstado: { uf: string; nome: string; total: number }[];
+  cidades: { cidade: string; total: number }[];
+}
+
+export async function fetchMapaClientes(): Promise<MapaClientesView | null> {
+  return getJson<MapaClientesView>('/admin/mapa-clientes');
+}
+
 export async function autorizarReaquecimento(
   chatId: string,
 ): Promise<{ ok: boolean; error: string | null }> {

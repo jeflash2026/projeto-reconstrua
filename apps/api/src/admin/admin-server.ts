@@ -157,6 +157,8 @@ export function buildAdminServer(
         senha: string,
       ): Promise<{ ok: true; cpf: string; nome: string } | { ok: false; error: string }>;
     };
+    /** Decreto 2026-07-24: mapa de clientes (distribuição por estado/cidade). */
+    readonly mapaClientes?: { gerar(): Promise<unknown> };
     /** Decreto 2026-07-24: fluxo do perito — em perícia (10 dias), credenciais, resposta do banco. */
     readonly periciaFluxo?: {
       iniciar(
@@ -457,6 +459,12 @@ export function buildAdminServer(
   // ── FLUXO DA PERÍCIA (Decreto 2026-07-24) — o perito BAIXOU ⇒ em perícia (10
   //    dias); guarda credenciais e resposta do banco; vencido, vira "pronto p/
   //    advogado". Rotas atrás do Bearer do Admin (o portal do perito as consome).
+  // ── MAPA DE CLIENTES (Decreto 2026-07-24) — distribuição por estado (DDD) + cidades.
+  app.get('/admin/mapa-clientes', async (_request, reply) => {
+    if (!opts.mapaClientes) return reply.code(503).send({ error: 'mapa de clientes indisponível' });
+    return opts.mapaClientes.gerar();
+  });
+
   app.get('/admin/jornada/pericia/em-fluxo', async (_request, reply) => {
     if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
     return {

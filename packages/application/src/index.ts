@@ -37,3 +37,4 @@ export * from './document-request/index.js';
 export * from './onboarding/index.js';
 export * from './jornada/index.js';
 export * from './socios/index.js';
+export * from './geo/index.js';

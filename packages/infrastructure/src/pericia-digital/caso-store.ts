@@ -29,12 +29,26 @@ export interface AprovacaoPericial {
   readonly assinadoEm: string | null;
 }
 
+/** Valores do lado do BANCO (informados pelo perito a partir dos documentos) —
+ *  o HISCON provê o outro lado; o comparador aponta divergências. */
+export interface ValoresBanco {
+  readonly valorContratoDeclarado: number | null;
+  readonly valorCreditado: number | null;
+  readonly dataCredito: string | null;
+  readonly contaDestinataria: string | null;
+  readonly titularidade: string | null;
+  readonly valorRefinanciado: number | null;
+  readonly valorQuitacao: number | null;
+  readonly trocoLiberado: number | null;
+}
+
 export interface CasoPericial {
   readonly id: string;
   readonly numeroCaso: string;
   readonly chatId: string;
   readonly status: StatusPericia;
   readonly dados: DadosDoCaso;
+  readonly valoresBanco: ValoresBanco | null;
   readonly fichas: readonly FichaContrato[];
   readonly achados: readonly Achado[];
   readonly documentos: readonly DocumentoPericial[];

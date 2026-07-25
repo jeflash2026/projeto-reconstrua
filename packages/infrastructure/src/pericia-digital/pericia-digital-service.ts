@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHash } from 'node:crypto';
 import {
+  analisarFluxoFinanceiro,
   analisarMetadadosPdf,
   analisarTrilhaAuditoria,
   beneficiarioSeguro,
@@ -27,8 +28,8 @@ import {
   type TipoConclusao,
 } from '@reconstrua/application';
 import type { Clock, UuidGenerator } from '@reconstrua/domain';
-import type { CasoPericial, CasoStore } from './caso-store.js';
-import type { CustodiaService } from './custodia.js';
+import type { CasoPericial, CasoStore, ValoresBanco } from './caso-store.js';
+import type { CustodiaService, EventoCustodia } from './custodia.js';
 import { formatoDoNome, hashETamanho, type DocumentoPericial } from './documento-pericial.js';
 import type { CategoriaDocumento, OrigemDocumento } from '@reconstrua/application';
 
@@ -45,6 +46,25 @@ export type Resultado<T> = { ok: true; valor: T } | { ok: false; error: string }
 
 const ok = <T>(valor: T): Resultado<T> => ({ ok: true, valor });
 const erro = <T>(error: string): Resultado<T> => ({ ok: false, error });
+
+/** Converte um valor de ficha (string transcrita ou canônica) em número, ou null. */
+function num(s: string | undefined): number | null {
+  if (s === undefined || s.startsWith('NÃO')) return null;
+  const n = Number(s.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Monta o quadro do fluxo financeiro: lado HISCON (1ª ficha) × lado banco (informado). */
+function montarFluxo(caso: CasoPericial): ReturnType<typeof analisarFluxoFinanceiro> | null {
+  if (caso.valoresBanco === null) return null;
+  const f = caso.fichas[0];
+  return analisarFluxoFinanceiro({
+    valorContratoHiscon: num(f?.valorEmprestado),
+    parcelasHiscon: num(f?.qtdeParcelas),
+    valorParcelaHiscon: num(f?.valorParcela),
+    ...caso.valoresBanco,
+  });
+}
 
 /** O "corpo" da análise para a trava de consistência: o que as fichas dizem. */
 function corpoDoCaso(caso: CasoPericial): DadosDoCaso {
@@ -74,10 +94,12 @@ export class PericiaDigitalService {
   obterCaso(id: string): Promise<CasoPericial | null> {
     return this.deps.casos.porId(id);
   }
-  trilhaCustodia(casoId: string) {
+  trilhaCustodia(casoId: string): Promise<readonly EventoCustodia[]> {
     return this.deps.custodia.trilha(casoId);
   }
-  verificarCustodia(casoId: string) {
+  verificarCustodia(
+    casoId: string,
+  ): Promise<{ integro: boolean; quebrouEmSeq: number | null }> {
     return this.deps.custodia.verificar(casoId);
   }
 
@@ -139,6 +161,7 @@ export class PericiaDigitalService {
         numeroContrato: null,
         numeroProcesso: null,
       },
+      valoresBanco: null,
       fichas: fichasDoHiscon(extraido),
       achados: [],
       documentos: [],
@@ -260,6 +283,21 @@ export class PericiaDigitalService {
     });
   }
 
+  /** Registra os valores do lado do BANCO (item 6F) — o perito informa a partir
+   *  dos documentos; o comparador aponta divergências com o HISCON, sem concluir. */
+  async registrarValoresBanco(
+    casoId: string,
+    valores: ValoresBanco,
+    usuario: string,
+  ): Promise<Resultado<CasoPericial>> {
+    const caso = await this.deps.casos.porId(casoId);
+    if (caso === null) return erro('caso não encontrado');
+    return this.persistir({ ...caso, valoresBanco: valores }, null, {
+      usuario,
+      acao: 'VALORES_BANCO_REGISTRADOS',
+    });
+  }
+
   /** Inicia a análise de evidências (pré-requisito para gerar a minuta). */
   async iniciarAnalise(casoId: string, usuario: string): Promise<Resultado<CasoPericial>> {
     const caso = await this.deps.casos.porId(casoId);
@@ -302,11 +340,14 @@ export class PericiaDigitalService {
       conclusaoSugerida,
       limitacoes: ['Análise limitada aos documentos apresentados nesta data.'],
       // Fase 3: análise técnica agregada dos documentos registrados.
-      metadados: caso.documentos.flatMap((d) => (d.analise?.metadados ? [d.analise.metadados] : [])),
+      metadados: caso.documentos.flatMap((d) =>
+        d.analise?.metadados ? [d.analise.metadados] : [],
+      ),
       assinaturas: caso.documentos.flatMap((d) =>
         d.analise?.assinatura ? [d.analise.assinatura] : [],
       ),
       trilha: caso.documentos.flatMap((d) => (d.analise ? d.analise.trilha : [])),
+      fluxoFinanceiro: montarFluxo(caso),
       perito: null,
     });
     if (minuta.bloqueios.length > 0)

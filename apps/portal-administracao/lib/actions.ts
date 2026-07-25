@@ -733,9 +733,7 @@ export async function pdHabilitado(): Promise<boolean> {
 export async function pdListarCasos(): Promise<PdCaso[]> {
   return (await getJson<{ casos: PdCaso[] }>('/admin/pericia-digital/casos'))?.casos ?? [];
 }
-export async function pdObterCaso(
-  id: string,
-): Promise<{
+export async function pdObterCaso(id: string): Promise<{
   caso: PdCaso;
   custodia: { trilha: PdEventoCustodia[]; integridade: { integro: boolean } | null };
 } | null> {
@@ -800,4 +798,20 @@ export async function pdRegistrarDocumento(
   },
 ): Promise<PdResultado> {
   return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/documentos`, doc);
+}
+
+export async function pdRegistrarValoresBanco(
+  id: string,
+  valores: {
+    valorContratoDeclarado: number | null;
+    valorCreditado: number | null;
+    dataCredito: string | null;
+    contaDestinataria: string | null;
+    titularidade: string | null;
+    valorRefinanciado: number | null;
+    valorQuitacao: number | null;
+    trocoLiberado: number | null;
+  },
+): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/valores-banco`, valores);
 }

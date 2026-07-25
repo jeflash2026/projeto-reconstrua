@@ -11,12 +11,13 @@ import {
   pdIniciarAnalise,
   pdLiberar,
   pdRegistrarDocumento,
+  pdRegistrarValoresBanco,
   pdSubmeterRevisao,
   type PdCaso,
   type PdEventoCustodia,
 } from '../lib/actions';
 
-type Aba = 'contratos' | 'documentos' | 'minuta' | 'revisao' | 'custodia';
+type Aba = 'contratos' | 'documentos' | 'financeiro' | 'minuta' | 'revisao' | 'custodia';
 
 const CONCLUSOES: Record<string, string> = {
   A: 'A — Elementos tecnicamente consistentes',
@@ -122,18 +123,20 @@ const PericiaDigitalCaso = ({
 
       {/* Abas */}
       <div className="form-row" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
-        {(['contratos', 'documentos', 'minuta', 'revisao', 'custodia'] as Aba[]).map((a) => (
-          <button
-            key={a}
-            className={aba === a ? 'primary' : ''}
-            onClick={() => {
-              setAba(a);
-            }}
-          >
-            {a[0]?.toUpperCase()}
-            {a.slice(1)}
-          </button>
-        ))}
+        {(['contratos', 'documentos', 'financeiro', 'minuta', 'revisao', 'custodia'] as Aba[]).map(
+          (a) => (
+            <button
+              key={a}
+              className={aba === a ? 'primary' : ''}
+              onClick={() => {
+                setAba(a);
+              }}
+            >
+              {a[0]?.toUpperCase()}
+              {a.slice(1)}
+            </button>
+          ),
+        )}
       </div>
 
       {aba === 'contratos' ? (
@@ -199,6 +202,8 @@ const PericiaDigitalCaso = ({
         </div>
       ) : null}
 
+      {aba === 'financeiro' ? <FinanceiroForm caso={caso} busy={busy} agir={agir} /> : null}
+
       {aba === 'minuta' ? (
         <div className="card">
           <h3>Minuta {minutaAtual ? `(versão ${String(minutaAtual.versao)})` : ''}</h3>
@@ -258,6 +263,82 @@ const PericiaDigitalCaso = ({
     </>
   );
 };
+
+function FinanceiroForm({
+  caso,
+  busy,
+  agir,
+}: {
+  caso: PdCaso;
+  busy: boolean;
+  agir: (fn: () => Promise<{ ok: boolean; error: string | null }>) => Promise<void>;
+}): ReactElement {
+  const [f, setF] = useState({
+    valorContratoDeclarado: '',
+    valorCreditado: '',
+    dataCredito: '',
+    contaDestinataria: '',
+    titularidade: '',
+    valorRefinanciado: '',
+    valorQuitacao: '',
+    trocoLiberado: '',
+  });
+  const set = (k: keyof typeof f, v: string): void => setF((prev) => ({ ...prev, [k]: v }));
+  const numOrNull = (s: string): number | null => {
+    const n = Number(s.replace(',', '.'));
+    return s.trim() === '' || !Number.isFinite(n) ? null : n;
+  };
+  const strOrNull = (s: string): string | null => (s.trim() === '' ? null : s.trim());
+
+  const campos: [keyof typeof f, string, 'num' | 'str'][] = [
+    ['valorContratoDeclarado', 'Valor do contrato (documento do banco)', 'num'],
+    ['valorCreditado', 'Valor creditado ao beneficiário', 'num'],
+    ['dataCredito', 'Data do crédito', 'str'],
+    ['contaDestinataria', 'Conta destinatária', 'str'],
+    ['titularidade', 'Titularidade da conta', 'str'],
+    ['valorRefinanciado', 'Valor refinanciado', 'num'],
+    ['valorQuitacao', 'Valor de quitação', 'num'],
+    ['trocoLiberado', 'Troco liberado', 'num'],
+  ];
+
+  return (
+    <div className="card">
+      <h3>Fluxo financeiro (valores do banco)</h3>
+      <p className="page-sub" style={{ marginTop: 0 }}>
+        Informe o que os documentos do banco trazem. O sistema compara com o HISCON e aponta
+        divergências — o crédito é um elemento do caso, nunca prova de autoria.
+      </p>
+      <div className="form-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        {campos.map(([k, rotulo]) => (
+          <label key={k} className="sol-label">
+            {rotulo}
+            <input value={f[k]} onChange={(e) => set(k, e.target.value)} />
+          </label>
+        ))}
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() =>
+            void agir(() =>
+              pdRegistrarValoresBanco(caso.id, {
+                valorContratoDeclarado: numOrNull(f.valorContratoDeclarado),
+                valorCreditado: numOrNull(f.valorCreditado),
+                dataCredito: strOrNull(f.dataCredito),
+                contaDestinataria: strOrNull(f.contaDestinataria),
+                titularidade: strOrNull(f.titularidade),
+                valorRefinanciado: numOrNull(f.valorRefinanciado),
+                valorQuitacao: numOrNull(f.valorQuitacao),
+                trocoLiberado: numOrNull(f.trocoLiberado),
+              }),
+            )
+          }
+        >
+          Salvar valores do banco
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function RevisaoPerito({
   caso,

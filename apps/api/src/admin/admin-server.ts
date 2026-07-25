@@ -165,6 +165,7 @@ export function buildAdminServer(
       criarCasoDoHiscon(chatId: string, numeroCaso: string, usuario: string): Promise<unknown>;
       registrarDocumento(casoId: string, input: unknown, usuario: string): Promise<unknown>;
       iniciarAnalise(casoId: string, usuario: string): Promise<unknown>;
+      registrarValoresBanco(casoId: string, valores: unknown, usuario: string): Promise<unknown>;
       marcarDocumentacaoPendente(casoId: string, usuario: string): Promise<unknown>;
       registrarAchado(casoId: string, achado: unknown, usuario: string): Promise<unknown>;
       adicionarQuesito(casoId: string, quesito: unknown, usuario: string): Promise<unknown>;
@@ -546,6 +547,15 @@ export function buildAdminServer(
       return reply.code(404).send({ error: 'módulo desativado' });
     const { id } = request.params as { id: string };
     return responder(reply, await opts.periciaDigital.iniciarAnalise(id, 'admin'));
+  });
+  app.post('/admin/pericia-digital/casos/:id/valores-banco', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigital)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const { id } = request.params as { id: string };
+    return responder(
+      reply,
+      await opts.periciaDigital.registrarValoresBanco(id, request.body, 'admin'),
+    );
   });
   app.post('/admin/pericia-digital/casos/:id/minuta', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)

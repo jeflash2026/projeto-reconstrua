@@ -7,13 +7,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHash } from 'node:crypto';
 import {
+  analisarMetadadosPdf,
+  analisarTrilhaAuditoria,
   beneficiarioSeguro,
+  classificarAssinatura,
   fichasDoHiscon,
   gerarMinuta,
   podeEmitir,
   podeTransitar,
   validarAprovacaoPerito,
   verificarConsistencia,
+  type AnaliseDocumento,
   type Achado,
   type DadosAprovacaoPerito,
   type DadosDoCaso,
@@ -171,6 +175,15 @@ export class PericiaDigitalService {
     const caso = await this.deps.casos.porId(casoId);
     if (caso === null) return erro('caso não encontrado');
     const { hash, tamanho } = hashETamanho(input.base64);
+    // Fase 3: análise técnica no registro — extrai só o que o arquivo carrega
+    // (metadados/assinatura/trilha); nunca inventa. O texto latin1 do PDF traz os
+    // streams de texto usados na varredura da trilha (aproximação; perito revisa).
+    const textoBruto = Buffer.from(input.base64, 'base64').toString('latin1');
+    const analise: AnaliseDocumento = {
+      metadados: analisarMetadadosPdf(input.base64),
+      assinatura: classificarAssinatura(input.base64, textoBruto),
+      trilha: analisarTrilhaAuditoria(textoBruto),
+    };
     const doc: DocumentoPericial = {
       id: this.deps.uuid.next(),
       casoId,
@@ -186,7 +199,8 @@ export class PericiaDigitalService {
       contratoVinculado: input.contratoVinculado ?? null,
       versao: 1,
       derivadoDe: input.derivadoDe ?? null,
-      statusAnalise: 'PENDENTE',
+      statusAnalise: 'ANALISADO',
+      analise,
       acessos: [],
       alteracoes: [],
     };
@@ -287,6 +301,12 @@ export class PericiaDigitalService {
       quesitos: caso.quesitos,
       conclusaoSugerida,
       limitacoes: ['Análise limitada aos documentos apresentados nesta data.'],
+      // Fase 3: análise técnica agregada dos documentos registrados.
+      metadados: caso.documentos.flatMap((d) => (d.analise?.metadados ? [d.analise.metadados] : [])),
+      assinaturas: caso.documentos.flatMap((d) =>
+        d.analise?.assinatura ? [d.analise.assinatura] : [],
+      ),
+      trilha: caso.documentos.flatMap((d) => (d.analise ? d.analise.trilha : [])),
       perito: null,
     });
     if (minuta.bloqueios.length > 0)

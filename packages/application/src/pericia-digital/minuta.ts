@@ -7,6 +7,7 @@
 import { exigeMarcaDagua, type StatusPericia } from './caso-pericial.js';
 import type { Achado } from './achado.js';
 import type { FichaContrato } from './fichas-contrato.js';
+import type { AnaliseAssinatura, ItemTrilha, MetadadosPdf } from './analise-tecnica.js';
 import {
   CONCLUSOES_PERMITIDAS,
   NAO_APRESENTADO,
@@ -48,6 +49,10 @@ export interface EntradaMinuta {
   readonly quesitos: readonly Quesito[];
   readonly conclusaoSugerida: TipoConclusao | null;
   readonly limitacoes: readonly string[];
+  /** Análise técnica extraída dos documentos (Fase 3) — ausente ⇒ NÃO APRESENTADO. */
+  readonly metadados?: readonly MetadadosPdf[];
+  readonly assinaturas?: readonly AnaliseAssinatura[];
+  readonly trilha?: readonly ItemTrilha[];
   /** Só presente quando ASSINADO — a máquina NUNCA preenche isto sozinha. */
   readonly perito: PeritoAssinante | null;
 }
@@ -135,6 +140,30 @@ function corpoPerito(perito: PeritoAssinante | null): string {
   );
 }
 
+function corpoMetadados(metadados: readonly MetadadosPdf[] | undefined): string {
+  if (!metadados || metadados.length === 0) return NAO_APRESENTADO;
+  return metadados
+    .map(
+      (m, i) =>
+        `  Documento ${String(i + 1)} — versão PDF: ${m.versaoPdf} · criação: ${m.dataCriacao} · ` +
+        `modificação: ${m.dataModificacao} · produtor: ${m.produtor} · revisões: ${String(m.revisoes)} · ` +
+        `assinatura embutida: ${m.assinaturaEmbutida ? 'sim' : 'não'} (ferramenta: ${m.ferramenta})`,
+    )
+    .join('\n');
+}
+
+function corpoAssinaturas(assinaturas: readonly AnaliseAssinatura[] | undefined): string {
+  if (!assinaturas || assinaturas.length === 0) return NAO_APRESENTADO;
+  return assinaturas
+    .map((a, i) => `  Documento ${String(i + 1)} — ${a.classificacao}: ${a.observacao}`)
+    .join('\n');
+}
+
+function corpoTrilha(trilha: readonly ItemTrilha[] | undefined): string {
+  if (!trilha || trilha.length === 0) return NAO_APRESENTADO;
+  return trilha.map((t) => `  ${t.elemento}: ${t.status} — ${t.evidencia}`).join('\n');
+}
+
 /** Gera a minuta em 26 seções. NÃO emite conclusão jurídica; aplica a marca
  *  d'água enquanto não aprovada; devolve `bloqueios` se algum termo proibido
  *  escapou (o chamador NÃO deve emitir com bloqueios). */
@@ -174,9 +203,9 @@ export function gerarMinuta(e: EntradaMinuta): MinutaGerada {
     { numero: 10, titulo: 'Ferramentas efetivamente utilizadas', corpo: lista(e.ferramentas) },
     { numero: 11, titulo: 'Análise do HISCON', corpo: corpoDasFichas(e.fichas) },
     { numero: 12, titulo: 'Análise do contrato eletrônico', corpo: NAO_APRESENTADO },
-    { numero: 13, titulo: 'Metadados', corpo: NAO_APRESENTADO },
-    { numero: 14, titulo: 'Assinaturas eletrônicas', corpo: NAO_APRESENTADO },
-    { numero: 15, titulo: 'Trilha de auditoria', corpo: NAO_APRESENTADO },
+    { numero: 13, titulo: 'Metadados', corpo: corpoMetadados(e.metadados) },
+    { numero: 14, titulo: 'Assinaturas eletrônicas', corpo: corpoAssinaturas(e.assinaturas) },
+    { numero: 15, titulo: 'Trilha de auditoria', corpo: corpoTrilha(e.trilha) },
     { numero: 16, titulo: 'IP, geolocalização e dispositivo', corpo: NAO_APRESENTADO },
     { numero: 17, titulo: 'Selfie, biometria e prova de vida', corpo: NAO_APRESENTADO },
     { numero: 18, titulo: 'Documento de identificação', corpo: NAO_APRESENTADO },

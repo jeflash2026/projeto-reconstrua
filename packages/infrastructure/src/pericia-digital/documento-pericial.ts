@@ -4,7 +4,11 @@
 // OCR geram um DERIVADO (derivadoDe aponta o original), nunca sobrescrevem.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHash } from 'node:crypto';
-import type { CategoriaDocumento, OrigemDocumento } from '@reconstrua/application';
+import type {
+  AnaliseDocumento,
+  CategoriaDocumento,
+  OrigemDocumento,
+} from '@reconstrua/application';
 
 export type StatusAnaliseDocumento = 'PENDENTE' | 'EM_ANALISE' | 'ANALISADO';
 
@@ -35,6 +39,8 @@ export interface DocumentoPericial {
   /** Quando é um DERIVADO (OCR/conversão/compactação): id do original preservado. */
   readonly derivadoDe: string | null;
   readonly statusAnalise: StatusAnaliseDocumento;
+  /** Análise técnica extraída no registro (metadados/assinatura/trilha) — Fase 3. */
+  readonly analise: AnaliseDocumento | null;
   readonly acessos: readonly AcessoDocumento[];
   readonly alteracoes: readonly AlteracaoDocumento[];
 }

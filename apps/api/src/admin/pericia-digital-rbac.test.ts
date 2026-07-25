@@ -101,9 +101,18 @@ describe('Perícia Digital — RBAC + LGPD na API', () => {
   });
 
   it('só o perito aprova/assina; administrador recebe 403', async () => {
-    expect((await inject('POST', '/admin/pericia-digital/casos/caso-1/aprovar', 'administrador')).statusCode).toBe(403);
-    expect((await inject('POST', '/admin/pericia-digital/casos/caso-1/assinar', 'administrador')).statusCode).toBe(403);
-    expect((await inject('POST', '/admin/pericia-digital/casos/caso-1/aprovar', 'perito', {})).statusCode).toBe(200);
+    expect(
+      (await inject('POST', '/admin/pericia-digital/casos/caso-1/aprovar', 'administrador'))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (await inject('POST', '/admin/pericia-digital/casos/caso-1/assinar', 'administrador'))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (await inject('POST', '/admin/pericia-digital/casos/caso-1/aprovar', 'perito', {}))
+        .statusCode,
+    ).toBe(200);
   });
 
   it('advogado lê o caso, mas com CPF/nome mascarados e minuta redigida', async () => {

@@ -27,15 +27,16 @@ const PericiaDigitalPage = async (): Promise<ReactElement> => {
       </p>
       {!on ? (
         <div className="card empty">
-          Módulo desativado. Para habilitar, defina <span className="mono">PERICIA_DIGITAL_ENABLED=true</span>{' '}
-          no ambiente da API e reinicie.
+          Módulo desativado. Para habilitar, defina{' '}
+          <span className="mono">PERICIA_DIGITAL_ENABLED=true</span> no ambiente da API e reinicie.
         </div>
       ) : (
         <>
           <PericiaDigitalCasos casos={await pdListarCasos()} />
           <details className="card" style={{ marginTop: 16 }}>
             <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-              Base de Conhecimento Pericial ({base.entradas.length}) — material de consulta do perito
+              Base de Conhecimento Pericial ({base.entradas.length}) — material de consulta do
+              perito
             </summary>
             <p className="page-sub" style={{ marginTop: 8 }}>
               Procedimentos e fronteiras legais desta Central. Não cita normas externas: é

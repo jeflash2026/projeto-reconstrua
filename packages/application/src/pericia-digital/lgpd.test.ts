@@ -49,7 +49,11 @@ describe('LGPD — minimização e mascaramento por papel (projeção de leitura
   });
 
   it('projetarDados mascara só para papel restrito', () => {
-    const dados = { nomeCliente: 'João Pedro Souza', cpf: '12345678905', numeroBeneficio: '1234567' };
+    const dados = {
+      nomeCliente: 'João Pedro Souza',
+      cpf: '12345678905',
+      numeroBeneficio: '1234567',
+    };
     expect(projetarDados(dados, 'perito')).toEqual(dados);
     const mascarado = projetarDados(dados, 'visualizador');
     expect(mascarado.cpf).toBe('123.XXX.XXX-05');

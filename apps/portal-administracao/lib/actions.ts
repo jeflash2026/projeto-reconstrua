@@ -747,7 +747,10 @@ export interface PdConhecimento {
   corpo: string;
 }
 /** Base de Conhecimento Pericial (Fase 5C): material de consulta, read-only. */
-export async function pdConhecimento(): Promise<{ categorias: string[]; entradas: PdConhecimento[] }> {
+export async function pdConhecimento(): Promise<{
+  categorias: string[];
+  entradas: PdConhecimento[];
+}> {
   const r = await getJson<{ categorias: string[]; entradas: PdConhecimento[] }>(
     '/admin/pericia-digital/conhecimento',
   );

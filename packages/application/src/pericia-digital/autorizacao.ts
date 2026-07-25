@@ -14,12 +14,7 @@
 /** Papéis reconhecidos pela Central. 'assistente'/'auditor'/'visualizador' são
  *  papéis de perícia sem equivalente direto no diretório operacional. */
 export type PapelPericia =
-  | 'administrador'
-  | 'perito'
-  | 'advogado'
-  | 'assistente'
-  | 'auditor'
-  | 'visualizador';
+  'administrador' | 'perito' | 'advogado' | 'assistente' | 'auditor' | 'visualizador';
 
 export const PAPEIS_PERICIA: readonly PapelPericia[] = [
   'administrador',

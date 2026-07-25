@@ -8,6 +8,7 @@ import type {
   DadosAprovacaoPerito,
   DadosDoCaso,
   FichaContrato,
+  ItemChecklist,
   Quesito,
   StatusPericia,
 } from '@reconstrua/application';
@@ -49,6 +50,11 @@ export interface CasoPericial {
   readonly status: StatusPericia;
   readonly dados: DadosDoCaso;
   readonly valoresBanco: ValoresBanco | null;
+  /** Checklists 6D/6E preenchidos pelo perito (biometria e documento de ID). */
+  readonly checklists: {
+    readonly biometria: readonly ItemChecklist[];
+    readonly documentoId: readonly ItemChecklist[];
+  } | null;
   readonly fichas: readonly FichaContrato[];
   readonly achados: readonly Achado[];
   readonly documentos: readonly DocumentoPericial[];

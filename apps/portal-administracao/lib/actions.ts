@@ -815,3 +815,14 @@ export async function pdRegistrarValoresBanco(
 ): Promise<PdResultado> {
   return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/valores-banco`, valores);
 }
+
+export async function pdRegistrarChecklist(
+  id: string,
+  tipo: 'BIOMETRIA' | 'DOCUMENTO_ID',
+  itens: { item: string; status: string; observacao: string | null }[],
+): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/checklist`, {
+    tipo,
+    itens,
+  });
+}

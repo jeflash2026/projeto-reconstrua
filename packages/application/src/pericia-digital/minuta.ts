@@ -9,6 +9,7 @@ import type { Achado } from './achado.js';
 import type { FichaContrato } from './fichas-contrato.js';
 import type { AnaliseAssinatura, ItemTrilha, MetadadosPdf } from './analise-tecnica.js';
 import type { AnaliseFluxoFinanceiro } from './fluxo-financeiro.js';
+import { NOTA_BIOMETRIA, NOTA_DOCUMENTO_ID, type ItemChecklist } from './checklists.js';
 import {
   CONCLUSOES_PERMITIDAS,
   NAO_APRESENTADO,
@@ -55,6 +56,8 @@ export interface EntradaMinuta {
   readonly assinaturas?: readonly AnaliseAssinatura[];
   readonly trilha?: readonly ItemTrilha[];
   readonly fluxoFinanceiro?: AnaliseFluxoFinanceiro | null;
+  readonly biometria?: readonly ItemChecklist[];
+  readonly documentoId?: readonly ItemChecklist[];
   /** Só presente quando ASSINADO — a máquina NUNCA preenche isto sozinha. */
   readonly perito: PeritoAssinante | null;
 }
@@ -166,6 +169,14 @@ function corpoTrilha(trilha: readonly ItemTrilha[] | undefined): string {
   return trilha.map((t) => `  ${t.elemento}: ${t.status} — ${t.evidencia}`).join('\n');
 }
 
+function corpoChecklist(itens: readonly ItemChecklist[] | undefined, nota: string): string {
+  if (!itens || itens.length === 0) return NAO_APRESENTADO;
+  const linhas = itens
+    .map((i) => `  ${i.item}: ${i.status}${i.observacao ? ` — ${i.observacao}` : ''}`)
+    .join('\n');
+  return `${linhas}\n\n  ${nota}`;
+}
+
 function corpoFluxoFinanceiro(fluxo: AnaliseFluxoFinanceiro | null | undefined): string {
   if (!fluxo) return NAO_APRESENTADO;
   const linhas = fluxo.itens
@@ -217,8 +228,16 @@ export function gerarMinuta(e: EntradaMinuta): MinutaGerada {
     { numero: 14, titulo: 'Assinaturas eletrônicas', corpo: corpoAssinaturas(e.assinaturas) },
     { numero: 15, titulo: 'Trilha de auditoria', corpo: corpoTrilha(e.trilha) },
     { numero: 16, titulo: 'IP, geolocalização e dispositivo', corpo: NAO_APRESENTADO },
-    { numero: 17, titulo: 'Selfie, biometria e prova de vida', corpo: NAO_APRESENTADO },
-    { numero: 18, titulo: 'Documento de identificação', corpo: NAO_APRESENTADO },
+    {
+      numero: 17,
+      titulo: 'Selfie, biometria e prova de vida',
+      corpo: corpoChecklist(e.biometria, NOTA_BIOMETRIA),
+    },
+    {
+      numero: 18,
+      titulo: 'Documento de identificação',
+      corpo: corpoChecklist(e.documentoId, NOTA_DOCUMENTO_ID),
+    },
     { numero: 19, titulo: 'Fluxo financeiro', corpo: corpoFluxoFinanceiro(e.fluxoFinanceiro) },
     { numero: 20, titulo: 'Inconsistências encontradas', corpo: corpoDosAchados(e.achados) },
     { numero: 21, titulo: 'Limitações da análise', corpo: lista(e.limitacoes) },

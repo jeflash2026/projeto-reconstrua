@@ -166,6 +166,12 @@ export function buildAdminServer(
       registrarDocumento(casoId: string, input: unknown, usuario: string): Promise<unknown>;
       iniciarAnalise(casoId: string, usuario: string): Promise<unknown>;
       registrarValoresBanco(casoId: string, valores: unknown, usuario: string): Promise<unknown>;
+      registrarChecklist(
+        casoId: string,
+        tipo: 'BIOMETRIA' | 'DOCUMENTO_ID',
+        itens: unknown,
+        usuario: string,
+      ): Promise<unknown>;
       marcarDocumentacaoPendente(casoId: string, usuario: string): Promise<unknown>;
       registrarAchado(casoId: string, achado: unknown, usuario: string): Promise<unknown>;
       adicionarQuesito(casoId: string, quesito: unknown, usuario: string): Promise<unknown>;
@@ -555,6 +561,18 @@ export function buildAdminServer(
     return responder(
       reply,
       await opts.periciaDigital.registrarValoresBanco(id, request.body, 'admin'),
+    );
+  });
+  app.post('/admin/pericia-digital/casos/:id/checklist', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigital)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const { id } = request.params as { id: string };
+    const b = request.body as { tipo?: 'BIOMETRIA' | 'DOCUMENTO_ID'; itens?: unknown };
+    if (b.tipo !== 'BIOMETRIA' && b.tipo !== 'DOCUMENTO_ID')
+      return reply.code(400).send({ error: 'tipo inválido' });
+    return responder(
+      reply,
+      await opts.periciaDigital.registrarChecklist(id, b.tipo, b.itens ?? [], 'admin'),
     );
   });
   app.post('/admin/pericia-digital/casos/:id/minuta', async (request, reply) => {

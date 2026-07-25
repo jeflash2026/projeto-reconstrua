@@ -12,14 +12,18 @@ import {
   analisarTrilhaAuditoria,
   beneficiarioSeguro,
   classificarAssinatura,
+  checklistPadrao,
   fichasDoHiscon,
   gerarMinuta,
+  normalizarChecklist,
   podeEmitir,
   podeTransitar,
   validarAprovacaoPerito,
   verificarConsistencia,
   type AnaliseDocumento,
   type Achado,
+  type ItemChecklist,
+  type TipoChecklist,
   type DadosAprovacaoPerito,
   type DadosDoCaso,
   type HisconExtraido,
@@ -97,9 +101,7 @@ export class PericiaDigitalService {
   trilhaCustodia(casoId: string): Promise<readonly EventoCustodia[]> {
     return this.deps.custodia.trilha(casoId);
   }
-  verificarCustodia(
-    casoId: string,
-  ): Promise<{ integro: boolean; quebrouEmSeq: number | null }> {
+  verificarCustodia(casoId: string): Promise<{ integro: boolean; quebrouEmSeq: number | null }> {
     return this.deps.custodia.verificar(casoId);
   }
 
@@ -162,6 +164,7 @@ export class PericiaDigitalService {
         numeroProcesso: null,
       },
       valoresBanco: null,
+      checklists: null,
       fichas: fichasDoHiscon(extraido),
       achados: [],
       documentos: [],
@@ -298,6 +301,31 @@ export class PericiaDigitalService {
     });
   }
 
+  /** Registra o checklist 6D/6E preenchido pelo perito (biometria ou doc de ID).
+   *  Normaliza ao conjunto de itens do tipo; nunca inventa status. */
+  async registrarChecklist(
+    casoId: string,
+    tipo: TipoChecklist,
+    itens: readonly ItemChecklist[],
+    usuario: string,
+  ): Promise<Resultado<CasoPericial>> {
+    const caso = await this.deps.casos.porId(casoId);
+    if (caso === null) return erro('caso não encontrado');
+    const atual = caso.checklists ?? {
+      biometria: checklistPadrao('BIOMETRIA'),
+      documentoId: checklistPadrao('DOCUMENTO_ID'),
+    };
+    const normalizado = normalizarChecklist(tipo, itens);
+    const checklists =
+      tipo === 'BIOMETRIA'
+        ? { ...atual, biometria: normalizado }
+        : { ...atual, documentoId: normalizado };
+    return this.persistir({ ...caso, checklists }, null, {
+      usuario,
+      acao: `CHECKLIST_${tipo}_REGISTRADO`,
+    });
+  }
+
   /** Inicia a análise de evidências (pré-requisito para gerar a minuta). */
   async iniciarAnalise(casoId: string, usuario: string): Promise<Resultado<CasoPericial>> {
     const caso = await this.deps.casos.porId(casoId);
@@ -348,6 +376,8 @@ export class PericiaDigitalService {
       ),
       trilha: caso.documentos.flatMap((d) => (d.analise ? d.analise.trilha : [])),
       fluxoFinanceiro: montarFluxo(caso),
+      ...(caso.checklists?.biometria ? { biometria: caso.checklists.biometria } : {}),
+      ...(caso.checklists?.documentoId ? { documentoId: caso.checklists.documentoId } : {}),
       perito: null,
     });
     if (minuta.bloqueios.length > 0)

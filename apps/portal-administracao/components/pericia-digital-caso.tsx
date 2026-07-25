@@ -10,6 +10,7 @@ import {
   pdGerarMinuta,
   pdIniciarAnalise,
   pdLiberar,
+  pdRegistrarChecklist,
   pdRegistrarDocumento,
   pdRegistrarValoresBanco,
   pdSubmeterRevisao,
@@ -17,7 +18,43 @@ import {
   type PdEventoCustodia,
 } from '../lib/actions';
 
-type Aba = 'contratos' | 'documentos' | 'financeiro' | 'minuta' | 'revisao' | 'custodia';
+type Aba =
+  'contratos' | 'documentos' | 'financeiro' | 'verificacoes' | 'minuta' | 'revisao' | 'custodia';
+
+const ITENS_BIOMETRIA = [
+  'Arquivo original ou imagem inserida em PDF',
+  'Resolução',
+  'Metadados da imagem',
+  'Data de captura',
+  'Vínculo com a sessão',
+  'Vínculo criptográfico com o contrato',
+  'Relatório de liveness',
+  'Prova de vida ativa',
+  'Prova de vida passiva',
+  'Análise de profundidade',
+  'Presença de marcas d’água',
+  'Identificador da sessão',
+  'Possível reaproveitamento de imagem',
+];
+const ITENS_DOCUMENTO_ID = [
+  'Presença de frente e verso',
+  'Qualidade da imagem',
+  'Metadados',
+  'OCR',
+  'Consistência entre nome, CPF, RG e data de nascimento',
+  'Data da captura',
+  'Vínculo com a sessão',
+  'Documento já existente na base bancária',
+  'Sinais observáveis de montagem',
+  'Divergências entre dados',
+];
+const STATUS_CHECKLIST = [
+  'NECESSITA_REVISAO',
+  'PRESENTE',
+  'AUSENTE',
+  'INCONSISTENTE',
+  'NAO_APLICAVEL',
+];
 
 const CONCLUSOES: Record<string, string> = {
   A: 'A — Elementos tecnicamente consistentes',
@@ -123,20 +160,28 @@ const PericiaDigitalCaso = ({
 
       {/* Abas */}
       <div className="form-row" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
-        {(['contratos', 'documentos', 'financeiro', 'minuta', 'revisao', 'custodia'] as Aba[]).map(
-          (a) => (
-            <button
-              key={a}
-              className={aba === a ? 'primary' : ''}
-              onClick={() => {
-                setAba(a);
-              }}
-            >
-              {a[0]?.toUpperCase()}
-              {a.slice(1)}
-            </button>
-          ),
-        )}
+        {(
+          [
+            'contratos',
+            'documentos',
+            'financeiro',
+            'verificacoes',
+            'minuta',
+            'revisao',
+            'custodia',
+          ] as Aba[]
+        ).map((a) => (
+          <button
+            key={a}
+            className={aba === a ? 'primary' : ''}
+            onClick={() => {
+              setAba(a);
+            }}
+          >
+            {a[0]?.toUpperCase()}
+            {a.slice(1)}
+          </button>
+        ))}
       </div>
 
       {aba === 'contratos' ? (
@@ -204,6 +249,27 @@ const PericiaDigitalCaso = ({
 
       {aba === 'financeiro' ? <FinanceiroForm caso={caso} busy={busy} agir={agir} /> : null}
 
+      {aba === 'verificacoes' ? (
+        <>
+          <ChecklistForm
+            titulo="Selfie, biometria e prova de vida (6D)"
+            tipo="BIOMETRIA"
+            itens={ITENS_BIOMETRIA}
+            casoId={caso.id}
+            busy={busy}
+            agir={agir}
+          />
+          <ChecklistForm
+            titulo="Documento de identificação (6E)"
+            tipo="DOCUMENTO_ID"
+            itens={ITENS_DOCUMENTO_ID}
+            casoId={caso.id}
+            busy={busy}
+            agir={agir}
+          />
+        </>
+      ) : null}
+
       {aba === 'minuta' ? (
         <div className="card">
           <h3>Minuta {minutaAtual ? `(versão ${String(minutaAtual.versao)})` : ''}</h3>
@@ -263,6 +329,94 @@ const PericiaDigitalCaso = ({
     </>
   );
 };
+
+function ChecklistForm({
+  titulo,
+  tipo,
+  itens,
+  casoId,
+  busy,
+  agir,
+}: {
+  titulo: string;
+  tipo: 'BIOMETRIA' | 'DOCUMENTO_ID';
+  itens: string[];
+  casoId: string;
+  busy: boolean;
+  agir: (fn: () => Promise<{ ok: boolean; error: string | null }>) => Promise<void>;
+}): ReactElement {
+  const [estado, setEstado] = useState<Record<string, { status: string; obs: string }>>(() =>
+    Object.fromEntries(itens.map((i) => [i, { status: 'NECESSITA_REVISAO', obs: '' }])),
+  );
+  const set = (item: string, campo: 'status' | 'obs', v: string): void =>
+    setEstado((p) => ({ ...p, [item]: { ...p[item]!, [campo]: v } }));
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <h3>{titulo}</h3>
+      <p className="page-sub" style={{ marginTop: 0 }}>
+        Observação do perito, item a item. A automação não conclui fraude/replay/reaproveitamento
+        sem evidência suficiente.
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Status</th>
+              <th>Observação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {itens.map((item) => (
+              <tr key={item}>
+                <td style={{ fontSize: 13 }}>{item}</td>
+                <td>
+                  <select
+                    value={estado[item]?.status ?? 'NECESSITA_REVISAO'}
+                    onChange={(e) => set(item, 'status', e.target.value)}
+                  >
+                    {STATUS_CHECKLIST.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  <input
+                    value={estado[item]?.obs ?? ''}
+                    onChange={(e) => set(item, 'obs', e.target.value)}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button
+        className="primary"
+        style={{ marginTop: 10 }}
+        disabled={busy}
+        onClick={() =>
+          void agir(() =>
+            pdRegistrarChecklist(
+              casoId,
+              tipo,
+              itens.map((item) => ({
+                item,
+                status: estado[item]?.status ?? 'NECESSITA_REVISAO',
+                observacao: estado[item]?.obs?.trim() ? estado[item].obs.trim() : null,
+              })),
+            ),
+          )
+        }
+      >
+        Salvar checklist
+      </button>
+    </div>
+  );
+}
 
 function FinanceiroForm({
   caso,

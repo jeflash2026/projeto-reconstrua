@@ -8,6 +8,7 @@ export * from './linguagem-segura.js';
 export * from './documentos-tipos.js';
 export * from './analise-tecnica.js';
 export * from './fluxo-financeiro.js';
+export * from './checklists.js';
 export * from './caso-pericial.js';
 export * from './achado.js';
 export * from './fichas-contrato.js';

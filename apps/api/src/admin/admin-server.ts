@@ -366,9 +366,15 @@ export function buildAdminServer(
       ? await opts.pericia.contagemDocumentosRegistrados().catch(() => null)
       : null;
 
+    // Total de contratos (Centro de Comando): soma dos contratos de TODOS os
+    // clientes com HISCON legível — mesma fonte do potencial (nunca recalculado).
+    const totalContratos =
+      potencialCC !== null ? potencialCC.porCliente.reduce((s, c) => s + c.contratos, 0) : null;
+
     const indicadores = indicadoresExecutivos({
       clientesAtivos: listaCC !== null ? listaCC.length : (metrics?.clientCount ?? 0),
       novosClientesHoje,
+      totalContratos,
       dossiesGerados:
         potencialCC !== null ? potencialCC.porCliente.length : painel.totalAtendimentos,
       casosDistribuidos:

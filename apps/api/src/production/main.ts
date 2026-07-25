@@ -108,6 +108,17 @@ async function main(): Promise<void> {
     periciaFluxo: prod.periciaFluxo,
     // Decreto 2026-07-24: mapa de clientes (distribuição por estado/cidade).
     mapaClientes: prod.mapaClientes,
+    // Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag).
+    periciaDigitalHabilitado: prod.periciaDigitalHabilitado,
+    periciaDigital: prod.periciaDigital,
+    periciaDigitalCasos: {
+      todos: () => prod.periciaDigital.listarCasos(),
+      porId: (id: string) => prod.periciaDigital.obterCaso(id),
+    },
+    periciaDigitalCustodia: {
+      trilha: (id: string) => prod.periciaDigital.trilhaCustodia(id),
+      verificar: (id: string) => prod.periciaDigital.verificarCustodia(id),
+    },
   });
   const advogado = buildAdvogadoServer(prod.advogadoView, {
     accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',

@@ -676,3 +676,170 @@ export async function autorizarReaquecimento(
     return { ok: false, error: e instanceof Error ? e.message : 'falha de rede' };
   }
 }
+
+// ── CENTRAL DE PERÍCIA DIGITAL (Decreto 2026-07-24) — atrás de feature flag na API.
+export interface PdFicha {
+  contrato: string;
+  bancoNome: string;
+  bancoCodigo: string;
+  situacao: string;
+  competenciaInicio: string;
+  competenciaFim: string;
+  qtdeParcelas: string;
+  valorParcela: string;
+  valorEmprestado: string;
+  classificacao: string;
+  observacao: string;
+}
+export interface PdDocumento {
+  id: string;
+  nomeOriginal: string;
+  categoria: string;
+  origem: string;
+  hashSha256: string;
+  tamanho: number;
+  formato: string;
+  derivadoDe: string | null;
+  uploadEm: string;
+}
+export interface PdCaso {
+  id: string;
+  numeroCaso: string;
+  chatId: string;
+  status: string;
+  dados: { nomeCliente: string | null; cpf: string | null; numeroBeneficio: string | null };
+  fichas: PdFicha[];
+  documentos: PdDocumento[];
+  minutaVersoes: { versao: number; geradoEm: string; hash: string; texto: string }[];
+  aprovacao: {
+    perito: { nomeCompleto: string };
+    aprovadoEm: string;
+    assinadoEm: string | null;
+  } | null;
+  criadoEm: string;
+}
+export interface PdEventoCustodia {
+  seq: number;
+  usuario: string;
+  acao: string;
+  em: string;
+  detalhe: string | null;
+  hash: string;
+}
+
+export async function pdHabilitado(): Promise<boolean> {
+  return (await getJson<{ habilitado: boolean }>('/admin/pericia-digital')) !== null;
+}
+export async function pdListarCasos(): Promise<PdCaso[]> {
+  return (await getJson<{ casos: PdCaso[] }>('/admin/pericia-digital/casos'))?.casos ?? [];
+}
+export async function pdObterCaso(id: string): Promise<{
+  caso: PdCaso;
+  custodia: { trilha: PdEventoCustodia[]; integridade: { integro: boolean } | null };
+} | null> {
+  return getJson(`/admin/pericia-digital/casos/${encodeURIComponent(id)}`);
+}
+
+export interface PdConhecimento {
+  id: string;
+  categoria: string;
+  titulo: string;
+  corpo: string;
+}
+/** Base de Conhecimento Pericial (Fase 5C): material de consulta, read-only. */
+export async function pdConhecimento(): Promise<{
+  categorias: string[];
+  entradas: PdConhecimento[];
+}> {
+  const r = await getJson<{ categorias: string[]; entradas: PdConhecimento[] }>(
+    '/admin/pericia-digital/conhecimento',
+  );
+  return r ?? { categorias: [], entradas: [] };
+}
+
+async function pdPost(path: string, body: unknown): Promise<{ ok: boolean; error: string | null }> {
+  const r = await sendJson<{ error?: string }>('POST', path, body ?? {});
+  if (r === null) return { ok: false, error: 'operação recusada pela API' };
+  if (r && typeof r === 'object' && 'error' in r && r.error) return { ok: false, error: r.error };
+  return { ok: true, error: null };
+}
+
+type PdResultado = { ok: boolean; error: string | null };
+
+export async function pdCriarCaso(chatId: string, numeroCaso: string): Promise<PdResultado> {
+  return pdPost('/admin/pericia-digital/casos', { chatId, numeroCaso });
+}
+export async function pdIniciarAnalise(id: string): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/analise`, {});
+}
+export async function pdGerarMinuta(
+  id: string,
+  conclusaoSugerida: string | null,
+): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/minuta`, {
+    conclusaoSugerida,
+  });
+}
+export async function pdSubmeterRevisao(id: string): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/revisao`, {});
+}
+export async function pdAssinar(id: string): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/assinar`, {});
+}
+export async function pdLiberar(id: string): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/liberar`, {});
+}
+export async function pdAprovar(
+  id: string,
+  perito: {
+    nomeCompleto: string;
+    cpf: string;
+    qualificacao: string;
+    especialidades: string;
+    registroProfissional: string | null;
+    curriculoResumido: string;
+    declaracaoResponsabilidade: boolean;
+    confirmouExameDosArquivos: boolean;
+  },
+): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/aprovar`, perito);
+}
+export async function pdRegistrarDocumento(
+  id: string,
+  doc: {
+    nomeOriginal: string;
+    base64: string;
+    categoria: string;
+    origem: string;
+    responsavelEnvio: string;
+  },
+): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/documentos`, doc);
+}
+
+export async function pdRegistrarValoresBanco(
+  id: string,
+  valores: {
+    valorContratoDeclarado: number | null;
+    valorCreditado: number | null;
+    dataCredito: string | null;
+    contaDestinataria: string | null;
+    titularidade: string | null;
+    valorRefinanciado: number | null;
+    valorQuitacao: number | null;
+    trocoLiberado: number | null;
+  },
+): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/valores-banco`, valores);
+}
+
+export async function pdRegistrarChecklist(
+  id: string,
+  tipo: 'BIOMETRIA' | 'DOCUMENTO_ID',
+  itens: { item: string; status: string; observacao: string | null }[],
+): Promise<PdResultado> {
+  return pdPost(`/admin/pericia-digital/casos/${encodeURIComponent(id)}/checklist`, {
+    tipo,
+    itens,
+  });
+}

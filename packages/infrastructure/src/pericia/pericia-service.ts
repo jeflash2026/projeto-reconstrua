@@ -179,6 +179,11 @@ export class PericiaService {
     return candidato !== null && pareceNomeDePessoa(candidato) ? candidato : null;
   }
 
+  /** HISCON parseado do cliente — reuso público (Central de Perícia Digital). */
+  async hisconDe(chatId: string): Promise<HisconExtraido | null> {
+    return this.extrairHiscon(chatId);
+  }
+
   private async extrairHiscon(chatId: string): Promise<HisconExtraido | null> {
     const onboarding = (await this.deps.json.get(
       NS_ONBOARDING,

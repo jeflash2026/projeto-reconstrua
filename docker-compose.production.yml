@@ -81,6 +81,9 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ALLOW_DEGRADED: ${ALLOW_DEGRADED:-false}
+      # Central de Perícia Digital — feature flag (default OFF; endpoints 404
+      # enquanto false). Ligue definindo PERICIA_DIGITAL_ENABLED=true no .env.
+      PERICIA_DIGITAL_ENABLED: ${PERICIA_DIGITAL_ENABLED:-false}
     # GO-LIVE-02: healthcheck REAL — a mesma rota pública de saúde da plataforma.
     healthcheck:
       test:

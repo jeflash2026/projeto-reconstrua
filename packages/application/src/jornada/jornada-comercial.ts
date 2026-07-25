@@ -317,6 +317,13 @@ export const MENSAGENS_JORNADA = {
     'Recebi o seu documento, obrigada! Mas verifiquei aqui e ele é um HISTÓRICO DE CRÉDITO — não é o documento que preciso para a análise.\n\n' +
     'Para o seu caso eu preciso do HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), emitido no Meu INSS na opção "Extrato de Empréstimos Consignados", com todos os contratos, em PDF.\n\n' +
     'É só baixar esse PDF e me enviar aqui como anexo. Se quiser, eu te explico o passo a passo para localizar essa opção — é só me avisar.',
+  // Caso 7582422298 (2026-07-25): a cliente enviou o PRINT da tela de CONSULTA/BUSCA
+  // do consignado ("Empréstimo não encontrado"). A AHRI reconhece a tela e explica
+  // o caminho certo, pedindo o PDF do extrato completo.
+  telaConsultaHisconRecebida:
+    'Recebi a sua imagem, obrigada! Mas verifiquei aqui e é o print da TELA DE CONSULTA/BUSCA do Meu INSS (inclusive aparece "empréstimo não encontrado") — essa tela é só o formulário de pesquisa e não traz os seus contratos, então a análise não roda com ela.\n\n' +
+    'O que eu preciso é o HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), em PDF, com todos os contratos. No Meu INSS, procure a opção "Extrato de Empréstimos Consignados", gere/baixe o PDF e me envie aqui como anexo.\n\n' +
+    'Importante: precisa ser o ARQUIVO em PDF — a foto ou o print da tela não trazem todos os contratos. Se quiser, eu te explico o passo a passo para localizar essa opção.',
   // Caso Lucas: desconfiança ("cara de golpe") ⇒ resposta de SEGURANÇA.
   seguranca:
     'Sua cautela é correta — e desconfiar é importante mesmo. Alguns pontos para a sua segurança:\n\n' +

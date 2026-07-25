@@ -98,12 +98,10 @@ export function papelPericia(bruto: string | null | undefined): PapelPericia | n
   return ehPapel(v) ? v : null;
 }
 
-/** Mapeia o papel do diretório operacional (HumanRole) para o papel de perícia.
- *  operador → assistente; supervisor → auditor. Fail-open apenas para papéis
- *  conhecidos do diretório; qualquer outro vira null (negado). */
-export function papelDeHumanRole(
-  role: 'perito' | 'advogado' | 'operador' | 'supervisor' | 'administrador' | string,
-): PapelPericia | null {
+/** Mapeia o papel do diretório operacional (HumanRole: perito/advogado/operador/
+ *  supervisor/administrador) para o papel de perícia. operador → assistente;
+ *  supervisor → auditor. Aceita string arbitrária; desconhecido vira null. */
+export function papelDeHumanRole(role: string): PapelPericia | null {
   switch (role) {
     case 'administrador':
       return 'administrador';

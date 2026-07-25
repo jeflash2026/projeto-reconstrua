@@ -6,7 +6,7 @@
 // Founder Console (leitura narrada). NÃO inicia servidor (o `.listen` é do dono).
 // ─────────────────────────────────────────────────────────────────────────────
 import { randomUUID } from 'node:crypto';
-import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
 import { zipStore, nomeArquivoSeguro } from '../util/zip.js';
 import {
@@ -23,8 +23,14 @@ import {
   montarPainelDoArquiteto,
   montarTimelineCognitiva,
   ordenarCasos,
+  papelPericia,
+  podePapelBruto,
   prazoDosPedidos,
+  projetarDados,
+  redigirPii,
   resumirCaso,
+  veDadoCompleto,
+  type AcaoPericia,
   type DossieJuridico,
   type ConversationContextView,
   type FatoAprendidoDeCliente,
@@ -506,31 +512,88 @@ export function buildAdminServer(
     if (!res.ok) return reply.code(422).send({ error: res.error ?? 'operação recusada' });
     return res.valor;
   };
+  // ── Fase 5: RBAC por papel ──────────────────────────────────────────────────
+  // O papel do ator vem do header `x-pericia-papel` (o portal o define pela
+  // sessão autenticada). Fail-closed: ausente/desconhecido ⇒ nega. O portal do
+  // administrador não envia o header e assume 'administrador' (mesmo poder de
+  // orquestração de sempre) — mas nunca 'aprovar'/'assinar' (ato do perito).
+  const papelDe = (request: FastifyRequest): string => {
+    const h = request.headers['x-pericia-papel'];
+    const v = (Array.isArray(h) ? h[0] : h)?.trim();
+    return v && v.length > 0 ? v : 'administrador';
+  };
+  const autorizar = (reply: FastifyReply, papel: string, acao: AcaoPericia): boolean => {
+    if (podePapelBruto(papel, acao)) return true;
+    reply.code(403).send({ error: `papel "${papel}" sem permissão para: ${acao}` });
+    return false;
+  };
+  // ── Fase 5: projeção LGPD de LEITURA ────────────────────────────────────────
+  // Mascara dados pessoais e redige PII solta na minuta para papéis restritos.
+  // Nunca altera o armazenamento — é só a visão entregue ao papel.
+  type CasoLido = {
+    dados?: { nomeCliente: string | null; cpf: string | null; numeroBeneficio: string | null };
+    minutaVersoes?: { texto?: string }[];
+  };
+  const projetarCaso = (caso: unknown, papel: string): unknown => {
+    if (veDadoCompleto(papelPericia(papel))) return caso;
+    const c = caso as CasoLido;
+    return {
+      ...(caso as object),
+      ...(c.dados
+        ? {
+            dados: {
+              ...c.dados,
+              ...projetarDados(c.dados, papelPericia(papel)),
+            },
+          }
+        : {}),
+      ...(c.minutaVersoes
+        ? {
+            minutaVersoes: c.minutaVersoes.map((m) => ({
+              ...m,
+              ...(typeof m.texto === 'string' ? { texto: redigirPii(m.texto) } : {}),
+            })),
+          }
+        : {}),
+    };
+  };
 
   app.get('/admin/pericia-digital', async (_request, reply) => {
     if (!pdOn()) return reply.code(404).send({ error: 'módulo desativado' });
     return { habilitado: true };
   });
-  app.get('/admin/pericia-digital/casos', async (_request, reply) => {
+  app.get('/admin/pericia-digital/casos', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigitalCasos)
       return reply.code(404).send({ error: 'módulo desativado' });
-    return { casos: await opts.periciaDigitalCasos.todos() };
+    const papel = papelDe(request);
+    if (!autorizar(reply, papel, 'listar')) return reply;
+    const casos = await opts.periciaDigitalCasos.todos();
+    return { casos: casos.map((c) => projetarCaso(c, papel)) };
   });
   app.get('/admin/pericia-digital/casos/:id', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigitalCasos)
       return reply.code(404).send({ error: 'módulo desativado' });
+    const papel = papelDe(request);
+    if (!autorizar(reply, papel, 'ler')) return reply;
     const { id } = request.params as { id: string };
     const caso = await opts.periciaDigitalCasos.porId(id);
     if (caso === null) return reply.code(404).send({ error: 'caso não encontrado' });
-    const trilha = opts.periciaDigitalCustodia ? await opts.periciaDigitalCustodia.trilha(id) : [];
-    const integridade = opts.periciaDigitalCustodia
-      ? await opts.periciaDigitalCustodia.verificar(id)
-      : null;
-    return { caso, custodia: { trilha, integridade } };
+    // A trilha de custódia só é entregue a quem pode vê-la (auditor/perito/admin).
+    const podeCustodia = podePapelBruto(papel, 'ver_custodia');
+    const trilha =
+      podeCustodia && opts.periciaDigitalCustodia
+        ? await opts.periciaDigitalCustodia.trilha(id)
+        : [];
+    const integridade =
+      podeCustodia && opts.periciaDigitalCustodia
+        ? await opts.periciaDigitalCustodia.verificar(id)
+        : null;
+    return { caso: projetarCaso(caso, papel), custodia: { trilha, integridade } };
   });
   app.post('/admin/pericia-digital/casos', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)
       return reply.code(404).send({ error: 'módulo desativado' });
+    if (!autorizar(reply, papelDe(request), 'criar')) return reply;
     const b = request.body as { chatId?: string; numeroCaso?: string };
     if (!b.chatId || !b.numeroCaso)
       return reply.code(400).send({ error: 'chatId e numeroCaso são obrigatórios' });
@@ -542,6 +605,7 @@ export function buildAdminServer(
   app.post('/admin/pericia-digital/casos/:id/documentos', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)
       return reply.code(404).send({ error: 'módulo desativado' });
+    if (!autorizar(reply, papelDe(request), 'registrar_documento')) return reply;
     const { id } = request.params as { id: string };
     return responder(
       reply,
@@ -551,12 +615,14 @@ export function buildAdminServer(
   app.post('/admin/pericia-digital/casos/:id/analise', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)
       return reply.code(404).send({ error: 'módulo desativado' });
+    if (!autorizar(reply, papelDe(request), 'iniciar_analise')) return reply;
     const { id } = request.params as { id: string };
     return responder(reply, await opts.periciaDigital.iniciarAnalise(id, 'admin'));
   });
   app.post('/admin/pericia-digital/casos/:id/valores-banco', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)
       return reply.code(404).send({ error: 'módulo desativado' });
+    if (!autorizar(reply, papelDe(request), 'registrar_valores')) return reply;
     const { id } = request.params as { id: string };
     return responder(
       reply,
@@ -566,6 +632,7 @@ export function buildAdminServer(
   app.post('/admin/pericia-digital/casos/:id/checklist', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)
       return reply.code(404).send({ error: 'módulo desativado' });
+    if (!autorizar(reply, papelDe(request), 'registrar_checklist')) return reply;
     const { id } = request.params as { id: string };
     const b = request.body as { tipo?: 'BIOMETRIA' | 'DOCUMENTO_ID'; itens?: unknown };
     if (b.tipo !== 'BIOMETRIA' && b.tipo !== 'DOCUMENTO_ID')
@@ -578,6 +645,7 @@ export function buildAdminServer(
   app.post('/admin/pericia-digital/casos/:id/minuta', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)
       return reply.code(404).send({ error: 'módulo desativado' });
+    if (!autorizar(reply, papelDe(request), 'gerar_minuta')) return reply;
     const { id } = request.params as { id: string };
     const b = request.body as { conclusaoSugerida?: string | null };
     return responder(
@@ -588,24 +656,30 @@ export function buildAdminServer(
   app.post('/admin/pericia-digital/casos/:id/revisao', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)
       return reply.code(404).send({ error: 'módulo desativado' });
+    if (!autorizar(reply, papelDe(request), 'submeter_revisao')) return reply;
     const { id } = request.params as { id: string };
     return responder(reply, await opts.periciaDigital.submeterRevisao(id, 'admin'));
   });
   app.post('/admin/pericia-digital/casos/:id/aprovar', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)
       return reply.code(404).send({ error: 'módulo desativado' });
+    // Ato PESSOAL do perito: só o papel 'perito' aprova (RBAC), e o serviço ainda
+    // exige a identidade/registro do perito (validarAprovacaoPerito). Dupla trava.
+    if (!autorizar(reply, papelDe(request), 'aprovar')) return reply;
     const { id } = request.params as { id: string };
     return responder(reply, await opts.periciaDigital.aprovar(id, request.body, 'perito'));
   });
   app.post('/admin/pericia-digital/casos/:id/assinar', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)
       return reply.code(404).send({ error: 'módulo desativado' });
+    if (!autorizar(reply, papelDe(request), 'assinar')) return reply;
     const { id } = request.params as { id: string };
     return responder(reply, await opts.periciaDigital.assinar(id, 'perito'));
   });
   app.post('/admin/pericia-digital/casos/:id/liberar', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigital)
       return reply.code(404).send({ error: 'módulo desativado' });
+    if (!autorizar(reply, papelDe(request), 'liberar')) return reply;
     const { id } = request.params as { id: string };
     return responder(reply, await opts.periciaDigital.liberarParaAdvogado(id, 'admin'));
   });

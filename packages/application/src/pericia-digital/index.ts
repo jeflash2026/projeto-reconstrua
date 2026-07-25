@@ -5,6 +5,8 @@
 // perito. Sem I/O — a infraestrutura (store, custódia, endpoints, UI) o consome.
 // ─────────────────────────────────────────────────────────────────────────────
 export * from './linguagem-segura.js';
+export * from './autorizacao.js';
+export * from './lgpd.js';
 export * from './documentos-tipos.js';
 export * from './analise-tecnica.js';
 export * from './fluxo-financeiro.js';

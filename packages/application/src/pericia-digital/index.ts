@@ -7,6 +7,7 @@
 export * from './linguagem-segura.js';
 export * from './autorizacao.js';
 export * from './lgpd.js';
+export * from './base-conhecimento.js';
 export * from './documentos-tipos.js';
 export * from './analise-tecnica.js';
 export * from './fluxo-financeiro.js';

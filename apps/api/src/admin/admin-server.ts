@@ -21,6 +21,8 @@ import {
   montarBibliotecaEstrategias,
   montarDossie,
   montarPainelDoArquiteto,
+  buscarConhecimento,
+  listarConhecimento,
   montarTimelineCognitiva,
   ordenarCasos,
   papelPericia,
@@ -30,7 +32,9 @@ import {
   redigirPii,
   resumirCaso,
   veDadoCompleto,
+  CATEGORIAS_CONHECIMENTO,
   type AcaoPericia,
+  type CategoriaConhecimentoPericial,
   type DossieJuridico,
   type ConversationContextView,
   type FatoAprendidoDeCliente,
@@ -561,6 +565,22 @@ export function buildAdminServer(
   app.get('/admin/pericia-digital', async (_request, reply) => {
     if (!pdOn()) return reply.code(404).send({ error: 'módulo desativado' });
     return { habilitado: true };
+  });
+  // Base de Conhecimento Pericial (Fase 5C): material de CONSULTA, read-only.
+  // Gated por RBAC 'ler'. Filtra por ?categoria= e/ou busca por ?q=.
+  app.get('/admin/pericia-digital/conhecimento', async (request, reply) => {
+    if (!pdOn()) return reply.code(404).send({ error: 'módulo desativado' });
+    if (!autorizar(reply, papelDe(request), 'ler')) return reply;
+    const q = request.query as { categoria?: string; q?: string };
+    const cat = (CATEGORIAS_CONHECIMENTO as readonly string[]).includes(q.categoria ?? '')
+      ? (q.categoria as CategoriaConhecimentoPericial)
+      : undefined;
+    const base = cat ? listarConhecimento(cat) : listarConhecimento();
+    const entradas = q.q && q.q.trim() !== '' ? buscarConhecimento(q.q) : base;
+    // Se veio categoria E busca, intersecta mantendo a categoria.
+    const resultado =
+      cat && q.q && q.q.trim() !== '' ? entradas.filter((e) => e.categoria === cat) : entradas;
+    return { categorias: CATEGORIAS_CONHECIMENTO, entradas: resultado };
   });
   app.get('/admin/pericia-digital/casos', async (request, reply) => {
     if (!pdOn() || !opts.periciaDigitalCasos)

@@ -5,7 +5,7 @@
 // vai para quem pode vê-la. Stubs mínimos (o núcleo puro é testado à parte).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, beforeAll } from 'vitest';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import type { Clock, Uuid, UuidGenerator } from '@reconstrua/domain';
 import { toUuid } from '@reconstrua/domain';
 import { assembleAdminOperation, FakeSleeper } from '@reconstrua/infrastructure';
@@ -14,8 +14,12 @@ import { buildAdminServer } from './admin-server.js';
 const ADMIN_SECRET = 'segredo-teste-rbac';
 
 class TestClock implements Clock {
+  private t = new Date('2026-07-25T00:00:00.000Z');
   now(): Date {
-    return new Date('2026-07-25T00:00:00.000Z');
+    return new Date(this.t.getTime());
+  }
+  advance(ms: number): void {
+    this.t = new Date(this.t.getTime() + ms);
   }
 }
 class SeqUuid implements UuidGenerator {
@@ -44,7 +48,7 @@ describe('Perícia Digital — RBAC + LGPD na API', () => {
     url: string,
     papel?: string,
     payload?: object,
-  ): ReturnType<FastifyInstance['inject']> => {
+  ): Promise<LightMyRequestResponse> => {
     const headers: Record<string, string> = { authorization: `Bearer ${ADMIN_SECRET}` };
     if (papel !== undefined) headers['x-pericia-papel'] = papel;
     return app.inject({ method, url, headers, ...(payload ? { payload } : {}) });

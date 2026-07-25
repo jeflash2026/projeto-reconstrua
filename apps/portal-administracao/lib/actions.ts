@@ -740,6 +740,20 @@ export async function pdObterCaso(id: string): Promise<{
   return getJson(`/admin/pericia-digital/casos/${encodeURIComponent(id)}`);
 }
 
+export interface PdConhecimento {
+  id: string;
+  categoria: string;
+  titulo: string;
+  corpo: string;
+}
+/** Base de Conhecimento Pericial (Fase 5C): material de consulta, read-only. */
+export async function pdConhecimento(): Promise<{ categorias: string[]; entradas: PdConhecimento[] }> {
+  const r = await getJson<{ categorias: string[]; entradas: PdConhecimento[] }>(
+    '/admin/pericia-digital/conhecimento',
+  );
+  return r ?? { categorias: [], entradas: [] };
+}
+
 async function pdPost(path: string, body: unknown): Promise<{ ok: boolean; error: string | null }> {
   const r = await sendJson<{ error?: string }>('POST', path, body ?? {});
   if (r === null) return { ok: false, error: 'operação recusada pela API' };

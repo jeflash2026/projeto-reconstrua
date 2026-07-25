@@ -19,6 +19,8 @@ export interface IndicadorExecutivo {
 export interface IndicadoresInputs {
   readonly clientesAtivos: number;
   readonly novosClientesHoje: number;
+  /** Soma dos contratos de TODOS os clientes com HISCON legível (null = sem fonte). */
+  readonly totalContratos: number | null;
   readonly dossiesGerados: number;
   readonly casosDistribuidos: number;
   readonly aguardandoDocumentos: number;
@@ -76,6 +78,14 @@ export function indicadoresExecutivos(input: IndicadoresInputs): readonly Indica
       tom: input.novosClientesHoje > 0 ? 'positivo' : 'neutro',
       fonte: 'read-model:dashboard.newClientsToday',
       href: '/clientes',
+    },
+    {
+      id: 'total-contratos',
+      rotulo: 'Total de contratos',
+      valor: input.totalContratos === null ? '—' : String(input.totalContratos),
+      tom: 'neutro',
+      fonte: 'read-model:pericia.potencialDeTodos.contratos',
+      href: '/pericias',
     },
     {
       id: 'dossies',

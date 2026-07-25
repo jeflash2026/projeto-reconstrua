@@ -132,6 +132,7 @@ describe('13A · indicadores executivos (negócio, não técnico)', () => {
   const base = {
     clientesAtivos: 40,
     novosClientesHoje: 3,
+    totalContratos: 87,
     dossiesGerados: 12,
     casosDistribuidos: 20,
     aguardandoDocumentos: 4,
@@ -151,12 +152,14 @@ describe('13A · indicadores executivos (negócio, não técnico)', () => {
     expect(byId['precisao']?.tom).toBe('positivo');
     expect(byId['criticos']?.tom).toBe('critico');
     expect(byId['valor-recuperavel']?.valor).toContain('R$');
+    expect(byId['total-contratos']?.valor).toBe('87');
     for (const i of ind) expect(i.fonte.startsWith('read-model')).toBe(true);
   });
 
   it('valores ausentes viram estado explícito (—), nunca inventados', () => {
     const ind = indicadoresExecutivos({
       ...base,
+      totalContratos: null,
       precisaoDecisoes: null,
       valorRecuperavel: null,
       receitaPrevista: null,
@@ -164,6 +167,7 @@ describe('13A · indicadores executivos (negócio, não técnico)', () => {
       tempoMedioAteDecisaoMs: null,
     });
     const byId = Object.fromEntries(ind.map((i) => [i.id, i]));
+    expect(byId['total-contratos']?.valor).toBe('—');
     expect(byId['precisao']?.valor).toBe('—');
     expect(byId['valor-recuperavel']?.valor).toBe('—');
     expect(byId['tempo-decisao']?.valor).toBe('—');

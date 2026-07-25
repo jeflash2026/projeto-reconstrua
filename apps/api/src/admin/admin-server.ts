@@ -6,7 +6,7 @@
 // Founder Console (leitura narrada). NÃO inicia servidor (o `.listen` é do dono).
 // ─────────────────────────────────────────────────────────────────────────────
 import { randomUUID } from 'node:crypto';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
 import { zipStore, nomeArquivoSeguro } from '../util/zip.js';
 import {
@@ -159,6 +159,30 @@ export function buildAdminServer(
     };
     /** Decreto 2026-07-24: mapa de clientes (distribuição por estado/cidade). */
     readonly mapaClientes?: { gerar(): Promise<unknown> };
+    /** Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag). */
+    readonly periciaDigitalHabilitado?: boolean;
+    readonly periciaDigital?: {
+      criarCasoDoHiscon(chatId: string, numeroCaso: string, usuario: string): Promise<unknown>;
+      registrarDocumento(casoId: string, input: unknown, usuario: string): Promise<unknown>;
+      iniciarAnalise(casoId: string, usuario: string): Promise<unknown>;
+      marcarDocumentacaoPendente(casoId: string, usuario: string): Promise<unknown>;
+      registrarAchado(casoId: string, achado: unknown, usuario: string): Promise<unknown>;
+      adicionarQuesito(casoId: string, quesito: unknown, usuario: string): Promise<unknown>;
+      gerarMinuta(casoId: string, conclusao: unknown, usuario: string): Promise<unknown>;
+      submeterRevisao(casoId: string, usuario: string): Promise<unknown>;
+      solicitarAjustes(casoId: string, motivo: string, usuario: string): Promise<unknown>;
+      aprovar(casoId: string, perito: unknown, usuario: string): Promise<unknown>;
+      assinar(casoId: string, usuario: string): Promise<unknown>;
+      liberarParaAdvogado(casoId: string, usuario: string): Promise<unknown>;
+    };
+    readonly periciaDigitalCasos?: {
+      todos(): Promise<readonly unknown[]>;
+      porId(id: string): Promise<unknown>;
+    };
+    readonly periciaDigitalCustodia?: {
+      trilha(casoId: string): Promise<readonly unknown[]>;
+      verificar(casoId: string): Promise<unknown>;
+    };
     /** Decreto 2026-07-24: fluxo do perito — em perícia (10 dias), credenciais, resposta do banco. */
     readonly periciaFluxo?: {
       iniciar(
@@ -463,6 +487,99 @@ export function buildAdminServer(
   app.get('/admin/mapa-clientes', async (_request, reply) => {
     if (!opts.mapaClientes) return reply.code(503).send({ error: 'mapa de clientes indisponível' });
     return opts.mapaClientes.gerar();
+  });
+
+  // ── CENTRAL DE PERÍCIA DIGITAL (Decreto 2026-07-24) — atrás de FEATURE FLAG.
+  //    Todas as rotas exigem periciaDigitalHabilitado; caso contrário 404 (módulo
+  //    invisível). Emissão só pelo portão único do serviço (revisão humana).
+  const pdOn = (): boolean => opts.periciaDigitalHabilitado === true && !!opts.periciaDigital;
+  type Res = { ok: boolean; error?: string; valor?: unknown };
+  const responder = (reply: FastifyReply, r: unknown): unknown => {
+    const res = r as Res;
+    if (!res.ok) return reply.code(422).send({ error: res.error ?? 'operação recusada' });
+    return res.valor;
+  };
+
+  app.get('/admin/pericia-digital', async (_request, reply) => {
+    if (!pdOn()) return reply.code(404).send({ error: 'módulo desativado' });
+    return { habilitado: true };
+  });
+  app.get('/admin/pericia-digital/casos', async (_request, reply) => {
+    if (!pdOn() || !opts.periciaDigitalCasos)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    return { casos: await opts.periciaDigitalCasos.todos() };
+  });
+  app.get('/admin/pericia-digital/casos/:id', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigitalCasos)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const { id } = request.params as { id: string };
+    const caso = await opts.periciaDigitalCasos.porId(id);
+    if (caso === null) return reply.code(404).send({ error: 'caso não encontrado' });
+    const trilha = opts.periciaDigitalCustodia ? await opts.periciaDigitalCustodia.trilha(id) : [];
+    const integridade = opts.periciaDigitalCustodia
+      ? await opts.periciaDigitalCustodia.verificar(id)
+      : null;
+    return { caso, custodia: { trilha, integridade } };
+  });
+  app.post('/admin/pericia-digital/casos', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigital)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const b = request.body as { chatId?: string; numeroCaso?: string };
+    if (!b.chatId || !b.numeroCaso)
+      return reply.code(400).send({ error: 'chatId e numeroCaso são obrigatórios' });
+    return responder(
+      reply,
+      await opts.periciaDigital.criarCasoDoHiscon(b.chatId, b.numeroCaso, 'admin'),
+    );
+  });
+  app.post('/admin/pericia-digital/casos/:id/documentos', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigital)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const { id } = request.params as { id: string };
+    return responder(
+      reply,
+      await opts.periciaDigital.registrarDocumento(id, request.body, 'admin'),
+    );
+  });
+  app.post('/admin/pericia-digital/casos/:id/analise', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigital)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const { id } = request.params as { id: string };
+    return responder(reply, await opts.periciaDigital.iniciarAnalise(id, 'admin'));
+  });
+  app.post('/admin/pericia-digital/casos/:id/minuta', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigital)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const { id } = request.params as { id: string };
+    const b = request.body as { conclusaoSugerida?: string | null };
+    return responder(
+      reply,
+      await opts.periciaDigital.gerarMinuta(id, b.conclusaoSugerida ?? null, 'admin'),
+    );
+  });
+  app.post('/admin/pericia-digital/casos/:id/revisao', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigital)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const { id } = request.params as { id: string };
+    return responder(reply, await opts.periciaDigital.submeterRevisao(id, 'admin'));
+  });
+  app.post('/admin/pericia-digital/casos/:id/aprovar', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigital)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const { id } = request.params as { id: string };
+    return responder(reply, await opts.periciaDigital.aprovar(id, request.body, 'perito'));
+  });
+  app.post('/admin/pericia-digital/casos/:id/assinar', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigital)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const { id } = request.params as { id: string };
+    return responder(reply, await opts.periciaDigital.assinar(id, 'perito'));
+  });
+  app.post('/admin/pericia-digital/casos/:id/liberar', async (request, reply) => {
+    if (!pdOn() || !opts.periciaDigital)
+      return reply.code(404).send({ error: 'módulo desativado' });
+    const { id } = request.params as { id: string };
+    return responder(reply, await opts.periciaDigital.liberarParaAdvogado(id, 'admin'));
   });
 
   app.get('/admin/jornada/pericia/em-fluxo', async (_request, reply) => {

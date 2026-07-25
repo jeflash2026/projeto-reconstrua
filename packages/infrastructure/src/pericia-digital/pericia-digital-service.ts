@@ -63,6 +63,20 @@ export class PericiaDigitalService {
     return this.deps.clock.now().toISOString();
   }
 
+  // ── Leitura (para o painel) ─────────────────────────────────────────────────
+  listarCasos(): Promise<readonly CasoPericial[]> {
+    return this.deps.casos.todos();
+  }
+  obterCaso(id: string): Promise<CasoPericial | null> {
+    return this.deps.casos.porId(id);
+  }
+  trilhaCustodia(casoId: string) {
+    return this.deps.custodia.trilha(casoId);
+  }
+  verificarCustodia(casoId: string) {
+    return this.deps.custodia.verificar(casoId);
+  }
+
   private async persistir(
     caso: CasoPericial,
     novoStatus: StatusPericia | null,

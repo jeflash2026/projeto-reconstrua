@@ -199,6 +199,7 @@ import {
 import { PericiaService } from '../pericia/index.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
+import { CustodiaService, JsonCasoStore, PericiaDigitalService } from '../pericia-digital/index.js';
 import { JsonSocioStore, JsonSocioCredenciaisStore, SociosService } from '../socios/index.js';
 import { MedidorDeCusto } from '../custos/index.js';
 import { ReaquecimentoService } from '../reaquecimento/index.js';
@@ -255,6 +256,9 @@ export interface AssembledProduction {
   readonly pericia: PericiaService;
   /** Decreto 2026-07-24: fluxo do perito (em perícia/10 dias, credenciais, resposta do banco). */
   readonly periciaFluxo: PericiaFluxoService;
+  /** Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag). */
+  readonly periciaDigital: PericiaDigitalService;
+  readonly periciaDigitalHabilitado: boolean;
   /** Decreto 2026-07-24: mapa de clientes (distribuição por estado/cidade). */
   readonly mapaClientes: MapaClientesService;
   /** Decreto 2026-07-21: convite→senha própria→login do PERITO (Auth Runtime, papel 'perito'). */
@@ -991,6 +995,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // advogado" com as provas. Estado próprio (ns 'pericia-fluxo'), por chatId.
   const periciaFluxo = new PericiaFluxoService({ json, clock });
 
+  // Decreto 2026-07-24 (Central de Perícia Digital) — atrás de FEATURE FLAG
+  // (PERICIA_DIGITAL_ENABLED=true). Reusa o HISCON parseado da PericiaService.
+  const periciaDigitalHabilitado = (env['PERICIA_DIGITAL_ENABLED'] ?? '').toLowerCase() === 'true';
+  const periciaDigital = new PericiaDigitalService({
+    casos: new JsonCasoStore(json),
+    custodia: new CustodiaService({ json, clock, uuid }),
+    clock,
+    uuid,
+    extrairHiscon: (chatId) => pericia.hisconDe(chatId),
+  });
+
   // Decreto 2026-07-24: MAPA DE CLIENTES — distribuição por estado (DDD) + cidades.
   const mapaClientes = new MapaClientesService({ json });
 
@@ -1310,6 +1325,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     mediaCapture,
     pericia,
     periciaFluxo,
+    periciaDigital,
+    periciaDigitalHabilitado,
     mapaClientes,
     peritoAuth,
     socios,

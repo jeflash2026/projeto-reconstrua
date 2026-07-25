@@ -26,6 +26,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { href: '/missoes', label: 'Missões' },
   { href: '/documentos', label: 'Documentos' },
   { href: '/pericias', label: 'Perícias' },
+  { href: '/pericia-digital', label: 'Perícia Digital' },
   { sep: 'Equipe' },
   { href: '/advogados', label: 'Advogados' },
   { href: '/operadores', label: 'Operadores' },

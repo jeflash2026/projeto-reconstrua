@@ -178,6 +178,41 @@ export function pareceHistoricoDeCredito(texto: string): boolean {
   return credito && !hisconForte;
 }
 
+// Sinais de que a BUSCA não trouxe contratos (a tela de consulta ficou vazia).
+// Um extrato vazio/"não encontrado" NUNCA é um extrato válido — mesmo que a tela
+// cite "consignado" no título. (Cliente 7582422298, 2026-07-25.)
+const SINAIS_HISCON_SEM_RESULTADO: readonly string[] = [
+  'emprestimo nao encontrado',
+  'emprestimos nao encontrados',
+  'nenhum emprestimo encontrado',
+  'nao foram encontrados emprestimos',
+  'informe outras opcoes de filtro',
+];
+// Sinais da TELA DE CONSULTA/BUSCA (filtros) do Meu INSS — não é o extrato em si,
+// é o formulário de pesquisa. Um print dela não traz os contratos.
+const SINAIS_TELA_BUSCA_HISCON: readonly string[] = [
+  'consultar historico',
+  'situacao do emprestimo',
+  'mes da contratacao',
+  'ano da contratacao',
+  'nova busca',
+  'situacao do beneficio',
+];
+
+/** O que chegou é um PRINT DA TELA DE CONSULTA/BUSCA do consignado (não o extrato)?
+ *  true quando a busca não trouxe resultado, OU quando há marcas do formulário de
+ *  filtro sem as colunas do extrato real. Espelha pareceHistoricoDeCredito. */
+export function pareceTelaDeConsultaConsignado(texto: string): boolean {
+  const t = normalizar(texto);
+  if (t === '') return false;
+  // "empréstimo não encontrado" = busca vazia ⇒ nunca é o extrato (mesmo com título).
+  if (SINAIS_HISCON_SEM_RESULTADO.some((f) => t.includes(f))) return true;
+  // Ou a tela de FILTRO (2+ marcas) sem os sinais FORTES do extrato de verdade.
+  const marcasBusca = SINAIS_TELA_BUSCA_HISCON.filter((f) => t.includes(f)).length;
+  const hisconForte = SINAIS_HISCON_FORTE.some((f) => t.includes(f));
+  return marcasBusca >= 2 && !hisconForte;
+}
+
 export type SubtipoIdentidade = 'rg' | 'cnh';
 
 /** CNH ou RG? (só faz sentido quando a classificação foi IDENTIDADE).
@@ -223,6 +258,9 @@ export function classificarDocumentoInicial(fileName: string, texto: string): Cl
   if (resultado === 'CNIS') {
     const soTexto = normalizar(texto);
     if (soTexto !== '') {
+      // Caso 7582422298 (2026-07-25): PRINT da tela de consulta/busca do consignado
+      // ("Empréstimo não encontrado") — cita "consignado" mas não traz contratos.
+      if (pareceTelaDeConsultaConsignado(texto)) return 'OUTRO';
       // Caso Maria José (2026-07-24): HISTÓRICO DE CRÉDITO (SCR/Registrato) cita
       // "consignado" e era aceito como HISCON. Se tem cara de relatório de crédito
       // e não tem sinal FORTE de extrato do INSS ⇒ NÃO é o HISCON.
@@ -359,9 +397,9 @@ export interface ResultadoDeRecebimento {
   /** Excerto do texto transcrito usado na classificação (diagnóstico do
    *  classificador — 14ª rodada: 'OUTRO' com texto presente era mudo). */
   readonly textoExcerto?: string | null;
-  /** Por que ficou OUTRO — permite a mensagem CERTA (ex.: histórico de crédito
-   *  em vez do HISCON). null/ausente ⇒ genérico. */
-  readonly motivoOutro?: 'historico-credito' | null;
+  /** Por que ficou OUTRO — permite a mensagem CERTA (ex.: histórico de crédito ou
+   *  print da tela de consulta em vez do HISCON). null/ausente ⇒ genérico. */
+  readonly motivoOutro?: 'historico-credito' | 'tela-consulta-hiscon' | null;
 }
 
 export class OnboardingDocumentalRuntime {
@@ -409,7 +447,11 @@ export class OnboardingDocumentalRuntime {
         classificacaoPendente: texto === null,
         progresso: null,
         textoExcerto: texto === null ? null : texto.slice(0, 200),
-        motivoOutro: pareceHistoricoDeCredito(texto ?? '') ? 'historico-credito' : null,
+        motivoOutro: pareceTelaDeConsultaConsignado(texto ?? '')
+          ? 'tela-consulta-hiscon'
+          : pareceHistoricoDeCredito(texto ?? '')
+            ? 'historico-credito'
+            : null,
       };
     }
     // Já completo para este código ⇒ reenvio não duplica. IDENTIDADE via RG

@@ -11,6 +11,7 @@ import {
   completo,
   faltando,
   novoOnboarding,
+  pareceTelaDeConsultaConsignado,
   proximo,
   type OnboardingDocumentalState,
   type OnboardingDocumentalStore,
@@ -80,6 +81,36 @@ describe('Decreto · classificação DETERMINÍSTICA dos 3 obrigatórios', () =>
         'Extrato de Empréstimos Consignados - Origem da averbação: Ativo. Banco consignatário. Competência de desconto 03/2026.',
       ),
     ).toBe('CNIS');
+    // Caso 7582422298 (2026-07-25): PRINT da tela de consulta/busca do Meu INSS com
+    // "Empréstimo não encontrado" — cita "consignados" no título mas não traz
+    // contratos ⇒ OUTRO (a busca vazia nunca é o extrato).
+    expect(
+      classificarDocumentoInicial(
+        'IMG_9999.jpg',
+        'Consultar Histórico. Histórico de Empréstimos Consignados. Número do Benefício (NB) 731.489.042-1. ' +
+          'Situação do Benefício ativo. Filtros. Situação do Empréstimo Todas. Mês da Contratação Julho. ' +
+          'Ano da Contratação 2026. Buscar. Empréstimo não encontrado. Informe outras opções de filtro para uma nova busca.',
+      ),
+    ).toBe('OUTRO');
+  });
+  it('caso 7582422298 — print da tela de consulta/busca do consignado NÃO é o HISCON', () => {
+    const telaBusca =
+      'Consultar Histórico. Número do Benefício (NB) 731.489.042-1. Situação do Benefício ativo. ' +
+      'Situação do Empréstimo. Mês da Contratação. Ano da Contratação. Empréstimo não encontrado.';
+    expect(pareceTelaDeConsultaConsignado(telaBusca)).toBe(true);
+    // "empréstimo não encontrado" vence mesmo com o título forte de consignados.
+    expect(
+      pareceTelaDeConsultaConsignado(
+        'Histórico de Empréstimos Consignados. Empréstimo não encontrado.',
+      ),
+    ).toBe(true);
+    // O extrato REAL (com as colunas do documento) NÃO é confundido com a tela.
+    expect(
+      pareceTelaDeConsultaConsignado(
+        'Extrato de Empréstimos Consignados. Origem da averbação. Banco consignatário. Competência de desconto 03/2026.',
+      ),
+    ).toBe(false);
+    expect(pareceTelaDeConsultaConsignado('')).toBe(false);
   });
   it('RG/CNH: registro geral, habilitação, órgão emissor', () => {
     expect(
@@ -209,6 +240,20 @@ describe('Decreto · runtime da jornada', () => {
     const r = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'dX', 'IMG_5555.jpg', NOW);
     expect(r.classificacao).toBe('OUTRO');
     expect(r.classificacaoPendente).toBe(true);
+  });
+
+  it('print da tela de consulta/busca ⇒ OUTRO com motivo tela-consulta-hiscon', async () => {
+    const h = harness({
+      dZ:
+        'Consultar Histórico. Histórico de Empréstimos Consignados. Número do Benefício (NB) 731.489.042-1. ' +
+        'Situação do Benefício ativo. Situação do Empréstimo Todas. Mês da Contratação Julho. ' +
+        'Ano da Contratação 2026. Buscar. Empréstimo não encontrado. Informe outras opções de filtro.',
+    });
+    await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
+    const r = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'dZ', 'IMG_9999.jpg', NOW);
+    expect(r.classificacao).toBe('OUTRO');
+    expect(r.classificacaoPendente).toBe(false); // texto presente ⇒ não retenta
+    expect(r.motivoOutro).toBe('tela-consulta-hiscon');
   });
 
   it('nome do arquivo claro dispensa a transcrição (sem retry desnecessário)', async () => {

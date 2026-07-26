@@ -100,6 +100,31 @@ function ehPerguntaDeDireito(context: ConversationContextView): boolean {
   );
 }
 
+// ── ABRANGÊNCIA (decreto 2026-07-25) ─────────────────────────────────────────
+// "Vocês são de onde?" é pergunta de CONFIANÇA. A verdade é ÚNICA e a AHRI
+// jamais improvisa geografia: parcerias com advogados em TODOS os estados,
+// análise em todo o território nacional e, DEPOIS da análise, encaminhamento
+// ao advogado parceiro mais próximo da pessoa. Nunca inventar endereço, filial
+// ou sede, e NUNCA dizer que não atende a região de alguém.
+const PERGUNTA_LOCALIZACAO_LLM =
+  /\bonde\b|\bde\s+(que|qual)\s+(cidade|estado|regi[ãa]o|lugar)\b|\bvoc[êe]s\s+(s[ãa]o|fica|ficam|atendem|trabalham)\b|\batendem\s+(em|no|na|aqui)\b|\bqual\s+(a\s+)?(cidade|estado)\b/;
+
+function ehPerguntaDeLocalizacaoLlm(context: ConversationContextView): boolean {
+  return PERGUNTA_LOCALIZACAO_LLM.test(textoDoTurno(context));
+}
+
+/** FATO canônico de abrangência, injetado no prompt SÓ quando a pessoa pergunta
+ *  de onde somos / se atendemos a região dela. Determinístico. */
+export function condutaDeAbrangencia(context: ConversationContextView): string {
+  if (!ehPerguntaDeLocalizacaoLlm(context)) return '';
+  return (
+    '; FATO DA EMPRESA (responda com estas informações, sem inventar nada além): ' +
+    'o Projeto Reconstrua tem PARCERIAS com advogados em TODOS os estados do Brasil e trabalha com análise em TODO o território nacional — ' +
+    'a análise é feita por nós e, DEPOIS de pronta, o caso é encaminhado a um dos advogados parceiros MAIS PRÓXIMO da pessoa. ' +
+    'NUNCA invente endereço, sede, filial, nome de advogado ou cidade específica, e NUNCA diga que não atendemos a região dela'
+  );
+}
+
 // Condutas por estado (autoradas; prioridade sobre a curiosidade quando aplicável).
 // Decreto TRÁFEGO PAGO (2026-07-20): todo lead novo chega por anúncio do
 // Instagram — a arte já explica que, HAVENDO irregularidade após a análise,

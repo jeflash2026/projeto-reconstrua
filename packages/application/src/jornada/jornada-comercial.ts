@@ -230,6 +230,18 @@ export function ehLinkExterno(texto: string): boolean {
   return LINK_EXTERNO.test(texto);
 }
 
+// Decreto 2026-07-25: "vocês são de onde?" é pergunta de CONFIANÇA (o cliente
+// quer saber se atendem a região dele). A resposta é CANÔNICA — a AHRI jamais
+// improvisa geografia, jamais inventa endereço/filial e jamais diz que não
+// atende alguém: a análise é nacional e o encaminhamento é para o advogado
+// parceiro mais próximo DEPOIS da análise.
+const PERGUNTA_DE_LOCALIZACAO =
+  /\b(voc[êe]s?|empresa|escrit[óo]rio|projeto)\b[^?]{0,30}\b(s[ãa]o|fica|ficam|[ée]|de)\b[^?]{0,20}\bonde\b|\bonde\b[^?]{0,25}\b(voc[êe]s?|fica[m]?|localiza|sede|escrit[óo]rio|empresa)\b|\bde\s+(que|qual)\s+(cidade|estado|regi[ãa]o|lugar)\b|\bqual\s+([ao]\s+)?(cidade|estado|regi[ãa]o)\s+(de\s+)?voc[êe]s\b|\bvoc[êe]s\s+(atendem|trabalham)\b[^?]{0,25}\b(aqui|minha\s+cidade|meu\s+estado|regi[ãa]o|todo\s+brasil)\b|\batendem\s+(em|no|na)\b/i;
+/** Pergunta de LOCALIZAÇÃO/abrangência ("vocês são de onde?", "atendem aqui?"). */
+export function ehPerguntaDeLocalizacao(texto: string): boolean {
+  return PERGUNTA_DE_LOCALIZACAO.test(texto);
+}
+
 /** Este texto, na TRIAGEM, cairá na COBRANÇA de documento? (nenhum outro
  *  manejo o captura). O runtime usa para contar a escada de cobrança. */
 export function vaiReceberCobranca(texto: string): boolean {
@@ -240,6 +252,7 @@ export function vaiReceberCobranca(texto: string): boolean {
     !ehAgradecimentoPuro(texto) &&
     !ehPerguntaLivre(texto) &&
     !ehPerguntaDeDireito(texto) &&
+    !ehPerguntaDeLocalizacao(texto) &&
     !ehLinkExterno(texto)
   );
 }
@@ -324,6 +337,14 @@ export const MENSAGENS_JORNADA = {
     'Recebi a sua imagem, obrigada! Mas verifiquei aqui e é o print da TELA DE CONSULTA/BUSCA do Meu INSS (inclusive aparece "empréstimo não encontrado") — essa tela é só o formulário de pesquisa e não traz os seus contratos, então a análise não roda com ela.\n\n' +
     'O que eu preciso é o HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), em PDF, com todos os contratos. No Meu INSS, procure a opção "Extrato de Empréstimos Consignados", gere/baixe o PDF e me envie aqui como anexo.\n\n' +
     'Importante: precisa ser o ARQUIVO em PDF — a foto ou o print da tela não trazem todos os contratos. Se quiser, eu te explico o passo a passo para localizar essa opção.',
+  // Decreto 2026-07-25: "vocês são de onde?" — resposta CANÔNICA de abrangência.
+  // Nunca improvisar geografia, nunca inventar endereço/filial, nunca dizer que
+  // não atende a região de alguém: a análise é nacional e o encaminhamento ao
+  // advogado parceiro mais próximo acontece DEPOIS da análise.
+  localizacao:
+    'O Projeto Reconstrua tem parcerias com advogados em todos os estados do Brasil, então trabalhamos com análise em todo o território nacional — inclusive na sua região.\n\n' +
+    'Na prática funciona assim: nós fazemos a análise do seu consignado aqui e, quando ela fica pronta, encaminhamos o seu caso para um dos nossos advogados parceiros mais próximo de você.\n\n' +
+    'Ou seja, você é atendido por um advogado da sua região, sem precisar sair de casa para começar.',
   // Caso Lucas: desconfiança ("cara de golpe") ⇒ resposta de SEGURANÇA.
   seguranca:
     'Sua cautela é correta — e desconfiar é importante mesmo. Alguns pontos para a sua segurança:\n\n' +
@@ -389,6 +410,11 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
   // Caso Lucas: DESCONFIANÇA tem prioridade máxima em QUALQUER etapa — quem
   // acha que é golpe não manda documento; primeiro segurança, depois funil.
   if (ehDesconfianca(entrada.texto)) return MENSAGENS_JORNADA.seguranca;
+
+  // Decreto 2026-07-25: "vocês são de onde?" tem resposta CANÔNICA em qualquer
+  // etapa — a abrangência é nacional e o encaminhamento ao advogado parceiro
+  // mais próximo é DEPOIS da análise. Nunca deixar o LLM improvisar geografia.
+  if (ehPerguntaDeLocalizacao(entrada.texto)) return MENSAGENS_JORNADA.localizacao;
 
   // Pergunta de direito/elegibilidade tem resposta canônica, em qualquer etapa.
   const prefixoDireito = ehPerguntaDeDireito(entrada.texto)

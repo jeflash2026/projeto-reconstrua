@@ -2,7 +2,12 @@
 // feature flag na API (PERICIA_DIGITAL_ENABLED); desativada ⇒ aviso, sem quebrar.
 import type { ReactElement } from 'react';
 import PericiaDigitalCasos from '../../../components/pericia-digital-casos';
-import { pdConhecimento, pdHabilitado, pdListarCasos } from '../../../lib/actions';
+import {
+  pdClientesComHiscon,
+  pdConhecimento,
+  pdHabilitado,
+  pdListarCasos,
+} from '../../../lib/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +37,10 @@ const PericiaDigitalPage = async (): Promise<ReactElement> => {
         </div>
       ) : (
         <>
-          <PericiaDigitalCasos casos={await pdListarCasos()} />
+          <PericiaDigitalCasos
+            casos={await pdListarCasos()}
+            clientes={await pdClientesComHiscon()}
+          />
           <details className="card" style={{ marginTop: 16 }}>
             <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
               Base de Conhecimento Pericial ({base.entradas.length}) — material de consulta do

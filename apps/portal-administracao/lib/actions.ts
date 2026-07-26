@@ -740,6 +740,20 @@ export async function pdObterCaso(id: string): Promise<{
   return getJson(`/admin/pericia-digital/casos/${encodeURIComponent(id)}`);
 }
 
+/** Cliente com HISCON legível — as opções do seletor "abrir caso pericial". */
+export interface PdClienteComHiscon {
+  chatId: string;
+  quem: string;
+  totalContratos: number;
+}
+/** Os clientes que JÁ têm HISCON (só eles podem virar caso pericial). */
+export async function pdClientesComHiscon(): Promise<PdClienteComHiscon[]> {
+  const r = await getJson<{ clientes: PdClienteComHiscon[] }>(
+    '/admin/jornada/pericia/todos-com-hiscon',
+  );
+  return r?.clientes ?? [];
+}
+
 export interface PdConhecimento {
   id: string;
   categoria: string;

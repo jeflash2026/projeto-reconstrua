@@ -134,12 +134,17 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
         typeof event.payload['contentReference'] === 'string'
           ? event.payload['contentReference']
           : '';
+      // Caso Gelciana (2026-07-26): o mimeType do WhatsApp é a fonte confiável da
+      // trava "imagem NUNCA é HISCON" — o nome do arquivo nem sempre traz extensão.
+      const mimeType =
+        typeof event.payload['mimeType'] === 'string' ? event.payload['mimeType'] : null;
       let resultado = await d.runtime.aoReconhecerDocumento(
         chatId,
         missionId,
         event.streamId,
         fileName,
         now,
+        mimeType,
       );
       // ESPERA DENTRO DO TURNO: a captura/vínculo da mídia leva segundos; sem
       // esperar, a classificação só chegava DEPOIS da resposta — e a conversa
@@ -158,6 +163,7 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
             event.streamId,
             fileName,
             d.clock.now(),
+            mimeType,
           );
         }
       }
@@ -190,11 +196,13 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
             // caso 7582422298: reconhece o PRINT da tela de consulta/busca e explica o
             // caminho; demais casos ⇒ mensagem genérica de documento não identificado.
             const mensagem =
-              resultado.motivoOutro === 'tela-consulta-hiscon'
-                ? MENSAGENS_JORNADA.telaConsultaHisconRecebida
-                : resultado.motivoOutro === 'historico-credito'
-                  ? MENSAGENS_JORNADA.historicoDeCreditoRecebido
-                  : MENSAGENS_JORNADA.documentoNaoIdentificado(proximo);
+              resultado.motivoOutro === 'imagem-nao-e-hiscon'
+                ? MENSAGENS_JORNADA.fotoNaoEhHiscon
+                : resultado.motivoOutro === 'tela-consulta-hiscon'
+                  ? MENSAGENS_JORNADA.telaConsultaHisconRecebida
+                  : resultado.motivoOutro === 'historico-credito'
+                    ? MENSAGENS_JORNADA.historicoDeCreditoRecebido
+                    : MENSAGENS_JORNADA.documentoNaoIdentificado(proximo);
             await d.comunicador.enviar(chatId, mensagem).catch((e: unknown) => {
               d.observability.error(
                 'onboarding',

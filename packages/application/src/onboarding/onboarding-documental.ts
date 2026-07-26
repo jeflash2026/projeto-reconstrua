@@ -213,6 +213,21 @@ export function pareceTelaDeConsultaConsignado(texto: string): boolean {
   return marcasBusca >= 2 && !hisconForte;
 }
 
+// ── REGRA DURA: IMAGEM NUNCA É HISCON (caso Gelciana, 2026-07-26) ────────────
+// A cliente mandou a FOTO de uma tela de erro ("Benefício não encontrado") e a
+// AHRI a aceitou como HISCON, declarando a etapa completa. O HISCON é SEMPRE um
+// PDF baixado do Meu INSS — nenhuma foto/print, por mais que a transcrição
+// mencione "consignado", pode virar HISCON. RG e comprovante seguem valendo
+// como imagem (são fotos por natureza); a trava vale só para o CNIS.
+const EXTENSOES_IMAGEM = /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i;
+
+/** O arquivo recebido é uma IMAGEM (foto/print)? Usa o mimeType quando existe
+ *  (fonte confiável do WhatsApp) e cai na extensão do nome como reforço. */
+export function ehImagem(fileName: string, mimeType?: string | null): boolean {
+  if (mimeType != null && mimeType !== '') return mimeType.toLowerCase().startsWith('image/');
+  return EXTENSOES_IMAGEM.test(fileName.trim());
+}
+
 export type SubtipoIdentidade = 'rg' | 'cnh';
 
 /** CNH ou RG? (só faz sentido quando a classificação foi IDENTIDADE).
@@ -233,7 +248,11 @@ export function detectarSubtipoIdentidade(fileName: string, texto: string): Subt
  * arquivo; decide só quando EXATAMENTE UMA categoria vence (>0). Empate ou
  * nada reconhecível ⇒ OUTRO (jamais adivinhar).
  */
-export function classificarDocumentoInicial(fileName: string, texto: string): ClassificacaoInicial {
+export function classificarDocumentoInicial(
+  fileName: string,
+  texto: string,
+  mimeType?: string | null,
+): ClassificacaoInicial {
   const corpo = normalizar(`${fileName} ${texto}`);
   if (corpo === '') return 'OUTRO';
   const tokens = new Set(corpo.split(' '));
@@ -256,6 +275,11 @@ export function classificarDocumentoInicial(fileName: string, texto: string): Cl
   // texto transcrito não traz sinal de consignado, NÃO é o HISCON ⇒ OUTRO (o
   // funil pede o documento certo em vez de aceitar o errado em silêncio).
   if (resultado === 'CNIS') {
+    // TRAVA ABSOLUTA (caso Gelciana, 2026-07-26): o HISCON é sempre um PDF do
+    // Meu INSS. Uma FOTO/PRINT jamais é o extrato — nem quando a transcrição
+    // menciona "consignado" (era o caso: print de "Benefício não encontrado"
+    // com o texto de ajuda do app). Vale ANTES de qualquer leitura de conteúdo.
+    if (ehImagem(fileName, mimeType)) return 'OUTRO';
     const soTexto = normalizar(texto);
     if (soTexto !== '') {
       // Caso 7582422298 (2026-07-25): PRINT da tela de consulta/busca do consignado
@@ -399,7 +423,8 @@ export interface ResultadoDeRecebimento {
   readonly textoExcerto?: string | null;
   /** Por que ficou OUTRO — permite a mensagem CERTA (ex.: histórico de crédito ou
    *  print da tela de consulta em vez do HISCON). null/ausente ⇒ genérico. */
-  readonly motivoOutro?: 'historico-credito' | 'tela-consulta-hiscon' | null;
+  readonly motivoOutro?:
+    'historico-credito' | 'tela-consulta-hiscon' | 'imagem-nao-e-hiscon' | null;
 }
 
 export class OnboardingDocumentalRuntime {
@@ -422,6 +447,9 @@ export class OnboardingDocumentalRuntime {
     documentId: string,
     fileName: string,
     now: Date,
+    /** mimeType do WhatsApp (image/jpeg, application/pdf…) — fonte confiável da
+     *  trava "imagem nunca é HISCON". Ausente ⇒ cai na extensão do nome. */
+    mimeType?: string | null,
   ): Promise<ResultadoDeRecebimento> {
     const atual = (await this.deps.store.load(chatId)) ?? novoOnboarding(chatId, missionId, now);
     if (completo(atual)) {
@@ -437,8 +465,13 @@ export class OnboardingDocumentalRuntime {
 
     const texto =
       this.deps.leitor !== null ? await this.deps.leitor.texto(documentId).catch(() => null) : null;
-    const classificacao = classificarDocumentoInicial(fileName, texto ?? '');
+    const classificacao = classificarDocumentoInicial(fileName, texto ?? '', mimeType);
     if (classificacao === 'OUTRO') {
+      // A pessoa mandou uma FOTO/PRINT tentando entregar o HISCON? (o texto fala
+      // de consignado, mas o arquivo é imagem) ⇒ motivo próprio, mensagem firme.
+      const fotoTentandoSerHiscon =
+        ehImagem(fileName, mimeType) &&
+        SINAIS.CNIS.frases.some((f) => normalizar(texto ?? '').includes(f));
       // Sem texto legível AINDA (o vínculo de mídia é assíncrono) ⇒ vale retentar.
       return {
         classificacao,
@@ -447,11 +480,15 @@ export class OnboardingDocumentalRuntime {
         classificacaoPendente: texto === null,
         progresso: null,
         textoExcerto: texto === null ? null : texto.slice(0, 200),
+        // Ordem = do diagnóstico MAIS específico para o mais geral: saber que a
+        // busca voltou vazia ajuda mais do que saber que é uma foto.
         motivoOutro: pareceTelaDeConsultaConsignado(texto ?? '')
           ? 'tela-consulta-hiscon'
           : pareceHistoricoDeCredito(texto ?? '')
             ? 'historico-credito'
-            : null,
+            : fotoTentandoSerHiscon
+              ? 'imagem-nao-e-hiscon'
+              : null,
       };
     }
     // Já completo para este código ⇒ reenvio não duplica. IDENTIDADE via RG

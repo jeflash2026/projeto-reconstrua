@@ -173,7 +173,7 @@ function condutaOnboarding(context: ConversationContextView): string {
       'É PROIBIDO dizer que não chegou, pedir reenvio ou PEDIR QUALQUER documento nesta resposta — a confirmação do registro e o pedido do próximo documento chegam em uma mensagem automática logo em seguida. '
     : '';
   return (
-    'ESTADO: ONBOARDING_DOCUMENTAL (Jornada 1 — decreto HISCON-ONLY + PDF-ONLY 2026-07-22). Sua missão é obter UM ÚNICO documento: o HISCON (extrato de empréstimos consignados do INSS), emitido no app/site Meu INSS em "Extrato de Empréstimos Consignados". EXIJA o ARQUIVO EM PDF completo — a foto ou o print da tela NÃO servem para a análise (vêm incompletos); NUNCA ofereça a opção de foto/print, sempre peça o PDF baixado. Ajude com o passo a passo para baixar o PDF sempre que houver dúvida. ' +
+    'ESTADO: ONBOARDING_DOCUMENTAL (Jornada 1 — decreto HISCON-ONLY + PDF-ONLY 2026-07-22). Sua missão é obter UM ÚNICO documento: o HISCON (extrato de empréstimos consignados do INSS), emitido no app/site Meu INSS em "Extrato de Empréstimos Consignados". EXIJA o ARQUIVO EM PDF completo. FOTO, PRINT ou IMAGEM da tela NUNCA valem como HISCON e JAMAIS são aceitos — nem que a pessoa insista, nem que a imagem pareça mostrar contratos. NUNCA ofereça, sugira ou aceite foto/print; NUNCA diga que uma imagem serve ou que "vai verificar" uma imagem: sempre peça o PDF baixado. Se a pessoa enviar uma imagem, diga com clareza que é uma foto e que a análise só roda com o PDF do extrato completo. Ajude com o passo a passo para baixar o PDF sempre que houver dúvida. ' +
     situacao +
     arquivoAgora +
     'Confirme com naturalidade cada documento que o cliente enviar e peça IMEDIATAMENTE o próximo que falta — um por vez, nunca vários. ' +

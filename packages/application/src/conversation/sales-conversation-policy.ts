@@ -269,3 +269,45 @@ export function styleGuidanceDaMissao(politica: PoliticaDaMissao): string {
     : '';
   return `${politica.conduta}${canon}`;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REDE DE SEGURANÇA DETERMINÍSTICA (caso Isaú 2026-07-25) — o cliente cujo HISCON
+// JÁ foi recebido (estado ANALISE_ADMINISTRATIVA) JAMAIS pode receber uma cobrança
+// de documento por iniciativa da AHRI (só um DocumentRequest ATIVO do advogado
+// pede documento nessa fase). O prompt já orienta isso, mas o LLM às vezes é
+// puxado de volta ao "último assunto" (o HISCON) num follow-up. Esta trava age
+// DEPOIS da fala: se, em análise e SEM pedido ativo, o texto tiver linguagem de
+// cobrança/ensino de documento, ele é substituído por um aviso correto de
+// andamento — nunca some (o cliente segue aquecido e informado, só que certo).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Mensagem SEGURA de andamento — substitui uma cobrança indevida em análise. */
+export const MENSAGEM_ANALISE_EM_ANDAMENTO =
+  'Passando para te atualizar: o seu caso já está EM ANÁLISE, dentro do prazo. ' +
+  'Não precisa enviar nada agora — assim que houver qualquer novidade, eu te aviso por aqui mesmo. ' +
+  'Se tiver alguma dúvida enquanto isso, pode me perguntar que eu te respondo.';
+
+// Linguagem que caracteriza COBRANÇA/ENSINO de documento (não a mera menção).
+const PADROES_COBRANCA_DOCUMENTO: readonly RegExp[] = [
+  /extrato de empr[eé]stimos consignados/i, // o nome do menu do Meu INSS (só ao ensinar a baixar)
+  /\bmeu inss\b/i,
+  /\b(envie|enviar|mande|mandar|manda|anexe|anexar|encaminhe)\b[\s\S]{0,60}?\b(hiscon|extrato|documento|pdf|arquivo)\b/i,
+  /\b(preciso|aguardo|aguardando|falta|faltando)\b[\s\S]{0,40}?\b(hiscon|extrato|documento)\b/i,
+  /\bbaixar\b[\s\S]{0,30}?\b(pdf|extrato|documento)\b/i,
+  /\bgerar\b[\s\S]{0,20}?\bextrato\b/i,
+];
+
+/** O texto é uma COBRANÇA/ENSINO de documento? (não confunde com "recebi o HISCON") */
+export function pareceCobrancaDeDocumento(texto: string): boolean {
+  return PADROES_COBRANCA_DOCUMENTO.some((re) => re.test(texto));
+}
+
+/** Blinda a fala em ANÁLISE: cobrança de documento por iniciativa própria vira o
+ *  aviso de andamento. Só age em ANALISE_ADMINISTRATIVA e SEM DocumentRequest
+ *  ativo (o pedido do advogado é legítimo e passa intacto). Fora disso, no-op. */
+export function revisarFalaEmAnalise(texto: string, context: ConversationContextView): string {
+  if (context.missaoDaConversa !== 'ANALISE_ADMINISTRATIVA') return texto;
+  if (context.pendenciaDocumental != null) return texto; // pedido ativo do advogado é legítimo
+  if (!pareceCobrancaDeDocumento(texto)) return texto;
+  return MENSAGEM_ANALISE_EM_ANDAMENTO;
+}

@@ -18,6 +18,7 @@ import { isMechanicalPercept } from './percept.js';
 import type { ConversationIntent } from './intent.js';
 import { intentSpeaks } from './intent.js';
 import { isRepetition } from './phrasing.js';
+import { revisarFalaEmAnalise } from './sales-conversation-policy.js';
 import type { HumanizationPolicy } from './humanization-policy.js';
 import type {
   ConversationContextView,
@@ -181,10 +182,20 @@ export class ConversationRuntime {
     }
 
     // Fraseia (LLM de expressão) com guard anti-repetição.
-    const text = await this.phraseWithoutRepetition(intent, view, turnPhrases);
+    const bruto = await this.phraseWithoutRepetition(intent, view, turnPhrases);
     // Decreto 2026-07-22 (caso Lucas): guard esgotado ⇒ SILÊNCIO. Repetir a
     // mesma frase pela 3ª vez é a trava robótica que perdeu um cliente real.
-    if (text === '') return;
+    if (bruto === '') return;
+    // Rede de segurança (caso Isaú 2026-07-25): em ANÁLISE, cobrança de documento
+    // por iniciativa própria (o LLM puxado de volta ao HISCON num follow-up) vira
+    // o aviso correto de andamento — nunca informação errada a quem já entregou.
+    const text = revisarFalaEmAnalise(bruto, view);
+    if (text !== bruto) {
+      await memory.recordNote(
+        intent.chatId,
+        'rede de segurança: cobrança de documento em ANÁLISE substituída por aviso de andamento',
+      );
+    }
     turnPhrases.push(text);
     await queue.enqueue(intent.chatId, intent.id, text);
   }

@@ -169,6 +169,9 @@ export function buildAdminServer(
     };
     /** Decreto 2026-07-24: mapa de clientes (distribuição por estado/cidade). */
     readonly mapaClientes?: { gerar(): Promise<unknown> };
+    /** Decreto 2026-07-26: o CPF coletado no funil — exibido no cadastro do
+     *  cliente (o perito precisa dele para protocolar o pedido nos bancos). */
+    readonly jornadaCpf?: (chatId: string) => Promise<string | null>;
     /** Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag). */
     readonly periciaDigitalHabilitado?: boolean;
     readonly periciaDigital?: {
@@ -975,8 +978,12 @@ export function buildAdminServer(
     const missions = await Promise.all(
       missionIds.map(async (id) => ({ missionId: id, progress: await op.workflow.progress(id) })),
     );
+    // Decreto 2026-07-26: o CPF do funil viaja no cadastro (null enquanto a
+    // pessoa não informou — nunca inventado, nunca inferido do telefone).
+    const cpf = opts.jornadaCpf ? await opts.jornadaCpf(chatId).catch(() => null) : null;
     return {
       memory: memoriaComRotulos(memory, await rotulosDe(chatId)),
+      cpf,
       relationship,
       conversation,
       missions,

@@ -273,6 +273,8 @@ export interface AssembledProduction {
   readonly custos: MedidorDeCusto;
   /** Decreto 2026-07-22: reaquecimento de leads frios — autorizado pelo admin. */
   readonly reaquecimento: ReaquecimentoService;
+  /** Decreto 2026-07-26: a jornada comercial — fonte do CPF exibido no cadastro. */
+  readonly jornadaComercial: JornadaComercialRuntime;
   /** GO LIVE A · R1: a visão única do cliente (ALIR) + persona Operador de Qualificação. */
   readonly alir: AssembledALIR;
   /** PC-R1: a projeção segura do processo para o CLIENTE (Portal + AHRI — Princípio 3). */
@@ -1337,6 +1339,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     documentReader,
     custos,
     reaquecimento,
+    // Decreto 2026-07-26: o CPF coletado no funil, para o cadastro do cliente.
+    jornadaComercial,
     alir,
     acompanhamento,
     nascimento,

@@ -10,6 +10,13 @@ import TimelineCognitiva from '../../../../components/timeline-cognitiva';
 import { getJson, type ClientDetail } from '../../../../lib/api';
 import { formatDate, formatMs, shortId } from '../../../../lib/format';
 
+/** CPF legível (000.000.000-00). Só formata; nunca inventa dígito. */
+function formatarCpf(cpf: string | null | undefined): string | null {
+  const d = (cpf ?? '').replace(/\D/g, '');
+  if (d.length !== 11) return null;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
 const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<ReactElement> => {
   const chatId = decodeURIComponent(params.chatId);
   const data = await getJson<ClientDetail>(`/admin/clients/${encodeURIComponent(chatId)}`);
@@ -22,11 +29,22 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
     );
   }
   const { memory, relationship, conversation, missions } = data;
+  // Decreto 2026-07-26: o CPF é dado de trabalho do PERITO (sem ele não há
+  // pedido administrativo). Fica visível já no topo do cadastro.
+  const cpfLegivel = formatarCpf(data.cpf);
   return (
     <>
       <AutoRefresh seconds={5} />
       <h1 className="page-title">{relationship.knownName ?? 'Cliente'}</h1>
       <p className="page-sub mono">{chatId}</p>
+      <p className="page-sub" style={{ marginTop: -6 }}>
+        CPF:{' '}
+        {cpfLegivel !== null ? (
+          <strong className="mono">{cpfLegivel}</strong>
+        ) : (
+          <span className="badge">não informado — a perícia precisa dele para os pedidos</span>
+        )}
+      </p>
 
       {/* GO-LIVE 13A — ORDEM NATURAL DO TRABALHO: primeiro o parecer, depois a
           história do caso, e só então a conversa completa e os documentos.

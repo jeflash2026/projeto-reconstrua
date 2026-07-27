@@ -291,6 +291,9 @@ export interface JornadaCliente {
 }
 
 export interface ClientDetail {
+  /** CPF (só dígitos) coletado no funil — null enquanto a pessoa não informou.
+   *  A perícia precisa dele para protocolar o pedido administrativo (2026-07-26). */
+  cpf?: string | null;
   memory: {
     chatId: string;
     // Formato REAL da memória viva (2E): fonte estruturada {kind, ref, at}.

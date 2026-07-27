@@ -1019,6 +1019,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
     textoDoDocumento: (documentId) => documentReader.readById(documentId),
     exporter: new CsvPlanilhaExporter(),
+    // Decreto 2026-07-27: a fila da perícia exige FASE 1 completa (CPF+HISCON).
+    // Lê o registro da jornada direto (ns 'jornada') — sem dependência de ordem.
+    cpfDe: async (chatId) => {
+      const r = (await json.get('jornada', chatId)) as { cpf?: string | null } | null;
+      return r?.cpf ?? null;
+    },
   });
 
   // Decreto 2026-07-24: FLUXO DA PERÍCIA — o perito baixa o estudo ⇒ 10 dias

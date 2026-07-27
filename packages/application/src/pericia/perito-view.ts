@@ -27,6 +27,9 @@ export interface PeritoDeps {
   /** Texto bruto de um documento (DocumentReader existente; null = ilegível). */
   readonly textoDoDocumento: (documentId: string) => Promise<string | null>;
   readonly exporter: PlanilhaExporter;
+  /** Decreto 2026-07-27: o CPF da jornada — a fila da perícia exige a FASE 1
+   *  completa (CPF + HISCON). Ausente ⇒ temCpf=false em todos (fail-closed). */
+  readonly cpfDe?: (chatId: string) => Promise<string | null>;
 }
 
 export interface ContratosDoCliente {
@@ -60,6 +63,9 @@ export interface ClienteComHiscon {
   readonly totalContratos: number;
   readonly status: string;
   readonly ultimoContatoAt: Date | null;
+  /** Decreto 2026-07-27: fase 1 completa exige CPF + HISCON — a fila da perícia
+   *  filtra por esta flag; quem falta CPF fica na aba Clientes (cobrança). */
+  readonly temCpf: boolean;
 }
 
 export class PeritoView {
@@ -207,6 +213,7 @@ export class PeritoView {
     for (const cliente of clientes) {
       const c = await this.contratosDoResumo(cliente, now);
       if (c.detalhado.contratos.length === 0) continue;
+      const cpf = (await this.deps.cpfDe?.(cliente.chatId).catch(() => null)) ?? null;
       out.push({
         clienteId: cliente.clienteId,
         chatId: cliente.chatId,
@@ -214,6 +221,7 @@ export class PeritoView {
         totalContratos: c.detalhado.contratos.length,
         status: cliente.status,
         ultimoContatoAt: cliente.ultimoContatoAt,
+        temCpf: cpf !== null,
       });
     }
     return out.sort(

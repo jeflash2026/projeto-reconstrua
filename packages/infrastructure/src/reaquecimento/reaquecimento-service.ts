@@ -188,6 +188,35 @@ export class ReaquecimentoService {
     return enviados;
   }
 
+  /** COBRANÇA MANUAL DE CPF (decreto 2026-07-27): o admin seleciona o lote na
+   *  aba Clientes e dispara. Regras duras: só quem JÁ entregou o HISCON e ainda
+   *  não tem CPF; trava de 24h entre cobranças. Compartilha o ns 'followup-cpf'
+   *  com o follow-up automático das 09:00 — um NUNCA duplica o outro. */
+  async cobrarCpf(chatId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    const now = this.deps.clock.now();
+    const fatos = await this.deps.jornada.fatos(chatId).catch(() => null);
+    if (fatos === null) return { ok: false, error: 'cliente não encontrado' };
+    if (!fatos.docsCompletos) return { ok: false, error: 'ainda não entregou o HISCON' };
+    if (fatos.registro.cpf !== null) return { ok: false, error: 'CPF já registrado' };
+    const raw = (await this.deps.json.get(NS_FOLLOWUP_CPF, chatId)) as {
+      pedidoEm?: string;
+      tentativas?: readonly string[];
+    } | null;
+    const tentativas = raw?.tentativas ?? (raw?.pedidoEm !== undefined ? [raw.pedidoEm] : []);
+    const ultima = tentativas[tentativas.length - 1];
+    if (ultima !== undefined && now.getTime() - new Date(ultima).getTime() < 24 * 3_600_000)
+      return { ok: false, error: 'CPF já cobrado nas últimas 24h' };
+    // Claim-then-send (mesma lei do follow-up automático): registra ANTES.
+    await this.deps.json.put(NS_FOLLOWUP_CPF, chatId, {
+      chatId,
+      pedidoEm: raw?.pedidoEm ?? now.toISOString(),
+      tentativas: [...tentativas, now.toISOString()],
+    });
+    await this.deps.enviar(chatId, MENSAGENS_JORNADA.followUpCpf);
+    this.deps.observability?.event('followup-cpf', `cpf cobrado (manual) chat=${chatId}`, now);
+    return { ok: true };
+  }
+
   /** RETOMADA AUTOMÁTICA (decreto 2026-07-22): varre as conversas cuja ÚLTIMA
    *  palavra foi do cliente sem resposta nossa (turno caído) há 30+ minutos e
    *  CONTINUA o fluxo do ponto exato — com desculpa pela demora. Guardrails:

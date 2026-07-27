@@ -288,6 +288,10 @@ export interface JornadaCliente {
   saude: 'GREEN' | 'YELLOW' | 'RED' | null;
   ultimoContatoAt: string | null;
   pedidosConfirmadosEm: string | null;
+  /** Decreto 2026-07-27 — a régua da FASE 1 (CPF + HISCON), vinda da API:
+   *  hisconLegivel = o leitor lê contratos; cpfRegistrado = CPF na jornada. */
+  hisconLegivel?: boolean;
+  cpfRegistrado?: boolean;
 }
 
 export interface ClientDetail {

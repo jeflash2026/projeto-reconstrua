@@ -9,7 +9,9 @@ import type { ReactElement } from 'react';
 import AutoRefresh from '../../../components/auto-refresh';
 import JornadaAcoes, { type AdvogadoOption } from '../../../components/jornada-acoes';
 import CobrarHiscon from '../../../components/cobrar-hiscon';
+import CobrarCpf from '../../../components/cobrar-cpf';
 import DisparoEmLote from '../../../components/disparo-em-lote';
+import DisparoCpfEmLote from '../../../components/disparo-cpf-em-lote';
 import { getJson, type ClienteStatus, type JornadaCliente, type StaffData } from '../../../lib/api';
 import { formatDate } from '../../../lib/format';
 
@@ -32,17 +34,17 @@ const SAUDE_ICON: Record<'GREEN' | 'YELLOW' | 'RED', string> = {
   RED: '🔴',
 };
 
-/** Tabela de um segmento. `aguardandoHiscon` troca a coluna de ação: os que ainda
- *  não mandaram o HISCON ganham o botão "Cobrar HISCON"; os prontos, os atos da
- *  jornada (modalidade/venda/sócio). */
+/** Tabela de um segmento. `acao` troca a coluna de ação: quem não mandou o
+ *  HISCON ganha "Cobrar HISCON"; quem mandou mas falta o CPF, "Cobrar CPF";
+ *  fase 1 completa ganha os atos da jornada (modalidade/venda/sócio). */
 function TabelaClientes({
   clientes,
   advogados,
-  aguardandoHiscon,
+  acao,
 }: {
   clientes: readonly JornadaCliente[];
   advogados: readonly AdvogadoOption[];
-  aguardandoHiscon: boolean;
+  acao: 'jornada' | 'cobrar-hiscon' | 'cobrar-cpf';
 }): ReactElement {
   return (
     <div className="table-wrap">
@@ -89,8 +91,10 @@ function TabelaClientes({
                 <td>{c.saude === null ? '—' : SAUDE_ICON[c.saude]}</td>
                 <td>{formatDate(c.ultimoContatoAt)}</td>
                 <td>
-                  {aguardandoHiscon ? (
+                  {acao === 'cobrar-hiscon' ? (
                     <CobrarHiscon chatId={c.chatId} />
+                  ) : acao === 'cobrar-cpf' ? (
+                    <CobrarCpf chatId={c.chatId} />
                   ) : (
                     <JornadaAcoes
                       clienteId={c.clienteId}
@@ -134,9 +138,12 @@ const ClientsPage = async ({
               STATUS_LABEL[c.status].label.includes(q),
           );
 
-  // Fase 1: HISCON recebido (pronto) = pronto para estudo/perícia. Os demais ainda
-  // não mandaram o HISCON (só contato ou outros documentos) — precisam de cobrança.
-  const comHiscon = todos?.filter((c) => c.pronto) ?? [];
+  // Decreto 2026-07-27 — a FASE 1 completa exige CPF + HISCON. Segmentos:
+  //   • fase1: CPF + HISCON entregues ⇒ é quem alimenta a fila da perícia;
+  //   • faltaCpf: HISCON ok, CPF pendente ⇒ cobrar CPF (unitário ou lote);
+  //   • aguardando: sem HISCON ⇒ cobrar HISCON (unitário ou lote).
+  const fase1 = todos?.filter((c) => c.pronto && c.cpfRegistrado === true) ?? [];
+  const faltaCpf = todos?.filter((c) => c.pronto && c.cpfRegistrado !== true) ?? [];
   const aguardando = todos?.filter((c) => !c.pronto) ?? [];
 
   return (
@@ -166,11 +173,15 @@ const ClientsPage = async ({
         <div className="card empty">Nenhum cliente encontrado.</div>
       ) : (
         <>
-          {/* Totais por fase — visão rápida de quantos estão prontos para estudo. */}
+          {/* Totais por fase — a régua da FASE 1 é CPF + HISCON (decreto 2026-07-27). */}
           <div className="grid stats" style={{ marginTop: 8, marginBottom: 8 }}>
             <div className="card stat">
-              <div className="value">{comHiscon.length}</div>
-              <div className="label">Fase 1 — HISCON recebido (prontos p/ estudo)</div>
+              <div className="value">{fase1.length}</div>
+              <div className="label">Fase 1 completa — CPF + HISCON entregues</div>
+            </div>
+            <div className="card stat">
+              <div className="value">{faltaCpf.length}</div>
+              <div className="label">Com HISCON, faltando CPF (em cobrança)</div>
             </div>
             <div className="card stat">
               <div className="value">{aguardando.length}</div>
@@ -179,14 +190,29 @@ const ClientsPage = async ({
           </div>
 
           <h2 className="page-title" style={{ fontSize: '1.15rem', marginTop: 24 }}>
-            ✅ HISCON recebido — Fase 1 completa{' '}
-            <span className="badge ok">{comHiscon.length}</span>
+            ✅ Fase 1 completa — CPF + HISCON <span className="badge ok">{fase1.length}</span>
           </h2>
-          <p className="page-sub">Prontos para estudo/perícia. Documentação inicial completa.</p>
-          {comHiscon.length === 0 ? (
-            <div className="card empty">Ninguém com HISCON recebido ainda.</div>
+          <p className="page-sub">
+            Documentação inicial completa — são estes que alimentam a fila da perícia.
+          </p>
+          {fase1.length === 0 ? (
+            <div className="card empty">Ninguém com CPF + HISCON ainda.</div>
           ) : (
-            <TabelaClientes clientes={comHiscon} advogados={advogados} aguardandoHiscon={false} />
+            <TabelaClientes clientes={fase1} advogados={advogados} acao="jornada" />
+          )}
+
+          <h2 className="page-title" style={{ fontSize: '1.15rem', marginTop: 32 }}>
+            🪪 Com HISCON, faltando CPF <span className="badge warn">{faltaCpf.length}</span>
+          </h2>
+          <p className="page-sub">
+            Já enviaram o HISCON, mas sem o CPF a perícia não protocola o pedido nos bancos. Use
+            “Cobrar CPF” (unitário ou em lote) — a AHRI envia a mensagem canônica.
+          </p>
+          <DisparoCpfEmLote chatIds={faltaCpf.map((c) => c.chatId)} />
+          {faltaCpf.length === 0 ? (
+            <div className="card empty">Ninguém pendente de CPF.</div>
+          ) : (
+            <TabelaClientes clientes={faltaCpf} advogados={advogados} acao="cobrar-cpf" />
           )}
 
           <h2 className="page-title" style={{ fontSize: '1.15rem', marginTop: 32 }}>
@@ -200,7 +226,7 @@ const ClientsPage = async ({
           {aguardando.length === 0 ? (
             <div className="card empty">Ninguém pendente — todos enviaram o HISCON.</div>
           ) : (
-            <TabelaClientes clientes={aguardando} advogados={advogados} aguardandoHiscon />
+            <TabelaClientes clientes={aguardando} advogados={advogados} acao="cobrar-hiscon" />
           )}
         </>
       )}

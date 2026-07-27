@@ -102,6 +102,22 @@ function harness(clientes: readonly ClienteResumo[]): Harness {
     },
     // B-R2 — visão do Perito (fake mínimo; a lógica real é testada em application)
     perito: {
+      // Decreto 2026-07-27: a rota clientes usa todosComHiscon como régua da
+      // fase 1 (HISCON legível + CPF) — o fake dá HISCON+CPF a todo `pronto`.
+      todosComHiscon: () =>
+        Promise.resolve(
+          clientes
+            .filter((c) => c.pronto)
+            .map((c) => ({
+              clienteId: c.clienteId,
+              chatId: c.chatId,
+              quem: c.quem,
+              totalContratos: 3,
+              status: c.status,
+              ultimoContatoAt: c.ultimoContatoAt,
+              temCpf: true,
+            })),
+        ),
       contratos: (clienteId: string) =>
         Promise.resolve(
           clientes.some((c) => c.clienteId === clienteId)

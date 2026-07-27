@@ -123,6 +123,9 @@ export function buildAdminServer(
     /** Decreto 2026-07-22: REAQUECIMENTO de leads frios — o admin AUTORIZA
      *  lead a lead; a AHRI envia a mensagem do estágio (guardrails no serviço). */
     readonly reaquecimento?: {
+      /** Decreto 2026-07-27: cobrança MANUAL de CPF (lote na aba Clientes) —
+       *  só quem tem HISCON e não tem CPF; trava de 24h no serviço. */
+      cobrarCpf(chatId: string): Promise<{ ok: true } | { ok: false; error: string }>;
       leadsFrios(): Promise<readonly unknown[]>;
       reaquecer(
         chatId: string,
@@ -485,7 +488,25 @@ export function buildAdminServer(
     };
     const todos = await op.clientes.list();
     const status = fila !== undefined ? FILAS[fila] : undefined;
-    const clientes = status !== undefined ? todos.filter((c) => c.status === status) : todos;
+    let clientes = status !== undefined ? todos.filter((c) => c.status === status) : todos;
+    // Decreto 2026-07-27: HISCON legível + CPF por cliente — a régua ÚNICA da
+    // fase 1. A fila da perícia exige as duas coisas (mesma régua do perito —
+    // fim da divergência 110×103); a lista completa expõe as flags para a aba
+    // Clientes segmentar e cobrar o que falta.
+    if (op.perito) {
+      const comHiscon = new Map((await op.perito.todosComHiscon()).map((c) => [c.chatId, c]));
+      if (fila === 'pericia') clientes = clientes.filter((c) => comHiscon.get(c.chatId)?.temCpf);
+      const anotados = [];
+      for (const c of clientes) {
+        const h = comHiscon.get(c.chatId);
+        const cpfRegistrado =
+          h !== undefined
+            ? h.temCpf
+            : ((await opts.jornadaCpf?.(c.chatId).catch(() => null)) ?? null) !== null;
+        anotados.push({ ...c, hisconLegivel: h !== undefined, cpfRegistrado });
+      }
+      return { clientes: anotados };
+    }
     return { clientes };
   });
 
@@ -521,7 +542,9 @@ export function buildAdminServer(
   // (resolvida antes da paramétrica :clienteId).
   app.get('/admin/jornada/pericia/todos-com-hiscon', async (_request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
-    return { clientes: await op.perito.todosComHiscon() };
+    // Decreto 2026-07-27: a fila da perícia exige a FASE 1 completa (CPF +
+    // HISCON) — quem falta CPF fica na aba Clientes, em cobrança.
+    return { clientes: (await op.perito.todosComHiscon()).filter((c) => c.temCpf) };
   });
 
   // Decreto 2026-07-27: RELEITURA COMPARATIVA — o leitor posicional V2 rodado
@@ -1304,6 +1327,17 @@ export function buildAdminServer(
     if (!opts.reaquecimento)
       return reply.code(404).send({ error: 'reaquecimento não configurado' });
     return { leads: await opts.reaquecimento.leadsFrios() };
+  });
+
+  // COBRANÇA MANUAL DE CPF (decreto 2026-07-27): o admin dispara da aba
+  // Clientes (unitário ou lote no cliente) — regras duras no serviço.
+  app.post('/admin/reaquecimento-cpf/:chatId', async (request, reply) => {
+    if (!opts.reaquecimento)
+      return reply.code(404).send({ error: 'reaquecimento não configurado' });
+    const { chatId } = request.params as { chatId: string };
+    const r = await opts.reaquecimento.cobrarCpf(chatId);
+    if (!r.ok) return reply.code(409).send({ error: r.error });
+    return r;
   });
 
   app.post('/admin/reaquecimento/:chatId', async (request, reply) => {

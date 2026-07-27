@@ -667,6 +667,29 @@ export async function fetchMapaClientes(): Promise<MapaClientesView | null> {
   return getJson<MapaClientesView>('/admin/mapa-clientes');
 }
 
+/** COBRANÇA MANUAL DE CPF (decreto 2026-07-27) — só quem tem HISCON e não tem
+ *  CPF; trava de 24h no servidor. Mensagem canônica ditada pelo dono. */
+export async function cobrarCpfCliente(
+  chatId: string,
+): Promise<{ ok: boolean; error: string | null }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/reaquecimento-cpf/${encodeURIComponent(chatId)}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
+      },
+      body: '{}',
+      cache: 'no-store',
+    });
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) return { ok: false, error: body.error ?? `HTTP ${String(res.status)}` };
+    return { ok: true, error: null };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'falha de rede' };
+  }
+}
+
 export async function autorizarReaquecimento(
   chatId: string,
 ): Promise<{ ok: boolean; error: string | null }> {

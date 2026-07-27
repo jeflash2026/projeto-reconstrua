@@ -211,4 +211,25 @@ describe('varreduraRetomada (conversas caídas — automática, com guardrails)'
     expect(await service.varreduraCpf(QUINZE_BRT)).toBe(0);
     expect(enviados).toHaveLength(0);
   });
+
+  // ── COBRANÇA MANUAL DE CPF (decreto 2026-07-27: lote na aba Clientes) ──────
+  it('cobrarCpf: envia a mensagem canônica a quem tem HISCON sem CPF; regras duras', async () => {
+    const { service, enviados } = harness({
+      'sem-cpf': fatosDe(novaJornada('sem-cpf', ONTEM), 1, true),
+      'com-cpf': fatosDe({ ...novaJornada('com-cpf', ONTEM), cpf: '52998224725' }, 1, true),
+      'sem-hiscon': fatosDe(novaJornada('sem-hiscon', ONTEM), 0, false),
+    });
+    // Elegível: envia e registra.
+    expect(await service.cobrarCpf('sem-cpf')).toEqual({ ok: true });
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]?.texto).toContain('CPF');
+    // Trava de 24h: segunda cobrança no mesmo dia é recusada.
+    const denovo = await service.cobrarCpf('sem-cpf');
+    expect(denovo.ok).toBe(false);
+    if (!denovo.ok) expect(denovo.error).toContain('24h');
+    // CPF já registrado e HISCON ausente são recusas — nunca spam.
+    expect((await service.cobrarCpf('com-cpf')).ok).toBe(false);
+    expect((await service.cobrarCpf('sem-hiscon')).ok).toBe(false);
+    expect(enviados).toHaveLength(1); // só o primeiro envio aconteceu
+  });
 });

@@ -767,6 +767,16 @@ export async function fetchReleituraHiscon(): Promise<ReleituraRelatorio | null>
   return getJson<ReleituraRelatorio>('/admin/pericia/releitura-comparativa');
 }
 
+export interface AplicarReleituraResultado {
+  aplicados: number;
+  pulados: number;
+  detalhes: { chatId: string; resultado: 'APLICADO' | 'PULADO'; motivo: string }[];
+}
+/** APLICA a leitura definitiva nos clientes conferidos (com backup). Ato do admin. */
+export async function pdAplicarReleitura(): Promise<AplicarReleituraResultado | null> {
+  return sendJson<AplicarReleituraResultado>('POST', '/admin/pericia/releitura-aplicar', {});
+}
+
 /** Cliente com HISCON legível — as opções do seletor "abrir caso pericial". */
 export interface PdClienteComHiscon {
   chatId: string;

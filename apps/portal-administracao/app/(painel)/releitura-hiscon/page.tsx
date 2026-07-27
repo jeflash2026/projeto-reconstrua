@@ -2,6 +2,7 @@
 // rodado sobre os PDFs armazenados, lado a lado com a leitura em produção.
 // SÓ LEITURA: esta página nunca altera cache nem estado de cliente algum.
 import type { ReactElement } from 'react';
+import ReleituraAplicar from '../../../components/releitura-aplicar';
 import { fetchReleituraHiscon, type ReleituraLinha } from '../../../lib/actions';
 
 export const dynamic = 'force-dynamic';
@@ -76,6 +77,11 @@ const ReleituraPage = async (): Promise<ReactElement> => {
               </div>
             ))}
           </div>
+          <ReleituraAplicar
+            conferidos={
+              (dados.resumo['CONFERIDO_IGUAL'] ?? 0) + (dados.resumo['CONFERIDO_DIFERENTE'] ?? 0)
+            }
+          />
           <div className="card">
             <h3>
               Clientes com HISCON ({dados.totalClientes}) — gerado em{' '}

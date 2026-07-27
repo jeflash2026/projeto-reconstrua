@@ -173,8 +173,12 @@ export function buildAdminServer(
      *  cliente (o perito precisa dele para protocolar o pedido nos bancos). */
     readonly jornadaCpf?: (chatId: string) => Promise<string | null>;
     /** Decreto 2026-07-27: releitura comparativa do HISCON (V2 × leitura atual).
-     *  SÓ LEITURA — o relatório nunca altera cache nem estado de cliente. */
-    readonly releitura?: { compararTodos(limite?: number): Promise<unknown> };
+     *  compararTodos é SÓ LEITURA; aplicarLeituraDefinitiva SUBSTITUI o cache
+     *  dos clientes CONFERIDOS pela auditoria (com backup) — ato do admin. */
+    readonly releitura?: {
+      compararTodos(limite?: number): Promise<unknown>;
+      aplicarLeituraDefinitiva(): Promise<unknown>;
+    };
     /** Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag). */
     readonly periciaDigitalHabilitado?: boolean;
     readonly periciaDigital?: {
@@ -518,6 +522,14 @@ export function buildAdminServer(
     const q = request.query as { limite?: string };
     const limiteNum = q.limite !== undefined ? Number(q.limite) : Number.NaN;
     return opts.releitura.compararTodos(Number.isFinite(limiteNum) ? limiteNum : undefined);
+  });
+  // APLICAR a leitura definitiva (decreto 2026-07-27): substitui o cache dos
+  // clientes CONFERIDOS pela auditoria, com backup. Ato EXPLÍCITO do admin
+  // (botão na página Releitura) — nunca automático.
+  app.post('/admin/pericia/releitura-aplicar', async (_request, reply) => {
+    if (!opts.releitura)
+      return reply.code(503).send({ error: 'releitura indisponível nesta montagem' });
+    return opts.releitura.aplicarLeituraDefinitiva();
   });
 
   // ── FLUXO DA PERÍCIA (Decreto 2026-07-24) — o perito BAIXOU ⇒ em perícia (10

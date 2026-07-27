@@ -13,11 +13,17 @@ import { ReleituraComparativa } from './releitura-comparativa.js';
 
 const NOW = new Date('2026-07-27T12:00:00.000Z');
 
-function jsonComOnboarding(estados: unknown[]): JsonStore {
+function jsonComOnboarding(
+  estados: unknown[],
+  gravacoes: { ns: string; key: string }[] = [],
+): JsonStore {
   return {
     get: () => Promise.resolve(null),
-    put: () => Promise.reject(new Error('RELATÓRIO NÃO ESCREVE')),
-    del: () => Promise.reject(new Error('RELATÓRIO NÃO ESCREVE')),
+    put: (ns: string, key: string) => {
+      gravacoes.push({ ns, key });
+      return Promise.resolve();
+    },
+    del: () => Promise.reject(new Error('NUNCA DELETA')),
     list: (ns: string) => Promise.resolve(ns === 'onboarding-documental' ? estados : []),
     keys: () => Promise.resolve([]),
   };
@@ -117,10 +123,14 @@ function harness(cenarios: Record<string, Cenario>) {
 /** Harness com o leitor resolvendo por CONTEÚDO do blob (1 byte = índice). */
 function harnessComLeituras(cenarios: Record<string, Cenario>) {
   const puts: string[] = [];
+  const gravacoesJson: { ns: string; key: string }[] = [];
   const porSha = new Map(Object.values(cenarios).map((c) => [c.sha, c.leitura]));
   const shaDoByte = new Map(Object.values(cenarios).map((c, i) => [i + 1, c.sha]));
   const svc = new ReleituraComparativa({
-    json: jsonComOnboarding(Object.keys(cenarios).map((chat) => onboarding(chat, `doc-${chat}`))),
+    json: jsonComOnboarding(
+      Object.keys(cenarios).map((chat) => onboarding(chat, `doc-${chat}`)),
+      gravacoesJson,
+    ),
     links: {
       byDocumentId: (id) => {
         const c = cenarios[id.replace('doc-', '')];
@@ -165,12 +175,12 @@ function harnessComLeituras(cenarios: Record<string, Cenario>) {
       return Promise.resolve(porSha.get(sha) ?? null);
     },
   });
-  return { svc, puts };
+  return { svc, puts, gravacoesJson };
 }
 
 describe('Releitura comparativa — V2 × leitura em produção (só leitura)', () => {
   it('classifica: conferido-igual, conferido-DIFERENTE, divergente e imagem', async () => {
-    const { svc, puts } = harnessComLeituras({
+    const { svc, puts, gravacoesJson } = harnessComLeituras({
       'chat-igual': {
         sha: 'sha-1',
         cacheTexto: formatoA(2),
@@ -206,8 +216,9 @@ describe('Releitura comparativa — V2 × leitura em produção (só leitura)', 
     expect(r.linhas[0]?.veredicto).toBe('CONFERIDO_DIFERENTE');
     expect(r.resumo['CONFERIDO_IGUAL']).toBe(1);
     expect(r.resumo['CONFERIDO_DIFERENTE']).toBe(1);
-    // INVARIANTE: o relatório NUNCA escreveu no cache.
+    // INVARIANTE: o relatório NUNCA escreveu — nem no cache, nem no json store.
     expect(puts).toHaveLength(0);
+    expect(gravacoesJson).toHaveLength(0);
   });
 
   it('sem vínculo de mídia ⇒ SEM_VINCULO (nunca lança, nunca inventa)', async () => {
@@ -215,6 +226,38 @@ describe('Releitura comparativa — V2 × leitura em produção (só leitura)', 
     const svcSemLink = svc; // harness vazio: nenhum cliente ⇒ relatório vazio
     const r = await svcSemLink.compararTodos();
     expect(r.totalClientes).toBe(0);
+  });
+
+  it('APLICAR: só os conferidos, com BACKUP do texto antigo; o resto é pulado', async () => {
+    const { svc, puts, gravacoesJson } = harnessComLeituras({
+      'chat-igual': {
+        sha: 'sha-1',
+        cacheTexto: formatoA(2),
+        leitura: { v2: v2Result(2, 'conferida'), v1Texto: null },
+      },
+      'chat-suspeito': {
+        sha: 'sha-2',
+        cacheTexto: formatoA(1),
+        leitura: { v2: v2Result(3, 'conferida'), v1Texto: null },
+      },
+      'chat-divergente': {
+        sha: 'sha-3',
+        cacheTexto: formatoA(2),
+        leitura: { v2: v2Result(2, 'divergente', 4), v1Texto: null },
+      },
+      'chat-imagem': { sha: 'sha-4', cacheTexto: formatoA(1), mime: 'image/jpeg', leitura: null },
+    });
+    const r = await svc.aplicarLeituraDefinitiva();
+    expect(r.aplicados).toBe(2); // os dois conferidos (igual E diferente)
+    expect(r.pulados).toBe(2); // divergente + imagem — análise manual
+    // O cache foi SUBSTITUÍDO só nos conferidos…
+    expect(puts.sort()).toEqual(['sha-1', 'sha-2']);
+    // …e o texto ANTIGO foi guardado em backup antes (reversível).
+    const backups = gravacoesJson.filter((g) => g.ns === 'document-text-backup').map((g) => g.key);
+    expect(backups.sort()).toEqual(['sha-1', 'sha-2']);
+    const motivos = new Map(r.detalhes.map((d) => [d.chatId, d.motivo]));
+    expect(motivos.get('chat-divergente')).toContain('divergente');
+    expect(motivos.get('chat-imagem')).toContain('imagem');
   });
 
   it('respeita o limite da varredura', async () => {

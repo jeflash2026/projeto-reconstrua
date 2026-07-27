@@ -143,6 +143,79 @@ export class ReleituraComparativa {
     };
   }
 
+  /** APLICAR A LEITURA DEFINITIVA (decreto 2026-07-27, autorizado pelo dono):
+   *  para cada cliente cuja releitura V2 é CONFERIDA pela auditoria do próprio
+   *  documento, o texto novo substitui o cache — com BACKUP do antigo (ns
+   *  'document-text-backup', reversível). Divergentes, não-reconhecidos e
+   *  imagens são PULADOS (análise manual). Toda a plataforma a jusante
+   *  (potencial, dossiês, pedidos, janela de 5 anos) passa a se alimentar da
+   *  leitura nova automaticamente — o parse acontece por leitura, sem estado. */
+  async aplicarLeituraDefinitiva(): Promise<{
+    aplicados: number;
+    pulados: number;
+    detalhes: readonly { chatId: string; resultado: 'APLICADO' | 'PULADO'; motivo: string }[];
+  }> {
+    const ler = this.deps.ler ?? lerHisconParaComparacao;
+    const estados = (await this.deps.json.list(NS_ONBOARDING)) as OnboardingPersistido[];
+    const detalhes: { chatId: string; resultado: 'APLICADO' | 'PULADO'; motivo: string }[] = [];
+    for (const estado of estados) {
+      const chatId = estado.chatId ?? null;
+      const cnis = estado.recebidos?.find((r) => r.codigo === 'CNIS') ?? null;
+      if (chatId === null || cnis?.documentId === undefined) continue;
+      const pula = (motivo: string): void => {
+        detalhes.push({ chatId, resultado: 'PULADO', motivo });
+      };
+      const link = await this.deps.links.byDocumentId(cnis.documentId).catch(() => null);
+      if (link === null) {
+        pula('sem vínculo de mídia');
+        continue;
+      }
+      const blob = await this.deps.media.read(link.sha256).catch(() => null);
+      if (blob === null || blob.mime !== 'application/pdf') {
+        pula(blob === null ? 'sem PDF no acervo' : 'HISCON em imagem');
+        continue;
+      }
+      const leitura = await ler(blob.bytes);
+      if (leitura === null || leitura.v2 === null) {
+        pula('leitor não reconheceu a tabela');
+        continue;
+      }
+      if (leitura.v2.auditoria !== 'conferida') {
+        pula(`auditoria ${leitura.v2.auditoria} — conferir manualmente`);
+        continue;
+      }
+      // BACKUP do texto antigo (uma vez; reversível) e substituição pelo novo.
+      const antigo = await this.deps.cache.get(link.sha256).catch(() => null);
+      if (antigo !== null) {
+        const jaTem = await this.deps.json.get('document-text-backup', link.sha256);
+        if (jaTem === null)
+          await this.deps.json.put('document-text-backup', link.sha256, {
+            sha256: link.sha256,
+            texto: antigo.text,
+            model: antigo.model,
+            substituidoEm: this.deps.clock.now().toISOString(),
+          });
+      }
+      await this.deps.cache.put({
+        sha256: link.sha256,
+        text: leitura.v2.texto,
+        model: 'hiscon-posicional-v2',
+        chars: leitura.v2.texto.length,
+        readAt: this.deps.clock.now().toISOString(),
+      });
+      detalhes.push({
+        chatId,
+        resultado: 'APLICADO',
+        motivo: `${String(leitura.v2.contratosLidos)} contrato(s), auditoria conferida`,
+      });
+    }
+    return {
+      aplicados: detalhes.filter((d) => d.resultado === 'APLICADO').length,
+      pulados: detalhes.filter((d) => d.resultado === 'PULADO').length,
+      detalhes,
+    };
+  }
+
   private async analisar(
     chatId: string,
     documentId: string,

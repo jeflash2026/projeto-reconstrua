@@ -271,9 +271,12 @@ export class ReleituraComparativa {
     const v2 = leitura.v2;
     const medidaV2 = medir(v2.texto);
     const cliente = clienteCache ?? parseHisconDetalhado(v2.texto).beneficiario;
+    // Compara DEDUPADO × DEDUPADO (o parser remove números repetidos entre as
+    // seções ativo/excluído) — senão, após aplicar, a página mostrava "DIFERE"
+    // eterno por comparar blocos brutos com contratos únicos.
     const veredicto: VeredictoReleitura =
       v2.auditoria === 'conferida'
-        ? medidaCache !== null && medidaCache.contratos === v2.contratosLidos
+        ? medidaCache !== null && medidaCache.contratos === medidaV2.contratos
           ? 'CONFERIDO_IGUAL'
           : 'CONFERIDO_DIFERENTE'
         : v2.auditoria === 'divergente'
@@ -292,7 +295,7 @@ export class ReleituraComparativa {
       cliente,
       veredicto,
       ...base,
-      contratosV2: v2.contratosLidos,
+      contratosV2: medidaV2.contratos, // únicos (dedupado) — mesma régua da leitura atual
       ativosSuspensosV2: v2.ativosLidos + v2.suspensosLidos,
       declarado: v2.declarado,
       contratosV1: medidaV1?.contratos ?? null,

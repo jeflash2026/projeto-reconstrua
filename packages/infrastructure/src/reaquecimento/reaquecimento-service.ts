@@ -6,6 +6,7 @@
 // NADA é automático: sem clique do admin, nenhum lead recebe mensagem.
 // ─────────────────────────────────────────────────────────────────────────────
 import {
+  MENSAGENS_JORNADA,
   REAQUECIMENTO_HORAS_PARA_FRIO,
   RETOMADA_MINUTOS_SEM_RESPOSTA,
   derivarEstagioLead,
@@ -55,6 +56,21 @@ export interface ReaquecimentoDeps {
 }
 
 const NS_RETOMADA = 'retomada';
+// Decreto 2026-07-26 (CPF): quem JÁ entregou o HISCON mas não tem CPF recebe,
+// UMA vez, o pedido do número — sem CPF a perícia não protocola o pedido
+// administrativo nos bancos. Disparo autorizado pelo dono para as 09:00 BRT.
+const NS_FOLLOWUP_CPF = 'followup-cpf';
+const HORA_FOLLOWUP_CPF = 9; // 09:00 em America/Sao_Paulo
+
+/** A hora local em São Paulo (0-23) — o tick roda em UTC no container. */
+function horaEmSaoPaulo(now: Date): number {
+  const h = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    hour: 'numeric',
+    hour12: false,
+  }).format(now);
+  return Number(h);
+}
 
 interface RetomadaPersisted {
   readonly chatId: string;
@@ -128,6 +144,35 @@ export class ReaquecimentoService {
       tentativas: [...h.tentativas, { em: now.toISOString(), estagio }],
     } satisfies HistoricoPersisted);
     return { ok: true, estagio };
+  }
+
+  /** FOLLOW-UP DE CPF (decreto 2026-07-26) — quem JÁ entregou o HISCON e não
+   *  tem CPF recebe, UMA única vez, o pedido do número (texto ditado pelo dono).
+   *  Roda só na janela das 09:00 em São Paulo; idempotente por conversa (o
+   *  registro em ns 'followup-cpf' impede o segundo envio). Best-effort: falha
+   *  de um contato nunca impede os demais nem derruba o tick. */
+  async varreduraCpf(now: Date): Promise<number> {
+    if (horaEmSaoPaulo(now) !== HORA_FOLLOWUP_CPF) return 0;
+    let enviados = 0;
+    const chats = await this.deps.json.keys(NS_JORNADA);
+    for (const chatId of chats) {
+      try {
+        if ((await this.deps.json.get(NS_FOLLOWUP_CPF, chatId)) !== null) continue; // já pedido
+        const fatos = await this.deps.jornada.fatos(chatId);
+        if (!fatos.docsCompletos) continue; // ainda não entregou o HISCON
+        if (fatos.registro.cpf !== null) continue; // já temos o CPF
+        await this.deps.enviar(chatId, MENSAGENS_JORNADA.followUpCpf);
+        await this.deps.json.put(NS_FOLLOWUP_CPF, chatId, {
+          chatId,
+          pedidoEm: now.toISOString(),
+        });
+        this.deps.observability?.event('followup-cpf', `cpf solicitado chat=${chatId}`, now);
+        enviados += 1;
+      } catch {
+        // best-effort por conversa
+      }
+    }
+    return enviados;
   }
 
   /** RETOMADA AUTOMÁTICA (decreto 2026-07-22): varre as conversas cuja ÚLTIMA

@@ -22,10 +22,14 @@ export interface JornadaRecord {
   readonly chatId: string;
   readonly nome: string | null;
   readonly cidade: string | null;
+  /** CPF (só dígitos) — decreto 2026-07-26. Sem ele a perícia não protocola o
+   *  pedido administrativo nos bancos; coletado ANTES do HISCON. */
+  readonly cpf: string | null;
   readonly consentiu: boolean;
   readonly recusou: boolean;
   /** O que o ÚLTIMO turno capturou (nuance de fraseado: "Prazer, X!"). */
-  readonly ultimaCaptura: 'nome' | 'cidade' | 'nome-cidade' | 'consentimento' | 'adiamento' | null;
+  readonly ultimaCaptura:
+    'nome' | 'cidade' | 'nome-cidade' | 'cpf' | 'consentimento' | 'adiamento' | null;
   /** O turno respondeu só o ACK (registro processando) e a PROGRESSÃO ainda
    *  não foi falada — a classificação tardia deve enviá-la sozinha. */
   readonly aguardandoProgressao: boolean;
@@ -50,6 +54,7 @@ export function novaJornada(chatId: string, now: Date): JornadaRecord {
     chatId,
     nome: null,
     cidade: null,
+    cpf: null,
     consentiu: false,
     recusou: false,
     ultimaCaptura: null,
@@ -95,6 +100,37 @@ const NEGATIVAS =
 
 export function ehSaudacaoPura(texto: string): boolean {
   return SAUDACOES.test(texto.trim());
+}
+
+// ── CPF (decreto 2026-07-26) ─────────────────────────────────────────────────
+// Sem o CPF a perícia NÃO consegue protocolar o pedido administrativo nos
+// bancos. Ele passa a ser coletado ANTES do HISCON (e cobrado de quem já
+// entregou o HISCON sem CPF). Captura DETERMINÍSTICA com validação dos dígitos
+// verificadores — indispensável porque um celular brasileiro também tem 11
+// dígitos e seria capturado como CPF por qualquer checagem de comprimento.
+
+function digitosVerificadoresOk(cpf: string): boolean {
+  const d = cpf.split('').map(Number);
+  const digito = (len: number): number => {
+    let soma = 0;
+    for (let i = 0; i < len; i += 1) soma += (d[i] ?? 0) * (len + 1 - i);
+    const resto = (soma * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+  return digito(9) === d[9] && digito(10) === d[10];
+}
+
+/** O CPF (só dígitos) presente no texto, ou null. Aceita 000.000.000-00,
+ *  00000000000 e variações com espaço; recusa repetidos e dígito inválido. */
+export function capturarCpf(texto: string): string | null {
+  for (const bruto of texto.match(/\d[\d.\s-]{9,17}\d/g) ?? []) {
+    const so = bruto.replace(/\D/g, '');
+    if (so.length !== 11) continue;
+    if (/^(\d)\1{10}$/.test(so)) continue; // 111.111.111-11 e afins
+    if (!digitosVerificadoresOk(so)) continue; // separa CPF de telefone
+    return so;
+  }
+  return null;
 }
 
 export function interpretarInteresse(texto: string): 'sim' | 'nao' | 'incerto' {
@@ -274,6 +310,11 @@ export function pareceNome(s: string): boolean {
   return true;
 }
 
+/** Primeiro nome, para o tratamento das mensagens autoradas. */
+function primeiroNome(nome: string): string {
+  return nome.trim().split(/\s+/)[0] ?? nome;
+}
+
 // ── MENSAGENS AUTORADAS (o conteúdo do funil — a LLM nunca as decide) ─────────
 
 // Decreto 2026-07-22 (caso Lucas): tom de CONSULTORA JURÍDICA — profissional,
@@ -300,11 +341,32 @@ export const MENSAGENS_JORNADA = {
   // Decreto HISCON-ONLY + PDF-ONLY (2026-07-22): a análise precisa de UM
   // documento, e SÓ o ARQUIVO PDF serve — a foto/print do app vem incompleta
   // (sem todos os contratos e sem o valor das parcelas), e a análise não roda.
-  iniciarTriagem: (proximo: string): string =>
+  // Decreto 2026-07-26 (CPF): a triagem começa anunciando as DUAS coisas — o
+  // número do CPF (necessário para protocolar o pedido nos bancos) e o HISCON.
+  // O CPF é pedido PRIMEIRO por ser instantâneo; o HISCON vem na sequência.
+  iniciarTriagem: (): string =>
     'Ótimo, vamos começar.\n\n' +
-    `Para a análise eu preciso de apenas UM documento: ${proximo}. Você consegue emitir pelo aplicativo ou site Meu INSS, na opção "Extrato de Empréstimos Consignados".\n\n` +
+    'Para a análise eu preciso de apenas duas coisas: o número do seu CPF e o seu extrato de empréstimos consignados do INSS (o HISCON), em PDF.\n\n' +
+    'Vamos pela primeira: pode me informar o número do seu CPF, por favor?',
+  // Pedido do CPF isolado (quando a triagem já começou e ele ainda falta).
+  pedirCpf: (nome: string | null): string =>
+    `${nome !== null && nome !== '' ? `${primeiroNome(nome)}, para` : 'Para'} eu registrar o seu atendimento e podermos solicitar os contratos junto aos bancos, preciso do número do seu CPF. Pode digitar aqui, por favor?`,
+  cpfRegistradoPedirHiscon: (proximo: string): string =>
+    'CPF registrado, obrigada.\n\n' +
+    `Agora a segunda parte: preciso de ${proximo}. Você emite pelo aplicativo ou site Meu INSS, na opção "Extrato de Empréstimos Consignados".\n\n` +
+    'Precisa ser o ARQUIVO em PDF, com todos os contratos — é só baixar e me enviar aqui como anexo.\n\n' +
+    'Se precisar de ajuda para localizar essa opção, me avise que eu te explico o passo a passo, com calma.',
+  cpfNaoReconhecido:
+    'Não consegui ler o número do CPF. Pode me enviar apenas os 11 dígitos, por favor? Pode ser assim: 000.000.000-00.',
+  // Pedido do HISCON quando o CPF já está registrado (triagem, 2ª parte).
+  pedirHiscon: (proximo: string): string =>
+    `Para a análise eu preciso de ${proximo}. Você consegue emitir pelo aplicativo ou site Meu INSS, na opção "Extrato de Empréstimos Consignados".\n\n` +
     'Importante: preciso do ARQUIVO em PDF (aquele que abre o documento completo, com todos os contratos) — a foto ou o print da tela não servem para a análise. É só baixar o PDF e me enviar aqui como anexo.\n\n' +
     'Precisa de ajuda para localizar essa opção e baixar o arquivo? Me avisa que eu te explico o passo a passo, com calma.',
+  // Decreto 2026-07-26: cobrança do CPF a quem JÁ entregou o HISCON (disparo
+  // autorizado pelo dono, 09:00 BRT). Texto ditado pelo dono.
+  followUpCpf:
+    'Bom dia! Já estamos em análise e estamos precisando do número do seu CPF para solicitar os contratos junto aos bancos. Quando puder, digite aqui, por favor.',
   aguardandoDocumento: (proximo: string): string =>
     `Estou aguardando: ${proximo}, no seu tempo. Lembrando que preciso do arquivo em PDF (a foto ou o print da tela não servem para a análise).`,
   // Escada de cobrança: o 2º pedido NUNCA repete o 1º — reforça e oferece ajuda.
@@ -461,8 +523,13 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
     }
     case 'TRIAGEM': {
       const proximo = f.proximoDocumento ?? 'o documento pendente';
+      // Decreto 2026-07-26 (CPF): a triagem tem DUAS partes — CPF e depois o
+      // HISCON. O consentimento abre anunciando as duas e pedindo o CPF.
       if (r.ultimaCaptura === 'consentimento')
-        return prefixoDireito + MENSAGENS_JORNADA.iniciarTriagem(proximo);
+        return prefixoDireito + MENSAGENS_JORNADA.iniciarTriagem();
+      // CPF acabou de ser capturado ⇒ confirma e emenda o pedido do HISCON.
+      if (r.ultimaCaptura === 'cpf')
+        return prefixoDireito + MENSAGENS_JORNADA.cpfRegistradoPedirHiscon(proximo);
       // Caso Lucas: DESISTÊNCIA ⇒ despedida respeitosa; a cobrança CESSA.
       if (ehDesistencia(entrada.texto)) return MENSAGENS_JORNADA.despedidaRespeitosa;
       // Cliente desistiu antes: nada de cobrança. Agradecimento ganha cortesia
@@ -490,6 +557,12 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
       // Decreto: pergunta LIVRE do cliente ⇒ a conversa humana (LLM) responde e
       // retoma o foco — nunca a cobrança seca no lugar da resposta.
       if (prefixoDireito === '' && ehPerguntaLivre(entrada.texto)) return '';
+      // ENQUANTO FALTAR O CPF, a cobrança da triagem é o CPF (não o HISCON): sem
+      // ele a perícia não protocola o pedido administrativo nos bancos.
+      if (r.cpf === null) {
+        if (r.cobrancasSeguidas >= 3) return '';
+        return prefixoDireito + MENSAGENS_JORNADA.pedirCpf(r.nome);
+      }
       // ESCADA DE COBRANÇA: 1ª = padrão; 2ª = reforço com oferta de ajuda;
       // 3ª+ = a conversa humana (LLM) assume — o eco idêntico morreu aqui.
       if (r.cobrancasSeguidas >= 3) return '';

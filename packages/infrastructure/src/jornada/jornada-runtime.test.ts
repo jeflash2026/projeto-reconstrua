@@ -109,12 +109,17 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
     expect(explicacao).toContain('interesse em fazer essa análise');
     expect(await h.jornada.etapa(CHAT)).toBe('CONSENTIMENTO');
 
-    // "sim" ⇒ consentimento registrado ⇒ triagem começa pelo HISCON (decreto
-    // HISCON-ONLY): sem onboarding semeado, o padrão é o HISCON, NUNCA RG/CNH.
+    // "sim" ⇒ consentimento registrado ⇒ a triagem abre anunciando as DUAS
+    // coisas (decreto CPF 2026-07-26) e pedindo o CPF primeiro.
     const inicio = await h.turno('sim');
-    expect(inicio).toContain('apenas UM documento');
-    expect(inicio).toContain('HISCON (histórico de empréstimos consignados do INSS)');
+    expect(inicio).toContain('duas coisas');
+    expect(inicio).toContain('CPF');
     expect(await h.jornada.etapa(CHAT)).toBe('TRIAGEM');
+
+    // CPF informado ⇒ capturado, confirmado, e o HISCON é pedido na sequência.
+    const aposCpf = await h.turno('529.982.247-25');
+    expect(aposCpf).toContain('CPF registrado');
+    expect(aposCpf).toContain('HISCON (histórico de empréstimos consignados do INSS)');
 
     // Documento chega ⇒ ack autorado (a progressão automática pede o próximo).
     expect(await h.expression.phrase(h.request(null, { arquivo: true }))).toBe(
@@ -147,7 +152,7 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
     await h.turno('Isabel, de Santa Ernestina');
     expect(await h.turno('não quero agora')).toBe(MENSAGENS_JORNADA.recusa);
     const r = await h.turno('pensei melhor, quero sim');
-    expect(r).toContain('apenas UM documento');
+    expect(r).toContain('duas coisas'); // triagem reativada: CPF + HISCON
   });
 
   it('falha do store da jornada JAMAIS silencia: delega ao LLM', async () => {

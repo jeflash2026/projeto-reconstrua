@@ -10,6 +10,7 @@ import type { Clock } from '@reconstrua/domain';
 import type { ObservabilityRuntime, OnboardingDocumentalRuntime } from '@reconstrua/application';
 import {
   MENSAGENS_JORNADA,
+  capturarCpf,
   capturarIdentificacao,
   derivarEtapa,
   ehAdiamento,
@@ -32,6 +33,9 @@ interface Persisted {
   readonly chatId: string;
   readonly nome: string | null;
   readonly cidade: string | null;
+  /** Decreto 2026-07-26 — OPCIONAL na persistência: os registros gravados antes
+   *  do decreto não têm o campo e devem continuar carregando (⇒ cpf null). */
+  readonly cpf?: string | null;
   readonly consentiu: boolean;
   readonly recusou: boolean;
   readonly ultimaCaptura: JornadaRecord['ultimaCaptura'];
@@ -62,6 +66,7 @@ export class JornadaComercialRuntime {
     if (raw === null) return novaJornada(chatId, this.deps.clock.now());
     return {
       ...raw,
+      cpf: raw.cpf ?? null,
       aguardandoProgressao: raw.aguardandoProgressao === true,
       avisosDeAdiamento: raw.avisosDeAdiamento ?? 0,
       desistiu: raw.desistiu === true,
@@ -115,6 +120,18 @@ export class JornadaComercialRuntime {
       const fatos = await this.fatos(chatId);
       const etapa = derivarEtapa(fatos);
       const r = fatos.registro;
+
+      // CPF (decreto 2026-07-26) — capturado em QUALQUER etapa, inclusive na
+      // ANÁLISE: quem já entregou o HISCON recebe o follow-up de CPF e responde
+      // com o número; sem esta captura fora da triagem, a resposta se perderia.
+      if (r.cpf === null) {
+        const cpf = capturarCpf(texto);
+        if (cpf !== null) {
+          await this.salvar({ ...r, cpf, ultimaCaptura: 'cpf', atualizadoEm: now });
+          this.deps.observability.event('jornada', `cpf capturado chat=${chatId}`, now);
+          return;
+        }
+      }
 
       if (etapa === 'IDENTIFICACAO') {
         // Caso Denise (2026-07-21): a PRIMEIRA mensagem ("Olá! Posso ter mais

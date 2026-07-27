@@ -27,7 +27,10 @@ function fatos(
   docs: Partial<Omit<FatosDaJornada, 'registro'>> = {},
 ): FatosDaJornada {
   return {
-    registro: { ...novaJornada(CHAT, NOW), ...over },
+    // Decreto 2026-07-26 (CPF): a triagem só chega ao documento DEPOIS do CPF.
+    // Estes casos exercitam a fase do DOCUMENTO, então nascem com o CPF já dado;
+    // a fase do CPF tem testes próprios em cpf.test.ts.
+    registro: { ...novaJornada(CHAT, NOW), cpf: '52998224725', ...over },
     docsRecebidos: docs.docsRecebidos ?? 0,
     docsCompletos: docs.docsCompletos ?? false,
     proximoDocumento: docs.proximoDocumento ?? 'RG (frente e verso) ou CNH',
@@ -135,7 +138,7 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
     expect(r).toContain('interesse em fazer essa análise');
     expect(r).not.toMatch(/garant|promet/i);
   });
-  it('consentiu ⇒ inicia a triagem pedindo APENAS o HISCON (decreto 2026-07-22)', () => {
+  it('consentiu ⇒ inicia a triagem anunciando CPF + HISCON (decreto 2026-07-26)', () => {
     const r = responderTurno(
       fatos(
         {
@@ -148,9 +151,10 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
       ),
       texto('sim'),
     );
-    expect(r).toContain('apenas UM documento');
+    // A abertura da triagem agora anuncia as DUAS coisas e pede o CPF primeiro.
+    expect(r).toContain('duas coisas');
+    expect(r).toContain('CPF');
     expect(r).toContain('HISCON');
-    expect(r).toContain('Meu INSS');
   });
   it('recusa ⇒ despedida gentil, sem insistência', () => {
     const r = responderTurno(
@@ -371,7 +375,10 @@ describe('caso Lucas — desconfiança, desistência e perguntas tratadas como h
       MENSAGENS_JORNADA.explicacaoConsentimento('X'),
       MENSAGENS_JORNADA.reforcoConsentimento,
       MENSAGENS_JORNADA.recusa,
-      MENSAGENS_JORNADA.iniciarTriagem('X'),
+      MENSAGENS_JORNADA.iniciarTriagem(),
+      MENSAGENS_JORNADA.pedirCpf('X'),
+      MENSAGENS_JORNADA.cpfRegistradoPedirHiscon('X'),
+      MENSAGENS_JORNADA.followUpCpf,
       MENSAGENS_JORNADA.aguardandoDocumento('X'),
       MENSAGENS_JORNADA.ackDocumento,
       MENSAGENS_JORNADA.documentoRegistrado('X', 'Y'),

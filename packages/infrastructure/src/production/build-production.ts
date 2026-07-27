@@ -1265,6 +1265,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         // Decreto 2026-07-22: conversas CAÍDAS (cliente sem resposta) são
         // retomadas automaticamente no MESMO motor temporal — best-effort.
         await reaquecimento.varreduraRetomada(now).catch(() => undefined);
+        // Decreto 2026-07-26: às 09:00 (BRT), pede o CPF a quem já entregou o
+        // HISCON e ainda não informou — uma vez por pessoa, autorizado pelo dono.
+        await reaquecimento.varreduraCpf(now).catch(() => undefined);
       },
     },
     // Medidor de Custo: o turno inteiro roda com o chatId em contexto.

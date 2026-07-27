@@ -195,6 +195,11 @@ describe('Releitura comparativa — V2 × leitura em produção (só leitura)', 
     expect(por.get('chat-suspeito')?.veredicto).toBe('CONFERIDO_DIFERENTE');
     expect(por.get('chat-suspeito')?.contratosCache).toBe(1);
     expect(por.get('chat-suspeito')?.contratosV2).toBe(3);
+    // MEDIDORES: os 3 do V2 têm número válido (C1..C3), zero marcadores, e o
+    // único da leitura atual (C1) está ENTRE eles ⇒ leitura real, não fatiada.
+    expect(por.get('chat-suspeito')?.numerosValidosV2).toBe(3);
+    expect(por.get('chat-suspeito')?.marcadoresV2).toBe(0);
+    expect(por.get('chat-suspeito')?.numerosCoincidentes).toBe(1);
     expect(por.get('chat-divergente')?.veredicto).toBe('V2_DIVERGENTE');
     expect(por.get('chat-imagem')?.veredicto).toBe('IMAGEM');
     // Os suspeitos vêm PRIMEIRO (é o que o dono precisa olhar).

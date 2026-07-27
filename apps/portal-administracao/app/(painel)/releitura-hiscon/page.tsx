@@ -32,6 +32,18 @@ const Linha = ({ l }: { l: ReleituraLinha }): ReactElement => {
           ? `${String(l.declarado.ativos)} ativo(s) / ${String(l.declarado.suspensos)} susp.`
           : '—'}
       </td>
+      <td style={{ fontSize: 13 }}>
+        {l.numerosValidosV2 === null ? (
+          '—'
+        ) : (
+          <>
+            {String(l.numerosValidosV2)} nº válidos · {String(l.marcadoresV2 ?? 0)} p/ conferir ·{' '}
+            {l.numerosCoincidentes !== null
+              ? `${String(l.numerosCoincidentes)}/${String(l.contratosCache ?? 0)} batem c/ atual`
+              : 'sem base p/ comparar'}
+          </>
+        )}
+      </td>
       <td>
         <span className={`badge ${r.tom === 'ok' ? 'accent' : ''}`}>{r.label}</span>
       </td>
@@ -77,6 +89,7 @@ const ReleituraPage = async (): Promise<ReactElement> => {
                     <th>Contratos (leitura atual)</th>
                     <th>Contratos (novo leitor)</th>
                     <th>O documento declara</th>
+                    <th>Qualidade do novo leitor</th>
                     <th>Situação</th>
                   </tr>
                 </thead>

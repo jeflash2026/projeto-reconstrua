@@ -89,7 +89,11 @@ export async function lerHisconParaComparacao(bytes: Uint8Array): Promise<Leitur
   try {
     const { paginasCruas, paginasV2 } = await carregarPaginas(bytes);
     return {
-      v2: reconstruirHisconPosicionalV2(paginasV2),
+      // MODO DIAGNÓSTICO (só o relatório): o portão do template fica desligado
+      // para MEDIR o que o V2 leria — os medidores (números válidos, marcadores,
+      // coincidência com a leitura atual) separam leitura real de fatiamento.
+      // A PRODUÇÃO (extrairTextoDePdf) segue com o portão SEMPRE ligado.
+      v2: reconstruirHisconPosicionalV2(paginasV2, { portaoDoTemplate: false }),
       v1Texto: reconstruirHisconPosicional(paginasCruas),
     };
   } catch {

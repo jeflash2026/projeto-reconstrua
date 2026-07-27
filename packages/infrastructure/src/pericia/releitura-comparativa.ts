@@ -48,6 +48,16 @@ export interface LinhaReleitura {
   readonly declarado: { readonly ativos: number; readonly suspensos: number } | null;
   /** Leitor V1 re-rodado agora (referência). */
   readonly contratosV1: number | null;
+  // ── MEDIDORES DE QUALIDADE (2026-07-27): separam leitura REAL de fatiamento.
+  // Um caco fatiado não forma número de contrato válido (vira marcador
+  // "CONFERIR-NO-HISCON"); e uma leitura real deve CONTER os números que a
+  // leitura atual já conhece.
+  /** Contratos do V2 com número de contrato VÁLIDO (não marcador). */
+  readonly numerosValidosV2: number | null;
+  /** Marcadores "CONFERIR-NO-HISCON" gerados pelo V2 (fatiamento produz muitos). */
+  readonly marcadoresV2: number | null;
+  /** Números de contrato presentes NAS DUAS leituras (V2 ∩ atual). */
+  readonly numerosCoincidentes: number | null;
 }
 
 export interface RelatorioReleitura {
@@ -72,14 +82,21 @@ export interface ReleituraDeps {
   readonly ler?: (bytes: Uint8Array) => Promise<LeituraComparada | null>;
 }
 
-/** Contratos e ativos+suspensos de um texto Formato A/B — pelo parser REAL. */
-function medir(texto: string): { contratos: number; ativosSuspensos: number } {
+/** Contratos, ativos+suspensos e os NÚMEROS de um texto Formato A/B — parser REAL. */
+function medir(texto: string): {
+  contratos: number;
+  ativosSuspensos: number;
+  numeros: ReadonlySet<string>;
+} {
   const h = parseHisconDetalhado(texto);
   return {
     contratos: h.contratos.length,
     ativosSuspensos: h.contratos.filter(
       (c) => c.situacao !== null && /^(ATIVO|SUSPENS)/i.test(c.situacao),
     ).length,
+    numeros: new Set(
+      h.contratos.map((c) => c.contrato).filter((n) => !n.startsWith('CONFERIR-NO-HISCON')),
+    ),
   };
 }
 
@@ -138,6 +155,9 @@ export class ReleituraComparativa {
       ativosSuspensosV2: null,
       declarado: null,
       contratosV1: null,
+      numerosValidosV2: null,
+      marcadoresV2: null,
+      numerosCoincidentes: null,
     };
 
     const link = await this.deps.links.byDocumentId(documentId).catch(() => null);
@@ -176,6 +196,7 @@ export class ReleituraComparativa {
     }
 
     const v2 = leitura.v2;
+    const medidaV2 = medir(v2.texto);
     const cliente = clienteCache ?? parseHisconDetalhado(v2.texto).beneficiario;
     const veredicto: VeredictoReleitura =
       v2.auditoria === 'conferida'
@@ -186,6 +207,13 @@ export class ReleituraComparativa {
           ? 'V2_DIVERGENTE'
           : 'SEM_QUANTITATIVO';
 
+    // MEDIDORES: leitura REAL tem números válidos e CONTÉM os números que a
+    // leitura atual já conhece; fatiamento gera marcadores e não coincide.
+    const numerosCoincidentes =
+      medidaCache !== null
+        ? [...medidaV2.numeros].filter((n) => medidaCache.numeros.has(n)).length
+        : null;
+
     return {
       chatId,
       cliente,
@@ -195,6 +223,9 @@ export class ReleituraComparativa {
       ativosSuspensosV2: v2.ativosLidos + v2.suspensosLidos,
       declarado: v2.declarado,
       contratosV1: medidaV1?.contratos ?? null,
+      numerosValidosV2: medidaV2.numeros.size,
+      marcadoresV2: medidaV2.contratos - medidaV2.numeros.size,
+      numerosCoincidentes,
     };
   }
 }

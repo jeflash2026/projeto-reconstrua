@@ -751,6 +751,10 @@ export interface ReleituraLinha {
   ativosSuspensosV2: number | null;
   declarado: { ativos: number; suspensos: number } | null;
   contratosV1: number | null;
+  /** Medidores de qualidade: separam leitura REAL de fatiamento. */
+  numerosValidosV2: number | null;
+  marcadoresV2: number | null;
+  numerosCoincidentes: number | null;
 }
 export interface ReleituraRelatorio {
   geradoEm: string;

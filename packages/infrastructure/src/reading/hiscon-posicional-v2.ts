@@ -438,10 +438,19 @@ export interface ResultadoPosicionalV2 {
   readonly auditoria: 'conferida' | 'divergente' | 'indisponivel';
 }
 
+export interface OpcoesV2 {
+  /** false ⇒ MODO DIAGNÓSTICO (só o relatório comparativo): processa a página
+   *  mesmo sem o cabeçalho do template, para MEDIR o que sairia — os medidores
+   *  (números válidos × marcadores × coincidência) separam leitura real de
+   *  fatiamento. A PRODUÇÃO nunca desliga o portão. */
+  readonly portaoDoTemplate?: boolean;
+}
+
 /** Reconstrói o HISCON pelo template posicional. null quando nenhuma página tem
  *  a tabela de contratos (não é o HISCON — o chamador segue o fluxo normal). */
 export function reconstruirHisconPosicionalV2(
   paginas: readonly PaginaPdf[],
+  opcoes: OpcoesV2 = {},
 ): ResultadoPosicionalV2 | null {
   const blocos: string[] = [];
   let secaoAtual = '';
@@ -471,8 +480,9 @@ export function reconstruirHisconPosicionalV2(
 
     // PORTÃO DO TEMPLATE: sem o cabeçalho nas posições esperadas, esta página
     // NÃO é o layout em linhas (é a matriz do V1, ou outra coisa) — pular é a
-    // única leitura honesta; fatiar geraria contratos fabricados.
-    if (!templateCasa(ps, ehCartao)) continue;
+    // única leitura honesta; fatiar geraria contratos fabricados. O modo
+    // diagnóstico (relatório) desliga o portão para MEDIR o resultado.
+    if (opcoes.portaoDoTemplate !== false && !templateCasa(ps, ehCartao)) continue;
 
     const cols = ehCartao ? COLS_CARTAO : COLS_EMPRESTIMO;
     const registros = extrairRegistros(ps, cols, ehCartao ? 'competencia' : 'inicio_desconto');

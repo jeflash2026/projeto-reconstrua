@@ -66,6 +66,9 @@ export interface ClienteComHiscon {
   /** Decreto 2026-07-27: fase 1 completa exige CPF + HISCON — a fila da perícia
    *  filtra por esta flag; quem falta CPF fica na aba Clientes (cobrança). */
   readonly temCpf: boolean;
+  /** O CPF em si (só dígitos) — o perito precisa dele para protocolar o pedido
+   *  administrativo nos bancos. null enquanto o cliente não informou. */
+  readonly cpf: string | null;
 }
 
 export class PeritoView {
@@ -120,6 +123,18 @@ export class PeritoView {
     };
   }
 
+  /** Decreto 2026-07-27: o CPF vai JUNTO no estudo — o perito precisa dele para
+   *  protocolar o pedido administrativo nos bancos. Coluna na frente de cada
+   *  linha; sem CPF registrado, a célula declara "NÃO INFORMADO" (Lei 9). */
+  private async comCpf(plan: Planilha, chatId: string): Promise<Planilha> {
+    const cpf = (await this.deps.cpfDe?.(chatId).catch(() => null)) ?? null;
+    return {
+      ...plan,
+      colunas: ['CPF do cliente', ...plan.colunas],
+      linhas: plan.linhas.map((l) => [cpf ?? 'NÃO INFORMADO', ...l]),
+    };
+  }
+
   /** Planilha de UM cliente (CSV hoje; XLSX = trocar o exporter). */
   async planilha(clienteId: string, now?: Date): Promise<PlanilhaGerada | null> {
     const c = await this.contratos(clienteId, now);
@@ -136,7 +151,7 @@ export class PeritoView {
       quem: c.quem,
       nomeArquivo: `contratos-${c.clienteId}.${this.deps.exporter.extensao}`,
       mime: this.deps.exporter.mime,
-      conteudo: this.deps.exporter.gerar(plan),
+      conteudo: this.deps.exporter.gerar(await this.comCpf(plan, c.chatId)),
     };
   }
 
@@ -168,7 +183,7 @@ export class PeritoView {
           quem: c.quem,
           nomeArquivo: `contratos-${c.clienteId}.${this.deps.exporter.extensao}`,
           mime: this.deps.exporter.mime,
-          conteudo: this.deps.exporter.gerar(plan),
+          conteudo: this.deps.exporter.gerar(await this.comCpf(plan, c.chatId)),
         });
       } catch {
         /* cliente com documento problemático não interrompe o lote inteiro */
@@ -188,11 +203,13 @@ export class PeritoView {
       const c = await this.contratosDoResumo(cliente, now);
       if (c.detalhado.contratos.length === 0) continue;
       const plan = planilhaDeContratosDetalhada(cliente.quem, c.detalhado, ref);
-      for (const linha of plan.linhas) linhas.push([cliente.quem, ...linha]);
+      // Decreto 2026-07-27: CPF junto (o perito protocola o pedido com ele).
+      const cpf = (await this.deps.cpfDe?.(cliente.chatId).catch(() => null)) ?? 'NÃO INFORMADO';
+      for (const linha of plan.linhas) linhas.push([cliente.quem, cpf, ...linha]);
     }
     const planilha: Planilha = {
       nome: 'Contratos — todos os clientes',
-      colunas: ['Cliente', ...COLUNAS_CONTRATOS_DETALHADA],
+      colunas: ['Cliente', 'CPF do cliente', ...COLUNAS_CONTRATOS_DETALHADA],
       linhas,
     };
     return {
@@ -222,6 +239,7 @@ export class PeritoView {
         status: cliente.status,
         ultimoContatoAt: cliente.ultimoContatoAt,
         temCpf: cpf !== null,
+        cpf,
       });
     }
     return out.sort(

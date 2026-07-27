@@ -81,6 +81,8 @@ const CentralPerito = async (): Promise<ReactElement> => {
   const concluidas = fluxo?.concluidas ?? [];
   const emFluxo = new Set([...emAndamento, ...concluidas].map((p) => p.chatId));
   const aguardando = comHiscon.filter((c) => !emFluxo.has(c.chatId));
+  // Decreto 2026-07-27: o CPF acompanha o estudo (o pedido nos bancos exige).
+  const cpfDe = new Map(comHiscon.map((c) => [c.chatId, c.cpf ?? null]));
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>
@@ -110,6 +112,7 @@ const CentralPerito = async (): Promise<ReactElement> => {
               <thead>
                 <tr>
                   <th>Cliente</th>
+                  <th>CPF</th>
                   <th>WhatsApp</th>
                   <th>Contratos</th>
                   <th>Último contato</th>
@@ -120,6 +123,7 @@ const CentralPerito = async (): Promise<ReactElement> => {
                 {aguardando.map((c) => (
                   <tr key={c.chatId}>
                     <td style={{ fontWeight: 600 }}>{c.quem}</td>
+                    <td className="mono">{c.cpf ?? '—'}</td>
                     <td className="mono" style={{ fontSize: 12 }}>
                       {c.chatId}
                     </td>
@@ -163,7 +167,8 @@ const CentralPerito = async (): Promise<ReactElement> => {
                 <span className="badge accent">{contagem(p)}</span>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                Iniciada em {dataBr(p.iniciadaEm)} · prazo até {dataBr(p.prazoEm)}
+                Iniciada em {dataBr(p.iniciadaEm)} · prazo até {dataBr(p.prazoEm)} · CPF:{' '}
+                <span className="mono">{cpfDe.get(p.chatId) ?? '—'}</span>
               </div>
               <CredenciaisView p={p} />
               <RespostaView p={p} />

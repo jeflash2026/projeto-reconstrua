@@ -60,6 +60,9 @@ export interface ClienteComHiscon {
   totalContratos: number;
   status: string;
   ultimoContatoAt: string | null;
+  /** Decreto 2026-07-27: o CPF vem junto — necessário para protocolar o pedido
+   *  administrativo nos bancos (a fila só traz quem já o informou). */
+  cpf?: string | null;
 }
 
 /** Cliente EM PERÍCIA (Decreto 2026-07-24) — 10 dias correndo, com credenciais/resposta. */

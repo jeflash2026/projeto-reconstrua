@@ -115,3 +115,34 @@ competência de desconto; `agruparPorBanco`, migrados, potencial e indícios
   vizinha (o contrato de origem em si é preservado).
 - O histórico mensal de descontos do cartão é pulado; agregá-lo (ex.: total
   descontado em RMC — útil para a tese do cartão) é evolução futura.
+
+## Revínculo do HISCON (caso Roberto, 2026-07-27)
+
+Descoberta em produção: vários "leitor não reconheceu a tabela" **não eram
+problema de leitura** — o CNIS registrado apontava ao **anexo errado** (a
+pessoa mandou outro arquivo antes, e o HISCON verdadeiro chegou depois na
+mesma conversa; o PDF certo lia perfeitamente).
+
+Ferramenta: `packages/infrastructure/src/pericia/revinculo-hiscon.ts`
+(`RevinculoHiscon`), exposta na página **Releitura HISCON** do painel:
+
+- **`candidatos()`** (GET `/admin/pericia/revinculo-hiscon`, SÓ LEITURA):
+  para cada cliente cujo HISCON registrado não produz leitura V2 conferida,
+  varre os anexos PDF da MESMA conversa (`conv:<chatId>` → `meta.messageId` →
+  `media-message-ref` → sha256) e lista os que leem com **auditoria
+  conferida**, com beneficiário, contratos e data — para o dono reconhecer o
+  arquivo certo.
+- **`aplicar(chatId, sha256)`** (POST `/admin/pericia/revinculo-aplicar`, ato
+  explícito do dono, confirmação em 2 passos no painel): **reverifica tudo do
+  zero** (nada vindo do painel é confiado), exige que o anexo **pertença
+  àquela conversa** (nunca religa o PDF de outro cliente), guarda backup do
+  vínculo antigo (`document-link-backup`) e do texto que houver no cache do
+  sha novo (`document-text-backup`), religa `documentId → sha` no
+  `document-link`, grava o texto V2 no `document-text` e deixa trilha em
+  `revinculo-hiscon` (de → para, quando).
+
+A identidade documental (documentId do CNIS no onboarding) **não muda** — só o
+blob ao qual ela aponta. Toda a plataforma a jusante passa a ler o PDF certo
+imediatamente. Testes: `revinculo-hiscon.test.ts` (invariante só-leitura do
+relatório, recusa de sha de outra conversa, recusa sem auditoria conferida,
+backups e trilha).

@@ -777,6 +777,46 @@ export async function pdAplicarReleitura(): Promise<AplicarReleituraResultado | 
   return sendJson<AplicarReleituraResultado>('POST', '/admin/pericia/releitura-aplicar', {});
 }
 
+// ── REVÍNCULO DO HISCON (caso Roberto): o CNIS registrado aponta ao anexo errado ─
+export interface RevinculoCandidato {
+  sha256: string;
+  messageId: string;
+  em: string | null;
+  contratos: number;
+  ativos: number;
+  suspensos: number;
+  declarado: { ativos: number; suspensos: number } | null;
+  beneficiario: string | null;
+}
+export interface RevinculoLinha {
+  chatId: string;
+  motivoAtual: string;
+  candidatos: RevinculoCandidato[];
+}
+export interface RevinculoRelatorio {
+  geradoEm: string;
+  totalProblemas: number;
+  comCandidato: number;
+  linhas: RevinculoLinha[];
+}
+/** Os clientes-problema e os PDFs certos achados nas conversas (só leitura). */
+export async function fetchRevinculoHiscon(): Promise<RevinculoRelatorio | null> {
+  return getJson<RevinculoRelatorio>('/admin/pericia/revinculo-hiscon');
+}
+
+export type RevinculoAplicarResultado =
+  { ok: true; contratos: number; beneficiario: string | null } | { ok: false; motivo: string };
+/** RELIGA o HISCON de UM chat ao PDF escolhido (reverificado, com backup). Ato do admin. */
+export async function pdAplicarRevinculo(
+  chatId: string,
+  sha256: string,
+): Promise<RevinculoAplicarResultado | null> {
+  return sendJson<RevinculoAplicarResultado>('POST', '/admin/pericia/revinculo-aplicar', {
+    chatId,
+    sha256,
+  });
+}
+
 /** Cliente com HISCON legível — as opções do seletor "abrir caso pericial". */
 export interface PdClienteComHiscon {
   chatId: string;

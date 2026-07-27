@@ -3,7 +3,12 @@
 // SÓ LEITURA: esta página nunca altera cache nem estado de cliente algum.
 import type { ReactElement } from 'react';
 import ReleituraAplicar from '../../../components/releitura-aplicar';
-import { fetchReleituraHiscon, type ReleituraLinha } from '../../../lib/actions';
+import RevinculoHiscon from '../../../components/revinculo-hiscon';
+import {
+  fetchReleituraHiscon,
+  fetchRevinculoHiscon,
+  type ReleituraLinha,
+} from '../../../lib/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +58,7 @@ const Linha = ({ l }: { l: ReleituraLinha }): ReactElement => {
 };
 
 const ReleituraPage = async (): Promise<ReactElement> => {
-  const dados = await fetchReleituraHiscon();
+  const [dados, revinculo] = await Promise.all([fetchReleituraHiscon(), fetchRevinculoHiscon()]);
   return (
     <>
       <h1 className="page-title">Releitura HISCON — comparativo</h1>
@@ -82,6 +87,7 @@ const ReleituraPage = async (): Promise<ReactElement> => {
               (dados.resumo['CONFERIDO_IGUAL'] ?? 0) + (dados.resumo['CONFERIDO_DIFERENTE'] ?? 0)
             }
           />
+          {revinculo !== null ? <RevinculoHiscon linhas={revinculo.linhas} /> : null}
           <div className="card">
             <h3>
               Clientes com HISCON ({dados.totalClientes}) — gerado em{' '}

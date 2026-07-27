@@ -196,7 +196,7 @@ import {
   LocalFirstDocumentReader,
   PdfTextExtractor,
 } from '../reading/index.js';
-import { PericiaService, ReleituraComparativa } from '../pericia/index.js';
+import { PericiaService, ReleituraComparativa, RevinculoHiscon } from '../pericia/index.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
 import { CustodiaService, JsonCasoStore, PericiaDigitalService } from '../pericia-digital/index.js';
@@ -256,6 +256,8 @@ export interface AssembledProduction {
   readonly pericia: PericiaService;
   /** Decreto 2026-07-27: relatório V2 × leitura atual (só leitura, nada grava). */
   readonly releitura: ReleituraComparativa;
+  /** Decreto 2026-07-27 (caso Roberto): religar o CNIS ao anexo CERTO da conversa. */
+  readonly revinculo: RevinculoHiscon;
   /** Decreto 2026-07-24: fluxo do perito (em perícia/10 dias, credenciais, resposta do banco). */
   readonly periciaFluxo: PericiaFluxoService;
   /** Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag). */
@@ -501,6 +503,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // Releitura comparativa (decreto 2026-07-27): valida o leitor posicional V2
   // contra a base real — SÓ LEITURA, nunca toca no document-text cache.
   const releitura = new ReleituraComparativa({
+    json,
+    links: documentLinks,
+    media: mediaStore,
+    cache: textCache,
+    clock,
+  });
+
+  // Revínculo do HISCON (decreto 2026-07-27, caso Roberto): quando o CNIS
+  // registrado aponta ao anexo ERRADO, acha o PDF certo na MESMA conversa e
+  // religa — sempre por ato explícito do dono, com backup reversível.
+  const revinculo = new RevinculoHiscon({
     json,
     links: documentLinks,
     media: mediaStore,
@@ -1346,6 +1359,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     mediaCapture,
     pericia,
     releitura,
+    revinculo,
     periciaFluxo,
     periciaDigital,
     periciaDigitalHabilitado,

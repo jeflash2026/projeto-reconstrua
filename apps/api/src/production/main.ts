@@ -112,6 +112,8 @@ async function main(): Promise<void> {
     jornadaCpf: async (chatId: string) => (await prod.jornadaComercial.fatos(chatId)).registro.cpf,
     // Decreto 2026-07-27: releitura comparativa do HISCON (só leitura).
     releitura: prod.releitura,
+    // Decreto 2026-07-27 (caso Roberto): revínculo do HISCON ao anexo certo.
+    revinculo: prod.revinculo,
     // Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag).
     periciaDigitalHabilitado: prod.periciaDigitalHabilitado,
     periciaDigital: prod.periciaDigital,

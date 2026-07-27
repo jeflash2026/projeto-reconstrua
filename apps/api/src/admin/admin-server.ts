@@ -179,6 +179,13 @@ export function buildAdminServer(
       compararTodos(limite?: number): Promise<unknown>;
       aplicarLeituraDefinitiva(): Promise<unknown>;
     };
+    /** Decreto 2026-07-27 (caso Roberto): o CNIS registrado aponta ao anexo
+     *  ERRADO — candidatos() acha o PDF certo na conversa (só leitura);
+     *  aplicar() religa, com backup, por ato explícito do dono. */
+    readonly revinculo?: {
+      candidatos(): Promise<unknown>;
+      aplicar(chatId: string, sha256: string): Promise<unknown>;
+    };
     /** Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag). */
     readonly periciaDigitalHabilitado?: boolean;
     readonly periciaDigital?: {
@@ -530,6 +537,25 @@ export function buildAdminServer(
     if (!opts.releitura)
       return reply.code(503).send({ error: 'releitura indisponível nesta montagem' });
     return opts.releitura.aplicarLeituraDefinitiva();
+  });
+
+  // REVÍNCULO DO HISCON (decreto 2026-07-27, caso Roberto): o registrado aponta
+  // ao anexo errado. GET lista os PDFs certos achados na conversa (só leitura);
+  // POST religa UM chat ao sha escolhido — ato explícito do dono, com backup.
+  app.get('/admin/pericia/revinculo-hiscon', async (_request, reply) => {
+    if (!opts.revinculo)
+      return reply.code(503).send({ error: 'revínculo indisponível nesta montagem' });
+    return opts.revinculo.candidatos();
+  });
+  app.post('/admin/pericia/revinculo-aplicar', async (request, reply) => {
+    if (!opts.revinculo)
+      return reply.code(503).send({ error: 'revínculo indisponível nesta montagem' });
+    const body = request.body as { chatId?: unknown; sha256?: unknown } | null;
+    const chatId = typeof body?.chatId === 'string' ? body.chatId : '';
+    const sha256 = typeof body?.sha256 === 'string' ? body.sha256 : '';
+    if (chatId === '' || sha256 === '')
+      return reply.code(400).send({ error: 'chatId e sha256 são obrigatórios' });
+    return opts.revinculo.aplicar(chatId, sha256);
   });
 
   // ── FLUXO DA PERÍCIA (Decreto 2026-07-24) — o perito BAIXOU ⇒ em perícia (10

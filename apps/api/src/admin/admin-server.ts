@@ -172,6 +172,9 @@ export function buildAdminServer(
     /** Decreto 2026-07-26: o CPF coletado no funil — exibido no cadastro do
      *  cliente (o perito precisa dele para protocolar o pedido nos bancos). */
     readonly jornadaCpf?: (chatId: string) => Promise<string | null>;
+    /** Decreto 2026-07-27: releitura comparativa do HISCON (V2 × leitura atual).
+     *  SÓ LEITURA — o relatório nunca altera cache nem estado de cliente. */
+    readonly releitura?: { compararTodos(limite?: number): Promise<unknown> };
     /** Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag). */
     readonly periciaDigitalHabilitado?: boolean;
     readonly periciaDigital?: {
@@ -504,6 +507,17 @@ export function buildAdminServer(
   app.get('/admin/jornada/pericia/todos-com-hiscon', async (_request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
     return { clientes: await op.perito.todosComHiscon() };
+  });
+
+  // Decreto 2026-07-27: RELEITURA COMPARATIVA — o leitor posicional V2 rodado
+  // sobre os PDFs armazenados, lado a lado com a leitura em produção (cache).
+  // SÓ LEITURA: nada é regravado; reprocessar é decisão manual do dono.
+  app.get('/admin/pericia/releitura-comparativa', async (request, reply) => {
+    if (!opts.releitura)
+      return reply.code(503).send({ error: 'releitura indisponível nesta montagem' });
+    const q = request.query as { limite?: string };
+    const limiteNum = q.limite !== undefined ? Number(q.limite) : Number.NaN;
+    return opts.releitura.compararTodos(Number.isFinite(limiteNum) ? limiteNum : undefined);
   });
 
   // ── FLUXO DA PERÍCIA (Decreto 2026-07-24) — o perito BAIXOU ⇒ em perícia (10

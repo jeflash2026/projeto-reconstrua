@@ -26,6 +26,7 @@ import {
   reconstruirHisconPosicionalV2,
   type ItemPdf,
   type PaginaPdf,
+  type ResultadoPosicionalV2,
 } from './hiscon-posicional-v2.js';
 
 interface PdfJsProxy {
@@ -36,36 +37,70 @@ interface PdfJsProxy {
   }>;
 }
 
+interface UnpdfModulo {
+  getDocumentProxy: (bytes: Uint8Array) => Promise<unknown>;
+  extractText: (
+    doc: unknown,
+    opts: { mergePages: boolean },
+  ) => Promise<{ text: string | string[] }>;
+}
+
+interface PaginasCarregadas {
+  readonly doc: PdfJsProxy;
+  readonly unpdf: UnpdfModulo;
+  readonly paginasCruas: ItemPosicional[][];
+  readonly paginasV2: PaginaPdf[];
+}
+
+/** Carrega o PDF e os itens posicionais de todas as páginas (cru + viewport). */
+async function carregarPaginas(bytes: Uint8Array): Promise<PaginasCarregadas> {
+  // Import DINÂMICO: unpdf é ESM e o build pesado do pdf.js só carrega quando
+  // realmente há um PDF para ler (nada no caminho quente da conversa). O
+  // módulo é tipado explicitamente (os .d.ts do unpdf não resolvem no import
+  // dinâmico) — sem `any` solto atravessando a leitura de documento jurídico.
+  const unpdf = (await import('unpdf')) as UnpdfModulo;
+  // CAUSA RAIZ (caso Maria, 2026-07-22): o pdf.js ASSUME A POSSE do buffer e o
+  // DETACHA (esvazia) ao ler. O LocalFirstReader chama a extração local ANTES da
+  // Vision usando o MESMO Uint8Array — sem a cópia, a Vision recebia o PDF já
+  // esvaziado ("PDF cannot be empty", HTTP 400) e a leitura de TODO HISCON
+  // falhava. Passamos uma CÓPIA ao pdf.js: os bytes do chamador ficam íntegros.
+  const copia = bytes.slice();
+  const doc = (await unpdf.getDocumentProxy(copia)) as PdfJsProxy;
+  const paginasCruas: ItemPosicional[][] = [];
+  const paginasV2: PaginaPdf[] = [];
+  for (let p = 1; p <= doc.numPages; p += 1) {
+    const page = await doc.getPage(p);
+    const itens = (await page.getTextContent()).items;
+    paginasCruas.push(itens);
+    paginasV2.push({ itens, viewportTransform: page.getViewport({ scale: 1 }).transform });
+  }
+  return { doc, unpdf, paginasCruas, paginasV2 };
+}
+
+/** As DUAS leituras posicionais de um HISCON, lado a lado — para o relatório
+ *  comparativo (releitura-comparativa). SÓ LEITURA: nada é cacheado/gravado.
+ *  null quando o PDF não abre (corrompido/escaneado). */
+export interface LeituraComparada {
+  readonly v2: ResultadoPosicionalV2 | null;
+  readonly v1Texto: string | null;
+}
+
+export async function lerHisconParaComparacao(bytes: Uint8Array): Promise<LeituraComparada | null> {
+  try {
+    const { paginasCruas, paginasV2 } = await carregarPaginas(bytes);
+    return {
+      v2: reconstruirHisconPosicionalV2(paginasV2),
+      v1Texto: reconstruirHisconPosicional(paginasCruas),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Texto embutido do PDF (null quando não há camada de texto ou em erro). */
 export async function extrairTextoDePdf(bytes: Uint8Array): Promise<string | null> {
   try {
-    // Import DINÂMICO: unpdf é ESM e o build pesado do pdf.js só carrega quando
-    // realmente há um PDF para ler (nada no caminho quente da conversa). O
-    // módulo é tipado explicitamente (os .d.ts do unpdf não resolvem no import
-    // dinâmico) — sem `any` solto atravessando a leitura de documento jurídico.
-    const unpdf = (await import('unpdf')) as {
-      getDocumentProxy: (bytes: Uint8Array) => Promise<unknown>;
-      extractText: (
-        doc: unknown,
-        opts: { mergePages: boolean },
-      ) => Promise<{ text: string | string[] }>;
-    };
-    // CAUSA RAIZ (caso Maria, 2026-07-22): o pdf.js ASSUME A POSSE do buffer e o
-    // DETACHA (esvazia) ao ler. O LocalFirstReader chama a extração local ANTES da
-    // Vision usando o MESMO Uint8Array — sem a cópia, a Vision recebia o PDF já
-    // esvaziado ("PDF cannot be empty", HTTP 400) e a leitura de TODO HISCON
-    // falhava. Passamos uma CÓPIA ao pdf.js: os bytes do chamador ficam íntegros.
-    const copia = bytes.slice();
-    const doc = (await unpdf.getDocumentProxy(copia)) as PdfJsProxy;
-
-    const paginasCruas: ItemPosicional[][] = [];
-    const paginasV2: PaginaPdf[] = [];
-    for (let p = 1; p <= doc.numPages; p += 1) {
-      const page = await doc.getPage(p);
-      const itens = (await page.getTextContent()).items;
-      paginasCruas.push(itens);
-      paginasV2.push({ itens, viewportTransform: page.getViewport({ scale: 1 }).transform });
-    }
+    const { doc, unpdf, paginasCruas, paginasV2 } = await carregarPaginas(bytes);
 
     // Reconstrução posicional do HISCON: V2 (template auditado) × V1 (heurística).
     const v2 = reconstruirHisconPosicionalV2(paginasV2);

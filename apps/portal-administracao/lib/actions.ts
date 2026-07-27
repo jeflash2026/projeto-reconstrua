@@ -740,6 +740,29 @@ export async function pdObterCaso(id: string): Promise<{
   return getJson(`/admin/pericia-digital/casos/${encodeURIComponent(id)}`);
 }
 
+// ── RELEITURA COMPARATIVA DO HISCON (decreto 2026-07-27) — só leitura ─────────
+export interface ReleituraLinha {
+  chatId: string;
+  cliente: string | null;
+  veredicto: string;
+  contratosCache: number | null;
+  ativosSuspensosCache: number | null;
+  contratosV2: number | null;
+  ativosSuspensosV2: number | null;
+  declarado: { ativos: number; suspensos: number } | null;
+  contratosV1: number | null;
+}
+export interface ReleituraRelatorio {
+  geradoEm: string;
+  totalClientes: number;
+  resumo: Record<string, number>;
+  linhas: ReleituraLinha[];
+}
+/** O relatório V2 × leitura atual. Pode demorar (reprocessa todos os PDFs). */
+export async function fetchReleituraHiscon(): Promise<ReleituraRelatorio | null> {
+  return getJson<ReleituraRelatorio>('/admin/pericia/releitura-comparativa');
+}
+
 /** Cliente com HISCON legível — as opções do seletor "abrir caso pericial". */
 export interface PdClienteComHiscon {
   chatId: string;

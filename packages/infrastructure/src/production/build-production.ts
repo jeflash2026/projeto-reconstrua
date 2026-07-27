@@ -196,7 +196,7 @@ import {
   LocalFirstDocumentReader,
   PdfTextExtractor,
 } from '../reading/index.js';
-import { PericiaService } from '../pericia/index.js';
+import { PericiaService, ReleituraComparativa } from '../pericia/index.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
 import { CustodiaService, JsonCasoStore, PericiaDigitalService } from '../pericia-digital/index.js';
@@ -254,6 +254,8 @@ export interface AssembledProduction {
   readonly mediaCapture: MediaCaptureRuntime;
   /** Decreto Dossiê Pericial: visão do PERITO (HISCON→contratos/migrados/indícios). */
   readonly pericia: PericiaService;
+  /** Decreto 2026-07-27: relatório V2 × leitura atual (só leitura, nada grava). */
+  readonly releitura: ReleituraComparativa;
   /** Decreto 2026-07-24: fluxo do perito (em perícia/10 dias, credenciais, resposta do banco). */
   readonly periciaFluxo: PericiaFluxoService;
   /** Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag). */
@@ -458,6 +460,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // sha256. A cadeia LOCAL-PRIMEIRO extrai o texto embutido do PDF (HISCON do
   // Meu INSS é nativo) de graça e local; só cai na Vision para foto/PDF
   // escaneado. Texto jurídico: extração mecânica NUNCA inventa contrato.
+  const textCache = new JsonDocumentTextCache(json);
   const documentReader = new DocumentReaderService({
     links: documentLinks,
     store: mediaStore,
@@ -475,7 +478,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         !/HIST[ÓO]RICO DE\s+EMPR[ÉE]STIMO CONSIGNADO/i.test(texto) || /^CONTRATO\s*:/im.test(texto),
       log: (message) => observability.event('reading', message, clock.now()),
     }),
-    cache: new JsonDocumentTextCache(json),
+    cache: textCache,
     model: config.llm.anthropicModel,
     clock,
     log: (message) => observability.error('reading', 'document', clock.now(), message),
@@ -493,6 +496,16 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     secret: env['ADMIN_ACCESS_SECRET'] ?? '',
     role: 'perito',
     usoConvite: 'convite-perito',
+  });
+
+  // Releitura comparativa (decreto 2026-07-27): valida o leitor posicional V2
+  // contra a base real — SÓ LEITURA, nunca toca no document-text cache.
+  const releitura = new ReleituraComparativa({
+    json,
+    links: documentLinks,
+    media: mediaStore,
+    cache: textCache,
+    clock,
   });
 
   const pericia = new PericiaService({
@@ -1329,6 +1342,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     databaseUrl,
     mediaCapture,
     pericia,
+    releitura,
     periciaFluxo,
     periciaDigital,
     periciaDigitalHabilitado,

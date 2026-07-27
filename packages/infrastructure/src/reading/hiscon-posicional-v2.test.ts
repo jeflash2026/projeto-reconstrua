@@ -302,6 +302,32 @@ describe('Leitor posicional V2 — template + âncoras + auditoria', () => {
     expect(c?.situacao).toBe('SUSPENSO');
   });
 
+  it('HISCON ZERADO (caso real Marcelo): quantitativo 0/0 sem página de tabela ⇒ leitura VÁLIDA', () => {
+    // O documento de quem NUNCA fez consignado tem 2 páginas (quantitativo tudo
+    // zero + margens) e NENHUMA tabela — recusá-lo era errado ("leitor não
+    // reconheceu"). Zero declarado + zero tabela = zero contratos, conferido.
+    const r = reconstruirHisconPosicionalV2([pagina1(0)]);
+    expect(r).not.toBe(null);
+    expect(r?.contratosLidos).toBe(0);
+    expect(r?.auditoria).toBe('conferida');
+    const h = parseHisconDetalhado(r?.texto ?? '');
+    expect(h.beneficiario).toBe('MARIA DO ROCIO MIRANDA');
+    expect(h.contratos).toHaveLength(0);
+    // O zerado conferido VENCE na escolha (produção usa o V2, não o V1/linear).
+    expect(escolherLeituraHiscon(r, 'CONTRATO: FABRICADO')).toBe(r?.texto);
+  });
+
+  it('HISCON zerado NÃO é aceito se o quantitativo declara contratos ou se há tabela', () => {
+    // Declara 2 ativos e nenhuma tabela lida ⇒ continua recusa (nada de inventar zero).
+    expect(reconstruirHisconPosicionalV2([pagina1(2)])).toBe(null);
+    // Declara 0 MAS existe página de tabela (que o portão pulou) ⇒ recusa também.
+    const tabelaForaDoTemplate = pagina([
+      cel(400, 10, 'CONTRATOS ATIVOS E SUSPENSOS', 200),
+      cel(200, 50, 'linhas fora do template', 100),
+    ]);
+    expect(reconstruirHisconPosicionalV2([pagina1(0), tabelaForaDoTemplate])).toBe(null);
+  });
+
   it('MIGRADO (caso real 0054581486): "do contrato" sem o "Migrado" vazado ainda É migrado', () => {
     // O bloco "Migrado do contrato X CBC: N" é alto e vaza entre linhas: a linha
     // migrada pode chegar sem o "Migrado" — a âncora é a frase "do contrato".

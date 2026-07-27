@@ -406,6 +406,13 @@ export const MENSAGENS_JORNADA = {
     'Recebi a sua imagem, obrigada! Mas verifiquei aqui e é o print da TELA DE CONSULTA/BUSCA do Meu INSS (inclusive aparece "empréstimo não encontrado") — essa tela é só o formulário de pesquisa e não traz os seus contratos, então a análise não roda com ela.\n\n' +
     'O que eu preciso é o HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), em PDF, com todos os contratos. No Meu INSS, procure a opção "Extrato de Empréstimos Consignados", gere/baixe o PDF e me envie aqui como anexo.\n\n' +
     'Importante: precisa ser o ARQUIVO em PDF — a foto ou o print da tela não trazem todos os contratos. Se quiser, eu te explico o passo a passo para localizar essa opção.',
+  // Caso 5521969515359 (2026-07-27): o cliente mandou o CONTRATO do empréstimo
+  // feito com o banco e a AHRI o registrou como HISCON ("cadastro completo").
+  // O contrato é papel do banco; a análise precisa do EXTRATO do INSS.
+  contratoBancarioRecebido:
+    'Recebi o seu documento, obrigada! Mas verifiquei aqui e ele é o CONTRATO do empréstimo feito com o banco — ele pode até ajudar mais adiante, mas não é o documento que preciso para a análise.\n\n' +
+    'O que eu preciso é o HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), emitido no Meu INSS na opção "Extrato de Empréstimos Consignados", com todos os seus contratos, em PDF.\n\n' +
+    'É só baixar esse PDF e me enviar aqui como anexo. Se quiser, eu te explico o passo a passo para localizar essa opção — é só me avisar.',
   // Caso Gelciana (2026-07-26): a cliente mandou a FOTO de uma tela de ERRO e a
   // AHRI aceitou como HISCON, declarando a etapa completa. Agora imagem NUNCA
   // vira HISCON e a AHRI diz o que enxergou — sem jamais sugerir foto como opção.

@@ -11,6 +11,7 @@ import {
   completo,
   faltando,
   novoOnboarding,
+  pareceContratoBancario,
   pareceTelaDeConsultaConsignado,
   proximo,
   type OnboardingDocumentalState,
@@ -158,6 +159,39 @@ describe('Decreto · classificação DETERMINÍSTICA dos 3 obrigatórios', () =>
   it('nada reconhecível OU empate ⇒ OUTRO (jamais adivinhar)', () => {
     expect(classificarDocumentoInicial('IMG_9999.jpg', '')).toBe('OUTRO');
     expect(classificarDocumentoInicial('doc.pdf', 'texto qualquer sem sinais')).toBe('OUTRO');
+  });
+
+  // Caso real 5521969515359 (2026-07-27): o cliente mandou o CONTRATO do
+  // empréstimo com o banco (que cita "empréstimo consignado") e a AHRI o
+  // registrou como HISCON, declarando "cadastro completo".
+  it('CONTRATO do banco NUNCA vira HISCON (caso 5521969515359)', () => {
+    const contrato =
+      'CÉDULA DE CRÉDITO BANCÁRIO — Empréstimo Consignado INSS. EMITENTE: Fulano de Tal. ' +
+      'CREDOR: Banco XYZ S.A. Cláusula 1ª — o emitente autoriza o desconto das parcelas ' +
+      'em seu benefício. Condições gerais anexas. Assinatura do emitente.';
+    expect(pareceContratoBancario(contrato)).toBe(true);
+    expect(
+      classificarDocumentoInicial('contrato-emprestimo.pdf', contrato, 'application/pdf'),
+    ).toBe('OUTRO');
+    // Proposta/termo de adesão também são papel do banco, não o extrato do INSS.
+    expect(
+      classificarDocumentoInicial(
+        'doc.pdf',
+        'TERMO DE ADESÃO — proposta de empréstimo consignado nº 1234',
+        'application/pdf',
+      ),
+    ).toBe('OUTRO');
+    // O HISCON DE VERDADE (sinal forte do extrato) segue passando normalmente.
+    expect(pareceContratoBancario('HISTÓRICO DE EMPRÉSTIMO CONSIGNADO — Origem da Averbação')).toBe(
+      false,
+    );
+    expect(
+      classificarDocumentoInicial(
+        'hiscon.pdf',
+        'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO — INSS — Quantitativo de Empréstimos por Situação',
+        'application/pdf',
+      ),
+    ).toBe('CNIS');
   });
 });
 

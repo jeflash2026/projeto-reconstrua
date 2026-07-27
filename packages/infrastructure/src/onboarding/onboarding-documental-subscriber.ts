@@ -202,7 +202,9 @@ export class OnboardingDocumentalSubscriber implements EventSubscriber {
                   ? MENSAGENS_JORNADA.telaConsultaHisconRecebida
                   : resultado.motivoOutro === 'historico-credito'
                     ? MENSAGENS_JORNADA.historicoDeCreditoRecebido
-                    : MENSAGENS_JORNADA.documentoNaoIdentificado(proximo);
+                    : resultado.motivoOutro === 'contrato-bancario'
+                      ? MENSAGENS_JORNADA.contratoBancarioRecebido
+                      : MENSAGENS_JORNADA.documentoNaoIdentificado(proximo);
             await d.comunicador.enviar(chatId, mensagem).catch((e: unknown) => {
               d.observability.error(
                 'onboarding',

@@ -160,3 +160,25 @@ beneficiário/contratos SEM gravar nada; a confirmação grava o blob
 (content-addressed por sha256), religa com os mesmos backups e deixa trilha
 com `origem: 'upload-admin'` (o vínculo fica com
 `messageId = upload-admin:<data>` — a procedência do ato é auditável).
+
+### HISCON zerado (caso Marcelo, 27/07)
+
+Existe HISCON **legítimo com zero contratos**: quem nunca fez consignado recebe
+um PDF de 2 páginas (quantitativo declarando 0 em tudo + margens), **sem
+nenhuma página de tabela**. O leitor aceita esse documento como leitura válida
+(0 contratos, auditoria conferida) SOMENTE quando o próprio documento declara
+zero E nenhuma página de tabela foi detectada — quantitativo > 0 sem tabela
+lida, ou tabela presente que o portão pulou, continuam sendo recusa (nunca
+inventar zero). O texto sai com o cabeçalho normal + a linha "NENHUM CONTRATO
+DE EMPRÉSTIMO CONSIGNADO REGISTRADO NO DOCUMENTO".
+
+### Contrato bancário ≠ HISCON (caso 5521969515359, 27/07)
+
+O CONTRATO do empréstimo firmado com o banco (cédula de crédito bancário,
+proposta, termo de adesão) cita "empréstimo consignado" e era aceito pelo
+classificador como HISCON ("cadastro completo"). Trava
+`pareceContratoBancario` em `onboarding-documental.ts`: sinal FORTE de
+contrato (cédula/contrato/proposta/termo de adesão) ou 2 sinais fracos
+(cláusula, emitente, credor, assinatura…) SEM sinal forte de extrato do INSS ⇒
+OUTRO, com a mensagem própria `contratoBancarioRecebido` explicando a
+diferença e pedindo o extrato do Meu INSS.

@@ -540,6 +540,7 @@ export function reconstruirHisconPosicionalV2(
   let suspensos = 0;
   let emprestimos = 0;
   let marcador = 0;
+  let paginasDeTabela = 0;
 
   for (const [idx, pagina] of paginas.entries()) {
     const ps = palavras(pagina);
@@ -570,6 +571,8 @@ export function reconstruirHisconPosicionalV2(
         margens = lerMargens(ps);
       continue;
     }
+
+    paginasDeTabela += 1; // uma página de TABELA existe (mesmo que o portão a pule)
 
     // PORTÃO DO TEMPLATE: sem o cabeçalho nas posições esperadas, esta página
     // NÃO é o layout em linhas (é a matriz do V1, ou outra coisa) — pular é a
@@ -649,10 +652,23 @@ export function reconstruirHisconPosicionalV2(
   }
 
   const contratosLidos = blocos.filter((b) => b.startsWith('CONTRATO:')).length;
-  if (contratosLidos === 0) return null;
-
   const declarado = pagina1?.declarado ?? null;
   const declaradoTotal = pagina1?.declaradoTotal ?? null;
+  if (contratosLidos === 0) {
+    // HISCON ZERADO (caso real Marcelo, 2026-07-27): documento LEGÍTIMO de quem
+    // NUNCA fez consignado — 2 páginas, quantitativo declara zero em TUDO e não
+    // existe página de tabela. Recusá-lo era errado. O zero só é aceito quando
+    // o PRÓPRIO documento declara zero E nenhuma página de tabela apareceu —
+    // tabela presente (ou quantitativo > 0) sem contratos lidos segue recusado.
+    const zerado =
+      paginasDeTabela === 0 &&
+      declarado !== null &&
+      declarado.ativos === 0 &&
+      declarado.suspensos === 0 &&
+      (declaradoTotal === null || declaradoTotal === 0);
+    if (!zerado) return null;
+    blocos.push('NENHUM CONTRATO DE EMPRÉSTIMO CONSIGNADO REGISTRADO NO DOCUMENTO');
+  }
   // Conferida exige TRÊS acertos: ativos, suspensos E o total declarado (quando
   // o quantitativo o lista) — a trava contra registros fabricados na base real.
   const auditoria: ResultadoPosicionalV2['auditoria'] =

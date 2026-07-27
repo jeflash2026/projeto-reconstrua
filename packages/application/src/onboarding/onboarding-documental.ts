@@ -178,6 +178,43 @@ export function pareceHistoricoDeCredito(texto: string): boolean {
   return credito && !hisconForte;
 }
 
+// Sinais do CONTRATO DE EMPRÉSTIMO firmado com o BANCO (cédula de crédito
+// bancário, proposta, termo de adesão) — caso 5521969515359 (2026-07-27): o
+// cliente mandou o CONTRATO do consignado, que naturalmente cita "empréstimo
+// consignado", e a AHRI o registrou como HISCON e declarou o cadastro completo.
+// O contrato é papel do BANCO (cláusulas, assinatura, emitente); o HISCON é o
+// extrato do INSS. Um sinal FORTE basta; os fracos exigem dois.
+const SINAIS_CONTRATO_BANCARIO_FORTE: readonly string[] = [
+  'cedula de credito bancario',
+  'contrato de emprestimo',
+  'contrato de credito',
+  'proposta de emprestimo',
+  'proposta de credito',
+  'termo de adesao',
+];
+const SINAIS_CONTRATO_BANCARIO_FRACO: readonly string[] = [
+  'clausula',
+  'contratante',
+  'contratada',
+  'emitente',
+  'credor',
+  'condicoes gerais',
+  'autorizacao de desconto',
+  'autorizo o desconto',
+  'assinatura',
+  'foro de eleicao',
+];
+
+/** O documento é o CONTRATO do empréstimo com o banco (não o extrato do INSS)?
+ *  true com um sinal FORTE (ou dois fracos) E nenhum sinal forte de HISCON. */
+export function pareceContratoBancario(texto: string): boolean {
+  const t = normalizar(texto);
+  if (t === '') return false;
+  if (SINAIS_HISCON_FORTE.some((f) => t.includes(f))) return false;
+  if (SINAIS_CONTRATO_BANCARIO_FORTE.some((f) => t.includes(f))) return true;
+  return SINAIS_CONTRATO_BANCARIO_FRACO.filter((f) => t.includes(f)).length >= 2;
+}
+
 // Sinais de que a BUSCA não trouxe contratos (a tela de consulta ficou vazia).
 // Um extrato vazio/"não encontrado" NUNCA é um extrato válido — mesmo que a tela
 // cite "consignado" no título. (Cliente 7582422298, 2026-07-25.)
@@ -289,6 +326,9 @@ export function classificarDocumentoInicial(
       // "consignado" e era aceito como HISCON. Se tem cara de relatório de crédito
       // e não tem sinal FORTE de extrato do INSS ⇒ NÃO é o HISCON.
       if (pareceHistoricoDeCredito(texto)) return 'OUTRO';
+      // Caso 5521969515359 (2026-07-27): o CONTRATO do empréstimo com o banco
+      // cita "empréstimo consignado" e virava HISCON ("cadastro completo").
+      if (pareceContratoBancario(texto)) return 'OUTRO';
       // Caso José: sem QUALQUER sinal de consignado ⇒ documento errado.
       if (!SINAIS.CNIS.frases.some((f) => soTexto.includes(f))) return 'OUTRO';
     }
@@ -424,7 +464,11 @@ export interface ResultadoDeRecebimento {
   /** Por que ficou OUTRO — permite a mensagem CERTA (ex.: histórico de crédito ou
    *  print da tela de consulta em vez do HISCON). null/ausente ⇒ genérico. */
   readonly motivoOutro?:
-    'historico-credito' | 'tela-consulta-hiscon' | 'imagem-nao-e-hiscon' | null;
+    | 'historico-credito'
+    | 'tela-consulta-hiscon'
+    | 'imagem-nao-e-hiscon'
+    | 'contrato-bancario'
+    | null;
 }
 
 export class OnboardingDocumentalRuntime {
@@ -486,9 +530,11 @@ export class OnboardingDocumentalRuntime {
           ? 'tela-consulta-hiscon'
           : pareceHistoricoDeCredito(texto ?? '')
             ? 'historico-credito'
-            : fotoTentandoSerHiscon
-              ? 'imagem-nao-e-hiscon'
-              : null,
+            : pareceContratoBancario(texto ?? '')
+              ? 'contrato-bancario'
+              : fotoTentandoSerHiscon
+                ? 'imagem-nao-e-hiscon'
+                : null,
       };
     }
     // Já completo para este código ⇒ reenvio não duplica. IDENTIDADE via RG

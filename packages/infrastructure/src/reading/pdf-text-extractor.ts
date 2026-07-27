@@ -10,16 +10,30 @@
 // NUNCA lança: qualquer falha (PDF corrompido, escaneado sem texto) devolve
 // null, e o chamador cai na Vision.
 //
-// HISCON (Frente 2): quando o PDF é o HISCON matriz do Meu INSS, a extração
-// LINEAR embaralha a tabela. Antes de devolver, tentamos a RECONSTRUÇÃO POSICIONAL
-// (por coordenadas) — que devolve o texto Formato A com cada valor no campo certo.
-// Só quando ela reconhece a tabela de contratos; senão segue o texto linear.
+// HISCON: quando o PDF é o HISCON do Meu INSS, a extração LINEAR embaralha a
+// tabela. Tentamos DOIS reconstrutores posicionais e escolhemos o AUDITADO:
+//  • V2 (decreto 2026-07-27): coordenadas normalizadas pelo viewport (rotação
+//    da página paisagem desfeita) + centros de coluna FIXOS do template do
+//    INSS + âncora MM/AAAA por registro + AUDITORIA contra o "Quantitativo de
+//    Empréstimos por Situação" declarado na página 1 do próprio documento.
+//  • V1 (Frente 2, 2026-07-22): heurística em coordenadas cruas — o fallback.
+// escolherLeituraHiscon decide: V2 com auditoria conferida vence; sem
+// conferência, vence quem mais se aproxima do declarado. Nenhum leu ⇒ linear.
 // ─────────────────────────────────────────────────────────────────────────────
 import { reconstruirHisconPosicional, type ItemPosicional } from './hiscon-posicional.js';
+import {
+  escolherLeituraHiscon,
+  reconstruirHisconPosicionalV2,
+  type ItemPdf,
+  type PaginaPdf,
+} from './hiscon-posicional-v2.js';
 
 interface PdfJsProxy {
   numPages: number;
-  getPage(n: number): Promise<{ getTextContent(): Promise<{ items: ItemPosicional[] }> }>;
+  getPage(n: number): Promise<{
+    getTextContent(): Promise<{ items: (ItemPosicional & ItemPdf)[] }>;
+    getViewport(opts: { scale: number }): { transform: number[] };
+  }>;
 }
 
 /** Texto embutido do PDF (null quando não há camada de texto ou em erro). */
@@ -44,13 +58,22 @@ export async function extrairTextoDePdf(bytes: Uint8Array): Promise<string | nul
     const copia = bytes.slice();
     const doc = (await unpdf.getDocumentProxy(copia)) as PdfJsProxy;
 
-    // Frente 2: reconstrução POSICIONAL do HISCON matriz (valor no campo certo).
-    const paginas: ItemPosicional[][] = [];
+    const paginasCruas: ItemPosicional[][] = [];
+    const paginasV2: PaginaPdf[] = [];
     for (let p = 1; p <= doc.numPages; p += 1) {
       const page = await doc.getPage(p);
-      paginas.push((await page.getTextContent()).items);
+      const itens = (await page.getTextContent()).items;
+      paginasCruas.push(itens);
+      paginasV2.push({ itens, viewportTransform: page.getViewport({ scale: 1 }).transform });
     }
-    const hiscon = reconstruirHisconPosicional(paginas);
+
+    // Reconstrução posicional do HISCON: V2 (template auditado) × V1 (heurística).
+    const v2 = reconstruirHisconPosicionalV2(paginasV2);
+    const v1 =
+      v2 === null || v2.auditoria !== 'conferida'
+        ? reconstruirHisconPosicional(paginasCruas)
+        : null; // V2 conferido pelo próprio documento ⇒ V1 nem precisa rodar
+    const hiscon = escolherLeituraHiscon(v2, v1);
     if (hiscon !== null) return hiscon;
 
     // Não é HISCON matriz ⇒ texto linear comum.

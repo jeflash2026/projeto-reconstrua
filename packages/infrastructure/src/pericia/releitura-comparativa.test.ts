@@ -52,7 +52,9 @@ function v2Result(
     contratosLidos: contratos,
     ativosLidos: contratos,
     suspensosLidos: 0,
+    emprestimosLidos: contratos,
     declarado: { ativos: declarados, suspensos: 0 },
+    declaradoTotal: null,
     auditoria,
   } as const;
 }

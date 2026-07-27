@@ -235,6 +235,42 @@ function bancoCanonico(bruto: string): string {
   return resto !== '' ? `${cod} - ${resto}` : limpo;
 }
 
+// ── PORTÃO DO TEMPLATE (aprendizado do relatório real, 2026-07-27) ───────────
+// O INSS emite o HISCON em (pelo menos) DOIS layouts: o template EM LINHAS
+// (deste V2) e a MATRIZ ROTACIONADA (do V1). Rodar o V2 na matriz FABRICA
+// registros: as âncoras MM/AAAA caem em posições aleatórias e cada fatia vira
+// um "contrato" (visto na base real: cliente com 2 ativos "ganhou" 93). O V2
+// só pode rodar quando o CABEÇALHO do template aparece nas posições esperadas
+// — incluindo obrigatoriamente um rótulo do lado DIREITO (na matriz, todos os
+// rótulos vivem na faixa esquerda e jamais casam ali).
+
+const CABECALHO_EMPRESTIMO: readonly (readonly [RegExp, number])[] = [
+  [/CONTRATO/, 25],
+  [/BANCO/, 54],
+  [/SITUA/, 80],
+  [/INCLUS/, 138],
+  [/PARCELA/, 265],
+  [/EMPRESTADO/, 308],
+];
+const CABECALHO_CARTAO: readonly (readonly [RegExp, number])[] = [
+  [/CONTRATO/, 49],
+  [/TIPO/, 125],
+  [/BANCO/, 205],
+  [/SITUA/, 280],
+  [/DESCONTO/, 500],
+];
+
+function templateCasa(ps: readonly Palavra[], ehCartao: boolean): boolean {
+  const alvo = ehCartao ? CABECALHO_CARTAO : CABECALHO_EMPRESTIMO;
+  const casa = (re: RegExp, cx: number): boolean =>
+    ps.some((p) => re.test(semAcentos(p.s).toUpperCase()) && Math.abs(p.cx - cx) <= 25);
+  const acertos = alvo.filter(([re, cx]) => casa(re, cx)).length;
+  const direita = ehCartao
+    ? casa(/DESCONTO/, 500)
+    : casa(/PARCELA/, 265) || casa(/EMPRESTADO/, 308);
+  return acertos >= (ehCartao ? 3 : 4) && direita;
+}
+
 // ── Segmentação por âncoras MM/AAAA ──────────────────────────────────────────
 
 interface Registro {
@@ -314,6 +350,9 @@ interface Pagina1 {
   readonly numeroBeneficio: string | null;
   readonly situacaoBeneficio: string | null;
   readonly declarado: { ativos: number; suspensos: number } | null;
+  /** TOTAL de empréstimos declarado (todas as situações) — null quando a tabela
+   *  não lista excluídos/encerrados (aí só ativos/suspensos são conferíveis). */
+  readonly declaradoTotal: number | null;
 }
 
 function linhasOrdenadas(ps: readonly Palavra[]): string[] {
@@ -352,22 +391,36 @@ function lerPagina1(ps: readonly Palavra[]): Pagina1 {
   const linhaSit = linhas.find((l) => /^Situa[çc][ãa]o\b/i.test(l)) ?? '';
   const situacao = /Situa[çc][ãa]o\s*:?\s*(.+)$/i.exec(linhaSit)?.[1]?.trim() ?? null;
 
-  // "Quantitativo de Empréstimos por Situação" — o que o INSS DECLARA.
+  // "Quantitativo de Empréstimos por Situação" — o que o INSS DECLARA. Além de
+  // ativos/suspensos, capturamos excluídos/encerrados/reservados quando a tabela
+  // os lista: o TOTAL declarado é a trava contra registros fabricados (base
+  // real, 2026-07-27: cliente com 2 ativos "ganhou" 93 contratos e a auditoria
+  // só de ativos deixava passar).
   const idxQ = linhas.findIndex((l) => /Quantitativo/i.test(l));
   let declarado: Pagina1['declarado'] = null;
+  let declaradoTotal: number | null = null;
   if (idxQ >= 0) {
-    let ativos: number | null = null;
-    let suspensos: number | null = null;
-    for (let i = idxQ; i < Math.min(idxQ + 12, linhas.length); i += 1) {
-      const l = semAcentos(linhas[i] ?? '').toUpperCase();
-      const mA = /\bATIVOS?\b\D{0,10}(\d{1,3})/.exec(l);
-      if (mA && ativos === null) ativos = Number(mA[1]);
-      const mS = /\bSUSPENSOS?\b\D{0,10}(\d{1,3})/.exec(l);
-      if (mS && suspensos === null) suspensos = Number(mS[1]);
+    const conta = (re: RegExp): number | null => {
+      for (let i = idxQ; i < Math.min(idxQ + 12, linhas.length); i += 1) {
+        const m = re.exec(semAcentos(linhas[i] ?? '').toUpperCase());
+        if (m) return Number(m[1]);
+      }
+      return null;
+    };
+    const ativos = conta(/\bATIVOS?\b\D{0,10}(\d{1,3})/);
+    const suspensos = conta(/\bSUSPENSOS?\b\D{0,10}(\d{1,3})/);
+    const excluidos = conta(/\bEXCLUIDOS?\b\D{0,10}(\d{1,3})/);
+    const encerrados = conta(/\bENCERRADOS?\b\D{0,10}(\d{1,3})/);
+    const reservados = conta(/\bRESERVADOS?\b\D{0,10}(\d{1,3})/);
+    if (ativos !== null) {
+      declarado = { ativos, suspensos: suspensos ?? 0 };
+      if (excluidos !== null || encerrados !== null || reservados !== null) {
+        declaradoTotal =
+          ativos + (suspensos ?? 0) + (excluidos ?? 0) + (encerrados ?? 0) + (reservados ?? 0);
+      }
     }
-    if (ativos !== null) declarado = { ativos, suspensos: suspensos ?? 0 };
   }
-  return { nome, numeroBeneficio: nb, situacaoBeneficio: situacao, declarado };
+  return { nome, numeroBeneficio: nb, situacaoBeneficio: situacao, declarado, declaradoTotal };
 }
 
 // ── Montagem do Formato A + resultado com auditoria ──────────────────────────
@@ -377,7 +430,11 @@ export interface ResultadoPosicionalV2 {
   readonly contratosLidos: number;
   readonly ativosLidos: number;
   readonly suspensosLidos: number;
+  /** EMPRÉSTIMOS lidos (sem os cartões) — o lado "lido" da conferência do total. */
+  readonly emprestimosLidos: number;
   readonly declarado: { ativos: number; suspensos: number } | null;
+  /** TOTAL declarado no quantitativo (todas as situações), quando listado. */
+  readonly declaradoTotal: number | null;
   readonly auditoria: 'conferida' | 'divergente' | 'indisponivel';
 }
 
@@ -391,6 +448,7 @@ export function reconstruirHisconPosicionalV2(
   let pagina1: Pagina1 | null = null;
   let ativos = 0;
   let suspensos = 0;
+  let emprestimos = 0;
   let marcador = 0;
 
   for (const [idx, pagina] of paginas.entries()) {
@@ -411,6 +469,11 @@ export function reconstruirHisconPosicionalV2(
       continue;
     }
 
+    // PORTÃO DO TEMPLATE: sem o cabeçalho nas posições esperadas, esta página
+    // NÃO é o layout em linhas (é a matriz do V1, ou outra coisa) — pular é a
+    // única leitura honesta; fatiar geraria contratos fabricados.
+    if (!templateCasa(ps, ehCartao)) continue;
+
     const cols = ehCartao ? COLS_CARTAO : COLS_EMPRESTIMO;
     const registros = extrairRegistros(ps, cols, ehCartao ? 'competencia' : 'inicio_desconto');
     for (const reg of registros) {
@@ -428,6 +491,7 @@ export function reconstruirHisconPosicionalV2(
       const situacao = situacaoCanonica(v('situacao'));
       // A auditoria confere EMPRÉSTIMOS: o "Quantitativo de Empréstimos por
       // Situação" da página 1 não inclui os cartões RMC/RCC.
+      if (!ehCartao) emprestimos += 1;
       if (!ehCartao && situacao === 'ATIVO') ativos += 1;
       if (!ehCartao && situacao === 'SUSPENSO') suspensos += 1;
 
@@ -482,10 +546,15 @@ export function reconstruirHisconPosicionalV2(
   if (contratosLidos === 0) return null;
 
   const declarado = pagina1?.declarado ?? null;
+  const declaradoTotal = pagina1?.declaradoTotal ?? null;
+  // Conferida exige TRÊS acertos: ativos, suspensos E o total declarado (quando
+  // o quantitativo o lista) — a trava contra registros fabricados na base real.
   const auditoria: ResultadoPosicionalV2['auditoria'] =
     declarado === null
       ? 'indisponivel'
-      : declarado.ativos === ativos && declarado.suspensos === suspensos
+      : declarado.ativos === ativos &&
+          declarado.suspensos === suspensos &&
+          (declaradoTotal === null || declaradoTotal === emprestimos)
         ? 'conferida'
         : 'divergente';
 
@@ -494,11 +563,15 @@ export function reconstruirHisconPosicionalV2(
   if (pagina1?.nome != null) cab.push(pagina1.nome);
   if (pagina1?.numeroBeneficio != null) cab.push(`Nº Benefício: ${pagina1.numeroBeneficio}`);
   if (pagina1?.situacaoBeneficio != null) cab.push(`Situação: ${pagina1.situacaoBeneficio}`);
+  const totalTxt =
+    declaradoTotal !== null
+      ? `; total declarado ${String(declaradoTotal)} × lidos ${String(emprestimos)}`
+      : '';
   cab.push(
     auditoria === 'conferida'
-      ? `AUDITORIA DA LEITURA: conferida contra o quantitativo do próprio documento (${String(ativos)} ativo(s), ${String(suspensos)} suspenso(s)).`
+      ? `AUDITORIA DA LEITURA: conferida contra o quantitativo do próprio documento (${String(ativos)} ativo(s), ${String(suspensos)} suspenso(s)${totalTxt}).`
       : auditoria === 'divergente'
-        ? `AUDITORIA DA LEITURA: DIVERGÊNCIA — o documento declara ${String(declarado?.ativos ?? 0)} ativo(s) e ${String(declarado?.suspensos ?? 0)} suspenso(s); a leitura encontrou ${String(ativos)} e ${String(suspensos)}. Conferir no PDF.`
+        ? `AUDITORIA DA LEITURA: DIVERGÊNCIA — o documento declara ${String(declarado?.ativos ?? 0)} ativo(s) e ${String(declarado?.suspensos ?? 0)} suspenso(s); a leitura encontrou ${String(ativos)} e ${String(suspensos)}${totalTxt}. Conferir no PDF.`
         : 'AUDITORIA DA LEITURA: quantitativo do documento não localizado — leitura sem conferência automática.',
   );
 
@@ -507,7 +580,9 @@ export function reconstruirHisconPosicionalV2(
     contratosLidos,
     ativosLidos: ativos,
     suspensosLidos: suspensos,
+    emprestimosLidos: emprestimos,
     declarado,
+    declaradoTotal,
     auditoria,
   };
 }

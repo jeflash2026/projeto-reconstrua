@@ -22,8 +22,9 @@ function cel(cx: number, y: number, s: string, w = 10): ItemPdf {
 const IDENT = [1, 0, 0, 1, 0, 0];
 const pagina = (itens: ItemPdf[]): PaginaPdf => ({ itens, viewportTransform: IDENT });
 
-/** Página 1 (retrato): título, nome, benefício e o QUANTITATIVO declarado. */
-function pagina1(ativosDeclarados: number): PaginaPdf {
+/** Página 1 (retrato): título, nome, benefício e o QUANTITATIVO declarado.
+ *  `excluidosDeclarados` liga a linha EXCLUÍDO (⇒ o TOTAL passa a ser conferível). */
+function pagina1(ativosDeclarados: number, excluidosDeclarados: number | null = null): PaginaPdf {
   return pagina([
     cel(300, 20, 'Instituto Nacional do Seguro Social', 200),
     cel(300, 40, 'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO', 220),
@@ -34,6 +35,9 @@ function pagina1(ativosDeclarados: number): PaginaPdf {
     cel(300, 140, 'Quantitativo de Empréstimos por Situação', 230),
     cel(300, 160, `ATIVO ${String(ativosDeclarados)}`, 60),
     cel(300, 175, 'SUSPENSO 0', 70),
+    ...(excluidosDeclarados !== null
+      ? [cel(300, 190, `EXCLUÍDO ${String(excluidosDeclarados)}`, 70)]
+      : []),
   ]);
 }
 
@@ -42,7 +46,12 @@ function pagina1(ativosDeclarados: number): PaginaPdf {
 function paginaEmprestimos(): PaginaPdf {
   return pagina([
     cel(400, 10, 'CONTRATOS ATIVOS E SUSPENSOS', 200),
-    // Cabeçalho da tabela (o corpo começa abaixo dele).
+    // Cabeçalho da tabela (o corpo começa abaixo dele) — o PORTÃO DO TEMPLATE
+    // exige estes rótulos nas posições esperadas, incluindo um do lado direito.
+    cel(25, 30, 'CONTRATO', 30),
+    cel(54, 30, 'BANCO', 22),
+    cel(80, 30, 'SITUAÇÃO', 30),
+    cel(265, 30, 'PARCELA', 28),
     cel(308, 30, 'EMPRESTADO', 40),
     // ── Registro 1 (âncora 03/2024) — células fragmentadas em duas linhas ──
     cel(25, 48, '154712', 24),
@@ -117,6 +126,40 @@ describe('Leitor posicional V2 — template + âncoras + auditoria', () => {
     expect(reconstruirHisconPosicionalV2([pagina([cel(100, 50, 'Conta de luz', 60)])])).toBe(null);
   });
 
+  it('REGRESSÃO (base real 2026-07-27): a MATRIZ ROTACIONADA é rejeitada — nunca fatiada', () => {
+    // Layout do V1: rótulos na faixa ESQUERDA (x<135), cada COLUNA é um contrato.
+    // Sem cabeçalho nas posições do template (nada no lado direito), o V2 deve
+    // recusar a página inteira — antes ele fatiava e "criava" dezenas de contratos.
+    const matriz = pagina([
+      cel(400, 10, 'CONTRATOS ATIVOS E SUSPENSOS', 200),
+      cel(60, 40, 'BANCO', 22),
+      cel(60, 60, 'SITUAÇÃO', 30),
+      cel(70, 80, 'INÍCIO DE DESCONTO', 60),
+      cel(70, 100, 'QTDE PARCELAS', 46),
+      // Valores espalhados — datas MM/AAAA em vários X (uma por contrato-coluna).
+      cel(170, 80, '03/2024', 28),
+      cel(240, 80, '05/2023', 28),
+      cel(310, 80, '01/2022', 28),
+      cel(170, 100, '96', 10),
+      cel(240, 100, '84', 10),
+    ]);
+    expect(reconstruirHisconPosicionalV2([pagina1(2), matriz])).toBe(null);
+  });
+
+  it('REGRESSÃO: total declarado (excluídos) trava registros a mais — divergente', () => {
+    // Documento declara 2 ativos + 1 excluído = 3 no total; a leitura achou só 2
+    // empréstimos ⇒ mesmo com ativos batendo, a auditoria NÃO pode conferir.
+    const r = reconstruirHisconPosicionalV2([pagina1(2, 1), paginaEmprestimos()]);
+    expect(r?.declaradoTotal).toBe(3);
+    expect(r?.emprestimosLidos).toBe(2);
+    expect(r?.auditoria).toBe('divergente');
+    expect(r?.texto).toContain('total declarado 3 × lidos 2');
+    // E quando o total BATE, segue conferida.
+    const ok = reconstruirHisconPosicionalV2([pagina1(2, 0), paginaEmprestimos()]);
+    expect(ok?.declaradoTotal).toBe(2);
+    expect(ok?.auditoria).toBe('conferida');
+  });
+
   it('escolha: V2 conferido vence; divergente perde para o V1 que bate com o declarado', () => {
     const conferido = reconstruirHisconPosicionalV2([pagina1(2), paginaEmprestimos()]);
     expect(escolherLeituraHiscon(conferido, 'CONTRATO: X\nSITUAÇÃO: ATIVO\n')).toBe(
@@ -148,6 +191,9 @@ describe('Leitor posicional V2 — template + âncoras + auditoria', () => {
       viewportTransform: [0, 1, 1, 0, 0, 0],
       itens: [
         rot(400, 10, 'CONTRATOS ATIVOS E SUSPENSOS', 200),
+        rot(25, 30, 'CONTRATO', 30),
+        rot(54, 30, 'BANCO', 22),
+        rot(80, 30, 'SITUAÇÃO', 30),
         rot(308, 30, 'EMPRESTADO', 40),
         rot(25, 50, '871682438', 30),
         rot(54, 50, '318 - BMG', 30),
@@ -167,6 +213,9 @@ describe('Leitor posicional V2 — template + âncoras + auditoria', () => {
   it('cartão RMC/RCC: seção pela coluna TIPO; desconto vira a parcela', () => {
     const cartao = pagina([
       cel(400, 10, 'DESCONTOS DE CARTÃO', 150),
+      cel(49, 30, 'CONTRATO', 30),
+      cel(205, 30, 'BANCO', 22),
+      cel(280, 30, 'SITUAÇÃO', 30),
       cel(500, 30, 'DESCONTO', 40),
       cel(49, 50, '99887766', 30),
       cel(125, 50, 'RMC', 20),

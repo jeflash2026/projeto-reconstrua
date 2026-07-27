@@ -210,28 +210,117 @@ describe('Leitor posicional V2 — template + âncoras + auditoria', () => {
     expect(h.contratos[0]?.valorParcela).toBe(250);
   });
 
-  it('cartão RMC/RCC: seção pela coluna TIPO; desconto vira a parcela', () => {
+  it('CONTRATOS de cartão RMC/RCC (tabela real): âncora dd/mm/aa, reservado vira parcela', () => {
+    // Calibrado no PDF real (p5): CARTÃO DE CRÉDITO + CONTRATOS ATIVOS.
     const cartao = pagina([
-      cel(400, 10, 'DESCONTOS DE CARTÃO', 150),
-      cel(49, 30, 'CONTRATO', 30),
-      cel(205, 30, 'BANCO', 22),
-      cel(280, 30, 'SITUAÇÃO', 30),
-      cel(500, 30, 'DESCONTO', 40),
-      cel(49, 50, '99887766', 30),
-      cel(125, 50, 'RMC', 20),
-      cel(205, 50, '318 - BMG', 36),
-      cel(280, 50, 'Ativo', 20),
-      cel(340, 50, '06/2024', 28), // ÂNCORA (competência)
-      cel(500, 50, 'R$85,00', 26),
+      cel(400, 10, 'CARTÃO DE CRÉDITO - RMC', 150),
+      cel(400, 20, 'CONTRATOS ATIVOS E SUSPENSOS', 180),
+      cel(55, 30, 'CONTRATO', 30),
+      cel(120, 30, 'TIPO', 18),
+      cel(190, 30, 'BANCO', 22),
+      cel(248, 30, 'SITUAÇÃO', 30),
+      cel(408, 30, 'LIMITE', 24),
+      cel(462, 30, 'RESERVADO', 34),
+      cel(55, 50, '600267354-6', 40),
+      cel(120, 48, 'Reserva de Margem', 50),
+      cel(120, 56, 'para Cartão (RMC)', 50),
+      cel(190, 50, '465 - CAPITAL CONSIG', 60),
+      cel(248, 50, 'Ativo', 20),
+      cel(300, 50, 'Averbação nova', 48),
+      cel(352, 50, '28/11/23', 30), // ÂNCORA (data de inclusão)
+      cel(408, 50, 'R$2.112,00', 34),
+      cel(462, 50, 'R$81,05', 26),
     ]);
     const r = reconstruirHisconPosicionalV2([pagina1(2), paginaEmprestimos(), cartao]);
     // Cartão NÃO entra na auditoria (o quantitativo declara EMPRÉSTIMOS).
     expect(r?.auditoria).toBe('conferida');
     const h = parseHisconDetalhado(r?.texto ?? '');
     expect(h.contratos).toHaveLength(3);
-    const rmc = h.contratos.find((c) => c.contrato === '99887766');
+    const rmc = h.contratos.find((c) => c.contrato === '600267354-6');
     expect(rmc?.modalidade).toBe('RMC');
-    expect(rmc?.valorParcela).toBe(85);
-    expect(rmc?.bancoNome).toBe('BANCO BMG');
+    expect(rmc?.valorParcela).toBe(81.05); // RESERVADO/ATUALIZADO = mensal do cartão
+    expect(rmc?.situacao).toBe('ATIVO');
+  });
+
+  it('REGRESSÃO (caso NYCOLLAS): histórico MENSAL de descontos NÃO vira contrato', () => {
+    // p7-p10 do PDF real: ~80 linhas mensais do MESMO cartão inflavam "87 contratos".
+    const historicoMensal = pagina([
+      cel(400, 10, 'CARTÃO DE CRÉDITO', 120),
+      cel(400, 20, 'DESCONTOS DE CARTÃO', 140),
+      cel(55, 30, 'CONTRATO', 30),
+      cel(340, 30, 'COMPETÊNCIA', 40),
+      cel(500, 30, 'DESCONTO', 32),
+      cel(55, 50, '600267354-6/026', 50),
+      cel(340, 50, '01/2026', 28),
+      cel(500, 50, 'R$66,00', 26),
+      cel(55, 90, '600267354-6/025', 50),
+      cel(340, 90, '12/2025', 28),
+      cel(500, 90, 'R$66,00', 26),
+    ]);
+    const r = reconstruirHisconPosicionalV2([pagina1(2), paginaEmprestimos(), historicoMensal]);
+    expect(r?.contratosLidos).toBe(2); // só os empréstimos — nenhum mês virou contrato
+    expect(r?.auditoria).toBe('conferida');
+  });
+
+  it('MARGENS da página 2 alimentam o indício de margem extrapolada', () => {
+    const margens = pagina([
+      cel(300, 20, 'VALORES DO BENEFÍCIO', 120),
+      cel(300, 40, 'BASE DE CÁLCULO R$1.621,00', 140),
+      cel(300, 60, 'MÁXIMO DE COMPROMETIMENTO PERMITIDO R$648,40', 200),
+      cel(300, 80, 'TOTAL COMPROMETIDO R$693,40', 150),
+      cel(300, 100, 'MARGEM EXTRAPOLADA*** R$45,00', 160),
+    ]);
+    const r = reconstruirHisconPosicionalV2([pagina1(2), margens, paginaEmprestimos()]);
+    const h = parseHisconDetalhado(r?.texto ?? '');
+    expect(h.margens.baseCalculo).toBe(1621);
+    expect(h.margens.totalComprometido).toBe(693.4);
+    expect(h.margens.extrapolada).toBe(45);
+  });
+
+  it('MIGRADO (caso real 0054581486): "do contrato" sem o "Migrado" vazado ainda É migrado', () => {
+    // O bloco "Migrado do contrato X CBC: N" é alto e vaza entre linhas: a linha
+    // migrada pode chegar sem o "Migrado" — a âncora é a frase "do contrato".
+    const emprestimo = pagina([
+      cel(400, 10, 'CONTRATOS ATIVOS E SUSPENSOS', 200),
+      cel(25, 30, 'CONTRATO', 30),
+      cel(54, 30, 'BANCO', 22),
+      cel(80, 30, 'SITUAÇÃO', 30),
+      cel(265, 30, 'PARCELA', 28),
+      cel(308, 30, 'EMPRESTADO', 40),
+      cel(25, 50, '0054581486', 34),
+      cel(54, 50, '643 - PINE', 34),
+      cel(80, 50, 'Ativo', 20),
+      cel(108, 46, 'do contrato', 36),
+      cel(108, 54, '005458 1486', 40),
+      cel(108, 62, 'CBC: 935', 30),
+      cel(170, 50, '11/2022', 28),
+      cel(265, 50, 'R$424,00', 30),
+    ]);
+    const r = reconstruirHisconPosicionalV2([emprestimo]);
+    const h = parseHisconDetalhado(r?.texto ?? '');
+    const c = h.contratos[0];
+    expect(c?.migrado).toBe(true);
+    expect(c?.migradoDoContrato).toBe('0054581486'); // dígitos partidos reunidos
+    expect(c?.migradoDoCbc).toBe('935');
+    // E o inverso: "Migrado" solto que VAZOU numa linha de averbação é descartado.
+    const comLeak = pagina([
+      cel(400, 10, 'CONTRATOS ATIVOS E SUSPENSOS', 200),
+      cel(25, 30, 'CONTRATO', 30),
+      cel(54, 30, 'BANCO', 22),
+      cel(80, 30, 'SITUAÇÃO', 30),
+      cel(265, 30, 'PARCELA', 28),
+      cel(308, 30, 'EMPRESTADO', 40),
+      cel(25, 50, '369375258-0', 40),
+      cel(80, 50, 'Ativo', 20),
+      cel(108, 46, 'Averbaç', 26),
+      cel(108, 54, 'ão nova', 26),
+      cel(108, 62, 'Migrado', 26), // fragmento da linha vizinha
+      cel(170, 50, '02/2023', 28),
+      cel(265, 50, 'R$31,00', 26),
+    ]);
+    const r2 = reconstruirHisconPosicionalV2([comLeak]);
+    const c2 = parseHisconDetalhado(r2?.texto ?? '').contratos[0];
+    expect(c2?.migrado).toBe(false);
+    expect(c2?.origemAverbacao).toBe('Averbação nova');
   });
 });

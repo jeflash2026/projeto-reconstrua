@@ -93,9 +93,8 @@ type ColunaId =
   | 'juros_anual'
   | 'valor_pago'
   | 'primeiro_desconto'
-  | 'competencia'
-  | 'saldo_devedor'
-  | 'desconto'
+  | 'limite_cartao'
+  | 'reservado'
   | 'outros';
 
 interface Coluna {
@@ -133,20 +132,27 @@ const COLS_EMPRESTIMO: readonly Coluna[] = [
   { id: 'outros', cx: 813, texto: true },
 ];
 
+// CONTRATOS de cartão RMC/RCC (páginas "CARTÃO DE CRÉDITO — CONTRATOS ATIVOS/
+// EXCLUÍDOS"). Calibrado no PDF REAL (NYCOLLAS, 2026-07-27): contrato@25+,
+// tipo@~90, banco@~146, situação@~237, averbação@~276, inclusão@~337 (dd/mm/aa
+// — a ÂNCORA desta tabela), limite@~383, reservado/atualizado@~447 (o valor
+// MENSAL comprometido do cartão ⇒ vira VALOR PARCELA a jusante).
 const COLS_CARTAO: readonly Coluna[] = [
-  { id: 'contrato', cx: 49, texto: false },
-  { id: 'tipo', cx: 125, texto: true },
-  { id: 'banco', cx: 205, texto: true },
-  { id: 'situacao', cx: 280, texto: true },
-  { id: 'competencia', cx: 340, texto: false },
-  { id: 'saldo_devedor', cx: 420, texto: false },
-  { id: 'desconto', cx: 500, texto: false },
-  { id: 'outros', cx: 565, texto: false }, // utilizado no mês (sem campo a jusante)
-  { id: 'iof', cx: 615, texto: false },
-  { id: 'cet_mensal', cx: 650, texto: false },
-  { id: 'cet_anual', cx: 690, texto: false },
-  { id: 'juros_mensal', cx: 740, texto: false },
-  { id: 'juros_anual', cx: 800, texto: false },
+  { id: 'contrato', cx: 55, texto: false },
+  { id: 'tipo', cx: 120, texto: true },
+  { id: 'banco', cx: 190, texto: true },
+  { id: 'situacao', cx: 248, texto: true },
+  { id: 'origem_averbacao', cx: 300, texto: true },
+  { id: 'data_inclusao', cx: 352, texto: false },
+  { id: 'limite_cartao', cx: 408, texto: false },
+  { id: 'reservado', cx: 462, texto: false },
+  { id: 'outros', cx: 520, texto: true }, // suspensões/reativações/exclusão
+  { id: 'outros', cx: 575, texto: true },
+  { id: 'outros', cx: 625, texto: true },
+  { id: 'outros', cx: 675, texto: true },
+  { id: 'outros', cx: 725, texto: true },
+  { id: 'outros', cx: 775, texto: true },
+  { id: 'outros', cx: 815, texto: true },
 ];
 
 /** Dicionário código→nome (bancos consignatários usuais). Desconhecido ⇒ o
@@ -199,24 +205,34 @@ const ehDataCurta = (s: string): boolean => /^\d{2}\/\d{2}\/(\d{2}|\d{4})$/.test
 const CONTRATO_RE = /^[A-Za-z0-9][A-Za-z0-9./_-]{3,23}$/;
 
 function situacaoCanonica(bruta: string): string {
-  const s = semAcentos(bruta).toUpperCase();
+  const s = semAcentos(bruta).toUpperCase().trim();
   if (s.startsWith('ATIVO')) return 'ATIVO';
   if (s.startsWith('SUSPENS')) return 'SUSPENSO';
   if (s.startsWith('EXCLU')) return 'EXCLUÍDO';
   if (s.startsWith('ENCERR')) return 'ENCERRADO';
   if (s.startsWith('RESERV')) return 'RESERVADO';
-  return bruta.trim();
+  return ''; // fora do vocabulário ⇒ nunca emitir lixo como situação
 }
 
-/** Averbação casada contra o vocabulário fixo (ignorando acentos/espaços).
- *  "Migrado…" preserva o texto REAL (o mapa de migrações a jusante depende do
- *  "Migrado do contrato X CBC: NNN"). Fora disso e sem letras ⇒ ''. */
+/** Averbação canônica. Aprendizado do PDF real (2026-07-27): o bloco "Migrado
+ *  do contrato X CBC: NNN" é ALTO e vaza fragmentos entre linhas vizinhas — a
+ *  linha migrada pode perder o "Migrado" (e viraria pedido administrativo
+ *  INDEVIDO) e a vizinha pode ganhá-lo. A âncora confiável é a frase
+ *  "do contrato": quem a tem É migrado (prefixa "Migrado" se perdeu); quem tem
+ *  o vocabulário de averbação é averbação (um "Migrado" solto que vazou é
+ *  descartado). Dígitos partidos ("005458 1486") são reunidos — o mapa de
+ *  migrações a jusante lê o número inteiro. */
 function averbacaoCanonica(bruta: string): string {
-  const chave = semAcentos(bruta).toLowerCase().replace(/\s+/g, '');
-  if (/migrado/.test(chave)) return bruta.replace(/\s+/g, ' ').trim();
+  const digitosJuntos = bruta.replace(/(\d)\s+(?=\d)/g, '$1');
+  const chave = semAcentos(digitosJuntos).toLowerCase().replace(/\s+/g, '');
+  if (/do\s*contrato/i.test(digitosJuntos)) {
+    const resto = digitosJuntos.slice(digitosJuntos.search(/do\s*contrato/i));
+    return `Migrado ${resto}`.replace(/\s+/g, ' ').trim();
+  }
   if (chave.includes('averbacaonova')) return 'Averbação nova';
   if (chave.includes('refinanciamento')) return 'Averbação por Refinanciamento';
   if (chave.includes('portabilidade')) return 'Averbação por Portabilidade';
+  if (/\bmigrado\b/i.test(digitosJuntos)) return digitosJuntos.replace(/\s+/g, ' ').trim();
   return /[a-zà-ú]/i.test(bruta) ? bruta.replace(/\s+/g, ' ').trim() : '';
 }
 
@@ -252,21 +268,24 @@ const CABECALHO_EMPRESTIMO: readonly (readonly [RegExp, number])[] = [
   [/PARCELA/, 265],
   [/EMPRESTADO/, 308],
 ];
+// Calibrado no PDF real: CONTRATO@26, TIPO@102, BANCO@168, SITUAÇÃO@228,
+// LIMITE DE CARTÃO@383, RESERVADO ATUALIZADO@438 (cabeçalho quebra em 2 linhas).
 const CABECALHO_CARTAO: readonly (readonly [RegExp, number])[] = [
-  [/CONTRATO/, 49],
-  [/TIPO/, 125],
-  [/BANCO/, 205],
-  [/SITUA/, 280],
-  [/DESCONTO/, 500],
+  [/CONTRATO/, 55],
+  [/TIPO/, 120],
+  [/BANCO/, 190],
+  [/SITUA/, 248],
+  [/LIMITE/, 408],
+  [/RESERVADO|ATUALIZADO/, 462],
 ];
 
 function templateCasa(ps: readonly Palavra[], ehCartao: boolean): boolean {
   const alvo = ehCartao ? CABECALHO_CARTAO : CABECALHO_EMPRESTIMO;
   const casa = (re: RegExp, cx: number): boolean =>
-    ps.some((p) => re.test(semAcentos(p.s).toUpperCase()) && Math.abs(p.cx - cx) <= 25);
+    ps.some((p) => re.test(semAcentos(p.s).toUpperCase()) && Math.abs(p.cx - cx) <= 30);
   const acertos = alvo.filter(([re, cx]) => casa(re, cx)).length;
   const direita = ehCartao
-    ? casa(/DESCONTO/, 500)
+    ? casa(/LIMITE/, 408) || casa(/RESERVADO|ATUALIZADO/, 462)
     : casa(/PARCELA/, 265) || casa(/EMPRESTADO/, 308);
   return acertos >= (ehCartao ? 3 : 4) && direita;
 }
@@ -277,16 +296,50 @@ interface Registro {
   readonly campos: ReadonlyMap<ColunaId, string>;
 }
 
+// Vocabulário dos CABEÇALHOS de tabela — uma linha (bucket de y) com 3+ destes
+// tokens é cabeçalho, e cabeçalhos aparecem TAMBÉM no meio da página (a
+// sub-tabela "EXCLUÍDOS" vem abaixo da de ativos). Removê-los por linha inteira
+// preserva os valores: "BANCO" solto numa linha de dados (ex.: "623 - BANCO
+// PAN") não derruba a linha, pois o bucket dela não acumula 3 tokens.
+const VOCAB_CABECALHO =
+  /^(CONTRA(TO)?|TIPO|BANCO|SITUA(CAO)?|ORIGEM|DA|AVERBA(CAO)?|DATA|INCLUS(AO)?|EXCLUS(AO)?|COMPET(ENCIA)?|VALOR|LIMITE|RESERVADO|ATUALIZADO|SUSPENS.*|REATIV.*|INSS|MOTIVO|QTDE|PARCE(LA|LAS)?|LAS|EMPRESTADO|LIBERADO|IOF|CET|TAXA|JUROS|MENSAL|ANUAL|PAGO\*{0,3}|PRIMEIRO|DESCONT(O|OS)?|FIM|DE|INICIO|CARTAO|SALDO|DEVEDOR|UTILIZADO|NO|MES)$/;
+const TITULO_DE_SECAO =
+  /CONTRATOS (ATIVOS|EXCLUIDOS)|CARTAO DE CREDITO|EMPRESTIMOS BANCARIOS|INSTITUTO NACIONAL/;
+
+/** Remove as LINHAS de cabeçalho/título (inclusive no meio do corpo). */
+function semLinhasDeCabecalho(ps: readonly Palavra[]): Palavra[] {
+  const buckets: { y: number; ps: Palavra[] }[] = [];
+  for (const p of [...ps].sort((a, b) => a.y - b.y)) {
+    const b = buckets.find((x) => Math.abs(x.y - p.y) < 4);
+    if (b) b.ps.push(p);
+    else buckets.push({ y: p.y, ps: [p] });
+  }
+  const manter: Palavra[] = [];
+  for (const b of buckets) {
+    const upper = b.ps.map((p) => semAcentos(p.s).toUpperCase().trim());
+    const texto = upper.join(' ');
+    if (TITULO_DE_SECAO.test(texto)) continue;
+    const tokensCabecalho = upper.filter((s) => VOCAB_CABECALHO.test(s)).length;
+    if (tokensCabecalho >= 3) continue;
+    manter.push(...b.ps);
+  }
+  return manter;
+}
+
 function extrairRegistros(
-  ps: readonly Palavra[],
+  psBrutos: readonly Palavra[],
   cols: readonly Coluna[],
   colunaAncora: ColunaId,
+  ehAncora: (s: string) => boolean,
 ): Registro[] {
-  // Corpo da tabela: abaixo do cabeçalho (rótulo EMPRESTADO/DESCONTO) e acima
-  // das notas de rodapé (palavras iniciando com '*') / rodapé do documento.
-  const rotuloCabecalho = ps.filter((p) => /EMPRESTADO|DESCONTO/i.test(semAcentos(p.s)));
+  // Corpo da tabela: sem as linhas de cabeçalho/título (mesmo no meio da
+  // página), abaixo do cabeçalho principal e acima das notas de rodapé (*).
+  const rotuloCabecalho = psBrutos.filter((p) =>
+    /EMPRESTADO|LIMITE|RESERVADO/i.test(semAcentos(p.s)),
+  );
+  const ps = semLinhasDeCabecalho(psBrutos);
   const ancorasBrutas = ps
-    .filter((p) => ehCompetencia(p.s.trim()) && colunaDe(p, cols) === colunaAncora)
+    .filter((p) => ehAncora(p.s.trim()) && colunaDe(p, cols) === colunaAncora)
     .sort((a, b) => a.y - b.y);
   if (ancorasBrutas.length === 0) return [];
   const primeiraAncoraY = ancorasBrutas[0]?.y ?? 0;
@@ -388,8 +441,10 @@ function lerPagina1(ps: readonly Palavra[]): Pagina1 {
   }
   const linhaNb = linhas.find((l) => /N[ºo°]?\s*Benef[íi]cio/i.test(l)) ?? '';
   const nb = /(\d[\d.]{6,}[\d-]\d?)/.exec(linhaNb)?.[1] ?? null;
+  // Só a PALAVRA da situação — a linha da página 1 funde a coluna vizinha de
+  // flags ("ATIVO | Possui representante legal") e o resto não é situação.
   const linhaSit = linhas.find((l) => /^Situa[çc][ãa]o\b/i.test(l)) ?? '';
-  const situacao = /Situa[çc][ãa]o\s*:?\s*(.+)$/i.exec(linhaSit)?.[1]?.trim() ?? null;
+  const situacao = /Situa[çc][ãa]o\s*:?\s*([A-ZÀ-Úa-zà-ú-]+)/.exec(linhaSit)?.[1]?.trim() ?? null;
 
   // "Quantitativo de Empréstimos por Situação" — o que o INSS DECLARA. Além de
   // ativos/suspensos, capturamos excluídos/encerrados/reservados quando a tabela
@@ -421,6 +476,28 @@ function lerPagina1(ps: readonly Palavra[]): Pagina1 {
     }
   }
   return { nome, numeroBeneficio: nb, situacaoBeneficio: situacao, declarado, declaradoTotal };
+}
+
+// ── Margens (página 2: "VALORES DO BENEFÍCIO") ───────────────────────────────
+// A margem extrapolada alimenta o indício EST-CONSIG-MARGEM-001 a jusante — o
+// leitor precisa entregá-la. Só a PRIMEIRA ocorrência de cada rótulo (a seção
+// "VALORES POR MODALIDADE" repete os nomes com 3 valores; não é a nossa).
+const ROTULOS_MARGEM: readonly (readonly [string, RegExp])[] = [
+  ['BASE DE CÁLCULO', /BASE DE CALCULO/],
+  ['MÁXIMO DE COMPROMETIMENTO PERMITIDO', /MAXIMO DE COMPROMETIMENTO/],
+  ['TOTAL COMPROMETIDO', /TOTAL COMPROMETIDO/],
+  ['MARGEM EXTRAPOLADA***', /MARGEM EXTRAPOLADA/],
+];
+
+function lerMargens(ps: readonly Palavra[]): readonly string[] {
+  const linhas = linhasOrdenadas(ps);
+  const out: string[] = [];
+  for (const [rotulo, re] of ROTULOS_MARGEM) {
+    const linha = linhas.find((l) => re.test(semAcentos(l).toUpperCase()));
+    const valor = linha !== undefined ? /R\$\s?[\d.]+,\d{2}/.exec(linha)?.[0] : undefined;
+    if (valor !== undefined) out.push(`${rotulo}: ${valor.replace(/\s/g, '')}`);
+  }
+  return out;
 }
 
 // ── Montagem do Formato A + resultado com auditoria ──────────────────────────
@@ -455,6 +532,7 @@ export function reconstruirHisconPosicionalV2(
   const blocos: string[] = [];
   let secaoAtual = '';
   let pagina1: Pagina1 | null = null;
+  let margens: readonly string[] | null = null;
   let ativos = 0;
   let suspensos = 0;
   let emprestimos = 0;
@@ -463,18 +541,30 @@ export function reconstruirHisconPosicionalV2(
   for (const [idx, pagina] of paginas.entries()) {
     const ps = palavras(pagina);
     const textoPagina = semAcentos(ps.map((p) => p.s).join(' ')).toUpperCase();
-    const ehCartao = /DESCONTOS DE CARTAO/.test(textoPagina);
-    const ehEmprestimos = /CONTRATOS ATIVOS E SUSPENSOS|CONTRATOS EXCLUIDOS E ENCERRADOS/.test(
-      textoPagina,
-    );
+    // CLASSIFICAÇÃO POR PÁGINA (calibrada no PDF real de 2026-07-27):
+    //  • "DESCONTOS DE CARTAO" = HISTÓRICO MENSAL de descontos (uma linha por
+    //    competência do MESMO cartão) — NÃO são contratos; contá-los inflava a
+    //    leitura (caso NYCOLLAS: ~80 linhas mensais viravam "87 contratos").
+    //  • "CARTAO DE CREDITO" + "CONTRATOS…" = os CONTRATOS de cartão RMC/RCC.
+    //  • "CONTRATOS ATIVOS/EXCLUIDOS" (sem cartão) = empréstimos bancários.
+    const ehHistoricoMensal = /DESCONTOS DE CARTAO/.test(textoPagina);
+    const ehCartao = !ehHistoricoMensal && /CARTAO DE CREDITO/.test(textoPagina);
+    const ehEmprestimos =
+      !ehHistoricoMensal &&
+      !ehCartao &&
+      /CONTRATOS ATIVOS E SUSPENSOS|CONTRATOS EXCLUIDOS E ENCERRADOS/.test(textoPagina);
 
+    if (ehHistoricoMensal) continue; // histórico ≠ contrato (agregação fica p/ o futuro)
     if (!ehCartao && !ehEmprestimos) {
-      // Página 1 (retrato) — beneficiário + quantitativo declarado.
+      // Página 1 (retrato) — beneficiário + quantitativo declarado. As MARGENS
+      // (página 2) são lidas pelo texto linear das linhas (lerPagina1/margens).
       if (pagina1 === null && /EMPRESTIMO CONSIGNADO|QUANTITATIVO/.test(textoPagina)) {
         const lida = lerPagina1(ps);
         if (lida.nome !== null || lida.declarado !== null || lida.numeroBeneficio !== null)
           pagina1 = lida;
       }
+      if (/VALORES DO BENEFICIO|BASE DE CALCULO/.test(textoPagina) && margens === null)
+        margens = lerMargens(ps);
       continue;
     }
 
@@ -485,7 +575,11 @@ export function reconstruirHisconPosicionalV2(
     if (opcoes.portaoDoTemplate !== false && !templateCasa(ps, ehCartao)) continue;
 
     const cols = ehCartao ? COLS_CARTAO : COLS_EMPRESTIMO;
-    const registros = extrairRegistros(ps, cols, ehCartao ? 'competencia' : 'inicio_desconto');
+    // Âncora: nos EMPRÉSTIMOS é a competência MM/AAAA do início de desconto; nos
+    // CONTRATOS de cartão é a DATA INCLUSÃO dd/mm/aa (não há competência ali).
+    const registros = ehCartao
+      ? extrairRegistros(ps, cols, 'data_inclusao', ehDataCurta)
+      : extrairRegistros(ps, cols, 'inicio_desconto', ehCompetencia);
     for (const reg of registros) {
       const v = (id: ColunaId): string => reg.campos.get(id) ?? '';
       const so = (id: ColunaId, ok: (s: string) => boolean): string => {
@@ -517,15 +611,14 @@ export function reconstruirHisconPosicionalV2(
 
       const campos: ReadonlyArray<readonly [string, string]> = ehCartao
         ? [
+            // Tabela de CONTRATOS do cartão (PDF real): banco, situação,
+            // averbação, inclusão (dd/mm/aa) e o RESERVADO/ATUALIZADO — o valor
+            // MENSAL comprometido, que a jusante é a "parcela" do cartão.
             ['BANCO', bancoCanonico(v('banco'))],
             ['SITUAÇÃO', situacao],
-            ['COMPETÊNCIA INÍCIO DE DESCONTO', so('competencia', ehCompetencia)],
-            ['VALOR PARCELA', so('desconto', ehMoeda)],
-            ['IOF', so('iof', ehMoeda)],
-            ['CET MENSAL', so('cet_mensal', ehTaxa).replace('%', '')],
-            ['CET ANUAL', so('cet_anual', ehTaxa).replace('%', '')],
-            ['TAXA JUROS MENSAL', so('juros_mensal', ehTaxa).replace('%', '')],
-            ['TAXA JUROS ANUAL', so('juros_anual', ehTaxa).replace('%', '')],
+            ['ORIGEM DA AVERBAÇÃO', averbacaoCanonica(v('origem_averbacao'))],
+            ['DATA INCLUSÃO', so('data_inclusao', ehDataCurta)],
+            ['VALOR PARCELA', so('reservado', ehMoeda)],
           ]
         : [
             ['BANCO', bancoCanonico(v('banco'))],
@@ -573,6 +666,7 @@ export function reconstruirHisconPosicionalV2(
   if (pagina1?.nome != null) cab.push(pagina1.nome);
   if (pagina1?.numeroBeneficio != null) cab.push(`Nº Benefício: ${pagina1.numeroBeneficio}`);
   if (pagina1?.situacaoBeneficio != null) cab.push(`Situação: ${pagina1.situacaoBeneficio}`);
+  if (margens !== null) cab.push(...margens);
   const totalTxt =
     declaradoTotal !== null
       ? `; total declarado ${String(declaradoTotal)} × lidos ${String(emprestimos)}`

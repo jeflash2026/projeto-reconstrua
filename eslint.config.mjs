@@ -7,7 +7,15 @@ import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/.next/**', '**/coverage/**', '**/node_modules/**', '**/.turbo/**'],
+    ignores: [
+      '**/dist/**',
+      '**/.next/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      '**/.turbo/**',
+      // Ferramentas de calibração standalone (fora do projeto TS; ver docs/leitura-hiscon.md).
+      '**/scripts/*.mjs',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

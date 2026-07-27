@@ -205,7 +205,10 @@ const ehDataCurta = (s: string): boolean => /^\d{2}\/\d{2}\/(\d{2}|\d{4})$/.test
 const CONTRATO_RE = /^[A-Za-z0-9][A-Za-z0-9./_-]{3,23}$/;
 
 function situacaoCanonica(bruta: string): string {
-  const s = semAcentos(bruta).toUpperCase().trim();
+  // SEM espaços: a célula fragmenta NO MEIO da palavra ("Suspe"+"nso"+"Banco"
+  // → "Suspe nso Banco" — caso real Roberto, 2026-07-27: 7 suspensos declarados
+  // liam 0 e a auditoria divergia). "SUSPENSOBANCO" casa o prefixo; espaço não.
+  const s = semAcentos(bruta).toUpperCase().replace(/\s+/g, '');
   if (s.startsWith('ATIVO')) return 'ATIVO';
   if (s.startsWith('SUSPENS')) return 'SUSPENSO';
   if (s.startsWith('EXCLU')) return 'EXCLUÍDO';

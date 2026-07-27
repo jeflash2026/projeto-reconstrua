@@ -277,6 +277,31 @@ describe('Leitor posicional V2 — template + âncoras + auditoria', () => {
     expect(h.margens.extrapolada).toBe(45);
   });
 
+  it('SUSPENSO fragmentado NO MEIO da palavra (caso real Roberto: 7 suspensos liam 0)', () => {
+    // A célula "Suspenso Banco" chega como "Suspe"+"nso"+"Banco" em 3 linhas —
+    // remontada com espaços ("Suspe nso Banco"), o prefixo SUSPENS não casava e
+    // a auditoria divergia (declarados 7, lidos 0).
+    const emprestimo = pagina([
+      cel(400, 10, 'CONTRATOS ATIVOS E SUSPENSOS', 200),
+      cel(25, 30, 'CONTRATO', 30),
+      cel(54, 30, 'BANCO', 22),
+      cel(80, 30, 'SITUAÇÃO', 30),
+      cel(265, 30, 'PARCELA', 28),
+      cel(308, 30, 'EMPRESTADO', 40),
+      cel(25, 50, '387810508-3', 40),
+      cel(54, 50, '012 - INBURSA', 44),
+      cel(80, 44, 'Suspe', 20),
+      cel(80, 51, 'nso', 14),
+      cel(80, 58, 'Banco', 20),
+      cel(170, 50, '05/2026', 28),
+      cel(265, 50, 'R$248,80', 30),
+    ]);
+    const r = reconstruirHisconPosicionalV2([emprestimo]);
+    expect(r?.suspensosLidos).toBe(1);
+    const c = parseHisconDetalhado(r?.texto ?? '').contratos[0];
+    expect(c?.situacao).toBe('SUSPENSO');
+  });
+
   it('MIGRADO (caso real 0054581486): "do contrato" sem o "Migrado" vazado ainda É migrado', () => {
     // O bloco "Migrado do contrato X CBC: N" é alto e vaza entre linhas: a linha
     // migrada pode chegar sem o "Migrado" — a âncora é a frase "do contrato".

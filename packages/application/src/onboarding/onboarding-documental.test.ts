@@ -10,6 +10,7 @@ import {
   classificarDocumentoInicial,
   completo,
   faltando,
+  hisconSemUtilidade,
   novoOnboarding,
   pareceContratoBancario,
   pareceTelaDeConsultaConsignado,
@@ -202,6 +203,51 @@ describe('Decreto HISCON-ONLY (2026-07-22) · contabilidade', () => {
     expect(proximo(s)).toBe('CNIS');
     expect(faltando(s)).toHaveLength(1);
     expect(completo(s)).toBe(false);
+  });
+});
+
+// Decreto 2026-07-27 (caso Marcelo): HISCON sem contratos na janela de 5 anos
+// não serve ao projeto — a AHRI DESCARTA (não registra, não completa) e explica.
+describe('Decreto · HISCON sem utilidade (zerado ou fora da janela de 5 anos)', () => {
+  const ZERADO =
+    'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO\nMARCELO SANTOS DO AMARAL JUNIOR\n' +
+    'AUDITORIA DA LEITURA: conferida contra o quantitativo do próprio documento (0 ativo(s), 0 suspenso(s)).\n\n' +
+    'NENHUM CONTRATO DE EMPRÉSTIMO CONSIGNADO REGISTRADO NO DOCUMENTO';
+  const FORA_DA_JANELA =
+    'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO\nFULANO DE TAL\n\n' +
+    'CONTRATO: 123456\nSITUAÇÃO: EXCLUÍDO\nCOMPETÊNCIA INÍCIO DE DESCONTO: 03/2015\nCOMPETÊNCIA FIM DE DESCONTO: 02/2019';
+  const NA_JANELA =
+    'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO\nFULANA DE TAL\n\n' +
+    'CONTRATO: 654321\nSITUAÇÃO: EXCLUÍDO\nCOMPETÊNCIA INÍCIO DE DESCONTO: 03/2020\nCOMPETÊNCIA FIM DE DESCONTO: 02/2024';
+
+  it('hisconSemUtilidade: zerado AUDITADO e tudo-fora-da-janela ⇒ true; na janela ⇒ false', () => {
+    expect(hisconSemUtilidade(ZERADO, NOW)).toBe(true);
+    expect(hisconSemUtilidade(FORA_DA_JANELA, NOW)).toBe(true);
+    // Qualquer situação conta (ativo/suspenso/EXCLUÍDO) — basta estar na janela.
+    expect(hisconSemUtilidade(NA_JANELA, NOW)).toBe(false);
+    // Parse que simplesmente falhou (0 contratos SEM a marca do zerado auditado)
+    // NUNCA vira descarte — segue o fluxo normal.
+    expect(hisconSemUtilidade('histórico de empréstimo consignado qualquer', NOW)).toBe(false);
+  });
+
+  it('runtime: HISCON zerado é DESCARTADO (não registra, não completa, motivo próprio)', async () => {
+    const h = harness({ z: ZERADO });
+    await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
+    const r = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'z', 'hiscon.pdf', NOW);
+    expect(r.classificacao).toBe('OUTRO');
+    expect(r.motivoOutro).toBe('hiscon-sem-contratos');
+    expect(await h.runtime.estaCompleto(CHAT)).toBe(false); // nada foi registrado
+  });
+
+  it('runtime: contratos só FORA da janela também descarta; NA janela registra normal', async () => {
+    const h = harness({ fora: FORA_DA_JANELA, dentro: NA_JANELA });
+    await h.runtime.aoCriarMissao(CHAT, 'M-1', NOW);
+    const r1 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'fora', 'hiscon.pdf', NOW);
+    expect(r1.motivoOutro).toBe('hiscon-sem-contratos');
+    expect(await h.runtime.estaCompleto(CHAT)).toBe(false);
+    const r2 = await h.runtime.aoReconhecerDocumento(CHAT, 'M-1', 'dentro', 'hiscon.pdf', NOW);
+    expect(r2.classificacao).toBe('CNIS');
+    expect(await h.runtime.estaCompleto(CHAT)).toBe(true);
   });
 });
 

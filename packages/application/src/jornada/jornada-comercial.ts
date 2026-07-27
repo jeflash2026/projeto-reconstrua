@@ -406,6 +406,13 @@ export const MENSAGENS_JORNADA = {
     'Recebi a sua imagem, obrigada! Mas verifiquei aqui e é o print da TELA DE CONSULTA/BUSCA do Meu INSS (inclusive aparece "empréstimo não encontrado") — essa tela é só o formulário de pesquisa e não traz os seus contratos, então a análise não roda com ela.\n\n' +
     'O que eu preciso é o HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), em PDF, com todos os contratos. No Meu INSS, procure a opção "Extrato de Empréstimos Consignados", gere/baixe o PDF e me envie aqui como anexo.\n\n' +
     'Importante: precisa ser o ARQUIVO em PDF — a foto ou o print da tela não trazem todos os contratos. Se quiser, eu te explico o passo a passo para localizar essa opção.',
+  // Decreto 2026-07-27 (caso Marcelo): HISCON SEM contratos na janela de 5 anos
+  // não tem o que revisar — a AHRI agradece, dá a notícia (que é BOA para o
+  // cliente) e encerra com a porta aberta; jamais pede o documento de novo.
+  hisconSemContratos:
+    'Recebi o seu extrato e fiz a verificação, obrigada! Tenho até uma boa notícia: não encontrei nenhum contrato de empréstimo consignado no seu benefício nos últimos 5 anos.\n\n' +
+    'O nosso trabalho é justamente revisar contratos de consignado — como o seu extrato não tem contratos nesse período, não há nada para analisarmos no seu caso agora.\n\n' +
+    'Se em algum momento você contratar um consignado, ou notar algum desconto no seu benefício que não reconheça, é só me chamar por aqui que a gente analisa. Fico à disposição!',
   // Caso 5521969515359 (2026-07-27): o cliente mandou o CONTRATO do empréstimo
   // feito com o banco e a AHRI o registrou como HISCON ("cadastro completo").
   // O contrato é papel do banco; a análise precisa do EXTRATO do INSS.

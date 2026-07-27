@@ -13,7 +13,7 @@
 // do texto antigos (reversível) e então religa documentId → sha do PDF certo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHash } from 'node:crypto';
-import { parseHisconDetalhado } from '@reconstrua/application';
+import { hisconSemUtilidade, parseHisconDetalhado } from '@reconstrua/application';
 import type { JsonStore } from '../production/json-store.js';
 import type { MediaStorePort } from '../media/media-store-port.js';
 import type { DocumentTextCache } from '../reading/document-text-cache.js';
@@ -91,6 +91,10 @@ export type ResultadoUpload =
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // mesmo teto da captura de mídia
 const MAGIC_PDF: readonly number[] = [0x25, 0x50, 0x44, 0x46]; // %PDF
+// Decreto 2026-07-27 (caso Marcelo): sem contratos na janela de 5 anos, o
+// HISCON não tem o que revisar — o projeto o descarta, nunca o registra.
+const SEM_UTILIDADE =
+  'HISCON sem contratos na janela de 5 anos — sem utilidade para o projeto (descarte)';
 
 interface OnboardingPersistido {
   readonly chatId?: string;
@@ -172,6 +176,10 @@ export class RevinculoHiscon {
         ok: false,
         motivo: `auditoria ${leitura.v2.auditoria} — não religa sem conferência`,
       };
+    // Decreto 2026-07-27 (caso Marcelo): HISCON sem contratos na janela de 5
+    // anos NÃO serve ao projeto — não vale a pena religar (descarte).
+    if (hisconSemUtilidade(leitura.v2.texto, this.deps.clock.now()))
+      return { ok: false, motivo: SEM_UTILIDADE };
 
     await this.religar(chatId, cnis.documentId, sha256, messageId, leitura.v2.texto, 'conversa');
 
@@ -208,6 +216,8 @@ export class RevinculoHiscon {
         ok: false,
         motivo: `auditoria ${leitura.v2.auditoria} — não religa sem conferência`,
       };
+    if (hisconSemUtilidade(leitura.v2.texto, this.deps.clock.now()))
+      return { ok: false, motivo: SEM_UTILIDADE };
 
     const parsed = parseHisconDetalhado(leitura.v2.texto);
     const resultado = {
@@ -326,6 +336,9 @@ export class RevinculoHiscon {
       if (blob === null || blob.mime !== 'application/pdf') continue;
       const leitura = await ler(blob.bytes);
       if (leitura === null || leitura.v2 === null || leitura.v2.auditoria !== 'conferida') continue;
+      // Decreto 2026-07-27: HISCON sem contratos na janela de 5 anos não é
+      // candidato — religar a ele não devolveria utilidade ao cadastro.
+      if (hisconSemUtilidade(leitura.v2.texto, this.deps.clock.now())) continue;
       const parsed = parseHisconDetalhado(leitura.v2.texto);
       candidatos.push({
         sha256: anexo.sha256,

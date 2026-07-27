@@ -182,3 +182,16 @@ contrato (cédula/contrato/proposta/termo de adesão) ou 2 sinais fracos
 (cláusula, emitente, credor, assinatura…) SEM sinal forte de extrato do INSS ⇒
 OUTRO, com a mensagem própria `contratoBancarioRecebido` explicando a
 diferença e pedindo o extrato do Meu INSS.
+
+### Decreto do descarte (27/07): HISCON só vale COM contratos na janela
+
+Confirmado pelo dono no caso Marcelo: um HISCON **sem nenhum contrato na
+janela de 5 anos** (qualquer situação — ativo, suspenso ou excluído) não tem
+utilidade para o projeto. `hisconSemUtilidade(texto, agora)` em
+`onboarding-documental.ts`: é descarte quando (a) o texto traz a marca do
+ZERADO AUDITADO ("NENHUM CONTRATO … REGISTRADO NO DOCUMENTO", que só o leitor
+conferido emite) ou (b) o parse encontra contratos mas `contratosDaJanela`
+devolve zero. Parse que simplesmente falhou NUNCA vira descarte (segue o fluxo
+normal). Efeitos: a AHRI não registra o CNIS, não completa o cadastro e
+responde com `hisconSemContratos` (boa notícia + porta aberta); o
+revínculo/upload também recusam religar um HISCON sem utilidade.

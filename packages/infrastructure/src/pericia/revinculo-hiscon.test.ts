@@ -356,4 +356,28 @@ describe('RevinculoHiscon — upload manual', () => {
       motivo: 'este chat não tem HISCON registrado',
     });
   });
+
+  // Decreto 2026-07-27 (caso Marcelo): HISCON sem contratos na janela de 5 anos
+  // não serve ao projeto — nem o upload do dono o religa (descarte).
+  it('RECUSA o HISCON ZERADO auditado (sem utilidade para o projeto)', async () => {
+    const zerado = {
+      texto:
+        'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO\nMARCELO SANTOS DO AMARAL JUNIOR\n' +
+        'AUDITORIA DA LEITURA: conferida contra o quantitativo do próprio documento (0 ativo(s), 0 suspenso(s)).\n\n' +
+        'NENHUM CONTRATO DE EMPRÉSTIMO CONSIGNADO REGISTRADO NO DOCUMENTO',
+      contratosLidos: 0,
+      ativosLidos: 0,
+      suspensosLidos: 0,
+      emprestimosLidos: 0,
+      declarado: { ativos: 0, suspensos: 0 },
+      declaradoTotal: null,
+      auditoria: 'conferida',
+    } as const;
+    const { svc, mediaPuts, links } = cenarioUpload({ v2: zerado, v1Texto: null });
+    const r = await svc.upload(CHAT, PDF_B64, true);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toContain('sem utilidade');
+    expect(mediaPuts).toHaveLength(0);
+    expect(links.get('doc-cnis')?.sha256).toBe('sha-errado'); // nada mudou
+  });
 });

@@ -21,6 +21,8 @@
 // Com o HISCON ⇒ ANALISE_ADMINISTRATIVA (a AHRI muda automaticamente).
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { contratosDaJanela, parseHisconDetalhado } from '../pericia/hiscon-parser.js';
+
 /** Os documentos que o classificador RECONHECE (tipo canônico). */
 export const DOCUMENTOS_CONHECIDOS = ['IDENTIDADE', 'COMPROVANTE_RESIDENCIA', 'CNIS'] as const;
 export type DocumentoInicial = (typeof DOCUMENTOS_CONHECIDOS)[number];
@@ -250,6 +252,26 @@ export function pareceTelaDeConsultaConsignado(texto: string): boolean {
   return marcasBusca >= 2 && !hisconForte;
 }
 
+// ── HISCON SEM UTILIDADE (decreto 2026-07-27, caso Marcelo) ──────────────────
+// O projeto revisa CONTRATOS de consignado. Um HISCON sem NENHUM contrato na
+// janela de 5 anos (ativo, suspenso OU excluído — qualquer situação) não tem o
+// que revisar: a AHRI o DESCARTA (não registra, não completa o cadastro) e
+// explica ao cliente. O zero só é acreditado quando vem do LEITOR AUDITADO (a
+// marca do HISCON zerado conferido) — um parse que falhou jamais vira "zero".
+const MARCA_HISCON_ZERADO = 'NENHUM CONTRATO DE EMPRÉSTIMO CONSIGNADO REGISTRADO NO DOCUMENTO';
+
+/** true ⇒ o HISCON é legível mas NÃO SERVE ao projeto: zero contratos (zerado
+ *  auditado) ou todos os contratos fora da janela de 5 anos. */
+export function hisconSemUtilidade(texto: string, agora: Date): boolean {
+  const h = parseHisconDetalhado(texto);
+  if (h.contratos.length === 0) {
+    // Só o ZERO AUDITADO (leitor conferiu o quantitativo 0/0 do documento) é
+    // descartável; texto que simplesmente não parseia segue o fluxo normal.
+    return texto.includes(MARCA_HISCON_ZERADO);
+  }
+  return contratosDaJanela(h.contratos, agora).length === 0;
+}
+
 // ── REGRA DURA: IMAGEM NUNCA É HISCON (caso Gelciana, 2026-07-26) ────────────
 // A cliente mandou a FOTO de uma tela de erro ("Benefício não encontrado") e a
 // AHRI a aceitou como HISCON, declarando a etapa completa. O HISCON é SEMPRE um
@@ -468,6 +490,7 @@ export interface ResultadoDeRecebimento {
     | 'tela-consulta-hiscon'
     | 'imagem-nao-e-hiscon'
     | 'contrato-bancario'
+    | 'hiscon-sem-contratos'
     | null;
 }
 
@@ -510,6 +533,21 @@ export class OnboardingDocumentalRuntime {
     const texto =
       this.deps.leitor !== null ? await this.deps.leitor.texto(documentId).catch(() => null) : null;
     const classificacao = classificarDocumentoInicial(fileName, texto ?? '', mimeType);
+    // Decreto 2026-07-27 (caso Marcelo): HISCON legível mas SEM contratos na
+    // janela de 5 anos não serve ao projeto — DESCARTA (não registra, não
+    // completa o cadastro) e a AHRI explica. O zero só é acreditado quando o
+    // leitor AUDITOU o quantitativo 0/0 do próprio documento.
+    if (classificacao === 'CNIS' && texto !== null && hisconSemUtilidade(texto, now)) {
+      return {
+        classificacao: 'OUTRO',
+        jaRecebido: false,
+        faltando: faltando(atual),
+        classificacaoPendente: false,
+        progresso: null,
+        textoExcerto: texto.slice(0, 200),
+        motivoOutro: 'hiscon-sem-contratos',
+      };
+    }
     if (classificacao === 'OUTRO') {
       // A pessoa mandou uma FOTO/PRINT tentando entregar o HISCON? (o texto fala
       // de consignado, mas o arquivo é imagem) ⇒ motivo próprio, mensagem firme.

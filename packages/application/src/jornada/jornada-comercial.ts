@@ -317,6 +317,17 @@ function primeiroNome(nome: string): string {
 
 // ── MENSAGENS AUTORADAS (o conteúdo do funil — a LLM nunca as decide) ─────────
 
+// Decreto 2026-07-27: toda recusa de documento errado JÁ ENSINA o caminho — a
+// AHRI identifica o que chegou, explica por que não serve e ORIENTA como tirar
+// o HISCON, sem esperar o cliente pedir. O passo a passo é canônico e único.
+export const PASSO_A_PASSO_HISCON =
+  'Para tirar o HISCON é assim:\n' +
+  '1. Entre no aplicativo ou site Meu INSS (meu.inss.gov.br) com o seu CPF e a senha do gov.br;\n' +
+  '2. Na busca, procure por "Extrato de Empréstimos Consignados";\n' +
+  '3. Gere o extrato e toque em BAIXAR (ícone de download) para salvar o PDF;\n' +
+  '4. Me envie aqui o ARQUIVO PDF como anexo — não a foto da tela.\n\n' +
+  'Se travar em algum desses passos, me diga em qual que eu te oriento.';
+
 // Decreto 2026-07-22 (caso Lucas): tom de CONSULTORA JURÍDICA — profissional,
 // claro e acolhedor, SEM emojis. Atendimento que transmite segurança.
 export const MENSAGENS_JORNADA = {
@@ -392,20 +403,22 @@ export const MENSAGENS_JORNADA = {
     `Sem problema nenhum, combinado. Quando você conseguir, é só enviar o ${proximo} por aqui mesmo. Fico à disposição.`,
   adiamentoOkCurto: 'Combinado. Fico no aguardo — qualquer coisa, estou por aqui.',
   documentoNaoIdentificado: (proximo: string): string =>
-    `Verifiquei aqui e essa imagem não parece ser o documento que estou aguardando (${proximo}). Pode conferir e enviar novamente? Qualquer dúvida, me chame.`,
+    `Verifiquei aqui e esse arquivo não parece ser o documento que estou aguardando (${proximo}). Pode conferir e enviar novamente? Qualquer dúvida, me chame.` +
+    // Decreto 2026-07-27: quando o pendente é o HISCON, a recusa JÁ ensina o caminho.
+    (/HISCON/i.test(proximo) ? `\n\n${PASSO_A_PASSO_HISCON}` : ''),
   // Caso Maria José (2026-07-24): a cliente enviou um HISTÓRICO DE CRÉDITO. A AHRI
   // reconhece o documento e explica exatamente qual é o certo (o HISCON).
   historicoDeCreditoRecebido:
-    'Recebi o seu documento, obrigada! Mas verifiquei aqui e ele é um HISTÓRICO DE CRÉDITO — não é o documento que preciso para a análise.\n\n' +
-    'Para o seu caso eu preciso do HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), emitido no Meu INSS na opção "Extrato de Empréstimos Consignados", com todos os contratos, em PDF.\n\n' +
-    'É só baixar esse PDF e me enviar aqui como anexo. Se quiser, eu te explico o passo a passo para localizar essa opção — é só me avisar.',
+    'Recebi o seu documento, obrigada! Mas verifiquei aqui e ele é um HISTÓRICO DE CRÉDITO — não é o extrato de empréstimos consignados completo que preciso para a análise.\n\n' +
+    'Para o seu caso eu preciso do HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS (o HISCON), com todos os contratos, em PDF.\n\n' +
+    PASSO_A_PASSO_HISCON,
   // Caso 7582422298 (2026-07-25): a cliente enviou o PRINT da tela de CONSULTA/BUSCA
   // do consignado ("Empréstimo não encontrado"). A AHRI reconhece a tela e explica
   // o caminho certo, pedindo o PDF do extrato completo.
   telaConsultaHisconRecebida:
     'Recebi a sua imagem, obrigada! Mas verifiquei aqui e é o print da TELA DE CONSULTA/BUSCA do Meu INSS (inclusive aparece "empréstimo não encontrado") — essa tela é só o formulário de pesquisa e não traz os seus contratos, então a análise não roda com ela.\n\n' +
-    'O que eu preciso é o HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), em PDF, com todos os contratos. No Meu INSS, procure a opção "Extrato de Empréstimos Consignados", gere/baixe o PDF e me envie aqui como anexo.\n\n' +
-    'Importante: precisa ser o ARQUIVO em PDF — a foto ou o print da tela não trazem todos os contratos. Se quiser, eu te explico o passo a passo para localizar essa opção.',
+    'O que eu preciso é o HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), em PDF, com todos os contratos.\n\n' +
+    PASSO_A_PASSO_HISCON,
   // Decreto 2026-07-27 (caso Marcelo): HISCON SEM contratos na janela de 5 anos
   // não tem o que revisar — a AHRI agradece, dá a notícia (que é BOA para o
   // cliente) e encerra com a porta aberta; jamais pede o documento de novo.
@@ -417,16 +430,16 @@ export const MENSAGENS_JORNADA = {
   // feito com o banco e a AHRI o registrou como HISCON ("cadastro completo").
   // O contrato é papel do banco; a análise precisa do EXTRATO do INSS.
   contratoBancarioRecebido:
-    'Recebi o seu documento, obrigada! Mas verifiquei aqui e ele é o CONTRATO do empréstimo feito com o banco — ele pode até ajudar mais adiante, mas não é o documento que preciso para a análise.\n\n' +
-    'O que eu preciso é o HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS completo (o HISCON), emitido no Meu INSS na opção "Extrato de Empréstimos Consignados", com todos os seus contratos, em PDF.\n\n' +
-    'É só baixar esse PDF e me enviar aqui como anexo. Se quiser, eu te explico o passo a passo para localizar essa opção — é só me avisar.',
+    'Recebi o seu documento, obrigada! Mas verifiquei aqui e ele é o CONTRATO do empréstimo feito com o banco — ele pode até ajudar mais adiante, mas não é o extrato de empréstimos consignados completo que preciso para a análise.\n\n' +
+    'O que eu preciso é o HISTÓRICO DE EMPRÉSTIMOS CONSIGNADOS (o HISCON), com todos os seus contratos, em PDF.\n\n' +
+    PASSO_A_PASSO_HISCON,
   // Caso Gelciana (2026-07-26): a cliente mandou a FOTO de uma tela de ERRO e a
   // AHRI aceitou como HISCON, declarando a etapa completa. Agora imagem NUNCA
   // vira HISCON e a AHRI diz o que enxergou — sem jamais sugerir foto como opção.
   fotoNaoEhHiscon:
     'Recebi a sua imagem, obrigada! Mas ela é uma FOTO da tela, e a análise não roda com foto — a imagem não traz a lista completa dos seus contratos.\n\n' +
-    'O que eu preciso é o ARQUIVO em PDF do extrato de empréstimos consignados COMPLETO, baixado direto do Meu INSS (opção "Extrato de Empréstimos Consignados") e enviado aqui como anexo.\n\n' +
-    'Se estiver com dificuldade para gerar ou baixar esse PDF, me diga em que ponto travou que eu te oriento passo a passo.',
+    'O que eu preciso é o ARQUIVO em PDF do extrato de empréstimos consignados COMPLETO (o HISCON), enviado aqui como anexo.\n\n' +
+    PASSO_A_PASSO_HISCON,
   // Decreto 2026-07-25: "vocês são de onde?" — resposta CANÔNICA de abrangência.
   // Nunca improvisar geografia, nunca inventar endereço/filial, nunca dizer que
   // não atende a região de alguém: a análise é nacional e o encaminhamento ao

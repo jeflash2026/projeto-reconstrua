@@ -15,6 +15,7 @@ import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
 
 const NS = 'pericia-fluxo';
+const NS_BACKUP = 'pericia-fluxo-backup'; // estornos guardados (reversível)
 
 export interface CredenciaisCliente {
   readonly email: string;
@@ -156,6 +157,28 @@ export class PericiaFluxoService {
   /** chatIds já em perícia — para filtrar a lista "aguardando". */
   async chatsEmFluxo(): Promise<readonly string[]> {
     return this.deps.json.keys(NS);
+  }
+
+  /** ESTORNO GERAL (decreto 2026-07-27): estudos baixados na LEITURA ANTIGA
+   *  voltam todos a "prontos para download" — o próximo download sai com a
+   *  leitura corrigida. O registro inteiro (incluindo credenciais e resposta
+   *  do banco, quando houver) vai para o ns 'pericia-fluxo-backup' ANTES de
+   *  sair do fluxo; nada é perdido, tudo é reversível. Ato explícito do admin. */
+  async estornarTodos(): Promise<{ estornados: number }> {
+    const agora = this.deps.clock.now().toISOString();
+    const chats = await this.deps.json.keys(NS);
+    let estornados = 0;
+    for (const chatId of chats) {
+      const r = await this.recordDe(chatId);
+      if (r === null) continue;
+      // Backup nunca sobrescreve um anterior: chave com carimbo quando preciso.
+      const jaTem = await this.deps.json.get(NS_BACKUP, chatId);
+      const chave = jaTem === null ? chatId : `${chatId}|${agora}`;
+      await this.deps.json.put(NS_BACKUP, chave, { ...r, estornadaEm: agora });
+      await this.deps.json.del(NS, chatId);
+      estornados += 1;
+    }
+    return { estornados };
   }
 }
 

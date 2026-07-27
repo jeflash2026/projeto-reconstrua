@@ -51,4 +51,35 @@ describe('PericiaFluxoService', () => {
     expect(concluidas).toHaveLength(1);
     expect(concluidas[0]?.expirado).toBe(true);
   });
+
+  // Decreto 2026-07-27: estudos baixados na LEITURA ANTIGA voltam TODOS a
+  // "prontos para download" — com o registro inteiro preservado em backup.
+  it('estornarTodos: tudo volta a aguardando, com BACKUP (credenciais inclusas)', async () => {
+    const refs = { now: new Date('2026-07-27T12:00:00Z') };
+    const json = new InMemoryJsonStore();
+    const svc = new PericiaFluxoService({ json, clock: clockDe(refs) });
+    await svc.iniciar('c1@w', 'cli-1', 'Maria');
+    await svc.iniciar('c2@w', 'cli-2', 'José');
+    await svc.salvarCredenciais('c1@w', { email: 'm@x.com', senha: 's', provedor: 'Meu INSS' });
+
+    const r = await svc.estornarTodos();
+    expect(r.estornados).toBe(2);
+    // Tudo saiu do fluxo (voltam a "aguardando" = prontos para download)…
+    expect(await svc.chatsEmFluxo()).toHaveLength(0);
+    expect(await svc.emAndamento()).toHaveLength(0);
+    // …e o registro inteiro (credenciais inclusas) ficou no backup.
+    const backup = (await json.get('pericia-fluxo-backup', 'c1@w')) as {
+      credenciais: { email: string } | null;
+      estornadaEm: string;
+    } | null;
+    expect(backup?.credenciais?.email).toBe('m@x.com');
+    expect(backup?.estornadaEm).toBe('2026-07-27T12:00:00.000Z');
+    // Baixar de novo REINICIA o fluxo normalmente (novo prazo, leitura nova).
+    const denovo = await svc.iniciar('c1@w', 'cli-1', 'Maria');
+    expect(denovo.jaEstava).toBe(false);
+    // Um SEGUNDO estorno não sobrescreve o backup anterior (chave carimbada).
+    await svc.estornarTodos();
+    expect((await json.get('pericia-fluxo-backup', 'c1@w')) !== null).toBe(true);
+    expect(await json.get('pericia-fluxo-backup', 'c1@w|2026-07-27T12:00:00.000Z')).not.toBe(null);
+  });
 });

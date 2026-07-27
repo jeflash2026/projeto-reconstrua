@@ -3,8 +3,13 @@
 // resposta do banco). O administrador escolhe o advogado; a AHRI avisa o
 // advogado no número cadastrado por ele e o cliente aparece no painel dele.
 import type { ReactElement } from 'react';
-import { listarClientesProntos, fetchPericiasConcluidas } from '../../../lib/actions';
+import {
+  listarClientesProntos,
+  fetchPericiasConcluidas,
+  fetchTotalPericiasBaixadas,
+} from '../../../lib/actions';
 import AtribuirAdvogado from '../../../components/atribuir-advogado';
+import EstornarPericias from '../../../components/estornar-pericias';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +20,7 @@ function dataBr(iso: string): string {
 const ClientesProntosPage = async (): Promise<ReactElement> => {
   const dados = await listarClientesProntos();
   const concluidas = await fetchPericiasConcluidas();
+  const baixadas = await fetchTotalPericiasBaixadas();
   return (
     <>
       <h1 className="page-title">Clientes prontos p/ Advogado</h1>
@@ -34,6 +40,10 @@ const ClientesProntosPage = async (): Promise<ReactElement> => {
       ) : (
         <AtribuirAdvogado prontos={dados.prontos} advogados={dados.advogados} />
       )}
+
+      {/* Decreto 2026-07-27: estudos baixados na LEITURA ANTIGA — estorno geral
+          para novo download, agora com a leitura corrigida do HISCON. */}
+      <EstornarPericias baixadas={baixadas} />
 
       {/* Decreto 2026-07-24: perícias com 10 dias vencidos — com as CREDENCIAIS e a
           RESPOSTA DO BANCO, como prova do pedido, para o advogado consultar. */}

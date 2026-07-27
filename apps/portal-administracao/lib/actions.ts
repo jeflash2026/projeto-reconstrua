@@ -639,6 +639,20 @@ export async function fetchPericiasConcluidas(): Promise<PericiaConcluidaView[]>
   return r?.concluidas ?? [];
 }
 
+/** Total de estudos BAIXADOS (em andamento + concluídos) — base do estorno. */
+export async function fetchTotalPericiasBaixadas(): Promise<number> {
+  const r = await getJson<{ emAndamento: unknown[]; concluidas: unknown[] }>(
+    '/admin/jornada/pericia/em-fluxo',
+  );
+  return (r?.emAndamento.length ?? 0) + (r?.concluidas.length ?? 0);
+}
+
+/** ESTORNO GERAL (decreto 2026-07-27): estudos baixados na leitura ANTIGA voltam
+ *  a "prontos para download" (backup preservado). Ato explícito do admin. */
+export async function pdEstornarPericias(): Promise<{ estornados: number } | null> {
+  return sendJson<{ estornados: number }>('POST', '/admin/jornada/pericia/estornar-todos', {});
+}
+
 /** MAPA DE CLIENTES (Decreto 2026-07-24) — distribuição por estado + cidades. */
 export interface MapaClientesView {
   total: number;

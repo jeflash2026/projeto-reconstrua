@@ -235,6 +235,9 @@ export function buildAdminServer(
       salvarRespostaBanco(chatId: string, texto: string): Promise<{ ok: boolean; error?: string }>;
       emAndamento(): Promise<readonly unknown[]>;
       concluidas(): Promise<readonly unknown[]>;
+      /** Decreto 2026-07-27: estudos baixados na leitura ANTIGA voltam a
+       *  "prontos p/ download" (backup preservado) — ato explícito do admin. */
+      estornarTodos(): Promise<{ estornados: number }>;
       listar(): Promise<readonly unknown[]>;
       registro(chatId: string): Promise<unknown>;
     };
@@ -794,6 +797,14 @@ export function buildAdminServer(
       emAndamento: await opts.periciaFluxo.emAndamento(),
       concluidas: await opts.periciaFluxo.concluidas(),
     };
+  });
+
+  // ESTORNO GERAL (decreto 2026-07-27): os estudos baixados com a LEITURA
+  // ANTIGA voltam todos a "prontos para download" — o próximo download já sai
+  // com a leitura corrigida. Registros preservados em 'pericia-fluxo-backup'.
+  app.post('/admin/jornada/pericia/estornar-todos', async (_request, reply) => {
+    if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
+    return opts.periciaFluxo.estornarTodos();
   });
 
   app.post('/admin/jornada/pericia/iniciar-todos', async (request, reply) => {

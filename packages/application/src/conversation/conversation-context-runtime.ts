@@ -41,6 +41,11 @@ export type OnboardingDocumentalProvider = (
   chatId: string,
 ) => Promise<NonNullable<ConversationContextView['onboardingDocumental']> | null>;
 
+/** Decreto 2026-07-27 (caso 51 9109-4367): o CPF já está registrado? Opcional e
+ *  best-effort — a conversa precisa SABER do estado do CPF para nunca negar o
+ *  pedido que o próprio sistema fez. Ausente/falha ⇒ null (sem fonte). */
+export type CpfProvider = (chatId: string) => Promise<boolean | null>;
+
 export class ConversationContextRuntime {
   private readonly options: ContextOptions;
 
@@ -52,6 +57,7 @@ export class ConversationContextRuntime {
     private readonly missao?: MissaoProvider,
     private readonly pendencia?: PendenciaDocumentalProvider,
     private readonly onboarding?: OnboardingDocumentalProvider,
+    private readonly cpf?: CpfProvider,
   ) {
     this.options = { ...DEFAULT_CONTEXT_OPTIONS, ...options };
   }
@@ -63,7 +69,7 @@ export class ConversationContextRuntime {
     silenceMs: number | null = null,
   ): Promise<ConversationContextView> {
     const session: Session = await this.sessions.getOrOpen(chatId, now);
-    const [recentEntries, recentOutboundTexts, casoFatos, missao, pendencia, onboarding] =
+    const [recentEntries, recentOutboundTexts, casoFatos, missao, pendencia, onboarding, cpf] =
       await Promise.all([
         this.memory.recent(chatId, this.options.memoryWindow),
         this.memory.recentOutboundTexts(chatId, this.options.outboundWindow),
@@ -77,6 +83,7 @@ export class ConversationContextRuntime {
         this.onboarding !== undefined
           ? this.onboarding(chatId).catch(() => null)
           : Promise.resolve(null),
+        this.cpf !== undefined ? this.cpf(chatId).catch(() => null) : Promise.resolve(null),
       ]);
     return {
       chatId,
@@ -92,6 +99,8 @@ export class ConversationContextRuntime {
       pendenciaDocumental: pendencia,
       // Decreto "Jornada Documental Inicial" — a contabilidade da Jornada 1.
       onboardingDocumental: onboarding,
+      // Decreto 2026-07-27 — o estado do CPF, para a conversa nunca negá-lo.
+      cpfRegistrado: cpf,
     };
   }
 }

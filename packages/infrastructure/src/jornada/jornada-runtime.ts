@@ -245,6 +245,19 @@ export class JornadaComercialRuntime {
   /** A RESPOSTA AUTORADA do turno — '' quando a jornada NÃO governa (CONCLUIDA). */
   async responder(chatId: string, entrada: EntradaDoTurno): Promise<string> {
     const fatos = await this.fatos(chatId);
+    // CPF CAPTURADO NESTE TURNO na CONCLUIDA ⇒ a confirmação é AUTORADA — caso
+    // real 51 9109-4367 (2026-07-27): o cliente respondeu ao follow-up com o
+    // CPF, o atalho abaixo entregava a voz ao LLM (que não sabia do pedido) e a
+    // AHRI negou o próprio pedido ("se em algum momento precisarmos do CPF, eu
+    // falo"). Quem pediu, confirma. As demais etapas já tratam o 'cpf' dentro
+    // do responderTurno (na TRIAGEM a confirmação emenda o pedido do HISCON).
+    if (
+      fatos.registro.ultimaCaptura === 'cpf' &&
+      entrada.tipo === 'texto' &&
+      capturarCpf(entrada.texto) !== null && // a confirmação fala NO turno do número
+      derivarEtapa(fatos) === 'CONCLUIDA'
+    )
+      return MENSAGENS_JORNADA.cpfRegistradoEmAnalise;
     const concluidaAgora =
       entrada.tipo === 'documento' &&
       registroDoTurnoConcluido(fatos, entrada) &&

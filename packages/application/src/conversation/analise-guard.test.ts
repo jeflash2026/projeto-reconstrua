@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   pareceCobrancaDeDocumento,
+  politicaDaMissao,
   revisarFalaEmAnalise,
   MENSAGEM_ANALISE_EM_ANDAMENTO,
 } from './sales-conversation-policy.js';
@@ -60,5 +61,16 @@ describe('rede de segurança da ANÁLISE', () => {
   it('fora de ANÁLISE (onboarding), a cobrança do HISCON é CORRETA — passa intacta', () => {
     expect(revisarFalaEmAnalise(FALA_ISAU, view('ONBOARDING_DOCUMENTAL'))).toBe(FALA_ISAU);
     expect(revisarFalaEmAnalise(FALA_ISAU, view('LEAD'))).toBe(FALA_ISAU);
+  });
+
+  // Caso 51 9109-4367 (2026-07-27): o LLM NEGOU o pedido de CPF do sistema.
+  it('o reforço de ANÁLISE informa o LLM sobre o estado do CPF', () => {
+    const base = view();
+    const comCpf = politicaDaMissao({ ...base, cpfRegistrado: true });
+    expect(comCpf.reforco).toContain('JÁ ESTÁ REGISTRADO');
+    const semCpf = politicaDaMissao({ ...base, cpfRegistrado: false });
+    expect(semCpf.reforco).toContain('JAMAIS diga que não pedimos o CPF');
+    const semFonte = politicaDaMissao({ ...base, cpfRegistrado: null });
+    expect(semFonte.reforco).not.toContain('CPF do cliente');
   });
 });

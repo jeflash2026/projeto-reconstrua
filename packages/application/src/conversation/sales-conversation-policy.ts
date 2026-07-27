@@ -193,6 +193,25 @@ const REFORCO_ANALISE_ADMINISTRATIVA =
   'Preserve o sigilo da empresa, NUNCA revele dados de terceiros. ' +
   'NUNCA solicite documentos por iniciativa própria: RG, comprovante e procuração só são pedidos DEPOIS da análise, quando o advogado abrir a solicitação (aparece como MISSÃO OPERACIONAL); sem ela, nenhum pedido de documento';
 
+/** Decreto 2026-07-27 (caso 51 9109-4367): o LLM NEGOU o pedido de CPF que o
+ *  próprio sistema fez ("se precisarmos do CPF, eu falo com você") porque não
+ *  sabia do estado. Agora o estado viaja no contexto e vira instrução direta. */
+function reforcoCpf(context: ConversationContextView): string {
+  if (context.cpfRegistrado === true)
+    return (
+      ' O CPF do cliente JÁ ESTÁ REGISTRADO no sistema: NUNCA peça o CPF; ' +
+      'se a pessoa disser que enviou o CPF, CONFIRME que está registrado e agradeça.'
+    );
+  if (context.cpfRegistrado === false)
+    return (
+      ' O sistema PEDIU o CPF deste cliente (mensagem automática) e ele AINDA NÃO consta: ' +
+      'se a pessoa enviar um número de 11 dígitos, é o CPF (o registro é automático); ' +
+      'se disser que já enviou, explique com gentileza que não constou e peça para digitar novamente ' +
+      'só os 11 números. JAMAIS diga que não pedimos o CPF.'
+    );
+  return '';
+}
+
 const REFORCO_CLIENTE =
   'ESTADO: CLIENTE — responda diretamente a dúvida antes de tudo; a conversa livre é permitida, mas nunca perca a missão do caso';
 
@@ -242,7 +261,7 @@ export function politicaDaMissao(context: ConversationContextView): PoliticaDaMi
         perguntaDireta,
         respostaCanonica: null,
         conduta: '',
-        reforco: REFORCO_ANALISE_ADMINISTRATIVA,
+        reforco: REFORCO_ANALISE_ADMINISTRATIVA + reforcoCpf(context),
       };
     case 'CLIENTE':
       return {

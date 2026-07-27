@@ -146,6 +146,22 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
     expect(r).toContain('interesse em fazer essa análise');
   });
 
+  it('caso REAL 51 9109-4367: CPF enviado na CONCLUIDA ganha confirmação AUTORADA', async () => {
+    // Cliente antigo: HISCON entregue (CONCLUIDA), SEM cpf — recebeu o
+    // follow-up das 09:00 e respondeu com o número. Antes, o atalho da
+    // CONCLUIDA entregava a voz ao LLM (que negava o próprio pedido).
+    const h = harness();
+    h.textos['d1'] = 'histórico de empréstimo consignado';
+    await h.onboarding.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'hiscon.pdf', NOW);
+    expect(await h.jornada.etapa(CHAT)).toBe('CONCLUIDA');
+
+    const r = await h.turno('033.842.399-03'); // CPF real (dígitos verificadores válidos)
+    expect(r).toContain('CPF recebido e registrado');
+    expect((await h.jornada.fatos(CHAT)).registro.cpf).toBe('03384239903');
+    // E o turno seguinte volta ao normal (LLM), sem eco da confirmação.
+    expect(await h.turno('obrigado')).toBe('RESPOSTA-DO-LLM');
+  });
+
   it('recusa ⇒ despedida gentil; novo "sim" depois reativa a triagem', async () => {
     const h = harness();
     await h.turno('Boa noite', { turns: 1 });

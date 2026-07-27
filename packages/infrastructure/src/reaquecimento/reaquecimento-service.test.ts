@@ -157,4 +157,58 @@ describe('varreduraRetomada (conversas caídas — automática, com guardrails)'
     expect(enviados).toHaveLength(1); // só a caída, só uma vez
     expect(enviados.some((e) => e.chatId === 'desistente')).toBe(false);
   });
+
+  // ── FOLLOW-UP DE CPF (caso real 51 9109-4367: mensagem DUPLICADA às 09:02) ──
+  const NOVE_BRT = new Date('2026-07-27T12:30:00.000Z'); // 09:30 em São Paulo
+
+  it('varreduraCpf: só quem entregou o HISCON e não tem CPF; nunca repete', async () => {
+    const { service, enviados } = harness({
+      'sem-cpf': fatosDe(novaJornada('sem-cpf', ONTEM), 1, true),
+      'com-cpf': fatosDe({ ...novaJornada('com-cpf', ONTEM), cpf: '52998224725' }, 1, true),
+      incompleto: fatosDe(novaJornada('incompleto', ONTEM), 0, false),
+    });
+    expect(await service.varreduraCpf(NOVE_BRT)).toBe(1);
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]?.chatId).toBe('sem-cpf');
+    expect(enviados[0]?.texto).toContain('CPF');
+    // Segunda varredura no mesmo dia ⇒ nada (registro já existe).
+    expect(await service.varreduraCpf(NOVE_BRT)).toBe(0);
+    expect(enviados).toHaveLength(1);
+  });
+
+  it('varreduraCpf: REGISTRA antes de enviar e varreduras SIMULTÂNEAS não duplicam', async () => {
+    // Reproduz o 09:02 duplicado: dois ticks disparam a varredura ao mesmo
+    // tempo. A trava de reentrância + claim-then-send garantem UM envio.
+    const json = new InMemoryJsonStore();
+    await json.put('jornada', 'cliente', { chatId: 'cliente' });
+    const enviados: string[] = [];
+    const service = new ReaquecimentoService({
+      json,
+      jornada: {
+        fatos: () => Promise.resolve(fatosDe(novaJornada('cliente', ONTEM), 1, true)),
+      },
+      enviar: async (chatId) => {
+        // CLAIM-BEFORE-SEND: no momento do envio, o registro JÁ deve existir.
+        expect(await json.get('followup-cpf', chatId)).not.toBe(null);
+        await new Promise((r) => setTimeout(r, 20)); // envio lento (janela da corrida)
+        enviados.push(chatId);
+      },
+      clock: new TestClock(),
+    });
+    const [a, b] = await Promise.all([
+      service.varreduraCpf(NOVE_BRT),
+      service.varreduraCpf(NOVE_BRT),
+    ]);
+    expect(a + b).toBe(1); // exatamente UM envio, nunca dois
+    expect(enviados).toHaveLength(1);
+  });
+
+  it('varreduraCpf: fora da janela das 09:00 (BRT) não dispara', async () => {
+    const { service, enviados } = harness({
+      'sem-cpf': fatosDe(novaJornada('sem-cpf', ONTEM), 1, true),
+    });
+    const QUINZE_BRT = new Date('2026-07-27T18:00:00.000Z');
+    expect(await service.varreduraCpf(QUINZE_BRT)).toBe(0);
+    expect(enviados).toHaveLength(0);
+  });
 });

@@ -184,4 +184,10 @@ export interface ConversationContextView {
     readonly requestedBy: string;
     readonly prioridade: 'alta' | 'normal';
   } | null;
+  /** Decreto 2026-07-27 (caso 51 9109-4367): o CPF do cliente JÁ está
+   *  registrado? true ⇒ NUNCA pedir de novo (se ele mencionar o envio,
+   *  confirmar); false ⇒ pode ter recebido o follow-up pedindo o número;
+   *  null/ausente ⇒ sem fonte. Sem isto, o LLM NEGAVA o próprio pedido de CPF
+   *  feito pelo sistema ("se precisarmos do CPF, eu falo com você"). */
+  readonly cpfRegistrado?: boolean | null;
 }

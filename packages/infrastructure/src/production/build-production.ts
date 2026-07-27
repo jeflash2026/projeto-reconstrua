@@ -822,6 +822,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     criarMissaoProvider(missionSnapshots, clientes, clock, onboardingDocumental),
     pendenciaDocumental,
     onboardingProvider,
+    // Decreto 2026-07-27 (caso 51 9109-4367): o estado do CPF no contexto — a
+    // conversa nunca mais nega o pedido de CPF feito pelo próprio sistema.
+    async (chatId) => (await jornadaComercial.fatos(chatId)).registro.cpf !== null,
   );
 
   // GO-LIVE 15C-3 · Parte 2 — ASSOCIAÇÃO INTELIGENTE: documento reconhecido no

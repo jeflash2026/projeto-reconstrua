@@ -151,26 +151,39 @@ export class ReaquecimentoService {
    *  Roda só na janela das 09:00 em São Paulo; idempotente por conversa (o
    *  registro em ns 'followup-cpf' impede o segundo envio). Best-effort: falha
    *  de um contato nunca impede os demais nem derruba o tick. */
+  /** Trava de reentrância: a varredura leva segundos (N clientes × fatos) e o
+   *  tick pode disparar de novo no meio — duas varreduras viam o registro
+   *  ausente e ENVIAVAM DUAS VEZES (caso real 51 9109-4367, 09:02 duplicado). */
+  private cpfEmVarredura = false;
+
   async varreduraCpf(now: Date): Promise<number> {
     if (horaEmSaoPaulo(now) !== HORA_FOLLOWUP_CPF) return 0;
+    if (this.cpfEmVarredura) return 0; // outra varredura em curso ⇒ nunca duplica
+    this.cpfEmVarredura = true;
     let enviados = 0;
-    const chats = await this.deps.json.keys(NS_JORNADA);
-    for (const chatId of chats) {
-      try {
-        if ((await this.deps.json.get(NS_FOLLOWUP_CPF, chatId)) !== null) continue; // já pedido
-        const fatos = await this.deps.jornada.fatos(chatId);
-        if (!fatos.docsCompletos) continue; // ainda não entregou o HISCON
-        if (fatos.registro.cpf !== null) continue; // já temos o CPF
-        await this.deps.enviar(chatId, MENSAGENS_JORNADA.followUpCpf);
-        await this.deps.json.put(NS_FOLLOWUP_CPF, chatId, {
-          chatId,
-          pedidoEm: now.toISOString(),
-        });
-        this.deps.observability?.event('followup-cpf', `cpf solicitado chat=${chatId}`, now);
-        enviados += 1;
-      } catch {
-        // best-effort por conversa
+    try {
+      const chats = await this.deps.json.keys(NS_JORNADA);
+      for (const chatId of chats) {
+        try {
+          if ((await this.deps.json.get(NS_FOLLOWUP_CPF, chatId)) !== null) continue; // já pedido
+          const fatos = await this.deps.jornada.fatos(chatId);
+          if (!fatos.docsCompletos) continue; // ainda não entregou o HISCON
+          if (fatos.registro.cpf !== null) continue; // já temos o CPF
+          // REGISTRA ANTES de enviar (claim-then-send): se algo falhar depois,
+          // perdemos no máximo um envio — jamais mandamos dois ao mesmo cliente.
+          await this.deps.json.put(NS_FOLLOWUP_CPF, chatId, {
+            chatId,
+            pedidoEm: now.toISOString(),
+          });
+          await this.deps.enviar(chatId, MENSAGENS_JORNADA.followUpCpf);
+          this.deps.observability?.event('followup-cpf', `cpf solicitado chat=${chatId}`, now);
+          enviados += 1;
+        } catch {
+          // best-effort por conversa
+        }
       }
+    } finally {
+      this.cpfEmVarredura = false;
     }
     return enviados;
   }

@@ -146,3 +146,17 @@ blob ao qual ela aponta. Toda a plataforma a jusante passa a ler o PDF certo
 imediatamente. Testes: `revinculo-hiscon.test.ts` (invariante só-leitura do
 relatório, recusa de sha de outra conversa, recusa sem auditoria conferida,
 backups e trilha).
+
+### Upload manual (quando o anexo nunca foi capturado)
+
+Diagnóstico de 27/07: nas conversas mais antigas, o anexo original **não tem
+bytes no acervo** (a captura de mídia ainda não existia) — o revínculo não tem
+o que oferecer. Para esses casos, o bloco de revínculo ganhou **"Enviar HISCON
+do meu WhatsApp (PDF)"**: o dono sobe o arquivo, o serviço valida os magic
+bytes `%PDF`, teto de 20 MB, roda o leitor e **só aceita auditoria conferida**.
+O fluxo é em 2 passos: primeiro um **dry-run** (POST
+`/admin/pericia/revinculo-upload` com `confirmar=false`) que mostra
+beneficiário/contratos SEM gravar nada; a confirmação grava o blob
+(content-addressed por sha256), religa com os mesmos backups e deixa trilha
+com `origem: 'upload-admin'` (o vínculo fica com
+`messageId = upload-admin:<data>` — a procedência do ato é auditável).

@@ -50,6 +50,8 @@ function mundo(opts: {
   links: Record<string, string>; // documentId → sha
   conversas: Record<string, { messageId: string; sha?: string; mime?: string }[]>;
   blobs: Blobs;
+  /** Leitura devolvida para bytes de UPLOAD (blobs do acervo têm 1 byte). */
+  leituraUpload?: LeituraComparada | null;
 }) {
   const json: JsonStore = new InMemoryJsonStore();
   for (const o of opts.onboarding)
@@ -79,6 +81,7 @@ function mundo(opts: {
     links.set(documentId, { documentId, messageId: 'm-original', sha256: sha });
 
   const cachePuts: CachedText[] = [];
+  const mediaPuts: string[] = [];
   const svc = new RevinculoHiscon({
     json,
     links: {
@@ -89,8 +92,11 @@ function mundo(opts: {
       },
     },
     media: {
-      has: () => Promise.resolve(true),
-      put: () => Promise.reject(new Error('NUNCA GRAVA BLOB')),
+      has: (sha) => Promise.resolve(opts.blobs[sha] !== undefined),
+      put: (blob) => {
+        mediaPuts.push(blob.sha256);
+        return Promise.resolve();
+      },
       read: (sha) => {
         const b = opts.blobs[sha];
         if (!b) return Promise.resolve(null);
@@ -111,11 +117,13 @@ function mundo(opts: {
     },
     clock: { now: () => NOW },
     ler: (bytes) => {
+      // Blobs do acervo têm 1 byte (índice); qualquer coisa maior é UPLOAD.
+      if (bytes.length > 1) return Promise.resolve(opts.leituraUpload ?? null);
       const sha = shas[(bytes[0] ?? 0) - 1];
       return Promise.resolve(sha !== undefined ? (opts.blobs[sha]?.leitura ?? null) : null);
     },
   });
-  return { svc, json, links, cachePuts };
+  return { svc, json, links, cachePuts, mediaPuts };
 }
 
 // O cenário do Roberto: o CNIS registrado aponta a um PDF que o leitor NÃO
@@ -186,11 +194,12 @@ describe('RevinculoHiscon — candidatos (só leitura)', () => {
     expect(r.linhas[0]?.candidatos).toHaveLength(0);
   });
 
-  it('INVARIANTE: candidatos() nunca escreve (cache e vínculos intactos)', async () => {
-    const { svc, links, cachePuts } = cenarioRoberto();
+  it('INVARIANTE: candidatos() nunca escreve (acervo, cache e vínculos intactos)', async () => {
+    const { svc, links, cachePuts, mediaPuts } = cenarioRoberto();
     const antes = links.get('doc-cnis');
     await svc.candidatos();
     expect(cachePuts).toHaveLength(0);
+    expect(mediaPuts).toHaveLength(0);
     expect(links.get('doc-cnis')).toBe(antes);
   });
 });
@@ -267,5 +276,84 @@ describe('RevinculoHiscon — aplicar (ato do dono)', () => {
     const { svc } = cenarioRoberto();
     const r = await svc.aplicar('quem-nao-existe', 'sha-certo');
     expect(r).toMatchObject({ ok: false, motivo: 'este chat não tem HISCON registrado' });
+  });
+});
+
+// UPLOAD MANUAL (ato do dono): o anexo original nunca foi capturado no acervo —
+// o dono sobe o PDF do WhatsApp dele. O caso real dos 11 sem candidato.
+describe('RevinculoHiscon — upload manual', () => {
+  const PDF_BYTES = new TextEncoder().encode('%PDF-1.4 conteudo de teste do hiscon');
+  const PDF_B64 = Buffer.from(PDF_BYTES).toString('base64');
+
+  function cenarioUpload(leituraUpload: LeituraComparada | null) {
+    return mundo({
+      onboarding: [{ chatId: CHAT, documentId: 'doc-cnis' }],
+      links: { 'doc-cnis': 'sha-errado' },
+      conversas: { [CHAT]: [] }, // conversa SEM anexos capturados (o caso real)
+      blobs: { 'sha-errado': { mime: 'application/pdf', leitura: { v2: null, v1Texto: null } } },
+      leituraUpload,
+    });
+  }
+
+  it('DRY-RUN (confirmar=false): mostra beneficiário e contratos SEM gravar nada', async () => {
+    const { svc, links, cachePuts, mediaPuts } = cenarioUpload({
+      v2: v2(41, 'conferida'),
+      v1Texto: null,
+    });
+    const r = await svc.upload(CHAT, PDF_B64, false);
+    expect(r).toMatchObject({
+      ok: true,
+      aplicado: false,
+      contratos: 41,
+      beneficiario: 'ROBERTO DO NASCIMENTO DUARTE',
+    });
+    expect(mediaPuts).toHaveLength(0);
+    expect(cachePuts).toHaveLength(0);
+    expect(links.get('doc-cnis')?.sha256).toBe('sha-errado'); // nada mudou
+  });
+
+  it('CONFIRMADO: grava o blob, religa com backup e trilha origem upload-admin', async () => {
+    const { svc, json, links, cachePuts, mediaPuts } = cenarioUpload({
+      v2: v2(41, 'conferida'),
+      v1Texto: null,
+    });
+    const r = await svc.upload(CHAT, PDF_B64, true);
+    expect(r).toMatchObject({ ok: true, aplicado: true, contratos: 41 });
+    // O blob entrou no acervo (content-addressed) e o vínculo aponta a ele.
+    expect(mediaPuts).toHaveLength(1);
+    const shaNovo = mediaPuts[0] ?? '';
+    expect(links.get('doc-cnis')).toMatchObject({ documentId: 'doc-cnis', sha256: shaNovo });
+    expect(links.get('doc-cnis')?.messageId).toMatch(/^upload-admin:/);
+    // Backup do vínculo antigo + trilha com a ORIGEM do ato.
+    expect(await json.get('document-link-backup', 'doc-cnis')).toMatchObject({
+      vinculoAntigo: { sha256: 'sha-errado' },
+    });
+    expect(await json.get('revinculo-hiscon', CHAT)).toMatchObject({
+      de: 'sha-errado',
+      para: shaNovo,
+      origem: 'upload-admin',
+    });
+    expect(cachePuts[0]).toMatchObject({ sha256: shaNovo, model: 'hiscon-posicional-v2' });
+  });
+
+  it('RECUSA arquivo que não é PDF (magic bytes) e leitura sem conferência', async () => {
+    const { svc, mediaPuts } = cenarioUpload({ v2: v2(3, 'divergente'), v1Texto: null });
+    const naoPdf = Buffer.from('isto nao é um pdf').toString('base64');
+    expect(await svc.upload(CHAT, naoPdf, true)).toMatchObject({
+      ok: false,
+      motivo: 'o arquivo enviado não é um PDF',
+    });
+    const r = await svc.upload(CHAT, PDF_B64, true); // PDF válido, mas leitura divergente
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toContain('auditoria divergente');
+    expect(mediaPuts).toHaveLength(0); // nada foi gravado em nenhum dos casos
+  });
+
+  it('RECUSA chat sem HISCON registrado', async () => {
+    const { svc } = cenarioUpload({ v2: v2(1, 'conferida'), v1Texto: null });
+    expect(await svc.upload('fantasma', PDF_B64, true)).toMatchObject({
+      ok: false,
+      motivo: 'este chat não tem HISCON registrado',
+    });
   });
 });

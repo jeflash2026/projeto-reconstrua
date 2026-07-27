@@ -817,6 +817,31 @@ export async function pdAplicarRevinculo(
   });
 }
 
+export type RevinculoUploadResultado =
+  | {
+      ok: true;
+      aplicado: boolean;
+      contratos: number;
+      ativos: number;
+      suspensos: number;
+      declarado: { ativos: number; suspensos: number } | null;
+      beneficiario: string | null;
+    }
+  | { ok: false; motivo: string };
+/** UPLOAD MANUAL do HISCON (PDF do WhatsApp do dono). confirmar=false = dry-run
+ *  (valida e mostra o beneficiário SEM gravar); confirmar=true grava e religa. */
+export async function pdUploadHiscon(
+  chatId: string,
+  pdfBase64: string,
+  confirmar: boolean,
+): Promise<RevinculoUploadResultado | null> {
+  return sendJson<RevinculoUploadResultado>('POST', '/admin/pericia/revinculo-upload', {
+    chatId,
+    pdfBase64,
+    confirmar,
+  });
+}
+
 /** Cliente com HISCON legível — as opções do seletor "abrir caso pericial". */
 export interface PdClienteComHiscon {
   chatId: string;

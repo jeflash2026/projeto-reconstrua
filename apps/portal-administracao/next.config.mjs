@@ -15,6 +15,9 @@ const nextConfig = {
   // real do workspace). Dentro da imagem Docker o pnpm re-resolve @types de
   // forma não-determinística — o build da imagem SÓ compila.
   typescript: { ignoreBuildErrors: true },
+  // Upload manual do HISCON (revínculo): o PDF viaja em base64 pela server
+  // action — o limite default (1 MB) cortaria qualquer HISCON real.
+  experimental: { serverActions: { bodySizeLimit: '30mb' } },
 };
 
 export default nextConfig;

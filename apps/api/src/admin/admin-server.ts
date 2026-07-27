@@ -185,6 +185,7 @@ export function buildAdminServer(
     readonly revinculo?: {
       candidatos(): Promise<unknown>;
       aplicar(chatId: string, sha256: string): Promise<unknown>;
+      upload(chatId: string, pdfBase64: string, confirmar: boolean): Promise<unknown>;
     };
     /** Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag). */
     readonly periciaDigitalHabilitado?: boolean;
@@ -557,6 +558,28 @@ export function buildAdminServer(
       return reply.code(400).send({ error: 'chatId e sha256 são obrigatórios' });
     return opts.revinculo.aplicar(chatId, sha256);
   });
+  // UPLOAD MANUAL do HISCON (casos sem anexo capturado no acervo): o dono sobe
+  // o PDF do WhatsApp dele. confirmar=false é dry-run (valida e mostra o
+  // beneficiário SEM gravar); só confirmar=true grava e religa. bodyLimit
+  // maior porque o PDF viaja em base64 (teto real de 20 MB validado no serviço).
+  app.post(
+    '/admin/pericia/revinculo-upload',
+    { bodyLimit: 30 * 1024 * 1024 },
+    async (request, reply) => {
+      if (!opts.revinculo)
+        return reply.code(503).send({ error: 'revínculo indisponível nesta montagem' });
+      const body = request.body as {
+        chatId?: unknown;
+        pdfBase64?: unknown;
+        confirmar?: unknown;
+      } | null;
+      const chatId = typeof body?.chatId === 'string' ? body.chatId : '';
+      const pdfBase64 = typeof body?.pdfBase64 === 'string' ? body.pdfBase64 : '';
+      if (chatId === '' || pdfBase64 === '')
+        return reply.code(400).send({ error: 'chatId e pdfBase64 são obrigatórios' });
+      return opts.revinculo.upload(chatId, pdfBase64, body?.confirmar === true);
+    },
+  );
 
   // ── FLUXO DA PERÍCIA (Decreto 2026-07-24) — o perito BAIXOU ⇒ em perícia (10
   //    dias); guarda credenciais e resposta do banco; vencido, vira "pronto p/

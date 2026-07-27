@@ -87,6 +87,24 @@ describe('triagem em duas partes: CPF e depois HISCON', () => {
     expect(r).toContain('HISCON');
   });
 
+  // Caso REAL 31 9448-7166 (2026-07-27): respondeu ao follow-up com o CPF e
+  // ouviu "não consegui entender a que ele se refere" — a jornada dela estava
+  // CONCLUIDA (HISCON entregue) e a fala caía no LLM, que via um número solto.
+  it('quem JÁ entregou o HISCON recebe confirmação AUTORADA (nunca o LLM)', () => {
+    const emAnalise = fatos(
+      { cpf: '61361690615', ultimaCaptura: 'cpf' },
+      { docsCompletos: true, docsRecebidos: 1 },
+    );
+    const r = responderTurno(emAnalise, turno('61361690615'));
+    expect(r).not.toBe(''); // '' delegaria ao LLM — a causa do erro real
+    expect(r).toContain('CPF recebido e registrado');
+    expect(r).toContain('em análise');
+  });
+
+  it('o CPF daquela cliente é válido — a captura tinha de reconhecê-lo', () => {
+    expect(capturarCpf('61361690615')).toBe('61361690615');
+  });
+
   it('a mensagem do follow-up de CPF é a ditada pelo dono', () => {
     expect(MENSAGENS_JORNADA.followUpCpf).toContain('Já estamos em análise');
     expect(MENSAGENS_JORNADA.followUpCpf).toContain('CPF');

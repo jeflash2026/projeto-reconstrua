@@ -367,6 +367,13 @@ export const MENSAGENS_JORNADA = {
   // autorizado pelo dono, 09:00 BRT). Texto ditado pelo dono.
   followUpCpf:
     'Bom dia! Já estamos em análise e estamos precisando do número do seu CPF para solicitar os contratos junto aos bancos. Quando puder, digite aqui, por favor.',
+  // Caso 31 9448-7166 (2026-07-27): a cliente respondeu ao follow-up com o CPF e
+  // a AHRI disse "não consegui entender a que ele se refere" — porque a jornada
+  // dela já estava CONCLUIDA e a fala caía no LLM, que via um número solto. A
+  // confirmação do CPF passa a ser AUTORADA em qualquer etapa.
+  cpfRegistradoEmAnalise:
+    'CPF recebido e registrado, obrigada! Já está tudo certo por aqui.\n\n' +
+    'Seu caso segue em análise e, assim que houver qualquer novidade, eu te aviso por aqui mesmo.',
   aguardandoDocumento: (proximo: string): string =>
     `Estou aguardando: ${proximo}, no seu tempo. Lembrando que preciso do arquivo em PDF (a foto ou o print da tela não servem para a análise).`,
   // Escada de cobrança: o 2º pedido NUNCA repete o 1º — reforça e oferece ajuda.
@@ -496,6 +503,15 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
   // resposta é comportamento de robô.
   const perguntaLivre =
     !entrada.primeiroContato && prefixoDireito === '' && ehPerguntaLivre(entrada.texto);
+
+  // CPF ACABOU DE SER CAPTURADO — a confirmação é AUTORADA em QUALQUER etapa.
+  // Caso 31 9448-7166 (2026-07-27): quem já entregou o HISCON está em CONCLUIDA,
+  // onde a jornada calava e o LLM assumia; ele viu só um número solto e
+  // respondeu "não consegui entender a que ele se refere" a um CPF que NÓS
+  // acabáramos de pedir. Nunca mais: quem responde ao pedido é a jornada.
+  if (r.ultimaCaptura === 'cpf' && etapa !== 'TRIAGEM') {
+    return MENSAGENS_JORNADA.cpfRegistradoEmAnalise;
+  }
 
   switch (etapa) {
     case 'IDENTIFICACAO': {

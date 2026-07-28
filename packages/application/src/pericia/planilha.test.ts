@@ -60,6 +60,24 @@ describe('CsvPlanilhaExporter · Excel pt-BR', () => {
     const csv = exporter.gerar({ nome: 'x', colunas: ['V'], linhas: [[1234.5]] });
     expect(csv).toContain('1234,50');
   });
+
+  // Caso real 2026-07-27: contrato só de dígitos saía "5,00003E+11" no Excel e
+  // o zero à esquerda era descartado. O contrato deve sair IGUAL ao HISCON.
+  it('dígitos longos (12+) e zero à esquerda viram TEXTO explícito (="…")', () => {
+    const csv = exporter.gerar({
+      nome: 'x',
+      colunas: ['Contrato'],
+      linhas: [['500003032911'], ['2024081234567890'], ['097001231821'], ['0123528811531']],
+    });
+    expect(csv).toContain('="500003032911"'); // 12 dígitos: Excel faria 5,00003E+11
+    expect(csv).toContain('="2024081234567890"'); // 16 dígitos: perderia precisão
+    expect(csv).toContain('="097001231821"'); // zero à esquerda: seria descartado
+    expect(csv).toContain('="0123528811531"');
+    // Dígitos CURTOS sem zero à esquerda seguem crus (Excel os exibe íntegros).
+    const curto = exporter.gerar({ nome: 'x', colunas: ['C'], linhas: [['97346029'], ['96']] });
+    expect(curto).toContain('97346029\r\n');
+    expect(curto).not.toContain('="97346029"');
+  });
 });
 
 // ── Decreto Dossiê Pericial: a planilha DETALHADA (formato real em blocos) ───

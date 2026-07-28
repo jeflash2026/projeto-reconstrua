@@ -26,6 +26,12 @@ const SEP = ';';
 function csvField(value: string | number | null): string {
   if (value === null) return '';
   const raw = typeof value === 'number' ? formatNumberBr(value) : value;
+  // Caso real 2026-07-27: nº de CONTRATO só com dígitos era corrompido pelo
+  // Excel — 12+ dígitos viram notação científica (5,00003E+11) e o zero à
+  // esquerda é descartado. Célula de dígitos nessas condições vira TEXTO
+  // explícito (formula ="…"), saindo EXATAMENTE como está no HISCON.
+  if (/^\d+$/.test(raw) && (raw.length >= 12 || (raw.length >= 2 && raw.startsWith('0'))))
+    return `="${raw}"`;
   return /[";\n\r]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
 }
 

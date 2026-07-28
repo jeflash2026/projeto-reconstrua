@@ -155,11 +155,17 @@ export class PeritoView {
     };
   }
 
-  /** Lote: TODA a fila do perito, um arquivo POR CLIENTE (nunca misturado). */
+  /** Lote: TODA a fila do perito, um arquivo POR CLIENTE (nunca misturado).
+   *  Decreto 2026-07-27: mesma régua da fila — só a fase 1 completa (CPF). */
   async planilhasDaFila(now?: Date): Promise<readonly PlanilhaGerada[]> {
     const fila = await this.fila(now);
     const out: PlanilhaGerada[] = [];
     for (const cliente of fila) {
+      if (
+        this.deps.cpfDe !== undefined &&
+        (await this.deps.cpfDe(cliente.chatId).catch(() => null)) === null
+      )
+        continue;
       const gerada = await this.planilha(cliente.clienteId, now);
       if (gerada !== null) out.push(gerada);
     }
@@ -175,6 +181,14 @@ export class PeritoView {
     const out: PlanilhaGerada[] = [];
     for (const cliente of clientes) {
       try {
+        // Decreto 2026-07-27: o LOTE cobre só a FASE 1 completa (CPF + HISCON)
+        // — mesma régua da fila. (Caso real: o zip trazia 103 quando a fila do
+        // perito tinha 73 — os 30 sem CPF entravam no download.)
+        if (
+          this.deps.cpfDe !== undefined &&
+          (await this.deps.cpfDe(cliente.chatId).catch(() => null)) === null
+        )
+          continue;
         const c = await this.contratosDoResumo(cliente, now);
         if (c.detalhado.contratos.length === 0) continue;
         const plan = planilhaDeContratosDetalhada(`Contratos — ${c.quem}`, c.detalhado, ref);
@@ -200,12 +214,15 @@ export class PeritoView {
     const clientes = await this.deps.clientes.list(now); // lista UMA vez (O(n))
     const linhas: ReadonlyArray<string | number | null>[] = [];
     for (const cliente of clientes) {
+      // Decreto 2026-07-27: CPF junto (o perito protocola o pedido com ele) — e
+      // a planilha GERAL cobre só a fase 1 completa, mesma régua da fila.
+      const cpf = (await this.deps.cpfDe?.(cliente.chatId).catch(() => null)) ?? null;
+      if (this.deps.cpfDe !== undefined && cpf === null) continue;
       const c = await this.contratosDoResumo(cliente, now);
       if (c.detalhado.contratos.length === 0) continue;
       const plan = planilhaDeContratosDetalhada(cliente.quem, c.detalhado, ref);
-      // Decreto 2026-07-27: CPF junto (o perito protocola o pedido com ele).
-      const cpf = (await this.deps.cpfDe?.(cliente.chatId).catch(() => null)) ?? 'NÃO INFORMADO';
-      for (const linha of plan.linhas) linhas.push([cliente.quem, cpf, ...linha]);
+      for (const linha of plan.linhas)
+        linhas.push([cliente.quem, cpf ?? 'NÃO INFORMADO', ...linha]);
     }
     const planilha: Planilha = {
       nome: 'Contratos — todos os clientes',

@@ -36,6 +36,8 @@ function perito(
   clientes: readonly ClienteResumo[],
   textos: Record<string, string | null>,
   docsPorMissao: Record<string, string[]>,
+  /** CPF por chatId (decreto 2026-07-27). Ausente ⇒ sem a dep (comportamento legado). */
+  cpfs?: Record<string, string | null>,
 ) {
   const fakeList = { list: () => Promise.resolve(clientes) } as unknown as ClientesList;
   return new PeritoView({
@@ -43,6 +45,9 @@ function perito(
     documentosDaMissao: (missionId) => Promise.resolve(docsPorMissao[missionId] ?? []),
     textoDoDocumento: (id) => Promise.resolve(textos[id] ?? null),
     exporter: new CsvPlanilhaExporter(),
+    ...(cpfs !== undefined
+      ? { cpfDe: (chatId: string) => Promise.resolve(cpfs[chatId] ?? null) }
+      : {}),
   });
 }
 
@@ -106,5 +111,40 @@ describe('PeritoView · planilhas', () => {
     expect(lote[0]?.conteudo).toContain('BMG');
     expect(lote[0]?.conteudo).not.toContain('PAN');
     expect(lote[1]?.conteudo).toContain('PAN');
+  });
+
+  // Decreto 2026-07-27 (caso real: zip com 103 quando a fila tinha 73): os
+  // LOTES cobrem só a FASE 1 completa (CPF + HISCON) — a mesma régua da fila.
+  it('lotes filtram pela fase 1: sem CPF fica FORA (fila, todos e geral); CPF sai na planilha', async () => {
+    // Formato A (blocos) — o detalhado precisa reconhecer para entrar nos lotes
+    // "de todos" e "geral" (que só usam o parser detalhado).
+    const bloco = (n: string, banco: string): string =>
+      `CONTRATO: ${n}\nBANCO: ${banco}\nSITUAÇÃO: ATIVO\nCOMPETÊNCIA INÍCIO DE DESCONTO: 03/2024\nVALOR PARCELA: 45,30`;
+    const clientes = [
+      resumo({}),
+      resumo({ clienteId: 'cli-2', chatId: 'c2', missionId: 'm2', quem: 'João' }),
+    ];
+    const textos = { d1: bloco('111', '254 - PARANÁ'), d2: bloco('222', '623 - PAN') };
+    const docs = { m1: ['d1'], m2: ['d2'] };
+    const view = perito(clientes, textos, docs, { c1: '52998224725', c2: null });
+
+    const daFila = await view.planilhasDaFila(NOW);
+    expect(daFila.map((p) => p.clienteId)).toEqual(['cli-1']);
+    // A planilha traz o CPF na frente de cada linha (o perito protocola com ele).
+    expect(daFila[0]?.conteudo).toContain('CPF do cliente');
+    expect(daFila[0]?.conteudo).toContain('52998224725');
+
+    const deTodos = await view.planilhasDeTodos(NOW);
+    expect(deTodos.map((p) => p.clienteId)).toEqual(['cli-1']);
+
+    const geral = await view.planilhaGeral(NOW);
+    expect(geral.conteudo).toContain('52998224725');
+    expect(geral.conteudo).not.toContain('João'); // sem CPF ⇒ fora da geral também
+
+    // E a lista todosComHiscon expõe cpf/temCpf (a régua única da fase 1).
+    const lista = await view.todosComHiscon(NOW);
+    const porChat = new Map(lista.map((c) => [c.chatId, c]));
+    expect(porChat.get('c1')).toMatchObject({ temCpf: true, cpf: '52998224725' });
+    expect(porChat.get('c2')).toMatchObject({ temCpf: false, cpf: null });
   });
 });

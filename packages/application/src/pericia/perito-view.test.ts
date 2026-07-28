@@ -130,15 +130,16 @@ describe('PeritoView · planilhas', () => {
 
     const daFila = await view.planilhasDaFila(NOW);
     expect(daFila.map((p) => p.clienteId)).toEqual(['cli-1']);
-    // A planilha traz o CPF na frente de cada linha (o perito protocola com ele).
+    // A planilha traz o CPF na frente de cada linha, COM MÁSCARA — 11 dígitos
+    // crus viram notação científica no Excel ("CPF inválido" nos 103 do caso real).
     expect(daFila[0]?.conteudo).toContain('CPF do cliente');
-    expect(daFila[0]?.conteudo).toContain('52998224725');
+    expect(daFila[0]?.conteudo).toContain('529.982.247-25');
 
     const deTodos = await view.planilhasDeTodos(NOW);
     expect(deTodos.map((p) => p.clienteId)).toEqual(['cli-1']);
 
     const geral = await view.planilhaGeral(NOW);
-    expect(geral.conteudo).toContain('52998224725');
+    expect(geral.conteudo).toContain('529.982.247-25');
     expect(geral.conteudo).not.toContain('João'); // sem CPF ⇒ fora da geral também
 
     // E a lista todosComHiscon expõe cpf/temCpf (a régua única da fase 1).

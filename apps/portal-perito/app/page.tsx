@@ -66,6 +66,14 @@ function RespostaView({ p }: { p: PericiaEmFluxo }): ReactElement {
   );
 }
 
+/** CPF com máscara (000.000.000-00) — mesmo formato da planilha. */
+function cpfBr(cpf: string | null): string {
+  if (cpf === null) return '—';
+  const d = cpf.replace(/\D/g, '');
+  if (d.length !== 11) return cpf;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
 const CentralPerito = async (): Promise<ReactElement> => {
   const comHiscon =
     (
@@ -123,7 +131,7 @@ const CentralPerito = async (): Promise<ReactElement> => {
                 {aguardando.map((c) => (
                   <tr key={c.chatId}>
                     <td style={{ fontWeight: 600 }}>{c.quem}</td>
-                    <td className="mono">{c.cpf ?? '—'}</td>
+                    <td className="mono">{cpfBr(c.cpf ?? null)}</td>
                     <td className="mono" style={{ fontSize: 12 }}>
                       {c.chatId}
                     </td>
@@ -168,7 +176,7 @@ const CentralPerito = async (): Promise<ReactElement> => {
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
                 Iniciada em {dataBr(p.iniciadaEm)} · prazo até {dataBr(p.prazoEm)} · CPF:{' '}
-                <span className="mono">{cpfDe.get(p.chatId) ?? '—'}</span>
+                <span className="mono">{cpfBr(cpfDe.get(p.chatId) ?? null)}</span>
               </div>
               <CredenciaisView p={p} />
               <RespostaView p={p} />

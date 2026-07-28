@@ -71,6 +71,16 @@ export interface ClienteComHiscon {
   readonly cpf: string | null;
 }
 
+/** CPF com a máscara oficial (000.000.000-00) — OBRIGATÓRIO na planilha: o
+ *  Excel transforma 11 dígitos crus em notação científica (5,29982E+10) e
+ *  descarta o zero à esquerda — o perito recebia "CPF inválido" em tudo.
+ *  Com a máscara a célula é TEXTO e o número chega íntegro. */
+export function formatarCpf(cpf: string): string {
+  const d = cpf.replace(/\D/g, '');
+  if (d.length !== 11) return cpf; // fora do padrão: entrega como veio (nunca inventa)
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
 export class PeritoView {
   constructor(private readonly deps: PeritoDeps) {}
 
@@ -131,7 +141,7 @@ export class PeritoView {
     return {
       ...plan,
       colunas: ['CPF do cliente', ...plan.colunas],
-      linhas: plan.linhas.map((l) => [cpf ?? 'NÃO INFORMADO', ...l]),
+      linhas: plan.linhas.map((l) => [cpf !== null ? formatarCpf(cpf) : 'NÃO INFORMADO', ...l]),
     };
   }
 
@@ -222,7 +232,7 @@ export class PeritoView {
       if (c.detalhado.contratos.length === 0) continue;
       const plan = planilhaDeContratosDetalhada(cliente.quem, c.detalhado, ref);
       for (const linha of plan.linhas)
-        linhas.push([cliente.quem, cpf ?? 'NÃO INFORMADO', ...linha]);
+        linhas.push([cliente.quem, cpf !== null ? formatarCpf(cpf) : 'NÃO INFORMADO', ...linha]);
     }
     const planilha: Planilha = {
       nome: 'Contratos — todos os clientes',

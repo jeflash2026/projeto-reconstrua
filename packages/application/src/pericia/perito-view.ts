@@ -9,6 +9,11 @@
 // de produção a componentes JÁ existentes (projector.allDocuments, DocumentReader).
 // Lei 9: documentos sem texto legível são CONTADOS e declarados, nunca omitidos.
 // ─────────────────────────────────────────────────────────────────────────────
+// CPF com a máscara oficial (000.000.000-00) — OBRIGATÓRIO na planilha: o Excel
+// transforma 11 dígitos crus em notação científica (5,29982E+10) e descarta o
+// zero à esquerda — o perito recebia "CPF inválido" em tudo. Com a máscara a
+// célula é TEXTO e o número chega íntegro. Reuso do formatador dos sócios.
+import { formatarCpf } from '../socios/socio-model.js';
 import type { ClientesList, ClienteResumo } from '../clientes/clientes-list.js';
 import { parseHiscon, type HisconParse } from './hiscon.js';
 import { parseHisconDetalhado, type HisconExtraido } from './hiscon-parser.js';
@@ -69,16 +74,6 @@ export interface ClienteComHiscon {
   /** O CPF em si (só dígitos) — o perito precisa dele para protocolar o pedido
    *  administrativo nos bancos. null enquanto o cliente não informou. */
   readonly cpf: string | null;
-}
-
-/** CPF com a máscara oficial (000.000.000-00) — OBRIGATÓRIO na planilha: o
- *  Excel transforma 11 dígitos crus em notação científica (5,29982E+10) e
- *  descarta o zero à esquerda — o perito recebia "CPF inválido" em tudo.
- *  Com a máscara a célula é TEXTO e o número chega íntegro. */
-export function formatarCpf(cpf: string): string {
-  const d = cpf.replace(/\D/g, '');
-  if (d.length !== 11) return cpf; // fora do padrão: entrega como veio (nunca inventa)
-  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 }
 
 export class PeritoView {

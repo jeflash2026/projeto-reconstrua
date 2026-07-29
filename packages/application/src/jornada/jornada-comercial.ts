@@ -22,6 +22,9 @@ export interface JornadaRecord {
   readonly chatId: string;
   readonly nome: string | null;
   readonly cidade: string | null;
+  /** UF (decreto 2026-07-29: captar Cidade E Estado) — extraída do texto da
+   *  cidade quando o cliente informa ("Armazém - SC"); null quando não veio. */
+  readonly estado: string | null;
   /** CPF (só dígitos) — decreto 2026-07-26. Sem ele a perícia não protocola o
    *  pedido administrativo nos bancos; coletado ANTES do HISCON. */
   readonly cpf: string | null;
@@ -54,6 +57,7 @@ export function novaJornada(chatId: string, now: Date): JornadaRecord {
     chatId,
     nome: null,
     cidade: null,
+    estado: null,
     cpf: null,
     consentiu: false,
     recusou: false,
@@ -201,10 +205,86 @@ export function capturarIdentificacao(
     return { nome: nome !== '' && pareceNome(nome) ? nome : null, cidade: null };
   }
   if (atual.cidade === null) {
+    // Caso REAL Maria Aparecida (48 8874-1409, 2026-07-29): a pessoa mandou a
+    // CIDADE primeiro ("Armazém" virou o nome) e o NOME COMPLETO depois — que
+    // era registrado como cidade. Quando o "nome" atual é UMA palavra e o novo
+    // texto tem cara inequívoca de NOME COMPLETO (4+ palavras, sem termos de
+    // cidade), os papéis se corrigem: o novo texto vira o nome e a palavra
+    // única vai para a cidade.
+    const candidatoNome = limparNome(t);
+    if (
+      !atual.nome.includes(' ') &&
+      pareceNomeCompletoDePessoa(candidatoNome) &&
+      pareceNome(candidatoNome)
+    ) {
+      return { nome: candidatoNome, cidade: atual.nome };
+    }
     const cidade = limparCidade(t);
     return { nome: null, cidade: cidade !== '' ? cidade : null };
   }
   return { nome: null, cidade: null };
+}
+
+// Termos comuns de NOME DE CIDADE — impedem que uma cidade longa ("São José do
+// Rio Preto") seja confundida com nome de pessoa na correção acima.
+const TERMOS_DE_CIDADE =
+  /\b(s[ãa]o|santa|santo|nova|novo|porto|rio|campo|campos|vila|serra|alto|alta|lagoa|praia|monte|barra|ribeir[ãa]o|cachoeira|feira|jardim|fora|grande|verde|branca|branco|preto|preta)\b/i;
+
+/** Cara INEQUÍVOCA de nome completo de pessoa: 4+ palavras, só letras, sem
+ *  termos típicos de cidade. (3 palavras é ambíguo — "Juiz de Fora".) */
+export function pareceNomeCompletoDePessoa(s: string): boolean {
+  const t = s.trim();
+  const palavras = t.split(/\s+/);
+  if (palavras.length < 4 || palavras.length > 8) return false;
+  if (!/^[\p{L}][\p{L}'´.\s]*$/u.test(t)) return false;
+  return !TERMOS_DE_CIDADE.test(t);
+}
+
+// ── CIDADE + ESTADO (decreto 2026-07-29) ─────────────────────────────────────
+const UFS: ReadonlySet<string> = new Set([
+  'AC',
+  'AL',
+  'AP',
+  'AM',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MT',
+  'MS',
+  'MG',
+  'PA',
+  'PB',
+  'PR',
+  'PE',
+  'PI',
+  'RJ',
+  'RN',
+  'RS',
+  'RO',
+  'RR',
+  'SC',
+  'SP',
+  'SE',
+  'TO',
+]);
+
+/** Separa "Armazém - SC" / "Armazém/SC" / "Armazém SC" em cidade + UF.
+ *  Sem UF reconhecível, a cidade fica inteira e o estado é null. */
+export function separarCidadeEstado(bruto: string): { cidade: string; estado: string | null } {
+  const t = bruto.trim().replace(/[.,;]+$/, '');
+  const separado = /^(.*?)\s*[-–,/]\s*([A-Za-z]{2})$/.exec(t);
+  if (separado && UFS.has((separado[2] ?? '').toUpperCase())) {
+    return { cidade: (separado[1] ?? '').trim(), estado: (separado[2] ?? '').toUpperCase() };
+  }
+  const palavras = t.split(/\s+/);
+  const ultima = (palavras[palavras.length - 1] ?? '').toUpperCase();
+  if (palavras.length >= 2 && ultima.length === 2 && UFS.has(ultima)) {
+    return { cidade: palavras.slice(0, -1).join(' '), estado: ultima };
+  }
+  return { cidade: t, estado: null };
 }
 
 const PERGUNTA_DE_DIREITO =
@@ -350,6 +430,16 @@ export const PASSO_A_PASSO_HISCON =
   '4. Me envie aqui o ARQUIVO PDF como anexo — não a foto da tela.\n\n' +
   'Se travar em algum desses passos, me diga em qual que eu te oriento.';
 
+// Decreto 2026-07-29 (caso Maria Aparecida, 48 8874-1409): o humanizador do
+// LLM REESCREVEU o roteiro da triagem e DERRUBOU o pedido do CPF ("preciso
+// apenas do seu extrato…"), além de fundir as perguntas de nome e cidade. Os
+// roteiros de COLETA da fase 1 (nome, cidade/estado, CPF, HISCON) saem
+// VERBATIM — foram redigidos com cuidado e cada palavra importa. A humanização
+// segue valendo para o resto (explicações, acolhimento, conversa livre).
+export function ehRoteiroDeColeta(roteiro: string): boolean {
+  return /\bCPF\b|\bHISCON\b|nome completo|qual cidade/i.test(roteiro);
+}
+
 // Decreto 2026-07-22 (caso Lucas): tom de CONSULTORA JURÍDICA — profissional,
 // claro e acolhedor, SEM emojis. Atendimento que transmite segurança.
 export const MENSAGENS_JORNADA = {
@@ -360,8 +450,10 @@ export const MENSAGENS_JORNADA = {
     'Para começarmos, pode me informar o seu nome completo?',
   pedirNomeECidade:
     'Para eu registrar o seu atendimento corretamente, pode me informar o seu nome completo?',
+  // Decreto 2026-07-29: a pergunta pede CIDADE E ESTADO, com exemplo — "pergunta
+  // mal a cidade" acabou; o formato guia a resposta ("Armazém - SC").
   pedirCidade: (nome: string): string =>
-    `Prazer, ${nome}, é um gosto falar com você. E em qual cidade você mora?`,
+    `Prazer, ${primeiroNome(nome)}, é um gosto falar com você. E em qual cidade e estado você mora? Pode responder assim: Cidade - UF (por exemplo: Armazém - SC).`,
   pedirNome: 'E qual é o seu nome completo, por favor?',
   explicacaoConsentimento: (nome: string): string =>
     `${nome !== '' ? `Obrigada, ${nome}. ` : ''}Deixa eu te explicar como funciona o Projeto Reconstrua: nossa equipe analisa o seu consignado do INSS para verificar se existe alguma irregularidade nos descontos do seu benefício. Se encontrarmos algo fora do previsto, buscamos a revisão e a recuperação desses valores para você.\n\n` +

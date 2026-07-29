@@ -20,6 +20,7 @@ import {
   novaJornada,
   registroDoTurnoConcluido,
   responderTurno,
+  separarCidadeEstado,
   type EntradaDoTurno,
   type EtapaJornada,
   type FatosDaJornada,
@@ -33,6 +34,8 @@ interface Persisted {
   readonly chatId: string;
   readonly nome: string | null;
   readonly cidade: string | null;
+  /** UF (decreto 2026-07-29) — opcional: registros antigos não têm o campo. */
+  readonly estado?: string | null;
   /** Decreto 2026-07-26 — OPCIONAL na persistência: os registros gravados antes
    *  do decreto não têm o campo e devem continuar carregando (⇒ cpf null). */
   readonly cpf?: string | null;
@@ -66,6 +69,7 @@ export class JornadaComercialRuntime {
     if (raw === null) return novaJornada(chatId, this.deps.clock.now());
     return {
       ...raw,
+      estado: raw.estado ?? null,
       cpf: raw.cpf ?? null,
       aguardandoProgressao: raw.aguardandoProgressao === true,
       avisosDeAdiamento: raw.avisosDeAdiamento ?? 0,
@@ -151,10 +155,19 @@ export class JornadaComercialRuntime {
               : capturado.nome !== null
                 ? 'nome'
                 : 'cidade';
+          // Caso Maria Aparecida (2026-07-29): a captura PODE corrigir um campo
+          // já preenchido (nome de uma palavra que era a cidade, e vice-versa) —
+          // o capturado tem precedência sobre o registro antigo.
+          const cidadeBruta = capturado.cidade ?? r.cidade;
+          const { cidade, estado } =
+            cidadeBruta !== null
+              ? separarCidadeEstado(cidadeBruta)
+              : { cidade: null, estado: null };
           await this.salvar({
             ...r,
-            nome: r.nome ?? capturado.nome,
-            cidade: r.cidade ?? capturado.cidade,
+            nome: capturado.nome ?? r.nome,
+            cidade,
+            estado: estado ?? r.estado,
             ultimaCaptura,
             atualizadoEm: now,
           });

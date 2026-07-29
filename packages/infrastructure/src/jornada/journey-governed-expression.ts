@@ -15,6 +15,7 @@
 // capturados no pré-hook serializado do ingress), então as re-chamadas do guard
 // anti-repetição são inofensivas e idempotentes.
 // ─────────────────────────────────────────────────────────────────────────────
+import { ehRoteiroDeColeta } from '@reconstrua/application';
 import type { EntradaDoTurno, LlmExpressionPort, PhrasingRequest } from '@reconstrua/application';
 import type { JornadaComercialRuntime } from './jornada-runtime.js';
 
@@ -46,7 +47,12 @@ export class JourneyGovernedExpression implements LlmExpressionPort {
       const autorada = await this.jornada.responder(chatId, entrada);
       if (autorada !== '') {
         // A jornada GOVERNA o conteúdo; a LLM (quando real) governa só a VOZ.
-        if (!this.humanizarComLlm) return autorada;
+        // Caso REAL Maria Aparecida (2026-07-29): o humanizador REESCREVEU o
+        // roteiro da triagem e DERRUBOU o pedido do CPF ("preciso apenas do
+        // seu extrato…"). Roteiros de COLETA da fase 1 (nome, cidade/estado,
+        // CPF, HISCON) saem VERBATIM — cada palavra deles importa; a
+        // humanização segue valendo para o resto (explicações, acolhimento).
+        if (!this.humanizarComLlm || ehRoteiroDeColeta(autorada)) return autorada;
         return await this.humanizar(request, autorada);
       }
     } catch {

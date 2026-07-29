@@ -17,6 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import {
   casarAdvogadoPorNome,
+  interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
   planejarDistribuicao,
   type ClienteElegivel,
@@ -41,10 +42,27 @@ export interface PlanoPendente {
   readonly advogadoSugeridoId: string | null;
 }
 
+/** Cliente com HISCON legível AINDA SEM CPF (alvo da cobrança). */
+export interface PendenteCpf {
+  readonly chatId: string;
+  readonly nome: string;
+  readonly telefone: string;
+}
+
+/** Plano de COBRANÇA DE CPF aguardando a confirmação do fundador. */
+export interface CobrancaPendente {
+  readonly id: string;
+  readonly criadoEm: string;
+  readonly tipo: 'cobranca-cpf';
+  readonly itens: readonly PendenteCpf[];
+}
+
 export interface JarvisResposta {
   readonly resposta: string;
   /** Presente quando a pergunta era um COMANDO: o plano aguardando confirmação. */
   readonly plano?: PlanoPendente & { readonly advogados: readonly AdvogadoOpcao[] };
+  /** Presente quando o comando era a COBRANÇA DE CPF (confirmação própria). */
+  readonly cobranca?: CobrancaPendente;
 }
 
 export interface FichaCliente {
@@ -72,6 +90,11 @@ export interface JarvisDeps {
     advogadoId: string,
     assignedBy: string,
   ) => Promise<{ ok: boolean; error?: string }>;
+  /** Clientes com HISCON legível AINDA SEM CPF (alvo da cobrança). */
+  readonly pendentesCpf: () => Promise<readonly PendenteCpf[]>;
+  /** DISPARA a cobrança de CPF de UM cliente — a MESMA rotina da aba Clientes
+   *  (ReaquecimentoService.cobrarCpf: trava de 24h + claim-then-send). */
+  readonly cobrarCpf: (chatId: string) => Promise<{ ok: boolean; error?: string }>;
   /** Narração pela LLM (system, user) → texto. null = offline (determinístico). */
   readonly narrar: ((system: string, user: string) => Promise<string>) | null;
 }
@@ -103,6 +126,7 @@ export class JarvisRuntime {
     const comando = interpretarComandoDistribuicao(pergunta);
     if (comando !== null)
       return this.montarPlano(pergunta, comando.contratos, comando.advogadoNome);
+    if (interpretarComandoCobrancaCpf(pergunta)) return this.montarCobranca();
 
     const dossier = await this.deps.dossier();
     const ficha = await this.deps.fichaPorTermo(pergunta).catch(() => null);
@@ -119,7 +143,7 @@ export class JarvisRuntime {
       'Use EXCLUSIVAMENTE os FATOS fornecidos (Read Models reais): PROIBIDO inventar dados, nomes ou valores; se o fato não está no dossiê, diga com naturalidade que ainda não está registrado e o que você TEM de mais próximo. ' +
       'Nomes de clientes podem vir com ruído de captura — apresente-os limpos. ' +
       'Feche, quando fizer sentido, com UMA sugestão de próximo passo. ' +
-      'Você não executa nada nesta resposta — comandos administrativos têm fluxo próprio de confirmação.';
+      'Você não executa nada nesta resposta, mas TEM poderes administrativos com confirmação: se o assunto pedir, ofereça — "mova N contratos para o advogado X" (distribuição) ou "cobre o CPF dos clientes que faltam" (cobrança em lote pelo WhatsApp). Nunca diga que não consegue disparar mensagens: o fundador só precisa dar o comando e confirmar o plano.';
     const user = `PERGUNTA DO FUNDADOR: ${pergunta}\n\nFATOS (JSON):\n${JSON.stringify(fatos)}`;
     // Caso real 2026-07-29: uma falha pontual do narrador despejava JSON cru na
     // tela. Agora: UMA nova tentativa; persistindo, um RESUMO legível (nunca JSON).
@@ -134,6 +158,63 @@ export class JarvisRuntime {
     return { resposta: this.respostaDeterministica(fatos) };
   }
 
+  /** Monta o plano de COBRANÇA DE CPF: lista nominal dos clientes com HISCON
+   *  legível ainda sem CPF, aguardando a confirmação do fundador. */
+  private async montarCobranca(): Promise<JarvisResposta> {
+    const itens = await this.deps.pendentesCpf();
+    if (itens.length === 0) {
+      return {
+        resposta:
+          'Boa notícia: não há ninguém para cobrar — todos os clientes com HISCON legível já têm o CPF registrado.',
+      };
+    }
+    const pendente: CobrancaPendente = {
+      id: `cobranca-${String(Date.now())}`,
+      criadoEm: this.deps.clock.now().toISOString(),
+      tipo: 'cobranca-cpf',
+      itens,
+    };
+    await this.deps.json.put(NS_PLANO, pendente.id, pendente);
+    const linhas = itens.map((i) => `• ${i.nome} — ${i.telefone}`).join('\n');
+    return {
+      resposta:
+        `Encontrei ${String(itens.length)} cliente(s) com o HISCON legível e ainda SEM o CPF registrado:\n\n${linhas}\n\n` +
+        'Se você confirmar, eu envio a cada um o pedido do CPF pelo WhatsApp — o mesmo texto da cobrança da aba Clientes, respeitando a trava de 24 horas (quem já foi cobrado hoje é pulado automaticamente). Nada é enviado sem a sua confirmação.',
+      cobranca: pendente,
+    };
+  }
+
+  /** EXECUÇÃO DA COBRANÇA (só após a confirmação explícita do fundador). */
+  async cobrar(
+    planoId: string,
+  ): Promise<{ ok: boolean; enviados: number; pulados: number; erros: readonly string[] }> {
+    const pendente = (await this.deps.json.get(NS_PLANO, planoId)) as CobrancaPendente | null;
+    if (pendente === null || pendente.tipo !== 'cobranca-cpf')
+      return {
+        ok: false,
+        enviados: 0,
+        pulados: 0,
+        erros: ['plano de cobrança não encontrado ou expirado — peça de novo'],
+      };
+    const idadeMin =
+      (this.deps.clock.now().getTime() - new Date(pendente.criadoEm).getTime()) / 60_000;
+    if (idadeMin > VALIDADE_PLANO_MIN)
+      return { ok: false, enviados: 0, pulados: 0, erros: ['plano expirado — peça de novo'] };
+
+    const erros: string[] = [];
+    let enviados = 0;
+    for (const item of pendente.itens) {
+      const r = await this.deps
+        .cobrarCpf(item.chatId)
+        .catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : 'falha' }));
+      if (r.ok) enviados += 1;
+      else erros.push(`${item.nome}: ${r.error ?? 'falha no envio'}`);
+    }
+    // O plano morre após a execução (confirmar duas vezes não duplica).
+    await this.deps.json.del(NS_PLANO, planoId).catch(() => undefined);
+    return { ok: true, enviados, pulados: erros.length, erros };
+  }
+
   /** EXECUÇÃO (só após a confirmação explícita do fundador, com o advogado). */
   async executar(
     planoId: string,
@@ -145,8 +226,9 @@ export class JarvisRuntime {
     contratos: number;
     erros: readonly string[];
   }> {
-    const pendente = (await this.deps.json.get(NS_PLANO, planoId)) as PlanoPendente | null;
-    if (pendente === null)
+    const pendente = (await this.deps.json.get(NS_PLANO, planoId)) as
+      (PlanoPendente & { tipo?: string }) | null;
+    if (pendente === null || pendente.tipo === 'cobranca-cpf')
       return {
         ok: false,
         clientes: 0,

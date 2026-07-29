@@ -112,6 +112,23 @@ export function interpretarComandoDistribuicao(texto: string): ComandoDistribuic
   return { contratos, advogadoNome };
 }
 
+// ── Comando de COBRANÇA DE CPF (decreto 2026-07-29, caso real: "consegue
+// disparar mensagem solicitando o cpf para esses 28 clientes?") ──────────────
+// Reconhece o pedido de disparar a cobrança de CPF para quem JÁ entregou o
+// HISCON e ainda não informou o número. Cuidado deliberado: perguntas de
+// CONTAGEM ("quantos clientes já enviaram o cpf?") NÃO são comando — exigimos
+// um verbo de cobrança, ou um verbo de disparo acompanhado de "mensagem/
+// cobrança/pedido/solicitando/pedindo" — nunca a palavra CPF sozinha.
+const VERBO_COBRAR_CPF =
+  /\bcobr(?:e|a|ar|ando|anca)\w*\b|\b(?:dispar\w+|envi(?:e|a|ar)|mand(?:e|a|ar)|solicit(?:e|a|ar)|pec(?:a|am)|pedir|fac(?:a|am))\b[^.?!]*\b(?:mensagem|mensagens|cobranca|pedido|aviso|lembrete|solicitando|pedindo|cobrando)\b/;
+
+/** Reconhece o comando de cobrança de CPF. false = pergunta livre. */
+export function interpretarComandoCobrancaCpf(texto: string): boolean {
+  const t = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (!/\bcpf\b/.test(t)) return false;
+  return VERBO_COBRAR_CPF.test(t);
+}
+
 /** Casa o nome citado no comando com o cadastro (contains, sem acentos). */
 export function casarAdvogadoPorNome<T extends { readonly name: string }>(
   citado: string | null,

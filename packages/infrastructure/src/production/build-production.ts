@@ -1366,6 +1366,23 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           ),
       };
     },
+    // COBRANÇA DE CPF pelo Jarvis (decreto 2026-07-29): os alvos são os mesmos
+    // da aba Clientes — HISCON legível e CPF ausente — e o disparo usa a MESMA
+    // rotina cobrarCpf (trava de 24h + claim-then-send). Nada duplica.
+    pendentesCpf: async () => {
+      const comHiscon = await perito.todosComHiscon();
+      return comHiscon
+        .filter((c) => !c.temCpf)
+        .map((c) => ({
+          chatId: c.chatId,
+          nome: c.quem.replace(/\s+/g, ' ').trim(),
+          telefone: c.chatId.split('@')[0] ?? c.chatId,
+        }));
+    },
+    cobrarCpf: async (chatId) => {
+      const r = await reaquecimento.cobrarCpf(chatId);
+      return r.ok ? { ok: true } : { ok: false, error: r.error };
+    },
     // A MESMA atribuição do painel (work.assign + aviso ao advogado pela AHRI).
     atribuir: async (missionId, advogadoId, assignedBy) => {
       try {

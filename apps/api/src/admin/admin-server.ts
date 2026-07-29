@@ -192,6 +192,10 @@ export function buildAdminServer(
         advogadoId: string,
         quem: string,
       ): Promise<{ ok: boolean; clientes: number; contratos: number; erros: readonly string[] }>;
+      /** Cobrança de CPF em lote (HISCON sem CPF) confirmada pelo fundador. */
+      cobrar(
+        planoId: string,
+      ): Promise<{ ok: boolean; enviados: number; pulados: number; erros: readonly string[] }>;
     };
     /** Decreto 2026-07-27 (caso Roberto): o CNIS registrado aponta ao anexo
      *  ERRADO — candidatos() acha o PDF certo na conversa (só leitura);
@@ -1967,6 +1971,14 @@ export function buildAdminServer(
     if (!body.planoId || !body.advogadoId)
       return reply.code(400).send({ error: 'planoId e advogadoId são obrigatórios' });
     return opts.jarvis.executar(body.planoId, body.advogadoId, 'founder-console');
+  });
+  // COBRANÇA DE CPF confirmada pelo fundador (o plano lista os alvos; a rotina
+  // é a MESMA da aba Clientes — trava de 24h vale sempre).
+  app.post('/admin/founder/jarvis/cobrar', async (request, reply) => {
+    if (!opts.jarvis) return reply.code(503).send({ error: 'jarvis indisponível nesta montagem' });
+    const body = request.body as { planoId?: string };
+    if (!body.planoId) return reply.code(400).send({ error: 'planoId é obrigatório' });
+    return opts.jarvis.cobrar(body.planoId);
   });
 
   // ── LOGS / HEALTH / CONFIG ──────────────────────────────────────────────────

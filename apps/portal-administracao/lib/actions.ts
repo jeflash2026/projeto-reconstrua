@@ -109,9 +109,16 @@ export interface JarvisPlano {
   };
   advogados: { id: string; name: string; casos: number }[];
 }
+/** Plano de COBRANÇA DE CPF (clientes com HISCON legível sem CPF). */
+export interface JarvisCobranca {
+  id: string;
+  criadoEm: string;
+  itens: { chatId: string; nome: string; telefone: string }[];
+}
 export interface JarvisResposta {
   resposta: string;
   plano?: JarvisPlano;
+  cobranca?: JarvisCobranca;
 }
 /** Pergunta livre OU comando ("mova 20 contratos para o advogado X"). */
 export async function perguntarJarvis(pergunta: string): Promise<JarvisResposta | null> {
@@ -123,6 +130,12 @@ export async function executarJarvis(
   advogadoId: string,
 ): Promise<{ ok: boolean; clientes: number; contratos: number; erros: string[] } | null> {
   return sendJson('POST', '/admin/founder/jarvis/executar', { planoId, advogadoId });
+}
+/** DISPARA a cobrança de CPF confirmada pelo fundador (trava de 24h vale). */
+export async function cobrarCpfJarvis(
+  planoId: string,
+): Promise<{ ok: boolean; enviados: number; pulados: number; erros: string[] } | null> {
+  return sendJson('POST', '/admin/founder/jarvis/cobrar', { planoId });
 }
 
 export async function fetchStaff(role: string): Promise<StaffData | null> {

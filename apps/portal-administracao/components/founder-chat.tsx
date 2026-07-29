@@ -5,9 +5,11 @@
 // advogado X") SEMPRE com plano + confirmação explícita — nada move sozinho.
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import {
+  cobrarCpfJarvis,
   executarJarvis,
   fetchFounderBriefing,
   perguntarJarvis,
+  type JarvisCobranca,
   type JarvisPlano,
 } from '../lib/actions';
 
@@ -16,7 +18,78 @@ interface ChatMessage {
   text: string;
   provenance: string | null;
   plano?: JarvisPlano;
+  cobranca?: JarvisCobranca;
 }
+
+/** Card da COBRANÇA DE CPF pendente: lista nominal + confirmação do disparo. */
+const CobrancaCard = ({
+  cobranca,
+  onResultado,
+}: {
+  cobranca: JarvisCobranca;
+  onResultado: (texto: string) => void;
+}): ReactElement => {
+  const [busy, setBusy] = useState(false);
+  const [feito, setFeito] = useState(false);
+
+  const confirmar = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    const r = await cobrarCpfJarvis(cobranca.id);
+    if (r === null) onResultado('A API não respondeu — NENHUMA cobrança foi enviada.');
+    else if (r.pulados === 0)
+      onResultado(
+        `Feito! Enviei o pedido do CPF para ${String(r.enviados)} cliente(s) pelo WhatsApp.`,
+      );
+    else
+      onResultado(
+        `Enviei o pedido do CPF para ${String(r.enviados)} cliente(s). ` +
+          `${String(r.pulados)} ficaram de fora: ${r.erros.join('; ')}`,
+      );
+    setFeito(true);
+    setBusy(false);
+  };
+
+  if (feito) return <></>;
+  return (
+    <div className="card" style={{ marginTop: 8 }}>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>WhatsApp</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cobranca.itens.map((i) => (
+              <tr key={i.chatId}>
+                <td style={{ fontWeight: 600 }}>{i.nome}</td>
+                <td>{i.telefone}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="form-row" style={{ marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="primary" disabled={busy} onClick={() => void confirmar()}>
+          {busy
+            ? 'Enviando…'
+            : `Confirmar — pedir o CPF a ${String(cobranca.itens.length)} cliente(s)`}
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => {
+            setFeito(true);
+            onResultado('Cobrança cancelada — nada foi enviado.');
+          }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+};
 
 /** Card do PLANO pendente: resumo por cliente + escolha do advogado + confirmação. */
 const PlanoCard = ({
@@ -155,6 +228,7 @@ const FounderChat = (): ReactElement => {
             text: r.resposta,
             provenance: 'read-models',
             ...(r.plano !== undefined ? { plano: r.plano } : {}),
+            ...(r.cobranca !== undefined ? { cobranca: r.cobranca } : {}),
           }
         : {
             from: 'ahri',
@@ -195,6 +269,17 @@ const FounderChat = (): ReactElement => {
               {m.plano ? (
                 <PlanoCard
                   plano={m.plano}
+                  onResultado={(texto) => {
+                    setMessages((prev) => [
+                      ...prev,
+                      { from: 'ahri', text: texto, provenance: 'read-models' },
+                    ]);
+                  }}
+                />
+              ) : null}
+              {m.cobranca ? (
+                <CobrancaCard
+                  cobranca={m.cobranca}
                   onResultado={(texto) => {
                     setMessages((prev) => [
                       ...prev,

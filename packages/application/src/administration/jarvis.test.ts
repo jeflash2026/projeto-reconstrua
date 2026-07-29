@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   casarAdvogadoPorNome,
+  interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
   planejarDistribuicao,
   type ClienteElegivel,
@@ -36,6 +37,30 @@ describe('interpretarComandoDistribuicao', () => {
       'como está o advogado Cornélio?',
     ]) {
       expect(interpretarComandoDistribuicao(t), t).toBe(null);
+    }
+  });
+});
+
+describe('interpretarComandoCobrancaCpf', () => {
+  it('reconhece o pedido real do fundador (2026-07-29) e variações', () => {
+    for (const t of [
+      'consegue disparar mensagem solicitando o cpf para esses 28 clientes que só falta cpf? para completar a fase 1',
+      'cobre o cpf dos clientes que faltam',
+      'ahri, cobra o CPF de quem já mandou o hiscon',
+      'envie uma mensagem pedindo o cpf para quem falta',
+      'manda a cobrança de cpf para os pendentes',
+    ]) {
+      expect(interpretarComandoCobrancaCpf(t), t).toBe(true);
+    }
+  });
+  it('pergunta de CONTAGEM nunca vira disparo', () => {
+    for (const t of [
+      'quantos clientes já enviaram o cpf?',
+      'quantos falta só cpf e já enviou hiscon?',
+      'quantos clientes tem com hiscon + cpf completos em sp?',
+      'mova 20 contratos para o advogado Cornélio',
+    ]) {
+      expect(interpretarComandoCobrancaCpf(t), t).toBe(false);
     }
   });
 });

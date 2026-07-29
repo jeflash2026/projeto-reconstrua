@@ -17,6 +17,9 @@ const ADVOGADO_TOKEN_LOGIN = process.env['ADVOGADO_API_TOKEN'] ?? '';
 export interface LoginResult {
   ok: boolean;
   error?: string;
+  /** No definir-senha: o CPF de LOGIN do cadastro — null = cadastro ainda sem
+   *  CPF (o login por CPF falharia; a tela avisa para acionar o escritório). */
+  loginCpf?: string | null;
 }
 
 export async function loginAdvogado(advogadoId: string, senha: string): Promise<LoginResult> {
@@ -91,7 +94,10 @@ export async function definirSenhaAdvogado(token: string, senha: string): Promis
       }
       return { ok: false, error: detail };
     }
-    return { ok: true };
+    // Caso real 2026-07-29: o CPF de login volta para a tela do convite — null
+    // significa cadastro AINDA sem CPF (o login por CPF falharia em silêncio).
+    const body2 = (await res.json().catch(() => ({}))) as { loginCpf?: string | null };
+    return { ok: true, loginCpf: body2.loginCpf ?? null };
   } catch {
     return { ok: false, error: 'API indisponível' };
   }

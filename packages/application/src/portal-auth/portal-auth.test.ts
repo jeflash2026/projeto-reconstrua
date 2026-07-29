@@ -94,6 +94,27 @@ describe('AdvogadoAuthRuntime · convite → senha → login (fail-closed em tud
     expect(login).toEqual({ ok: true, advogadoId: 'adv-1', nome: 'Ana Lima' });
   });
 
+  // Caso real 2026-07-29: advogado criou a senha com o cadastro SEM CPF — o
+  // login (que é por CPF) dava "credenciais inválidas" sem explicação. O
+  // definirSenha agora DEVOLVE o CPF de login (null = a tela avisa na hora).
+  it('definirSenha informa o CPF de login — e null quando o cadastro não o tem', async () => {
+    const { auth } = harness([member({ id: 'adv-9', cpf: '22192008848' }), member({})]);
+    const comCpf = await auth.definirSenha(
+      (await auth.emitirConvite('adv-9', NOW)) ?? '',
+      'senha-longa-123',
+      NOW,
+    );
+    expect(comCpf.ok).toBe(true);
+    if (comCpf.ok) expect(comCpf.loginCpf).toBe('22192008848');
+    const semCpf = await auth.definirSenha(
+      (await auth.emitirConvite('adv-1', NOW)) ?? '',
+      'senha-longa-123',
+      NOW,
+    );
+    expect(semCpf.ok).toBe(true);
+    if (semCpf.ok) expect(semCpf.loginCpf ?? null).toBe(null);
+  });
+
   it('LOGIN por CPF resolve ao membro (retorno = id interno; id ainda funciona)', async () => {
     const { auth } = harness([member({ id: 'adv-9', cpf: '22192008848', name: 'Juliano' })]);
     const convite = await auth.emitirConvite('adv-9', NOW); // convite segue pelo id interno

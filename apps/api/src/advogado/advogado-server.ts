@@ -100,7 +100,14 @@ export function buildAdvogadoServer(
       return reply.code(400).send({ error: 'token e senha são obrigatórios' });
     const result = await op.auth.definirSenha(body.token, body.senha, new Date());
     if (!result.ok) return reply.code(400).send({ error: result.error });
-    return { ok: true, advogadoId: result.advogadoId, nome: result.nome };
+    // Caso real 2026-07-29: a tela do convite mostra o CPF de login (ou avisa
+    // que o cadastro ainda não o tem — sem CPF o login "credenciais inválidas").
+    return {
+      ok: true,
+      advogadoId: result.advogadoId,
+      nome: result.nome,
+      loginCpf: result.loginCpf ?? null,
+    };
   });
 
   // LOGIN individual: ID + senha própria. Erro único (nunca vaza qual fator falhou).

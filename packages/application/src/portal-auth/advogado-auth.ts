@@ -42,7 +42,16 @@ export interface AdvogadoAuthDeps {
 }
 
 export type ResultadoAuth =
-  | { readonly ok: true; readonly advogadoId: string; readonly nome: string }
+  | {
+      readonly ok: true;
+      readonly advogadoId: string;
+      readonly nome: string;
+      /** Caso real 2026-07-29: senha criada SEM CPF no cadastro ⇒ o login por
+       *  CPF nunca acha a pessoa ("credenciais inválidas"). O resultado do
+       *  definirSenha informa o CPF de login (null = cadastro ainda sem CPF —
+       *  a tela avisa para pedir o cadastro ao escritório). */
+      readonly loginCpf?: string | null;
+    }
   | { readonly ok: false; readonly error: string };
 
 const CREDENCIAIS_INVALIDAS = 'credenciais inválidas';
@@ -60,7 +69,9 @@ export class AdvogadoAuthRuntime {
    *  Aceita o identificador como CPF (só dígitos, login humano) OU o id interno
    *  (UUID — convites/credenciais). O RETORNO é sempre o id interno, então o
    *  convite, a senha (chaveada por id) e o isolamento seguem inalterados. */
-  private async advogadoAtivo(identificador: string): Promise<{ id: string; name: string } | null> {
+  private async advogadoAtivo(
+    identificador: string,
+  ): Promise<{ id: string; name: string; cpf: string | null } | null> {
     const bruto = identificador.trim();
     const cpf = normalizarCpf(bruto);
     const member =
@@ -68,7 +79,7 @@ export class AdvogadoAuthRuntime {
         ? await this.deps.staff.byCpf(cpf)
         : await this.deps.staff.byId(bruto);
     if (member === null || member.role !== this.role || !member.active) return null;
-    return { id: member.id, name: member.name };
+    return { id: member.id, name: member.name, cpf: member.cpf ?? null };
   }
 
   /** ATO DO ADMINISTRADOR: convite assinado (7 dias) — só para membro ativo. */
@@ -110,7 +121,9 @@ export class AdvogadoAuthRuntime {
       hash: hashSenha(senha),
       atualizadaEm: now,
     });
-    return { ok: true, advogadoId: member.id, nome: member.name };
+    // Caso real 2026-07-29: o LOGIN humano é por CPF — a tela do convite mostra
+    // qual é (ou AVISA que o cadastro ainda não tem CPF, antes da frustração).
+    return { ok: true, advogadoId: member.id, nome: member.name, loginCpf: member.cpf };
   }
 
   /** LOGIN individual: ID + senha própria. Erro único — nunca vaza qual fator falhou. */

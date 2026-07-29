@@ -11,6 +11,7 @@ import type { ConversationContextView, PhrasingRequest } from './ports.js';
 import { conduzirTurno } from './conversation-intelligence.js';
 import {
   condutaDeAbrangencia,
+  condutaDeFamiliar,
   condutaDePendencia,
   politicaDaMissao,
   styleGuidanceDaMissao,
@@ -77,7 +78,7 @@ export class PromptBuilderRuntime {
     // A conversa SEMPRE segue a missão atual (derivada da missão ativa do Runtime).
     // GO-LIVE 15C-3: a PENDÊNCIA documental (do snapshot) convive com qualquer
     // estado — a AHRI lembra gentilmente até received/cancelled esvaziarem.
-    const condutaFinal = `MISSÃO ATUAL — ${politica.objetivo}: ${nucleo}${condutaDePendencia(context)}${condutaDeAbrangencia(context)}`;
+    const condutaFinal = `MISSÃO ATUAL — ${politica.objetivo}: ${nucleo}${condutaDePendencia(context)}${condutaDeAbrangencia(context)}${condutaDeFamiliar(context)}`;
     return {
       intent,
       // GO-LIVE 9F/9G: o FIO e o CONHECIMENTO da conversa ativa viajam no contexto —

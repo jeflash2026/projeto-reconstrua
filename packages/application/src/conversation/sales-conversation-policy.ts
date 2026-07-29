@@ -125,6 +125,33 @@ export function condutaDeAbrangencia(context: ConversationContextView): string {
   );
 }
 
+// ── FAMILIAR/REPRESENTANTE (decreto 2026-07-29, caso Luana) ──────────────────
+// A pessoa quer a análise para a AVÓ/MÃE/PAI… A AHRI dispensou uma lead real
+// ("não dá para fazer com os dados da sua avó"). A regra é o CONTRÁRIO: o
+// familiar PODE representar — a documentação (CPF + HISCON) vem em nome do
+// TITULAR do benefício, e o familiar acompanha tudo pelo próprio WhatsApp.
+// O \b do JavaScript é ASCII — falha depois de "ó"/"ã" ("minha avó"). O texto
+// é DESACENTUADO antes do match (mesma técnica do detector da jornada).
+const MENCIONA_FAMILIAR_LLM =
+  /\b(minha|meu)\s+(avo|vo|mae|pai|sogr[ao]|ti[ao]|esposa|esposo|marido|mulher|irmao?|irma|cunhad[ao])\b/i;
+
+function mencionaFamiliarLlm(context: ConversationContextView): boolean {
+  const t = textoDoTurno(context).normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return MENCIONA_FAMILIAR_LLM.test(t);
+}
+
+/** FATO canônico do familiar, injetado quando a pessoa menciona um parente.
+ *  A AHRI NUNCA dispensa quem procura pelo idoso da família. */
+export function condutaDeFamiliar(context: ConversationContextView): string {
+  if (!mencionaFamiliarLlm(context)) return '';
+  return (
+    '; FATO DA EMPRESA (análise para FAMILIAR): filho, neto ou qualquer familiar PODE cuidar da análise pelo titular do benefício — ' +
+    'basta enviar a documentação EM NOME DO TITULAR (o CPF do titular e o HISCON dele, em PDF, do Meu INSS); ' +
+    'o familiar representa e acompanha tudo pelo próprio WhatsApp. ' +
+    'NUNCA diga que não dá para fazer pelos dados do familiar, NUNCA dispense a pessoa e NUNCA exija que o titular fale pessoalmente'
+  );
+}
+
 // Condutas por estado (autoradas; prioridade sobre a curiosidade quando aplicável).
 // Decreto TRÁFEGO PAGO (2026-07-20): todo lead novo chega por anúncio do
 // Instagram — a arte já explica que, HAVENDO irregularidade após a análise,

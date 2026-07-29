@@ -278,6 +278,27 @@ export function ehPerguntaDeLocalizacao(texto: string): boolean {
   return PERGUNTA_DE_LOCALIZACAO.test(texto);
 }
 
+// Decreto 2026-07-29 (caso Luana/avó): filho, neto ou familiar PODE cuidar da
+// análise pelo idoso — a AHRI dispensou uma lead real dizendo "não dá para
+// fazer com os dados da sua avó". A regra é o CONTRÁRIO: basta a documentação
+// (CPF + HISCON) vir em nome do TITULAR do benefício; o familiar representa e
+// acompanha tudo normalmente. Detector: parente com possessivo + contexto de
+// "é para ele(a)"/benefício (evita falso positivo em "minha mãe me indicou").
+// ATENÇÃO: o \b do JavaScript é ASCII — depois de "ó"/"á" o boundary FALHA
+// ("minha avó", "dá"). Por isso o texto é DESACENTUADO antes do match.
+const PARENTE_COM_POSSESSIVO =
+  /\b(minha|meu)\s+(avo|vozinh[ao]|vo|mae|pai|sogr[ao]|ti[ao]|esposa|esposo|marido|mulher|irmao?|irma|cunhad[ao])\b/i;
+const CONTEXTO_DE_TITULARIDADE =
+  /\b(para|pra|pro|da|do|dela|dele|era|seria)\b|em\s+nome|benefici|consign|aposentad|analis|no\s+nome/i;
+function desacentuar(texto: string): string {
+  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+/** A pessoa quer a análise PARA UM FAMILIAR (avó, mãe, pai…)? */
+export function ehSobreFamiliar(texto: string): boolean {
+  const t = desacentuar(texto);
+  return PARENTE_COM_POSSESSIVO.test(t) && CONTEXTO_DE_TITULARIDADE.test(t);
+}
+
 /** Este texto, na TRIAGEM, cairá na COBRANÇA de documento? (nenhum outro
  *  manejo o captura). O runtime usa para contar a escada de cobrança. */
 export function vaiReceberCobranca(texto: string): boolean {
@@ -289,6 +310,7 @@ export function vaiReceberCobranca(texto: string): boolean {
     !ehPerguntaLivre(texto) &&
     !ehPerguntaDeDireito(texto) &&
     !ehPerguntaDeLocalizacao(texto) &&
+    !ehSobreFamiliar(texto) &&
     !ehLinkExterno(texto)
   );
 }
@@ -440,6 +462,16 @@ export const MENSAGENS_JORNADA = {
     'Recebi a sua imagem, obrigada! Mas ela é uma FOTO da tela, e a análise não roda com foto — a imagem não traz a lista completa dos seus contratos.\n\n' +
     'O que eu preciso é o ARQUIVO em PDF do extrato de empréstimos consignados COMPLETO (o HISCON), enviado aqui como anexo.\n\n' +
     PASSO_A_PASSO_HISCON,
+  // Decreto 2026-07-29 (caso Luana): a análise para um FAMILIAR é bem-vinda —
+  // a AHRI jamais dispensa; a documentação vem em nome do TITULAR do benefício
+  // e o familiar representa e acompanha tudo pelo próprio WhatsApp.
+  analiseParaFamiliar:
+    'Pode sim, sem problema nenhum! Muitos filhos, netos e familiares cuidam da análise pelos seus idosos — e você pode fazer tudo por aqui mesmo, me enviando a documentação EM NOME DO TITULAR do benefício.\n\n' +
+    'Funciona assim: a análise é feita nos dados de quem recebe o benefício. Então eu vou precisar de duas coisas do TITULAR:\n' +
+    '1. O CPF do titular;\n' +
+    '2. O HISCON do titular — o extrato de empréstimos consignados completo, em PDF, baixado do Meu INSS dele(a).\n\n' +
+    'A análise é gratuita e você acompanha tudo por aqui, representando o seu familiar normalmente.\n\n' +
+    'Para começar, me diga o NOME COMPLETO do titular e a cidade onde ele(a) mora, por favor.',
   // Decreto 2026-07-25: "vocês são de onde?" — resposta CANÔNICA de abrangência.
   // Nunca improvisar geografia, nunca inventar endereço/filial, nunca dizer que
   // não atende a região de alguém: a análise é nacional e o encaminhamento ao
@@ -518,6 +550,10 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
   // etapa — a abrangência é nacional e o encaminhamento ao advogado parceiro
   // mais próximo é DEPOIS da análise. Nunca deixar o LLM improvisar geografia.
   if (ehPerguntaDeLocalizacao(entrada.texto)) return MENSAGENS_JORNADA.localizacao;
+
+  // Decreto 2026-07-29 (caso Luana): análise PARA UM FAMILIAR é bem-vinda — a
+  // documentação vem em nome do TITULAR e o familiar representa. Nunca dispensar.
+  if (ehSobreFamiliar(entrada.texto)) return MENSAGENS_JORNADA.analiseParaFamiliar;
 
   // Pergunta de direito/elegibilidade tem resposta canônica, em qualquer etapa.
   const prefixoDireito = ehPerguntaDeDireito(entrada.texto)

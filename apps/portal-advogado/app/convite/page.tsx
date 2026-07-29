@@ -87,7 +87,7 @@ const ConvitePage = (): ReactElement => {
   return (
     <div style={{ maxWidth: 420, margin: '10vh auto', padding: '0 16px' }}>
       <div className="card">
-        <h1 className="page-title">Crie a sua senha</h1>
+        <h1 className="page-title">Crie ou redefina a sua senha</h1>
         {token === '' ? (
           <div className="error-box" style={{ marginTop: 12 }}>
             {CONVITE_AUSENTE}
@@ -95,7 +95,8 @@ const ConvitePage = (): ReactElement => {
         ) : (
           <>
             <p className="page-sub">
-              Você foi convidado pelo escritório. Defina a sua senha pessoal para acessar o portal.
+              Você recebeu este link do escritório. Defina a sua senha pessoal para acessar o portal
+              — se já tinha uma senha, a nova substitui a antiga.
             </p>
             <form
               className="form-row"

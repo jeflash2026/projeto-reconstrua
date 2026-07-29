@@ -74,6 +74,19 @@ const LoginPage = (): ReactElement => {
             {erro}
           </div>
         ) : null}
+        {/* Decreto 2026-07-29: caminho CLARO para criar/alterar a senha — a
+            redefinição é sempre por um NOVO link de convite do escritório
+            (nunca por e-mail/URL pública: fail-closed do GO-LIVE-04). */}
+        <details style={{ marginTop: 16 }}>
+          <summary style={{ cursor: 'pointer', color: 'var(--accent)' }}>
+            Esqueceu a senha ou quer alterá-la?
+          </summary>
+          <p className="page-sub" style={{ marginTop: 8 }}>
+            A senha é criada e alterada por um <strong>link de convite</strong> emitido pelo
+            escritório. Peça um novo link ao administrador — ao abri-lo, você define a nova senha na
+            hora (a antiga deixa de valer). Depois é só entrar aqui com o seu CPF e a senha nova.
+          </p>
+        </details>
       </div>
     </div>
   );

@@ -165,8 +165,9 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
         <div className="card" style={{ marginBottom: 16 }}>
           <h3>Convite gerado (válido por 7 dias)</h3>
           <p className="page-sub">
-            Envie este link ao advogado — nele, ele cria a própria senha. O ID de login dele é{' '}
-            <span className="mono">{convite.id}</span>.
+            Envie este link à pessoa — nele, ela <strong>cria ou redefine</strong> a própria senha
+            (a antiga deixa de valer). O login no portal é pelo <strong>CPF cadastrado</strong> +
+            essa senha — confira se o CPF está preenchido na tabela abaixo antes de enviar.
           </p>
           <pre style={{ overflow: 'auto', userSelect: 'all' }}>{convite.link}</pre>
         </div>

@@ -1276,14 +1276,34 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       } catch {
         /* idem */
       }
+      // POTENCIAL: só o total + TOP 10 (a lista inteira, com todos os
+      // clientes, estourava o prompt do narrador — caso real 2026-07-29: a
+      // resposta caía no despejo de JSON cru). Nomes limpos de quebras.
       try {
-        d['potencialFinanceiro'] = await pericia.potencialDeTodos();
+        const p = (await pericia.potencialDeTodos()) as {
+          total?: number;
+          porCliente?: readonly {
+            chatId: string;
+            nomeCliente: string | null;
+            valor: number;
+            contratos: number;
+          }[];
+        };
+        d['potencialFinanceiro'] = {
+          totalReais: Math.round(p.total ?? 0),
+          top10Clientes: (p.porCliente ?? []).slice(0, 10).map((c) => ({
+            nome: (c.nomeCliente ?? c.chatId.split('@')[0] ?? '').replace(/\s+/g, ' ').trim(),
+            valorReais: Math.round(c.valor),
+            contratos: c.contratos,
+          })),
+        };
       } catch {
         /* idem */
       }
       // Recorte GEOGRÁFICO (pergunta real do dono: "quantos clientes e
       // contratos só em São Paulo?"): estado pelo DDD do WhatsApp (sinal
-      // universal) e fase 1 completa POR ESTADO com a soma de contratos.
+      // universal) e fase 1 completa POR ESTADO — com a soma de contratos E a
+      // soma COM O TETO de 10 por cliente (a régua real da distribuição).
       try {
         d['clientesPorEstado'] = (await mapaClientes.gerar()).porEstado;
       } catch {
@@ -1291,16 +1311,25 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       }
       try {
         const fase1 = (await perito.todosComHiscon()).filter((c) => c.temCpf);
-        const porUf = new Map<string, { clientes: number; contratos: number }>();
+        const porUf = new Map<
+          string,
+          { clientes: number; contratos: number; contratosComTetoDe10PorCliente: number }
+        >();
         for (const c of fase1) {
           const uf = ufDoTelefone(c.chatId) ?? 'SEM-DDD';
-          const atual = porUf.get(uf) ?? { clientes: 0, contratos: 0 };
+          const atual = porUf.get(uf) ?? {
+            clientes: 0,
+            contratos: 0,
+            contratosComTetoDe10PorCliente: 0,
+          };
           porUf.set(uf, {
             clientes: atual.clientes + 1,
             contratos: atual.contratos + c.totalContratos,
+            contratosComTetoDe10PorCliente:
+              atual.contratosComTetoDe10PorCliente + Math.min(10, c.totalContratos),
           });
         }
-        d['fase1PorEstadoClientesEContratos'] = Object.fromEntries(porUf);
+        d['fase1PorEstado'] = Object.fromEntries(porUf);
       } catch {
         /* idem */
       }

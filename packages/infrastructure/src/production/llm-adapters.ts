@@ -373,7 +373,8 @@ class LlmNarration implements AdminNarrationPort {
     const facts = Object.entries(input.facts)
       .map(([k, v]) => `${k}: ${v === null ? 'sem dado' : String(v)}`)
       .join('\n');
-    const system = `${this.config.prompts.global}\n\n${this.config.prompts.founder}\n${this.config.prompts.admin}`;
+    // Decreto 2026-07-29 (tom do Founder Console): executivo e claro, SEM emojis.
+    const system = `${this.config.prompts.global}\n\n${this.config.prompts.founder}\n${this.config.prompts.admin}\nNUNCA use emojis. Tom executivo, claro e direto.`;
     const user = `Tema: ${input.topic}\nDisponível: ${String(input.available)}\nFATOS (narre SOMENTE isto):\n${facts}`;
     try {
       const raw = (await this.llm.complete(system, user)).text.trim();

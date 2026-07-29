@@ -112,18 +112,26 @@ export class JarvisRuntime {
     if (this.deps.narrar === null) {
       return { resposta: this.respostaDeterministica(fatos) };
     }
-    try {
-      const system =
-        'Você é a AHRI, assistente executiva do fundador do Projeto Reconstrua (revisão de consignado do INSS). ' +
-        'Responda em português, direto e útil, COM NÚMEROS, usando EXCLUSIVAMENTE os FATOS fornecidos (Read Models reais). ' +
-        'PROIBIDO inventar dados, nomes, valores ou prometer ações. Se o fato não está no dossiê, diga que não está registrado. ' +
-        'Sem emojis. Você não executa nada nesta resposta — comandos administrativos têm fluxo próprio de confirmação.';
-      const user = `PERGUNTA DO FUNDADOR: ${pergunta}\n\nFATOS (JSON):\n${JSON.stringify(fatos)}`;
-      const texto = (await this.deps.narrar(system, user)).trim();
-      return { resposta: texto !== '' ? texto : this.respostaDeterministica(fatos) };
-    } catch {
-      return { resposta: this.respostaDeterministica(fatos) };
+    const system =
+      'Você é a AHRI, assistente executiva do fundador do Projeto Reconstrua (revisão de consignado do INSS). ' +
+      'Tom: executivo, claro e caloroso na medida — como uma diretora de operações de confiança. NUNCA use emojis. ' +
+      'Responda EXATAMENTE o que foi perguntado, com números à frente; use listas curtas quando ajudarem e valores em reais no formato R$ 1.234,56. ' +
+      'Use EXCLUSIVAMENTE os FATOS fornecidos (Read Models reais): PROIBIDO inventar dados, nomes ou valores; se o fato não está no dossiê, diga com naturalidade que ainda não está registrado e o que você TEM de mais próximo. ' +
+      'Nomes de clientes podem vir com ruído de captura — apresente-os limpos. ' +
+      'Feche, quando fizer sentido, com UMA sugestão de próximo passo. ' +
+      'Você não executa nada nesta resposta — comandos administrativos têm fluxo próprio de confirmação.';
+    const user = `PERGUNTA DO FUNDADOR: ${pergunta}\n\nFATOS (JSON):\n${JSON.stringify(fatos)}`;
+    // Caso real 2026-07-29: uma falha pontual do narrador despejava JSON cru na
+    // tela. Agora: UMA nova tentativa; persistindo, um RESUMO legível (nunca JSON).
+    for (let tentativa = 0; tentativa < 2; tentativa += 1) {
+      try {
+        const texto = (await this.deps.narrar(system, user)).trim();
+        if (texto !== '') return { resposta: texto };
+      } catch {
+        /* tenta de novo; depois cai no resumo legível */
+      }
     }
+    return { resposta: this.respostaDeterministica(fatos) };
   }
 
   /** EXECUÇÃO (só após a confirmação explícita do fundador, com o advogado). */
@@ -202,11 +210,21 @@ export class JarvisRuntime {
     };
   }
 
-  /** Sem LLM: os números principais, direto do dossiê (nunca silêncio). */
+  /** Sem LLM: um RESUMO legível dos números principais (nunca JSON cru, nunca
+   *  silêncio — caso real 2026-07-29: o despejo de JSON assustava na tela). */
   private respostaDeterministica(fatos: Record<string, unknown>): string {
+    const n = (chave: string): string => {
+      const v = fatos[chave];
+      return typeof v === 'number' ? String(v) : '—';
+    };
     return (
-      'Estou sem o narrador de linguagem agora, então vão os números direto dos registros:\n\n' +
-      JSON.stringify(fatos, null, 2).slice(0, 3500)
+      'O meu narrador de linguagem falhou agora — repita a pergunta em instantes para a resposta completa. ' +
+      'Enquanto isso, os números principais dos registros:\n\n' +
+      `• Clientes no total: ${n('clientesTotal')}\n` +
+      `• Fase 1 completa (CPF + HISCON): ${n('fase1CompletaCpfMaisHiscon')}\n` +
+      `• Com HISCON aguardando CPF: ${n('comHisconAindaSemCpf')}\n` +
+      `• Contratos totais lidos: ${n('contratosTotais')}\n` +
+      `• Perícias em andamento (10 dias): ${n('periciasEmAndamento10Dias')}`
     );
   }
 }

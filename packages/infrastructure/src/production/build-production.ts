@@ -81,6 +81,8 @@ import {
   OnboardingDocumentalRuntime,
   type OnboardingDocumentalProvider,
   type EnviadorDeDocumento,
+  contratosDaJanela,
+  type ClienteElegivel,
 } from '@reconstrua/application';
 import type { BootableComponent } from '@reconstrua/application';
 import {
@@ -197,6 +199,7 @@ import {
   PdfTextExtractor,
 } from '../reading/index.js';
 import { PericiaService, ReleituraComparativa, RevinculoHiscon } from '../pericia/index.js';
+import { JarvisRuntime } from '../administration/jarvis-runtime.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
 import { CustodiaService, JsonCasoStore, PericiaDigitalService } from '../pericia-digital/index.js';
@@ -258,6 +261,9 @@ export interface AssembledProduction {
   readonly releitura: ReleituraComparativa;
   /** Decreto 2026-07-27 (caso Roberto): religar o CNIS ao anexo CERTO da conversa. */
   readonly revinculo: RevinculoHiscon;
+  /** Decreto 2026-07-29: o JARVIS do Founder Console — conhecimento total dos
+   *  Read Models + distribuição de contratos p/ advogado com confirmação. */
+  readonly jarvis: JarvisRuntime;
   /** Decreto 2026-07-24: fluxo do perito (em perícia/10 dias, credenciais, resposta do banco). */
   readonly periciaFluxo: PericiaFluxoService;
   /** Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag). */
@@ -1180,6 +1186,160 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
   });
 
+  // ── JARVIS DO FOUNDER CONSOLE (decreto 2026-07-29) — conhecimento total dos
+  //    Read Models + distribuição de contratos para advogado COM confirmação.
+  const jarvisCompletion = llm.completion;
+  const jarvis = new JarvisRuntime({
+    json,
+    clock,
+    narrar:
+      jarvisCompletion !== null
+        ? async (system, user) => (await jarvisCompletion.complete(system, user)).text
+        : null,
+    // Elegíveis = FASE 1 completa (CPF + HISCON legível) e AINDA SEM advogado,
+    // com a contagem de contratos NA JANELA por situação (ativos primeiro).
+    elegiveis: async () => {
+      const [lista, comHiscon] = await Promise.all([clientes.list(), perito.todosComHiscon()]);
+      const out: ClienteElegivel[] = [];
+      for (const c of comHiscon) {
+        if (!c.temCpf) continue;
+        const missionId = lista.find((x) => x.chatId === c.chatId)?.missionId ?? null;
+        if (missionId === null) continue;
+        if ((await work.assignedTo(missionId).catch(() => null)) !== null) continue;
+        const h = await pericia.hisconDe(c.chatId).catch(() => null);
+        if (h === null) continue;
+        const janela = contratosDaJanela(h.contratos, clock.now());
+        const ativos = janela.filter((k) => /^ATIVO/i.test(k.situacao ?? '')).length;
+        const suspensos = janela.filter((k) => /^SUSPENS/i.test(k.situacao ?? '')).length;
+        out.push({
+          chatId: c.chatId,
+          missionId,
+          nome: c.quem,
+          ativos,
+          suspensos,
+          outros: janela.length - ativos - suspensos,
+        });
+      }
+      return out;
+    },
+    advogados: async () => {
+      const advs = await staffStore.byRole('advogado');
+      const out = [];
+      for (const a of advs.filter((x) => x.active)) {
+        out.push({
+          id: a.id,
+          name: a.name,
+          casos: (await work.myMissions(a.id).catch(() => [])).length,
+        });
+      }
+      return out;
+    },
+    dossier: async () => {
+      const d: Record<string, unknown> = { geradoEm: clock.now().toISOString() };
+      try {
+        const lista = await clientes.list();
+        d['clientesTotal'] = lista.length;
+        const porStatus: Record<string, number> = {};
+        for (const c of lista) porStatus[c.status] = (porStatus[c.status] ?? 0) + 1;
+        d['clientesPorStatus'] = porStatus;
+      } catch {
+        /* bloco indisponível não derruba o dossiê */
+      }
+      try {
+        const comHiscon = await perito.todosComHiscon();
+        const fase1 = comHiscon.filter((c) => c.temCpf);
+        d['clientesComHisconLegivel'] = comHiscon.length;
+        d['fase1CompletaCpfMaisHiscon'] = fase1.length;
+        d['comHisconAindaSemCpf'] = comHiscon.length - fase1.length;
+        d['contratosTotais'] = comHiscon.reduce((s, c) => s + c.totalContratos, 0);
+      } catch {
+        /* idem */
+      }
+      try {
+        const advs = await staffStore.byRole('advogado');
+        const carga = [];
+        for (const a of advs) {
+          carga.push({
+            nome: a.name,
+            ativo: a.active,
+            casosAtribuidos: (await work.myMissions(a.id).catch(() => [])).length,
+          });
+        }
+        d['advogados'] = carga;
+      } catch {
+        /* idem */
+      }
+      try {
+        d['periciasEmAndamento10Dias'] = (await periciaFluxo.emAndamento()).length;
+        d['periciasConcluidasProntasAdvogado'] = (await periciaFluxo.concluidas()).length;
+      } catch {
+        /* idem */
+      }
+      try {
+        d['potencialFinanceiro'] = await pericia.potencialDeTodos();
+      } catch {
+        /* idem */
+      }
+      return d;
+    },
+    fichaPorTermo: async (pergunta) => {
+      const semAcento = (s: string): string => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const p = semAcento(pergunta);
+      const lista = await clientes.list().catch(() => []);
+      const cliente =
+        lista.find((c) => {
+          const n = semAcento(c.quem);
+          return n.length >= 5 && p.includes(n);
+        }) ?? lista.find((c) => p.includes(c.chatId.split('@')[0] ?? '§§§'));
+      if (cliente === undefined) return null;
+      const fatos = await jornadaComercial.fatos(cliente.chatId).catch(() => null);
+      const mensagens = await conversationStore.recent(cliente.chatId, 15).catch(() => []);
+      return {
+        chatId: cliente.chatId,
+        nome: cliente.quem,
+        resumo: {
+          status: cliente.status,
+          faltando: cliente.faltando,
+          cidade: fatos?.registro.cidade ?? null,
+          estado: fatos?.registro.estado ?? null,
+          cpfRegistrado: (fatos?.registro.cpf ?? null) !== null,
+          docsRecebidos: fatos?.docsRecebidos ?? 0,
+          ultimoContato: cliente.ultimoContatoAt,
+        },
+        ultimasMensagens: mensagens
+          .filter((m) => m.kind === 'inbound' || m.kind === 'outbound')
+          .map(
+            (m) => `${m.kind === 'inbound' ? 'CLIENTE' : 'AHRI'}: ${(m.text ?? '').slice(0, 200)}`,
+          ),
+      };
+    },
+    // A MESMA atribuição do painel (work.assign + aviso ao advogado pela AHRI).
+    atribuir: async (missionId, advogadoId, assignedBy) => {
+      try {
+        await projector.refresh().catch(() => undefined);
+        const chatId = projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null;
+        await work.assign(missionId, advogadoId, assignedBy, chatId);
+        try {
+          const canais = await notificationChannels.canaisDe(advogadoId);
+          const canal =
+            canais.find((c) => c.tipo === 'whatsapp' && c.preferido) ??
+            canais.find((c) => c.tipo === 'whatsapp');
+          if (canal) {
+            await gateway.sendText(
+              canal.endereco,
+              'A AHRIOS encaminhou um novo cliente para você representar. Ele já aparece no seu painel — o primeiro passo costuma ser enviar a procuração para assinatura.',
+            );
+          }
+        } catch {
+          /* o aviso é cortesia; a atribuição nunca é desfeita por falha dele */
+        }
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : 'falha na atribuição' };
+      }
+    },
+  });
+
   const boot = new BootRuntime(health, observability, clock);
   const adminView: AssembledAdminOperation = {
     conversation,
@@ -1366,6 +1526,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     pericia,
     releitura,
     revinculo,
+    jarvis,
     periciaFluxo,
     periciaDigital,
     periciaDigitalHabilitado,

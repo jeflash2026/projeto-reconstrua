@@ -182,6 +182,17 @@ export function buildAdminServer(
       compararTodos(limite?: number): Promise<unknown>;
       aplicarLeituraDefinitiva(): Promise<unknown>;
     };
+    /** Decreto 2026-07-29: o JARVIS do Founder Console — pergunta livre
+     *  fundamentada nos Read Models + comando de distribuição de contratos
+     *  (plano com confirmação; NADA executa sem o clique do fundador). */
+    readonly jarvis?: {
+      perguntar(pergunta: string): Promise<unknown>;
+      executar(
+        planoId: string,
+        advogadoId: string,
+        quem: string,
+      ): Promise<{ ok: boolean; clientes: number; contratos: number; erros: readonly string[] }>;
+    };
     /** Decreto 2026-07-27 (caso Roberto): o CNIS registrado aponta ao anexo
      *  ERRADO — candidatos() acha o PDF certo na conversa (só leitura);
      *  aplicar() religa, com backup, por ato explícito do dono. */
@@ -1938,6 +1949,24 @@ export function buildAdminServer(
       return reply.code(400).send({ error: 'pergunta obrigatória' });
     }
     return op.founderConsole.ask(body.question, new Date());
+  });
+
+  // ── JARVIS (decreto 2026-07-29) — a AHRI como assistente do fundador ─────────
+  // Pergunta livre fundamentada nos Read Models; comando de distribuição gera
+  // um PLANO que só executa após a confirmação explícita (com o advogado).
+  app.post('/admin/founder/jarvis', async (request, reply) => {
+    if (!opts.jarvis) return reply.code(503).send({ error: 'jarvis indisponível nesta montagem' });
+    const body = request.body as { pergunta?: string };
+    if (!body.pergunta || body.pergunta.trim() === '')
+      return reply.code(400).send({ error: 'pergunta obrigatória' });
+    return opts.jarvis.perguntar(body.pergunta.trim());
+  });
+  app.post('/admin/founder/jarvis/executar', async (request, reply) => {
+    if (!opts.jarvis) return reply.code(503).send({ error: 'jarvis indisponível nesta montagem' });
+    const body = request.body as { planoId?: string; advogadoId?: string };
+    if (!body.planoId || !body.advogadoId)
+      return reply.code(400).send({ error: 'planoId e advogadoId são obrigatórios' });
+    return opts.jarvis.executar(body.planoId, body.advogadoId, 'founder-console');
   });
 
   // ── LOGS / HEALTH / CONFIG ──────────────────────────────────────────────────

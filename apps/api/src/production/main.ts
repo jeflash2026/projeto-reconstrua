@@ -114,6 +114,8 @@ async function main(): Promise<void> {
     releitura: prod.releitura,
     // Decreto 2026-07-27 (caso Roberto): revínculo do HISCON ao anexo certo.
     revinculo: prod.revinculo,
+    // Decreto 2026-07-29: o Jarvis do Founder Console.
+    jarvis: prod.jarvis,
     // Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag).
     periciaDigitalHabilitado: prod.periciaDigitalHabilitado,
     periciaDigital: prod.periciaDigital,

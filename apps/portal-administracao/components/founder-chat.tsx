@@ -1,16 +1,121 @@
 'use client';
-// FOUNDER CONSOLE — uma conversa entre o fundador e a empresa (2E). A AHRI abre a
-// conversa com o briefing automático; o campo único é "Pergunte qualquer coisa...".
-// Toda resposta traz a PROVENIÊNCIA (fonte auditável); a AHRI recomenda e fundamenta,
-// nunca decide administrativamente.
+// FOUNDER CONSOLE · JARVIS (decreto 2026-07-29) — a AHRI como assistente
+// executiva do fundador: responde QUALQUER pergunta com os números reais dos
+// Read Models e executa comandos administrativos ("mova 20 contratos para o
+// advogado X") SEMPRE com plano + confirmação explícita — nada move sozinho.
 import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { askFounder, fetchFounderBriefing } from '../lib/actions';
+import {
+  executarJarvis,
+  fetchFounderBriefing,
+  perguntarJarvis,
+  type JarvisPlano,
+} from '../lib/actions';
 
 interface ChatMessage {
   from: 'ahri' | 'founder';
   text: string;
   provenance: string | null;
+  plano?: JarvisPlano;
 }
+
+/** Card do PLANO pendente: resumo por cliente + escolha do advogado + confirmação. */
+const PlanoCard = ({
+  plano,
+  onResultado,
+}: {
+  plano: JarvisPlano;
+  onResultado: (texto: string) => void;
+}): ReactElement => {
+  const [advogadoId, setAdvogadoId] = useState(
+    plano.advogadoSugeridoId ?? plano.advogados[0]?.id ?? '',
+  );
+  const [busy, setBusy] = useState(false);
+  const [feito, setFeito] = useState(false);
+
+  const confirmar = async (): Promise<void> => {
+    if (busy || advogadoId === '') return;
+    setBusy(true);
+    const r = await executarJarvis(plano.id, advogadoId);
+    const advogado = plano.advogados.find((a) => a.id === advogadoId)?.name ?? 'o advogado';
+    if (r === null) onResultado('A API não respondeu — o plano NÃO foi executado.');
+    else if (r.ok)
+      onResultado(
+        `Feito! Encaminhei ${String(r.clientes)} cliente(s) — ${String(r.contratos)} contrato(s) — para ${advogado}. Eles já aparecem em "Meus Clientes" no portal dele, e o advogado foi avisado pelo WhatsApp.`,
+      );
+    else
+      onResultado(
+        `Executei com ressalvas: ${String(r.clientes)} cliente(s) atribuídos, mas houve falha em: ${r.erros.join('; ')}`,
+      );
+    setFeito(true);
+    setBusy(false);
+  };
+
+  if (feito) return <></>;
+  return (
+    <div className="card" style={{ marginTop: 8 }}>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Contratos</th>
+              <th>Ativos</th>
+              <th>Suspensos</th>
+              <th>Outros</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plano.plano.itens.map((i) => (
+              <tr key={i.chatId}>
+                <td style={{ fontWeight: 600 }}>{i.nome}</td>
+                <td>{i.contratos}</td>
+                <td>{i.ativos}</td>
+                <td>{i.suspensos}</td>
+                <td>{i.outros}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="form-row" style={{ marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          Advogado responsável:
+          <select
+            value={advogadoId}
+            onChange={(e) => {
+              setAdvogadoId(e.target.value);
+            }}
+            disabled={busy}
+          >
+            {plano.advogados.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name} ({a.casos} caso(s))
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="primary"
+          disabled={busy || advogadoId === ''}
+          onClick={() => void confirmar()}
+        >
+          {busy
+            ? 'Executando…'
+            : `Confirmar — mover ${String(plano.plano.totalContratos)} contrato(s)`}
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => {
+            setFeito(true);
+            onResultado('Plano cancelado — nada foi movido.');
+          }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const FounderChat = (): ReactElement => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -36,16 +141,21 @@ const FounderChat = (): ReactElement => {
   }, [messages]);
 
   const ask = async (): Promise<void> => {
-    const question = input.trim();
-    if (question === '' || busy) return;
+    const pergunta = input.trim();
+    if (pergunta === '' || busy) return;
     setInput('');
     setBusy(true);
-    setMessages((prev) => [...prev, { from: 'founder', text: question, provenance: null }]);
-    const answer = await askFounder(question);
+    setMessages((prev) => [...prev, { from: 'founder', text: pergunta, provenance: null }]);
+    const r = await perguntarJarvis(pergunta);
     setMessages((prev) => [
       ...prev,
-      answer
-        ? { from: 'ahri', text: answer.answer, provenance: answer.provenance }
+      r
+        ? {
+            from: 'ahri',
+            text: r.resposta,
+            provenance: 'read-models',
+            ...(r.plano !== undefined ? { plano: r.plano } : {}),
+          }
         : {
             from: 'ahri',
             text: 'Não consegui falar com a operação agora (API indisponível).',
@@ -59,7 +169,9 @@ const FounderChat = (): ReactElement => {
     <>
       <h1 className="page-title">Founder Console</h1>
       <p className="page-sub">
-        Uma conversa com a empresa. Toda resposta nasce dos Read Models, com fonte.
+        A AHRI com a empresa inteira na cabeça: pergunte qualquer coisa (os números vêm dos Read
+        Models) ou dê um comando — ex.: “mova 20 contratos para o advogado Cornélio”. Comandos
+        sempre mostram o plano e pedem a sua confirmação.
       </p>
       {offline ? (
         <div className="error-box" style={{ marginBottom: 12 }}>
@@ -67,11 +179,24 @@ const FounderChat = (): ReactElement => {
         </div>
       ) : null}
       <div className="chat">
-        <div className="chat-log card" ref={logRef} style={{ maxHeight: 480, overflowY: 'auto' }}>
+        <div className="chat-log card" ref={logRef} style={{ maxHeight: 520, overflowY: 'auto' }}>
           {messages.map((m, i) => (
-            <div key={i} className={`msg ${m.from}`}>
-              {m.text}
-              {m.provenance ? <span className="prov">fonte: {m.provenance}</span> : null}
+            <div key={i}>
+              <div className={`msg ${m.from}`}>
+                {m.text}
+                {m.provenance ? <span className="prov">fonte: {m.provenance}</span> : null}
+              </div>
+              {m.plano ? (
+                <PlanoCard
+                  plano={m.plano}
+                  onResultado={(texto) => {
+                    setMessages((prev) => [
+                      ...prev,
+                      { from: 'ahri', text: texto, provenance: 'read-models' },
+                    ]);
+                  }}
+                />
+              ) : null}
             </div>
           ))}
           {busy ? (
@@ -86,7 +211,7 @@ const FounderChat = (): ReactElement => {
         </div>
         <div className="chat-input">
           <input
-            placeholder="Pergunte qualquer coisa..."
+            placeholder="Pergunte qualquer coisa ou dê um comando…"
             value={input}
             onChange={(e) => {
               setInput(e.target.value);

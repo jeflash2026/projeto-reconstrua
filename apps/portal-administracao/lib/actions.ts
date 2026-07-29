@@ -87,6 +87,44 @@ export async function askFounder(question: string): Promise<FounderAnswer | null
   return sendJson<FounderAnswer>('POST', '/admin/founder/ask', { question });
 }
 
+// ── JARVIS (decreto 2026-07-29): a AHRI como assistente executiva do fundador ─
+export interface JarvisPlanoItem {
+  chatId: string;
+  missionId: string;
+  nome: string;
+  contratos: number;
+  ativos: number;
+  suspensos: number;
+  outros: number;
+}
+export interface JarvisPlano {
+  id: string;
+  criadoEm: string;
+  advogadoSugeridoId: string | null;
+  plano: {
+    alvo: number;
+    totalContratos: number;
+    itens: JarvisPlanoItem[];
+    elegiveisRestantes: number;
+  };
+  advogados: { id: string; name: string; casos: number }[];
+}
+export interface JarvisResposta {
+  resposta: string;
+  plano?: JarvisPlano;
+}
+/** Pergunta livre OU comando ("mova 20 contratos para o advogado X"). */
+export async function perguntarJarvis(pergunta: string): Promise<JarvisResposta | null> {
+  return sendJson<JarvisResposta>('POST', '/admin/founder/jarvis', { pergunta });
+}
+/** EXECUTA um plano confirmado pelo fundador (com o advogado escolhido). */
+export async function executarJarvis(
+  planoId: string,
+  advogadoId: string,
+): Promise<{ ok: boolean; clientes: number; contratos: number; erros: string[] } | null> {
+  return sendJson('POST', '/admin/founder/jarvis/executar', { planoId, advogadoId });
+}
+
 export async function fetchStaff(role: string): Promise<StaffData | null> {
   return getJson<StaffData>(`/admin/staff/${role}`);
 }

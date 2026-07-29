@@ -5,3 +5,4 @@
 export * from './admin-projection-subscriber.js';
 export * from './fake-admin-narration.js';
 export * from './build-administration.js';
+export * from './jarvis-runtime.js';

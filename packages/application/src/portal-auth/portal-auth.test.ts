@@ -55,7 +55,7 @@ function harness(members: StaffMember[]) {
   const staff: StaffStore = {
     save: () => Promise.resolve(),
     byId: (id) => Promise.resolve(members.find((m) => m.id === id) ?? null),
-    byRole: () => Promise.resolve([]),
+    byRole: (role) => Promise.resolve(members.filter((m) => m.role === role)),
     all: () => Promise.resolve(members),
     byCpf: (cpf) => Promise.resolve(members.find((m) => (m.cpf ?? null) === cpf) ?? null),
   };
@@ -129,6 +129,28 @@ describe('AdvogadoAuthRuntime · convite → senha → login (fail-closed em tud
     expect((await auth.login('adv-9', 'senha-do-juliano-1')).ok).toBe(true);
     // CPF de outro não entra.
     expect((await auth.login('11144477735', 'senha-do-juliano-1')).ok).toBe(false);
+  });
+
+  // Caso real 2026-07-29 (CPF 405.118.848-50): o MESMO CPF em dois papéis —
+  // advogado "Jessé" e perito "Jesse teste". O byCpf global devolvia o registro
+  // do OUTRO papel e o login do portal do advogado falhava com a senha certa.
+  it('mesmo CPF em DOIS papéis: cada portal resolve o registro do SEU papel', async () => {
+    const CPF = '40511884850';
+    const members = [
+      member({ id: 'per-1', role: 'perito', name: 'Jesse teste', cpf: CPF }),
+      member({ id: 'adv-1', role: 'advogado', name: 'Jessé', cpf: CPF }),
+    ];
+    const { auth: advAuth } = harness(members);
+    const convite = await advAuth.emitirConvite('adv-1', NOW);
+    const definida = await advAuth.definirSenha(convite ?? '', 'senha-do-jesse-1', NOW);
+    expect(definida.ok).toBe(true);
+    // O login no portal do ADVOGADO resolve o registro de ADVOGADO desse CPF —
+    // mesmo com um perito de mesmo CPF na frente da lista.
+    expect(await advAuth.login('405.118.848-50', 'senha-do-jesse-1')).toEqual({
+      ok: true,
+      advogadoId: 'adv-1',
+      nome: 'Jessé',
+    });
   });
 
   it('NUNCA cadastro público: convite só para advogado JÁ cadastrado e ATIVO', async () => {

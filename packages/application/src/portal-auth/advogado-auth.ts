@@ -74,9 +74,17 @@ export class AdvogadoAuthRuntime {
   ): Promise<{ id: string; name: string; cpf: string | null } | null> {
     const bruto = identificador.trim();
     const cpf = normalizarCpf(bruto);
+    // Caso real 2026-07-29 (CPF 405.118.848-50 em DOIS papéis: advogado "Jessé"
+    // e perito "Jesse teste"): o byCpf GLOBAL devolvia o primeiro match de
+    // QUALQUER papel — vindo o do outro papel, o login deste portal falhava com
+    // "credenciais inválidas" mesmo com a senha certa. O CPF agora é resolvido
+    // DENTRO do papel deste provider: a mesma pessoa pode ser advogado E perito
+    // com o mesmo CPF, e cada portal encontra o registro certo.
     const member =
-      cpf !== null && this.deps.staff.byCpf
-        ? await this.deps.staff.byCpf(cpf)
+      cpf !== null
+        ? ((await this.deps.staff.byRole(this.role)).find(
+            (m) => (m.cpf ?? '').replace(/\D/g, '') === cpf,
+          ) ?? null)
         : await this.deps.staff.byId(bruto);
     if (member === null || member.role !== this.role || !member.active) return null;
     return { id: member.id, name: member.name, cpf: member.cpf ?? null };

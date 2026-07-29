@@ -155,6 +155,31 @@ describe('Portal do Advogado', () => {
     expect(detailB.statusCode).toBe(403);
   });
 
+  // Decreto 2026-07-29: "Meus Clientes" — os clientes destinados pelo Admin,
+  // por nome, com contagem de documentos; ISOLADO por atribuição como tudo.
+  it('MEUS CLIENTES: A vê o cliente destinado (com nome e docs); B vê lista vazia', async () => {
+    const listA = await call({
+      method: 'GET',
+      url: '/advogado/meus-clientes',
+      headers: { 'x-advogado-id': advogadoA },
+    });
+    expect(listA.statusCode).toBe(200);
+    const bodyA: { clientes: Array<{ missionId: string; nome: string; documentos: number }> } =
+      listA.json();
+    expect(bodyA.clientes).toHaveLength(1);
+    expect(bodyA.clientes[0]?.missionId).toBe(missionId);
+    expect(bodyA.clientes[0]?.nome).not.toBe('');
+    expect(bodyA.clientes[0]?.documentos).toBeGreaterThanOrEqual(0);
+
+    const listB = await call({
+      method: 'GET',
+      url: '/advogado/meus-clientes',
+      headers: { 'x-advogado-id': advogadoB },
+    });
+    const bodyB: { clientes: unknown[] } = listB.json();
+    expect(bodyB.clientes).toHaveLength(0);
+  });
+
   it('ISOLAMENTO na escrita: B não consegue registrar atividade no processo de A (403)', async () => {
     const res = await call({
       method: 'POST',

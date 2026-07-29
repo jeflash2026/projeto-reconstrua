@@ -121,6 +121,15 @@ export interface ProcessDetail {
   juridical: JuridicalEntry[];
 }
 
+/** MEUS CLIENTES (decreto 2026-07-29) — cliente destinado pelo Administrador. */
+export interface MeuCliente {
+  missionId: string;
+  chatId: string | null;
+  nome: string;
+  atribuidoEm: string;
+  documentos: number;
+}
+
 export interface Perfil {
   id: string;
   role: string;

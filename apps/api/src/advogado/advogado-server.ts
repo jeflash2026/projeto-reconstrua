@@ -461,6 +461,33 @@ export function buildAdvogadoServer(
     };
   });
 
+  // ── MEUS CLIENTES (decreto 2026-07-29) — os clientes que o Administrador
+  //    destinou a este advogado, POR NOME, cada um com a contagem de documentos
+  //    recebidos pelo WhatsApp; o download usa a rota de conteúdo ISOLADA por
+  //    atribuição que já existe (processos/:missionId/documentos/:id/content).
+  app.get('/advogado/meus-clientes', async (request, reply) => {
+    const advogadoId = await advogadoOf(request);
+    if (!advogadoId) return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
+    await op.projector.refresh();
+    const assignments = await op.work.myMissions(advogadoId);
+    const summaries = op.projector.missions();
+    const docs = op.projector.allDocuments();
+    const clientes = await Promise.all(
+      assignments.map(async (a) => {
+        const chatId = summaries.find((m) => m.missionId === a.missionId)?.chatId ?? null;
+        return {
+          missionId: a.missionId,
+          chatId,
+          nome: chatId !== null ? await nomeDoClientePorChat(chatId) : 'Cliente sem conversa',
+          atribuidoEm: a.assignedAt,
+          documentos: docs.filter((d) => d.missionId === a.missionId).length,
+        };
+      }),
+    );
+    clientes.sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
+    return { clientes };
+  });
+
   // ── ATIVIDADES (informam a AHRI automaticamente) ─────────────────────────────
   app.post('/advogado/processos/:missionId/atividades', async (request, reply) => {
     const advogadoId = await advogadoOf(request);

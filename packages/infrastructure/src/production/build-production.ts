@@ -83,6 +83,7 @@ import {
   type EnviadorDeDocumento,
   contratosDaJanela,
   type ClienteElegivel,
+  ufDoTelefone,
 } from '@reconstrua/application';
 import type { BootableComponent } from '@reconstrua/application';
 import {
@@ -1277,6 +1278,29 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       }
       try {
         d['potencialFinanceiro'] = await pericia.potencialDeTodos();
+      } catch {
+        /* idem */
+      }
+      // Recorte GEOGRÁFICO (pergunta real do dono: "quantos clientes e
+      // contratos só em São Paulo?"): estado pelo DDD do WhatsApp (sinal
+      // universal) e fase 1 completa POR ESTADO com a soma de contratos.
+      try {
+        d['clientesPorEstado'] = (await mapaClientes.gerar()).porEstado;
+      } catch {
+        /* idem */
+      }
+      try {
+        const fase1 = (await perito.todosComHiscon()).filter((c) => c.temCpf);
+        const porUf = new Map<string, { clientes: number; contratos: number }>();
+        for (const c of fase1) {
+          const uf = ufDoTelefone(c.chatId) ?? 'SEM-DDD';
+          const atual = porUf.get(uf) ?? { clientes: 0, contratos: 0 };
+          porUf.set(uf, {
+            clientes: atual.clientes + 1,
+            contratos: atual.contratos + c.totalContratos,
+          });
+        }
+        d['fase1PorEstadoClientesEContratos'] = Object.fromEntries(porUf);
       } catch {
         /* idem */
       }

@@ -178,8 +178,14 @@ const FounderChat = (): ReactElement => {
           API indisponível.
         </div>
       ) : null}
-      <div className="chat">
-        <div className="chat-log card" ref={logRef} style={{ maxHeight: 520, overflowY: 'auto' }}>
+      {/* Decreto 2026-07-29: o console ocupa a PÁGINA TODA — é o posto de
+          comando, não um mini-chat. A altura acompanha a janela. */}
+      <div className="chat" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div
+          className="chat-log card"
+          ref={logRef}
+          style={{ height: 'calc(100vh - 320px)', minHeight: 420, overflowY: 'auto' }}
+        >
           {messages.map((m, i) => (
             <div key={i}>
               <div className={`msg ${m.from}`}>

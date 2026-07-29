@@ -67,12 +67,18 @@ export function buildAdvogadoServer(
     protect: (path) => path.startsWith('/advogado'),
   });
 
-  /** Resolve o advogado autenticado (ativo) ou null. */
+  /** Resolve o advogado autenticado (ativo) ou null. Aceita o id INTERNO ou o
+   *  CPF (defesa em profundidade — caso Cornélio 2026-07-29: sessões antigas
+   *  guardavam o CPF digitado no login e TODAS as rotas devolviam 401). */
   async function advogadoOf(request: FastifyRequest): Promise<string | null> {
     const id = request.headers['x-advogado-id'];
     if (typeof id !== 'string' || id.trim() === '') return null;
+    const bruto = id.trim();
     const members = await op.staff.list('advogado');
-    const member = members.find((m) => m.id === id);
+    const cpf = bruto.replace(/\D/g, '');
+    const member =
+      members.find((m) => m.id === bruto) ??
+      (cpf.length === 11 ? members.find((m) => (m.cpf ?? '') === cpf) : undefined);
     return member && member.active ? member.id : null;
   }
 

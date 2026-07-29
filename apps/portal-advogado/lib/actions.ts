@@ -32,6 +32,11 @@ export async function loginAdvogado(advogadoId: string, senha: string): Promise<
   if (id === '' || senha === '') return { ok: false, error: 'informe o seu ID e a sua senha' };
 
   // Credencial INDIVIDUAL validada pelo Auth Runtime (erro único; fail-closed).
+  // Caso real Cornélio (2026-07-29): o cookie de identidade guardava o TEXTO
+  // DIGITADO (o CPF) — mas a API identifica pelo ID INTERNO (x-advogado-id), e
+  // todas as rotas devolviam 401 ("identificação inválida/inativa") APÓS um
+  // login bem-sucedido. O id interno vem na resposta do login — é ELE que vale.
+  let advogadoIdInterno = id;
   try {
     const res = await fetch(`${API_BASE}/advogado-auth/login`, {
       method: 'POST',
@@ -49,6 +54,9 @@ export async function loginAdvogado(advogadoId: string, senha: string): Promise<
           res.status === 401 ? 'credenciais inválidas' : 'falha na autenticação — tente novamente',
       };
     }
+    const body = (await res.json().catch(() => ({}))) as { advogadoId?: string };
+    if (typeof body.advogadoId === 'string' && body.advogadoId !== '')
+      advogadoIdInterno = body.advogadoId;
   } catch {
     return { ok: false, error: 'API indisponível' };
   }
@@ -61,7 +69,7 @@ export async function loginAdvogado(advogadoId: string, senha: string): Promise<
     maxAge: 60 * 60 * 12,
   };
   cookies().set(ADVOGADO_SESSION_COOKIE, advogadoSessionToken(ADVOGADO_TOKEN_LOGIN), opts);
-  cookies().set(ADVOGADO_ID_COOKIE, id, opts);
+  cookies().set(ADVOGADO_ID_COOKIE, advogadoIdInterno, opts);
   return { ok: true };
 }
 

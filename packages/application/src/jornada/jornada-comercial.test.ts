@@ -116,6 +116,12 @@ describe('interesse DETERMINÍSTICO', () => {
     expect(interpretarInteresse('não, obrigada')).toBe('nao');
     expect(interpretarInteresse('como funciona o pagamento?')).toBe('incerto');
   });
+  it('caso REAL Gismar (2026-07-30): "Tenho" responde "Você TEM interesse?"', () => {
+    expect(interpretarInteresse('Tenho')).toBe('sim');
+    expect(interpretarInteresse('tenho sim!')).toBe('sim');
+    expect(interpretarInteresse('não tenho')).toBe('nao'); // negação segue na frente
+    expect(interpretarInteresse('tenho uma dúvida')).toBe('incerto'); // só o standalone
+  });
 });
 
 describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {

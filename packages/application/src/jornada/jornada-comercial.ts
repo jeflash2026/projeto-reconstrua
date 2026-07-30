@@ -143,6 +143,11 @@ export function interpretarInteresse(texto: string): 'sim' | 'nao' | 'incerto' {
   // recusa viraria consentimento (defeito pego em teste).
   if (NEGATIVAS.test(t)) return 'nao';
   if (AFIRMATIVAS.test(t)) return 'sim';
+  // Caso REAL Gismar (62 9394-5682, 2026-07-30): a pergunta é "Você TEM
+  // interesse?" e a resposta natural é "Tenho" — que não casava com nada,
+  // virava 'incerto' e o reforço idêntico morria no guarda anti-eco: silêncio.
+  // "Tenho"/"Tenho sim" SOZINHOS são SIM ("tenho uma dúvida" segue incerto).
+  if (/^tenho(\s+sim)?[!.\s]*$/i.test(t)) return 'sim';
   return 'incerto';
 }
 

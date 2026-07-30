@@ -14,6 +14,7 @@ import {
   capturarIdentificacao,
   derivarEtapa,
   ehAdiamento,
+  capturarEstado,
   ehDesistencia,
   interpretarInteresse,
   vaiReceberCobranca,
@@ -133,6 +134,22 @@ export class JornadaComercialRuntime {
         if (cpf !== null) {
           await this.salvar({ ...r, cpf, ultimaCaptura: 'cpf', atualizadoEm: now });
           this.deps.observability.event('jornada', `cpf capturado chat=${chatId}`, now);
+          return;
+        }
+      }
+
+      // Caso REAL Humberto (16 99747-7435, 2026-07-30): cidade numa bolha
+      // ("Ribeirão preto") e o estado na SEGUINTE ("São Paulo"). A segunda
+      // bolha não era entendida e o fluxo cobrava "Cidade - UF" em loop,
+      // trançando duas conversas. Agora: com cidade registrada e estado
+      // faltando, uma mensagem que é SÓ um estado (UF ou por extenso) completa
+      // o registro em silêncio — a resposta segue a etapa atual, sem repetir
+      // nenhum script (ultimaCaptura null ⇒ nunca re-dispara a explicação).
+      if (r.cidade !== null && r.estado === null) {
+        const uf = capturarEstado(texto);
+        if (uf !== null) {
+          await this.salvar({ ...r, estado: uf, ultimaCaptura: null, atualizadoEm: now });
+          this.deps.observability.event('jornada', `estado capturado (${uf}) chat=${chatId}`, now);
           return;
         }
       }

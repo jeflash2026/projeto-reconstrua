@@ -83,10 +83,10 @@ describe('roteiros de COLETA saem verbatim (o humanizador derrubava o CPF)', () 
       expect(ehRoteiroDeColeta(m), m.slice(0, 40)).toBe(true);
     }
   });
-  it('explicação/acolhimento continuam humanizáveis', () => {
+  it('acolhimento continua humanizável (consentimento saiu da lista — caso Humberto 2026-07-30)', () => {
+    // Caso Humberto: o humanizador reescreveu a explicação do consentimento
+    // (derrubou os honorários por êxito) — ela virou roteiro VERBATIM também.
     for (const m of [
-      MENSAGENS_JORNADA.explicacaoConsentimento('Maria'),
-      MENSAGENS_JORNADA.reforcoConsentimento,
       MENSAGENS_JORNADA.recusa,
       MENSAGENS_JORNADA.socialCurto,
       MENSAGENS_JORNADA.adiamentoOkCurto,

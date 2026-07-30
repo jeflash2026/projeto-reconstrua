@@ -271,8 +271,55 @@ const UFS: ReadonlySet<string> = new Set([
   'TO',
 ]);
 
-/** Separa "Armazém - SC" / "Armazém/SC" / "Armazém SC" em cidade + UF.
- *  Sem UF reconhecível, a cidade fica inteira e o estado é null. */
+// Caso REAL Humberto (16 99747-7435, 2026-07-30): o cliente respondeu a cidade
+// e o estado em DUAS bolhas ("Ribeirão preto" e depois "São Paulo") e por
+// extenso — o fluxo não entendia "São Paulo" como UF e travava num loop de
+// "Cidade - UF". Estados POR EXTENSO agora são reconhecidos (desacentuados).
+const ESTADO_POR_NOME: Readonly<Record<string, string>> = {
+  acre: 'AC',
+  alagoas: 'AL',
+  amapa: 'AP',
+  amazonas: 'AM',
+  bahia: 'BA',
+  ceara: 'CE',
+  'distrito federal': 'DF',
+  'espirito santo': 'ES',
+  goias: 'GO',
+  maranhao: 'MA',
+  'mato grosso': 'MT',
+  'mato grosso do sul': 'MS',
+  'minas gerais': 'MG',
+  para: 'PA',
+  paraiba: 'PB',
+  parana: 'PR',
+  pernambuco: 'PE',
+  piaui: 'PI',
+  'rio de janeiro': 'RJ',
+  'rio grande do norte': 'RN',
+  'rio grande do sul': 'RS',
+  rondonia: 'RO',
+  roraima: 'RR',
+  'santa catarina': 'SC',
+  'sao paulo': 'SP',
+  sergipe: 'SE',
+  tocantins: 'TO',
+};
+
+function semAcento(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
+/** A mensagem é SÓ um estado (UF "SP" ou nome "São Paulo")? Devolve a UF.
+ *  Usado quando o cliente manda a cidade numa bolha e o estado na seguinte. */
+export function capturarEstado(texto: string): string | null {
+  const t = texto.trim().replace(/[.,;!]+$/, '');
+  if (/^[A-Za-z]{2}$/.test(t) && UFS.has(t.toUpperCase())) return t.toUpperCase();
+  return ESTADO_POR_NOME[semAcento(t)] ?? null;
+}
+
+/** Separa "Armazém - SC" / "Armazém/SC" / "Armazém SC" / "Ribeirão Preto São
+ *  Paulo" em cidade + UF. Sem UF reconhecível, a cidade fica inteira e o
+ *  estado é null. */
 export function separarCidadeEstado(bruto: string): { cidade: string; estado: string | null } {
   const t = bruto.trim().replace(/[.,;]+$/, '');
   const separado = /^(.*?)\s*[-–,/]\s*([A-Za-z]{2})$/.exec(t);
@@ -283,6 +330,22 @@ export function separarCidadeEstado(bruto: string): { cidade: string; estado: st
   const ultima = (palavras[palavras.length - 1] ?? '').toUpperCase();
   if (palavras.length >= 2 && ultima.length === 2 && UFS.has(ultima)) {
     return { cidade: palavras.slice(0, -1).join(' '), estado: ultima };
+  }
+  // Estado POR EXTENSO no fim ("Ribeirão Preto São Paulo", "Armazém - Santa
+  // Catarina") — o nome mais LONGO primeiro ("Mato Grosso do Sul" antes de
+  // "Mato Grosso"). A cidade precisa sobrar (senão "São Paulo" é só a cidade).
+  const plano = semAcento(t.replace(/\s*[-–,/]\s*/g, ' '));
+  const nomes = Object.keys(ESTADO_POR_NOME).sort((a, b) => b.length - a.length);
+  for (const nome of nomes) {
+    if (plano === nome) continue; // só o estado ⇒ não é cidade+estado
+    if (plano.endsWith(` ${nome}`)) {
+      const corte = plano.length - nome.length;
+      // Recorta pelo comprimento equivalente no texto ORIGINAL normalizado de
+      // separadores (mesmo tamanho após semAcento, que não altera comprimento).
+      const original = t.replace(/\s*[-–,/]\s*/g, ' ');
+      const cidade = original.slice(0, corte).trim();
+      if (cidade !== '') return { cidade, estado: ESTADO_POR_NOME[nome] ?? null };
+    }
   }
   return { cidade: t, estado: null };
 }
@@ -436,8 +499,12 @@ export const PASSO_A_PASSO_HISCON =
 // roteiros de COLETA da fase 1 (nome, cidade/estado, CPF, HISCON) saem
 // VERBATIM — foram redigidos com cuidado e cada palavra importa. A humanização
 // segue valendo para o resto (explicações, acolhimento, conversa livre).
+// Caso REAL Humberto (2026-07-30): o humanizador também REESCREVEU o roteiro
+// do CONSENTIMENTO — derrubou a explicação dos honorários por êxito e chegou a
+// trocar a pergunta de interesse por uma cobrança de cidade inventada. O
+// roteiro do consentimento ("análise gratuita") passa a sair VERBATIM também.
 export function ehRoteiroDeColeta(roteiro: string): boolean {
-  return /\bCPF\b|\bHISCON\b|nome completo|qual cidade/i.test(roteiro);
+  return /\bCPF\b|\bHISCON\b|nome completo|qual cidade|an[áa]lise gratuita/i.test(roteiro);
 }
 
 // Decreto 2026-07-22 (caso Lucas): tom de CONSULTORA JURÍDICA — profissional,

@@ -194,6 +194,38 @@ describe('Decreto · classificação DETERMINÍSTICA dos 3 obrigatórios', () =>
       ),
     ).toBe('CNIS');
   });
+
+  // Caso REAL José Anderson (81 9793-5655, 2026-07-30): o contrato chegou como
+  // "contrato_emprestimo_consignado_300726.pdf" com a transcrição ainda VAZIA e
+  // foi aceito como HISCON só pelo NOME — nenhum guarda rodava; o nascimento
+  // do portal disparou antes do documento certo existir.
+  it('caso José Anderson: o NOME do arquivo declara o contrato — mesmo sem transcrição', () => {
+    expect(
+      classificarDocumentoInicial(
+        'contrato_emprestimo_consignado_300726.pdf',
+        '',
+        'application/pdf',
+      ),
+    ).toBe('OUTRO');
+    // Com a transcrição pronta e cabeçalho SEM o "de" ("CONTRATO EMPRÉSTIMO
+    // CONSIGNADO"), também é contrato — sinal forte novo cobre a variante.
+    expect(
+      classificarDocumentoInicial(
+        'doc.pdf',
+        'CONTRATO EMPRÉSTIMO CONSIGNADO INSS — nº 300726. Parcelas debitadas do benefício.',
+        'application/pdf',
+      ),
+    ).toBe('OUTRO');
+    // O HISCON real segue passando MESMO que o cliente nomeie o arquivo de
+    // "contrato": o sinal FORTE do extrato no texto desarma o guarda.
+    expect(
+      classificarDocumentoInicial(
+        'contrato_emprestimo_consignado.pdf',
+        'HISTÓRICO DE EMPRÉSTIMO CONSIGNADO — Origem da Averbação — Quantitativo por Situação',
+        'application/pdf',
+      ),
+    ).toBe('CNIS');
+  });
 });
 
 describe('Decreto HISCON-ONLY (2026-07-22) · contabilidade', () => {

@@ -189,6 +189,12 @@ export function pareceHistoricoDeCredito(texto: string): boolean {
 const SINAIS_CONTRATO_BANCARIO_FORTE: readonly string[] = [
   'cedula de credito bancario',
   'contrato de emprestimo',
+  // Caso José Anderson (81 9793-5655, 2026-07-30): o arquivo se chamava
+  // "contrato_emprestimo_consignado_300726.pdf" — SEM o "de" — e escapava do
+  // sinal forte. Variantes reais de cabeçalho/nome de arquivo:
+  'contrato emprestimo',
+  'contrato consignado',
+  'instrumento particular de emprestimo',
   'contrato de credito',
   'proposta de emprestimo',
   'proposta de credito',
@@ -339,6 +345,13 @@ export function classificarDocumentoInicial(
     // menciona "consignado" (era o caso: print de "Benefício não encontrado"
     // com o texto de ajuda do app). Vale ANTES de qualquer leitura de conteúdo.
     if (ehImagem(fileName, mimeType)) return 'OUTRO';
+    // Caso José Anderson (2026-07-30): o CONTRATO chegou com a transcrição
+    // ainda VAZIA e foi aceito como HISCON só pelo NOME do arquivo
+    // ("contrato_emprestimo_consignado_300726.pdf") — nenhum guarda rodava.
+    // O guarda do contrato agora lê NOME + texto (o próprio banco declara o
+    // que o arquivo é); com texto presente e sinal FORTE de HISCON, ele
+    // continua se recusando a vetar (a proteção interna já garante).
+    if (pareceContratoBancario(`${fileName} ${texto}`)) return 'OUTRO';
     const soTexto = normalizar(texto);
     if (soTexto !== '') {
       // Caso 7582422298 (2026-07-25): PRINT da tela de consulta/busca do consignado

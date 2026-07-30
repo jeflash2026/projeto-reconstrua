@@ -112,6 +112,32 @@ export function interpretarComandoDistribuicao(texto: string): ComandoDistribuic
   return { contratos, advogadoNome };
 }
 
+// ── Comando de MENSAGEM DITADA (decreto 2026-07-30, fim dos automáticos):
+// "mande a mensagem para <cliente>: <texto>" — o ÚNICO jeito da AHRI falar
+// proativamente com um cliente é o dono ditar o texto e confirmar o plano.
+// O texto sai EXATAMENTE como ditado (nunca humanizado, nunca reescrito). ─────
+export interface ComandoMensagem {
+  /** Quem recebe (nome como no cadastro, ou número com DDD). */
+  readonly destinatario: string;
+  /** O texto EXATO ditado pelo dono. */
+  readonly texto: string;
+}
+
+/** Reconhece "mande/envie a mensagem para <cliente>: <texto>". null = não é. */
+export function interpretarComandoMensagem(texto: string): ComandoMensagem | null {
+  const m =
+    // Separador OBRIGATÓRIO ':' (ou travessão) — nunca '-', que aparece em
+    // telefones ("48 99999-9999") e cortaria o destinatário no meio.
+    /^\s*(?:ahri[,\s]+)?(?:mand[ea]|envi[ea]|dispar[ea])\s+(?:a\s+|uma\s+|essa\s+|esta\s+)?mensagem\s+(?:para|pro|pra|ao)\s+(?:o\s+|a\s+)?(?:cliente\s+)?(.+?)\s*[:—]\s*([\s\S]+?)\s*$/i.exec(
+      texto,
+    );
+  if (!m) return null;
+  const destinatario = (m[1] ?? '').trim();
+  const corpo = (m[2] ?? '').trim();
+  if (destinatario === '' || corpo === '') return null;
+  return { destinatario, texto: corpo };
+}
+
 // ── Comando de COBRANÇA DE CPF (decreto 2026-07-29, caso real: "consegue
 // disparar mensagem solicitando o cpf para esses 28 clientes?") ──────────────
 // Reconhece o pedido de disparar a cobrança de CPF para quem JÁ entregou o

@@ -78,9 +78,34 @@ function harness() {
     env: {},
     gateway,
     sleeper: new FakeSleeper(clock),
+    // Estes testes exercitam o MAQUINÁRIO de follow-up (que permanece íntegro);
+    // em produção ele está DESLIGADO por decreto 2026-07-30 (ban da Meta).
+    followUpsAutomaticos: true,
   });
   return { prod, clock, gateway };
 }
+
+// ═════════ DECRETO 2026-07-30 — fim das mensagens automáticas ═════════
+describe('Decreto 2026-07-30 — a montagem PADRÃO não fala sozinha com ninguém', () => {
+  it('sem followUpsAutomaticos, o tick NUNCA envia mensagem (follow-up vencido incluso)', async () => {
+    const clock = new TestClock();
+    const gateway = new InMemoryConversationGateway(clock);
+    const prod = assembleProduction({
+      clock,
+      uuid: new SeqUuid(),
+      env: {},
+      gateway,
+      sleeper: new FakeSleeper(clock),
+      // SEM a chave: o padrão do decreto — proativo desligado.
+    });
+    await prod.ingress.receive(env('5511999990000@s.whatsapp.net', 'olá, preciso de ajuda', 'D1'));
+    const before = gateway.texts().length;
+    clock.advance(30 * 24 * 60 * 60_000); // um mês de silêncio: nada dispara
+    const results = await prod.ingress.tick(clock.now());
+    expect(results).toHaveLength(0);
+    expect(gateway.texts().length).toBe(before); // nenhuma mensagem proativa
+  });
+});
 
 // ═════════ A1 — read models nunca perdem eventos ═════════
 describe('A1 — projeção administrativa sob intercalação e reentrega', () => {

@@ -8,6 +8,7 @@ import {
   casarAdvogadoPorNome,
   interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
+  interpretarComandoMensagem,
   planejarDistribuicao,
   type ClienteElegivel,
 } from './jarvis.js';
@@ -38,6 +39,29 @@ describe('interpretarComandoDistribuicao', () => {
     ]) {
       expect(interpretarComandoDistribuicao(t), t).toBe(null);
     }
+  });
+});
+
+describe('interpretarComandoMensagem (decreto 2026-07-30)', () => {
+  it('reconhece o comando e preserva o texto EXATO ditado pelo dono', () => {
+    expect(
+      interpretarComandoMensagem('mande a mensagem para Maria Aparecida: Bom dia! Tudo certo?'),
+    ).toEqual({ destinatario: 'Maria Aparecida', texto: 'Bom dia! Tudo certo?' });
+    expect(
+      interpretarComandoMensagem(
+        'ahri, envie uma mensagem pro 48 99999-9999: seu estudo ficou pronto',
+      ),
+    ).toEqual({ destinatario: '48 99999-9999', texto: 'seu estudo ficou pronto' });
+    // Texto citando contratos/CPF NÃO vira distribuição nem cobrança.
+    const comCiladas = interpretarComandoMensagem(
+      'mande a mensagem para Marileide: seus 20 contratos e o CPF já estão registrados',
+    );
+    expect(comCiladas?.texto).toBe('seus 20 contratos e o CPF já estão registrados');
+  });
+  it('sem "mensagem para X:" não é comando de mensagem', () => {
+    expect(interpretarComandoMensagem('quantos clientes eu tenho em SP?')).toBe(null);
+    expect(interpretarComandoMensagem('mova 20 contratos para o advogado Cornélio')).toBe(null);
+    expect(interpretarComandoMensagem('cobre o cpf dos clientes que faltam')).toBe(null);
   });
 });
 

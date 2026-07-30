@@ -70,6 +70,11 @@ export class ProductionIngress {
     /** Medidor de Custo (2026-07-21): todo turno roda com o chatId em contexto —
      *  cada chamada de IA do turno é atribuída ao cliente. Opcional (não mede). */
     private readonly custo?: MedidorDeCusto,
+    /** DECRETO 2026-07-30 (ban da Meta por "spam"): follow-ups AUTOMÁTICOS ao
+     *  cliente DESLIGADOS por padrão na montagem de produção — a AHRI só fala
+     *  quando o cliente fala, ou quando o DONO manda (admin/Jarvis). true =
+     *  comportamento antigo (usado apenas por testes do maquinário temporal). */
+    private readonly followUpsAutomaticos: boolean = true,
   ) {}
 
   /** Enfileira uma operação na cadeia da conversa (estritamente sequencial por chat). */
@@ -114,6 +119,9 @@ export class ProductionIngress {
   /** ENTRADA ÚNICA de sinais temporais — mesma fila da conversa (sem corrida com inbound). */
   async tick(now: Date): Promise<readonly TurnResult[]> {
     const results: TurnResult[] = [];
+    // DECRETO 2026-07-30: com os follow-ups automáticos DESLIGADOS, nenhum
+    // agendamento vira mensagem ao cliente — o tick não fala com ninguém.
+    if (!this.followUpsAutomaticos) return results;
     // BUG RAIZ (caso Rosana, 2026-07-22): a varredura (retomada + SLA) rodava
     // DEPOIS do processamento dos agendamentos. Uma única falha ali (fireDue ou
     // um follow-up) abortava o tick ANTES da varredura ⇒ a retomada NUNCA rodava

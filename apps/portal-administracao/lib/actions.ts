@@ -115,10 +115,19 @@ export interface JarvisCobranca {
   criadoEm: string;
   itens: { chatId: string; nome: string; telefone: string }[];
 }
+/** MENSAGEM DITADA pelo dono (decreto 2026-07-30) aguardando confirmação. */
+export interface JarvisMensagem {
+  id: string;
+  criadoEm: string;
+  chatId: string;
+  nome: string;
+  texto: string;
+}
 export interface JarvisResposta {
   resposta: string;
   plano?: JarvisPlano;
   cobranca?: JarvisCobranca;
+  mensagem?: JarvisMensagem;
 }
 /** Pergunta livre OU comando ("mova 20 contratos para o advogado X"). */
 export async function perguntarJarvis(pergunta: string): Promise<JarvisResposta | null> {
@@ -136,6 +145,12 @@ export async function cobrarCpfJarvis(
   planoId: string,
 ): Promise<{ ok: boolean; enviados: number; pulados: number; erros: string[] } | null> {
   return sendJson('POST', '/admin/founder/jarvis/cobrar', { planoId });
+}
+/** ENVIA a mensagem DITADA confirmada pelo fundador (texto exato). */
+export async function enviarMensagemJarvis(
+  planoId: string,
+): Promise<{ ok: boolean; erro?: string } | null> {
+  return sendJson('POST', '/admin/founder/jarvis/enviar', { planoId });
 }
 
 export async function fetchStaff(role: string): Promise<StaffData | null> {

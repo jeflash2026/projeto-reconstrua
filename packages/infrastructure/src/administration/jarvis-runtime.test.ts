@@ -13,8 +13,13 @@ function runtime(
   pendentes: readonly PendenteCpf[],
   cobrados: string[],
   falhaEm: Record<string, string> = {},
-): { jarvis: JarvisRuntime; json: InMemoryJsonStore } {
+): {
+  jarvis: JarvisRuntime;
+  json: InMemoryJsonStore;
+  enviadas: { chatId: string; texto: string }[];
+} {
   const json = new InMemoryJsonStore();
+  const enviadas: { chatId: string; texto: string }[] = [];
   const deps: JarvisDeps = {
     json,
     clock: { now: () => new Date('2026-07-29T20:00:00Z') },
@@ -30,9 +35,20 @@ function runtime(
       cobrados.push(chatId);
       return Promise.resolve({ ok: true });
     },
+    // Cadastro fake para a MENSAGEM DITADA: só a Maria existe.
+    resolverDestinatario: (termo) =>
+      Promise.resolve(
+        /maria/i.test(termo) || termo.replace(/\D/g, '').includes('551199')
+          ? { chatId: '551199@s.whatsapp.net', nome: 'Maria' }
+          : null,
+      ),
+    enviarAoCliente: (chatId, texto) => {
+      enviadas.push({ chatId, texto });
+      return Promise.resolve();
+    },
     narrar: null,
   };
-  return { jarvis: new JarvisRuntime(deps), json };
+  return { jarvis: new JarvisRuntime(deps), json, enviadas };
 }
 
 const MARIA: PendenteCpf = { chatId: '551199@s.whatsapp.net', nome: 'Maria', telefone: '551199' };
@@ -80,5 +96,41 @@ describe('JarvisRuntime · cobrança de CPF', () => {
     expect(r.ok).toBe(false);
     // Cobrar um id inexistente também falha limpo.
     expect((await jarvis.cobrar('plano-que-nao-existe')).ok).toBe(false);
+  });
+});
+
+describe('JarvisRuntime · mensagem ditada (decreto 2026-07-30)', () => {
+  it('o comando gera o plano com o texto EXATO e nada é enviado sem confirmação', async () => {
+    const { jarvis, enviadas } = runtime([], []);
+    const r = await jarvis.perguntar('mande a mensagem para Maria: Bom dia! Seu estudo saiu.');
+    expect(r.mensagem?.nome).toBe('Maria');
+    expect(r.mensagem?.texto).toBe('Bom dia! Seu estudo saiu.');
+    expect(enviadas).toHaveLength(0);
+    // Confirmou ⇒ envia UMA vez, palavra por palavra; o plano morre depois.
+    const envio = await jarvis.enviarMensagem(r.mensagem?.id ?? '');
+    expect(envio.ok).toBe(true);
+    expect(enviadas).toEqual([
+      { chatId: '551199@s.whatsapp.net', texto: 'Bom dia! Seu estudo saiu.' },
+    ]);
+    expect((await jarvis.enviarMensagem(r.mensagem?.id ?? '')).ok).toBe(false);
+    expect(enviadas).toHaveLength(1);
+  });
+
+  it('destinatário desconhecido: orienta e NÃO cria plano', async () => {
+    const { jarvis, enviadas } = runtime([], []);
+    const r = await jarvis.perguntar('mande a mensagem para Fulano: oi');
+    expect(r.mensagem).toBeUndefined();
+    expect(r.resposta).toContain('Não encontrei');
+    expect(enviadas).toHaveLength(0);
+  });
+
+  it('texto com "20 contratos"/"cpf" continua MENSAGEM (nunca vira outro comando)', async () => {
+    const { jarvis } = runtime([], []);
+    const r = await jarvis.perguntar(
+      'mande a mensagem para Maria: seus 20 contratos e o CPF já estão registrados',
+    );
+    expect(r.mensagem?.texto).toBe('seus 20 contratos e o CPF já estão registrados');
+    expect(r.plano).toBeUndefined();
+    expect(r.cobranca).toBeUndefined();
   });
 });

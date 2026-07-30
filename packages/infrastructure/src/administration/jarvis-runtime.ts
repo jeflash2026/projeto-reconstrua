@@ -19,6 +19,7 @@ import {
   casarAdvogadoPorNome,
   interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
+  interpretarComandoMensagem,
   planejarDistribuicao,
   type ClienteElegivel,
   type PlanoDistribuicao,
@@ -57,12 +58,25 @@ export interface CobrancaPendente {
   readonly itens: readonly PendenteCpf[];
 }
 
+/** MENSAGEM DITADA pelo dono aguardando confirmação (decreto 2026-07-30):
+ *  com os automáticos desligados, este é o canal proativo — texto EXATO. */
+export interface MensagemPendente {
+  readonly id: string;
+  readonly criadoEm: string;
+  readonly tipo: 'mensagem-cliente';
+  readonly chatId: string;
+  readonly nome: string;
+  readonly texto: string;
+}
+
 export interface JarvisResposta {
   readonly resposta: string;
   /** Presente quando a pergunta era um COMANDO: o plano aguardando confirmação. */
   readonly plano?: PlanoPendente & { readonly advogados: readonly AdvogadoOpcao[] };
   /** Presente quando o comando era a COBRANÇA DE CPF (confirmação própria). */
   readonly cobranca?: CobrancaPendente;
+  /** Presente quando o comando era MENSAGEM DITADA (confirmação própria). */
+  readonly mensagem?: MensagemPendente;
 }
 
 export interface FichaCliente {
@@ -95,6 +109,14 @@ export interface JarvisDeps {
   /** DISPARA a cobrança de CPF de UM cliente — a MESMA rotina da aba Clientes
    *  (ReaquecimentoService.cobrarCpf: trava de 24h + claim-then-send). */
   readonly cobrarCpf: (chatId: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Resolve o cliente citado no comando de MENSAGEM (nome do cadastro ou
+   *  número com DDD). null = nenhum casou. */
+  readonly resolverDestinatario: (
+    termo: string,
+  ) => Promise<{ chatId: string; nome: string } | null>;
+  /** ENVIA a mensagem ditada — o MESMO trilho manual do admin (gateway +
+   *  memória da conversa; a AHRI fica ciente do que foi dito). */
+  readonly enviarAoCliente: (chatId: string, texto: string) => Promise<void>;
   /** Narração pela LLM (system, user) → texto. null = offline (determinístico). */
   readonly narrar: ((system: string, user: string) => Promise<string>) | null;
 }
@@ -123,6 +145,10 @@ export class JarvisRuntime {
   /** A conversa do fundador: comando ⇒ plano com confirmação; senão, resposta
    *  fundamentada no dossiê (LLM narra; sem LLM, resumo determinístico). */
   async perguntar(pergunta: string): Promise<JarvisResposta> {
+    // MENSAGEM DITADA primeiro: "mande a mensagem para Maria: seus 20 contratos…"
+    // não pode cair na distribuição nem na cobrança pelo conteúdo do texto.
+    const mensagem = interpretarComandoMensagem(pergunta);
+    if (mensagem !== null) return this.montarMensagem(mensagem.destinatario, mensagem.texto);
     const comando = interpretarComandoDistribuicao(pergunta);
     if (comando !== null)
       return this.montarPlano(pergunta, comando.contratos, comando.advogadoNome);
@@ -143,7 +169,8 @@ export class JarvisRuntime {
       'Use EXCLUSIVAMENTE os FATOS fornecidos (Read Models reais): PROIBIDO inventar dados, nomes ou valores; se o fato não está no dossiê, diga com naturalidade que ainda não está registrado e o que você TEM de mais próximo. ' +
       'Nomes de clientes podem vir com ruído de captura — apresente-os limpos. ' +
       'Feche, quando fizer sentido, com UMA sugestão de próximo passo. ' +
-      'Você não executa nada nesta resposta, mas TEM poderes administrativos com confirmação: se o assunto pedir, ofereça — "mova N contratos para o advogado X" (distribuição) ou "cobre o CPF dos clientes que faltam" (cobrança em lote pelo WhatsApp). Nunca diga que não consegue disparar mensagens: o fundador só precisa dar o comando e confirmar o plano.';
+      'Você não executa nada nesta resposta, mas TEM poderes administrativos com confirmação: se o assunto pedir, ofereça — "mova N contratos para o advogado X" (distribuição), "cobre o CPF dos clientes que faltam" (cobrança em lote) ou "mande a mensagem para <cliente>: <texto>" (mensagem ditada, enviada EXATAMENTE como o fundador escrever). Nunca diga que não consegue disparar mensagens: o fundador só precisa dar o comando e confirmar o plano. ' +
+      'IMPORTANTE (decreto 2026-07-30): mensagens automáticas proativas foram DESLIGADAS — todo contato proativo com cliente passa por comando + confirmação do fundador.';
     const user = `PERGUNTA DO FUNDADOR: ${pergunta}\n\nFATOS (JSON):\n${JSON.stringify(fatos)}`;
     // Caso real 2026-07-29: uma falha pontual do narrador despejava JSON cru na
     // tela. Agora: UMA nova tentativa; persistindo, um RESUMO legível (nunca JSON).
@@ -182,6 +209,54 @@ export class JarvisRuntime {
         'Se você confirmar, eu envio a cada um o pedido do CPF pelo WhatsApp — o mesmo texto da cobrança da aba Clientes, respeitando a trava de 24 horas (quem já foi cobrado hoje é pulado automaticamente). Nada é enviado sem a sua confirmação.',
       cobranca: pendente,
     };
+  }
+
+  /** Monta o plano de MENSAGEM DITADA (decreto 2026-07-30): destinatário
+   *  resolvido no cadastro + o texto EXATO, aguardando a confirmação. */
+  private async montarMensagem(destinatario: string, texto: string): Promise<JarvisResposta> {
+    const cliente = await this.deps.resolverDestinatario(destinatario).catch(() => null);
+    if (cliente === null) {
+      return {
+        resposta:
+          `Não encontrei o cliente "${destinatario}" no cadastro. ` +
+          'Diga o nome como está registrado ou o número com DDD (ex.: 48 99999-9999) e repita o comando.',
+      };
+    }
+    const pendente: MensagemPendente = {
+      id: `mensagem-${String(Date.now())}`,
+      criadoEm: this.deps.clock.now().toISOString(),
+      tipo: 'mensagem-cliente',
+      chatId: cliente.chatId,
+      nome: cliente.nome,
+      texto,
+    };
+    await this.deps.json.put(NS_PLANO, pendente.id, pendente);
+    return {
+      resposta:
+        `Mensagem pronta para ${cliente.nome} (${cliente.chatId.split('@')[0] ?? ''}), exatamente assim:\n\n` +
+        `"${texto}"\n\n` +
+        'Confira o texto e clique em CONFIRMAR para eu enviar — nada sai sem a sua confirmação.',
+      mensagem: pendente,
+    };
+  }
+
+  /** ENVIO DA MENSAGEM DITADA (só após a confirmação explícita do fundador). */
+  async enviarMensagem(planoId: string): Promise<{ ok: boolean; erro?: string }> {
+    const pendente = (await this.deps.json.get(NS_PLANO, planoId)) as MensagemPendente | null;
+    if (pendente === null || pendente.tipo !== 'mensagem-cliente')
+      return { ok: false, erro: 'mensagem não encontrada ou expirada — dite de novo' };
+    const idadeMin =
+      (this.deps.clock.now().getTime() - new Date(pendente.criadoEm).getTime()) / 60_000;
+    if (idadeMin > VALIDADE_PLANO_MIN)
+      return { ok: false, erro: 'mensagem expirada — dite de novo' };
+    try {
+      await this.deps.enviarAoCliente(pendente.chatId, pendente.texto);
+    } catch (e) {
+      return { ok: false, erro: e instanceof Error ? e.message : 'falha no envio' };
+    }
+    // O plano morre após o envio (confirmar duas vezes não duplica).
+    await this.deps.json.del(NS_PLANO, planoId).catch(() => undefined);
+    return { ok: true };
   }
 
   /** EXECUÇÃO DA COBRANÇA (só após a confirmação explícita do fundador). */
@@ -228,7 +303,8 @@ export class JarvisRuntime {
   }> {
     const pendente = (await this.deps.json.get(NS_PLANO, planoId)) as
       (PlanoPendente & { tipo?: string }) | null;
-    if (pendente === null || pendente.tipo === 'cobranca-cpf')
+    // Planos TIPADOS (cobrança de CPF/mensagem ditada) têm execução própria.
+    if (pendente === null || pendente.tipo !== undefined)
       return {
         ok: false,
         clientes: 0,

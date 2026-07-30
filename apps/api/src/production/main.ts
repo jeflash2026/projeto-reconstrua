@@ -144,38 +144,13 @@ async function main(): Promise<void> {
     `AHRIOS em produção: main:${String(port)} admin:${String(port + 1)} advogado:${String(port + 2)} lx:${String(port + 3)}\n`,
   );
 
-  // Loop temporal pela ENTRADA ÚNICA serializada (A2/4C) + preparação noturna às 03h.
-  // B5.3 — exceções antes ABSORVIDAS silenciosamente agora são registradas (memória +
-  // stderr durável), sem alterar o comportamento do loop (continua tolerante a falhas).
+  // DECRETO 2026-07-30 (ban da Meta por "spam"): o loop temporal NÃO fala mais
+  // com cliente nenhum. Saíram do ar: ingress.tick (follow-ups agendados +
+  // lembretes de SLA + retomada + CPF das 09:00 — o tick também está desarmado
+  // na montagem), nascimento.verificar e despedida.verificar (mensagens
+  // automáticas). A AHRI só fala quando o CLIENTE fala, ou quando o DONO manda
+  // (admin/Jarvis). Fica apenas a tradução (balões do portal — nenhum envio).
   setInterval(() => {
-    void prod.ingress.tick(clock.now()).catch((error: unknown) => {
-      prod.observability.error(
-        'temporal',
-        'tick',
-        clock.now(),
-        error instanceof Error ? error.message : 'falha no tick temporal',
-      );
-    });
-    // PC-R3 — a varredura do NASCIMENTO do Portal (sem clique humano): quando a
-    // AHRI reconhece que recebeu tudo, o fato nasce e a mensagem é entregue.
-    void prod.nascimento.verificar(clock.now()).catch((error: unknown) => {
-      prod.observability.error(
-        'nascimento',
-        'verificar',
-        clock.now(),
-        error instanceof Error ? error.message : 'falha na varredura do nascimento',
-      );
-    });
-    // GO-LIVE-02 — a varredura da DESPEDIDA (Modelo A): a relação se encerra
-    // como começou — conversando. Fato antes da mensagem; envio único.
-    void prod.despedida.verificar(clock.now()).catch((error: unknown) => {
-      prod.observability.error(
-        'despedida',
-        'verificar',
-        clock.now(),
-        error instanceof Error ? error.message : 'falha na varredura da despedida',
-      );
-    });
     // GO-LIVE-02 — traduções pendentes (fail-closed): nenhum balão nasce cru;
     // o que falhou na escrita é traduzido aqui assim que o LLM responder.
     void prod.traducao.reprocessarPendentes().catch((error: unknown) => {

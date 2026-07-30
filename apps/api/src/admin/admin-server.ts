@@ -196,6 +196,8 @@ export function buildAdminServer(
       cobrar(
         planoId: string,
       ): Promise<{ ok: boolean; enviados: number; pulados: number; erros: readonly string[] }>;
+      /** Decreto 2026-07-30: mensagem DITADA pelo dono, confirmada no console. */
+      enviarMensagem(planoId: string): Promise<{ ok: boolean; erro?: string }>;
     };
     /** Decreto 2026-07-27 (caso Roberto): o CNIS registrado aponta ao anexo
      *  ERRADO — candidatos() acha o PDF certo na conversa (só leitura);
@@ -1979,6 +1981,14 @@ export function buildAdminServer(
     const body = request.body as { planoId?: string };
     if (!body.planoId) return reply.code(400).send({ error: 'planoId é obrigatório' });
     return opts.jarvis.cobrar(body.planoId);
+  });
+  // MENSAGEM DITADA (decreto 2026-07-30, fim dos automáticos): o texto sai
+  // EXATAMENTE como o dono ditou, só após a confirmação no console.
+  app.post('/admin/founder/jarvis/enviar', async (request, reply) => {
+    if (!opts.jarvis) return reply.code(503).send({ error: 'jarvis indisponível nesta montagem' });
+    const body = request.body as { planoId?: string };
+    if (!body.planoId) return reply.code(400).send({ error: 'planoId é obrigatório' });
+    return opts.jarvis.enviarMensagem(body.planoId);
   });
 
   // ── LOGS / HEALTH / CONFIG ──────────────────────────────────────────────────

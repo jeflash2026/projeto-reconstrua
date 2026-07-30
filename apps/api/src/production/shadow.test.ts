@@ -72,6 +72,9 @@ function harness(shadowMode = true) {
     env: { SHADOW_MODE: shadowMode ? 'true' : 'false' },
     gateway,
     sleeper: new FakeSleeper(clock),
+    // O teste do turno TEMPORAL exercita o maquinário de follow-up — íntegro,
+    // mas DESLIGADO em produção pelo decreto 2026-07-30 (ban da Meta).
+    followUpsAutomaticos: true,
   });
   return { prod, clock, gateway };
 }

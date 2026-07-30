@@ -6,10 +6,12 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import {
   cobrarCpfJarvis,
+  enviarMensagemJarvis,
   executarJarvis,
   fetchFounderBriefing,
   perguntarJarvis,
   type JarvisCobranca,
+  type JarvisMensagem,
   type JarvisPlano,
 } from '../lib/actions';
 
@@ -19,7 +21,65 @@ interface ChatMessage {
   provenance: string | null;
   plano?: JarvisPlano;
   cobranca?: JarvisCobranca;
+  mensagem?: JarvisMensagem;
 }
+
+/** Card da MENSAGEM DITADA (decreto 2026-07-30): destinatário + texto EXATO +
+ *  confirmação — o único jeito da AHRI falar proativamente com um cliente. */
+const MensagemCard = ({
+  mensagem,
+  onResultado,
+}: {
+  mensagem: JarvisMensagem;
+  onResultado: (texto: string) => void;
+}): ReactElement => {
+  const [busy, setBusy] = useState(false);
+  const [feito, setFeito] = useState(false);
+
+  const confirmar = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    const r = await enviarMensagemJarvis(mensagem.id);
+    if (r === null) onResultado('A API não respondeu — a mensagem NÃO foi enviada.');
+    else if (r.ok) onResultado(`Enviado para ${mensagem.nome}, palavra por palavra.`);
+    else onResultado(`Não enviei: ${r.erro ?? 'falha'}`);
+    setFeito(true);
+    setBusy(false);
+  };
+
+  if (feito) return <></>;
+  return (
+    <div className="card" style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 13, marginBottom: 6 }}>
+        Para: <strong>{mensagem.nome}</strong> ({mensagem.chatId.split('@')[0]})
+      </div>
+      <blockquote
+        style={{
+          borderLeft: '3px solid #888',
+          margin: 0,
+          padding: '6px 10px',
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {mensagem.texto}
+      </blockquote>
+      <div className="form-row" style={{ marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="primary" disabled={busy} onClick={() => void confirmar()}>
+          {busy ? 'Enviando…' : 'Confirmar — enviar exatamente assim'}
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => {
+            setFeito(true);
+            onResultado('Envio cancelado — nada foi enviado.');
+          }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+};
 
 /** Card da COBRANÇA DE CPF pendente: lista nominal + confirmação do disparo. */
 const CobrancaCard = ({
@@ -229,6 +289,7 @@ const FounderChat = (): ReactElement => {
             provenance: 'read-models',
             ...(r.plano !== undefined ? { plano: r.plano } : {}),
             ...(r.cobranca !== undefined ? { cobranca: r.cobranca } : {}),
+            ...(r.mensagem !== undefined ? { mensagem: r.mensagem } : {}),
           }
         : {
             from: 'ahri',
@@ -280,6 +341,17 @@ const FounderChat = (): ReactElement => {
               {m.cobranca ? (
                 <CobrancaCard
                   cobranca={m.cobranca}
+                  onResultado={(texto) => {
+                    setMessages((prev) => [
+                      ...prev,
+                      { from: 'ahri', text: texto, provenance: 'read-models' },
+                    ]);
+                  }}
+                />
+              ) : null}
+              {m.mensagem ? (
+                <MensagemCard
+                  mensagem={m.mensagem}
                   onResultado={(texto) => {
                     setMessages((prev) => [
                       ...prev,

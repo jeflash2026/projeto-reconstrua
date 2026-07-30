@@ -223,6 +223,12 @@ export interface ProductionWiring {
   readonly gateway?: ConversationGateway;
   readonly sleeper?: Sleeper;
   readonly config?: ProductionConfig;
+  /** DECRETO 2026-07-30 (ban da Meta por "spam"): mensagens PROATIVAS
+   *  automáticas ao cliente DESLIGADAS por padrão (follow-ups do tick,
+   *  lembretes de SLA, retomada, CPF 09:00). A AHRI só fala quando o cliente
+   *  fala, ou quando o DONO manda (admin/Jarvis). true = SÓ para testes do
+   *  maquinário temporal. */
+  readonly followUpsAutomaticos?: boolean;
 }
 
 export interface AssembledProduction {
@@ -1392,6 +1398,28 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       const r = await reaquecimento.cobrarCpf(chatId);
       return r.ok ? { ok: true } : { ok: false, error: r.error };
     },
+    // MENSAGEM DITADA (decreto 2026-07-30, fim dos automáticos): o destinatário
+    // sai do cadastro (nome ou número com DDD) e o envio usa o MESMO trilho
+    // manual do admin — gateway + memória da conversa (a AHRI fica ciente).
+    resolverDestinatario: async (termo) => {
+      const semAcento = (s: string): string => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const lista = await clientes.list().catch(() => []);
+      const digitos = termo.replace(/\D/g, '');
+      if (digitos.length >= 10) {
+        const alvo = digitos.startsWith('55') ? digitos : `55${digitos}`;
+        const porFone = lista.find((c) => (c.chatId.split('@')[0] ?? '') === alvo);
+        if (porFone) return { chatId: porFone.chatId, nome: porFone.quem };
+      }
+      const t = semAcento(termo);
+      const porNome =
+        lista.find((c) => semAcento(c.quem) === t) ??
+        lista.find((c) => t.length >= 4 && semAcento(c.quem).includes(t));
+      return porNome ? { chatId: porNome.chatId, nome: porNome.quem } : null;
+    },
+    enviarAoCliente: async (chatId, texto) => {
+      const receipt = await gateway.sendText(chatId, texto);
+      await convMemory.recordOutbound(chatId, texto, receipt.providerMessageId);
+    },
     // A MESMA atribuição do painel (work.assign + aviso ao advogado pela AHRI).
     atribuir: async (missionId, advogadoId, assignedBy) => {
       try {
@@ -1548,6 +1576,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
     // Medidor de Custo: o turno inteiro roda com o chatId em contexto.
     custos,
+    // DECRETO 2026-07-30: follow-ups automáticos DESLIGADOS por padrão.
+    wiring.followUpsAutomaticos ?? false,
   );
   const shadow = new ShadowRecorder(
     plainIngress,

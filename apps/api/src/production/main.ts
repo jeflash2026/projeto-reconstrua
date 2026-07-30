@@ -145,12 +145,24 @@ async function main(): Promise<void> {
   );
 
   // DECRETO 2026-07-30 (ban da Meta por "spam"): o loop temporal NÃO fala mais
-  // com cliente nenhum. Saíram do ar: ingress.tick (follow-ups agendados +
-  // lembretes de SLA + retomada + CPF das 09:00 — o tick também está desarmado
-  // na montagem), nascimento.verificar e despedida.verificar (mensagens
-  // automáticas). A AHRI só fala quando o CLIENTE fala, ou quando o DONO manda
-  // (admin/Jarvis). Fica apenas a tradução (balões do portal — nenhum envio).
+  // com cliente nenhum por INICIATIVA própria. Saíram do ar: ingress.tick
+  // (follow-ups agendados + lembretes de SLA + retomada + CPF das 09:00 — o
+  // tick também está desarmado na montagem) e despedida.verificar. A AHRI só
+  // fala quando o CLIENTE fala, ou quando o DONO manda (admin/Jarvis).
+  //
+  // EXCEÇÃO autorizada pelo dono (2026-07-30, mesma noite): o NASCIMENTO do
+  // Portal permanece — a mensagem do link é a CONCLUSÃO da fase 1, consequência
+  // direta do HISCON que o CLIENTE acabou de enviar (envio ÚNICO por cliente,
+  // fato gravado antes da mensagem; jamais repete). Não é disparo frio.
   setInterval(() => {
+    void prod.nascimento.verificar(clock.now()).catch((error: unknown) => {
+      prod.observability.error(
+        'nascimento',
+        'verificar',
+        clock.now(),
+        error instanceof Error ? error.message : 'falha na varredura do nascimento',
+      );
+    });
     // GO-LIVE-02 — traduções pendentes (fail-closed): nenhum balão nasce cru;
     // o que falhou na escrita é traduzido aqui assim que o LLM responder.
     void prod.traducao.reprocessarPendentes().catch((error: unknown) => {

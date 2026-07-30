@@ -214,9 +214,27 @@ export function mapEvolutionUpsert(payload: unknown): InboundEnvelope | null {
   const fromMe = key['fromMe'] === true;
   if (fromMe) return null;
 
-  const chatId = asString(key['remoteJid']);
+  const chatIdBruto = asString(key['remoteJid']);
   const messageId = asString(key['id']);
-  if (chatId === null || messageId === null) return null;
+  if (chatIdBruto === null || messageId === null) return null;
+
+  // LID (caso REAL Humberto, 2026-07-30): a Evolution atualizada entrega parte
+  // das mensagens com o identificador ANÔNIMO do WhatsApp ('…@lid') no
+  // remoteJid — e a MESMA pessoa vira DUAS conversas (o CPF era registrado
+  // numa e a cobrança saía na outra, em loop). O payload carrega o número real
+  // em senderPn/participantPn/remoteJidAlt: o chat volta a ser SEMPRE o JID do
+  // telefone. Sem o número real no payload, mantém o @lid (conversa isolada é
+  // melhor que perder a mensagem).
+  let chatId = chatIdBruto;
+  if (chatIdBruto.endsWith('@lid')) {
+    for (const campo of ['senderPn', 'participantPn', 'remoteJidAlt', 'previousRemoteJid']) {
+      const real = asString(key[campo]) ?? asString(data[campo]);
+      if (real !== null && real.endsWith('@s.whatsapp.net')) {
+        chatId = real;
+        break;
+      }
+    }
+  }
 
   const message = asRecord(data['message']);
   if (!message) return null;

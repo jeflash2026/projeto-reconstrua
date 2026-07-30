@@ -27,6 +27,37 @@ describe('mapEvolutionUpsert', () => {
     expect(env?.messageId).toBe('MSG1');
   });
 
+  // Caso REAL Humberto (16 99747-7435, 2026-07-30): mensagens do MESMO cliente
+  // chegavam ora com o JID do telefone, ora com o identificador anônimo '@lid'
+  // — e a pessoa virava DUAS conversas (o CPF numa, a cobrança na outra).
+  describe('LID → JID do telefone (conversa NUNCA se divide)', () => {
+    it('remoteJid @lid com senderPn ⇒ chatId é o telefone real', () => {
+      const env = mapEvolutionUpsert(
+        upsert(
+          { conversation: 'meu cpf é...' },
+          { remoteJid: '95640734412831@lid', senderPn: '5516997477435@s.whatsapp.net' },
+        ),
+      );
+      expect(env?.chatId).toBe('5516997477435@s.whatsapp.net');
+      expect(env?.from).toBe('5516997477435@s.whatsapp.net');
+    });
+    it('outros campos também resolvem (participantPn/remoteJidAlt)', () => {
+      const alt = mapEvolutionUpsert(
+        upsert(
+          { conversation: 'oi' },
+          { remoteJid: '95640734412831@lid', remoteJidAlt: '5516997477435@s.whatsapp.net' },
+        ),
+      );
+      expect(alt?.chatId).toBe('5516997477435@s.whatsapp.net');
+    });
+    it('sem número real no payload, mantém o @lid (nunca perde a mensagem)', () => {
+      const env = mapEvolutionUpsert(
+        upsert({ conversation: 'oi' }, { remoteJid: '95640734412831@lid' }),
+      );
+      expect(env?.chatId).toBe('95640734412831@lid');
+    });
+  });
+
   it('texto estendido (extendedTextMessage)', () => {
     const env = mapEvolutionUpsert(upsert({ extendedTextMessage: { text: 'preciso de ajuda' } }));
     expect(env?.kind).toBe('text');

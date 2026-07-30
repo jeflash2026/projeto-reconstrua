@@ -157,10 +157,13 @@ function view(
 }
 
 describe('AcompanhamentoView · as 5 perguntas em linguagem humana', () => {
-  it('EM_PROCESSO: advogado pelo nome, processo, atualizações dizíveis, voz da AHRI', async () => {
+  it('EM_PROCESSO: condução SEM nome de pessoa (decreto 2026-07-30), processo, voz da AHRI', async () => {
     const a = await view([resumo({})]).acompanhamento('cli-1', NOW);
     expect(a?.ondeEsta).toBe('Processo em andamento');
-    expect(a?.agora).toContain('Dra. Ana Lima');
+    // Decreto 2026-07-30: o texto do atendimento nunca cita nome de pessoa —
+    // a condução é sempre "nosso time jurídico" (caso real: citou "Jessé").
+    expect(a?.agora).toContain('Nosso time jurídico');
+    expect(a?.agora).not.toContain('Ana Lima');
     expect(a?.precisaFazerAlgo).toContain('estou cuidando de tudo');
     expect(a?.advogado).toEqual({ nome: 'Dra. Ana Lima' });
     expect(a?.processo?.numero).toBe('0001234-55.2026.4.04.7000');

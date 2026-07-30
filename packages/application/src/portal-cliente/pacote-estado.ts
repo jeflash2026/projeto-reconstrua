@@ -39,8 +39,13 @@ export function pacoteDeEstado(view: AcompanhamentoCliente, link: string | null)
     `- Ação da pessoa: ${view.precisaFazerAlgo}`,
   ];
 
+  // Decreto 2026-07-30: NENHUM nome de pessoa chega ao narrador — quem fala com
+  // o cliente é SEMPRE a AHRI (caso real: a resposta citou "Jessé" ao cliente).
+  // A condução é sempre "da nossa equipe jurídica", sem nomes.
   if (view.advogado !== null) {
-    linhas.push(`- Responsável pela condução do processo: ${view.advogado.nome}.`);
+    linhas.push(
+      '- Responsável pela condução do processo: a nossa equipe jurídica (NUNCA cite nomes de advogados ou funcionários; quem fala com o cliente é sempre você, AHRI).',
+    );
   }
   if (view.processo !== null) {
     linhas.push(`- Número do processo na Justiça: ${view.processo.numero}.`);

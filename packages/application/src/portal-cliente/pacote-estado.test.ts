@@ -13,7 +13,8 @@ const VIEW: AcompanhamentoCliente = {
   presenca: 'atenta',
   fraseAbertura: 'Seu processo está em andamento — e eu acompanho cada movimentação.',
   ondeEsta: 'Processo em andamento',
-  agora: 'A advogada Ana Lima está conduzindo o seu processo.',
+  // Decreto 2026-07-30: a view nunca mais cita nome — texto neutro da equipe.
+  agora: 'Nosso time jurídico está conduzindo o seu processo.',
   proximoPasso: 'Cada movimentação importante aparece aqui — e eu também aviso você no WhatsApp.',
   precisaFazerAlgo: 'Nada por enquanto — estou cuidando de tudo.',
   quantoTempo: 'Cada processo tem o seu próprio ritmo.',
@@ -38,7 +39,11 @@ describe('pacoteDeEstado · fatos e limites', () => {
     expect(p).toContain('NUNCA invente');
     expect(p).toContain('NUNCA prometa');
     expect(p).toContain('Processo em andamento');
-    expect(p).toContain('Ana Lima');
+    // Decreto 2026-07-30: NENHUM nome de pessoa chega ao narrador (caso real:
+    // a AHRI citou "Jessé" ao cliente) — a condução é sempre "da equipe".
+    expect(p).not.toContain('Ana Lima');
+    expect(p).toContain('equipe jurídica');
+    expect(p).toContain('NUNCA cite nomes');
     expect(p).toContain('0001234-55.2026.4.04.7000');
     expect(p).toContain('petição inicial');
     expect(p).toContain('Documento de identidade');

@@ -153,7 +153,7 @@ function presencaPara(status: ClienteStatus): EstadoPresenca {
 }
 
 /** Voz da AHRI (1ª pessoa, Princípio 7). NENHUM termo interno vaza (Princípio 5). */
-function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | null): Textos {
+function textosPara(status: ClienteStatus, dias: number): Textos {
   const analiseTempo = `Essa fase costuma levar aproximadamente ${String(dias)} dias.`;
   switch (status) {
     case 'ATENDIMENTO':
@@ -189,11 +189,10 @@ function textosPara(status: ClienteStatus, dias: number, advogadoNome: string | 
       return {
         ondeEsta: 'Processo em andamento',
         fraseAbertura: 'Seu processo está em andamento — e eu acompanho cada movimentação.',
-        // PC-R5: sem artigo de gênero — advogadas existem.
-        agora:
-          advogadoNome !== null
-            ? `Quem está conduzindo o seu processo é ${advogadoNome}.`
-            : 'Nosso time jurídico está conduzindo o seu processo.',
+        // Decreto 2026-07-30: NENHUM nome de pessoa no atendimento — quem fala
+        // com o cliente é sempre a AHRI; a condução é da equipe (caso real: a
+        // mensagem citou "Jessé" ao cliente).
+        agora: 'Nosso time jurídico está conduzindo o seu processo.',
         proximoPasso:
           'Cada movimentação importante aparece aqui — e eu também aviso você no WhatsApp.',
         quantoTempo:
@@ -298,7 +297,7 @@ export class AcompanhamentoView {
       situacao: i < idx ? 'concluida' : i === idx ? 'atual' : 'futura',
     }));
 
-    const t = textosPara(cliente.status, dias, advogado?.nome ?? null);
+    const t = textosPara(cliente.status, dias);
 
     // A frase completa do TEMPO nasce aqui (P3 — o Portal não compõe nada):
     // na fase de ANÁLISE, com previsão em curso → "A previsão é até {data}";

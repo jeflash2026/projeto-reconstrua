@@ -199,6 +199,22 @@ export function buildAdminServer(
       /** Decreto 2026-07-30: mensagem DITADA pelo dono, confirmada no console. */
       enviarMensagem(planoId: string): Promise<{ ok: boolean; erro?: string }>;
     };
+    /** Decreto 2026-07-30: docs da FASE 2 humana (procuração assinada, RG,
+     *  comprovante de endereço) anexados pelo time ao cliente concluso. */
+    readonly docsEquipe?: {
+      anexar(
+        chatId: string,
+        tipo: string,
+        nome: string,
+        base64: string,
+      ): Promise<{ ok: boolean; doc?: unknown; error?: string }>;
+      listar(chatId: string): Promise<readonly unknown[]>;
+      baixar(
+        chatId: string,
+        id: string,
+      ): Promise<{ nome: string; mime: string; bytes: Uint8Array } | null>;
+      remover(chatId: string, id: string): Promise<boolean>;
+    };
     /** Decreto 2026-07-27 (caso Roberto): o CNIS registrado aponta ao anexo
      *  ERRADO — candidatos() acha o PDF certo na conversa (só leitura);
      *  aplicar() religa, com backup, por ato explícito do dono. */
@@ -1989,6 +2005,49 @@ export function buildAdminServer(
     const body = request.body as { planoId?: string };
     if (!body.planoId) return reply.code(400).send({ error: 'planoId é obrigatório' });
     return opts.jarvis.enviarMensagem(body.planoId);
+  });
+
+  // ── DOCS DA EQUIPE (decreto 2026-07-30) — fase 2 humana: o time anexa a
+  //    procuração assinada, o RG e o comprovante ao cliente concluso da fase 1.
+  //    Vai ao MESMO media store; o Portal do Advogado lê daqui os downloads. ──
+  const TIPOS_DOC_EQUIPE = new Set(['procuracao', 'rg', 'comprovante', 'outro']);
+  app.get('/admin/clientes/:chatId/docs-equipe', async (request, reply) => {
+    if (!opts.docsEquipe)
+      return reply.code(503).send({ error: 'docs da equipe indisponíveis nesta montagem' });
+    const { chatId } = request.params as { chatId: string };
+    return { docs: await opts.docsEquipe.listar(chatId) };
+  });
+  app.post('/admin/clientes/:chatId/docs-equipe', async (request, reply) => {
+    if (!opts.docsEquipe)
+      return reply.code(503).send({ error: 'docs da equipe indisponíveis nesta montagem' });
+    const { chatId } = request.params as { chatId: string };
+    const body = request.body as { tipo?: string; nome?: string; base64?: string };
+    if (!body.tipo || !TIPOS_DOC_EQUIPE.has(body.tipo) || !body.base64)
+      return reply
+        .code(400)
+        .send({ error: 'tipo (procuracao|rg|comprovante|outro) e base64 são obrigatórios' });
+    const r = await opts.docsEquipe.anexar(chatId, body.tipo, body.nome ?? '', body.base64);
+    if (!r.ok) return reply.code(400).send(r);
+    return r;
+  });
+  app.get('/admin/clientes/:chatId/docs-equipe/:id/content', async (request, reply) => {
+    if (!opts.docsEquipe)
+      return reply.code(503).send({ error: 'docs da equipe indisponíveis nesta montagem' });
+    const { chatId, id } = request.params as { chatId: string; id: string };
+    const doc = await opts.docsEquipe.baixar(chatId, id);
+    if (doc === null) return reply.code(404).send({ error: 'documento não encontrado' });
+    return reply
+      .header('content-type', doc.mime)
+      .header('content-disposition', `attachment; filename="${doc.nome.replace(/"/g, '')}"`)
+      .send(Buffer.from(doc.bytes));
+  });
+  app.delete('/admin/clientes/:chatId/docs-equipe/:id', async (request, reply) => {
+    if (!opts.docsEquipe)
+      return reply.code(503).send({ error: 'docs da equipe indisponíveis nesta montagem' });
+    const { chatId, id } = request.params as { chatId: string; id: string };
+    const removido = await opts.docsEquipe.remover(chatId, id);
+    if (!removido) return reply.code(404).send({ error: 'documento não encontrado' });
+    return { ok: true };
   });
 
   // ── LOGS / HEALTH / CONFIG ──────────────────────────────────────────────────

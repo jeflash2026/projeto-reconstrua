@@ -5,6 +5,7 @@ import { Suspense, type ReactElement } from 'react';
 import AutoRefresh from '../../../../components/auto-refresh';
 import AhriThinking from '../../../../components/ahri-thinking';
 import Dossie from '../../../../components/dossie';
+import DocsEquipe from '../../../../components/docs-equipe';
 import PericiaHiscon from '../../../../components/pericia-hiscon';
 import TimelineCognitiva from '../../../../components/timeline-cognitiva';
 import { getJson, type ClientDetail } from '../../../../lib/api';
@@ -57,6 +58,9 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
       <Suspense fallback={<AhriThinking label="Lendo o HISCON (contratos por banco)" />}>
         <PericiaHiscon chatId={chatId} />
       </Suspense>
+      {/* Decreto 2026-07-30: fase 2 HUMANA — o time anexa procuração assinada,
+          RG e comprovante; o advogado destinado baixa tudo no portal dele. */}
+      <DocsEquipe chatId={chatId} />
       <Suspense fallback={<AhriThinking label="Reconstruindo a Timeline Cognitiva" />}>
         <TimelineCognitiva chatId={chatId} />
       </Suspense>

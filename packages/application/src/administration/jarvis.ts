@@ -20,47 +20,62 @@ export interface ClienteElegivel {
   readonly ativos: number;
   readonly suspensos: number;
   readonly outros: number;
+  /** Contratos NA JANELA por banco — a régua do PESO (decreto 2026-07-30):
+   *  o pedido administrativo sai em LOTES de até 3 contratos por banco. */
+  readonly porBanco: Readonly<Record<string, number>>;
 }
 
 export interface ItemPlano {
   readonly chatId: string;
   readonly missionId: string;
   readonly nome: string;
-  /** Contratos contados para este cliente (máx. 10; ativos primeiro). */
+  /** TODOS os contratos na janela deste cliente — o cliente vai INTEIRO. */
   readonly contratos: number;
+  /** O PESO contado para o alvo: Σ por banco de ⌈contratos/3⌉ (lotes),
+   *  com o teto de 10 por cliente (decreto fundador do Jarvis). */
+  readonly peso: number;
   readonly ativos: number;
   readonly suspensos: number;
   readonly outros: number;
 }
 
 export interface PlanoDistribuicao {
+  /** O alvo pedido pelo dono — contado em PESO (lotes de 3 por banco). */
   readonly alvo: number;
+  /** Soma REAL de contratos enviados (todos os contratos dos clientes). */
   readonly totalContratos: number;
+  /** Soma dos pesos contados até o alvo. */
+  readonly totalPeso: number;
   readonly itens: readonly ItemPlano[];
   /** Elegíveis que sobraram fora do plano (transparência do resumo). */
   readonly elegiveisRestantes: number;
 }
 
-export const MAX_CONTRATOS_POR_CLIENTE = 10;
+export const PESO_MAXIMO_POR_CLIENTE = 10;
+/** Decreto 2026-07-30: o pedido administrativo sai em lotes de até 3 contratos
+ *  do MESMO banco — 9 contratos do BMB = 3 lotes = peso 3 (todos os 9 vão). */
+export const LOTE_POR_BANCO = 3;
 
-/** Conta os contratos de UM cliente para o plano: até `max`, ATIVOS primeiro. */
-function contarParaOPlano(
-  c: ClienteElegivel,
-  max: number,
-): { contratos: number; ativos: number; suspensos: number; outros: number } {
-  const ativos = Math.min(c.ativos, max);
-  const suspensos = Math.min(c.suspensos, max - ativos);
-  const outros = Math.min(c.outros, max - ativos - suspensos);
-  return { contratos: ativos + suspensos + outros, ativos, suspensos, outros };
+/** O PESO de um cliente: Σ por banco de ⌈contratos/3⌉ (cada lote de até 3
+ *  contratos do mesmo banco conta 1), com o teto por cliente. */
+export function pesoDoCliente(
+  porBanco: Readonly<Record<string, number>>,
+  maxPorCliente = PESO_MAXIMO_POR_CLIENTE,
+): number {
+  let peso = 0;
+  for (const qtd of Object.values(porBanco)) {
+    if (qtd > 0) peso += Math.ceil(qtd / LOTE_POR_BANCO);
+  }
+  return Math.min(peso, maxPorCliente);
 }
 
-/** O plano determinístico: clientes com MAIS ATIVOS primeiro, somando até o
- *  alvo (o cliente que cruza o alvo ENTRA inteiro — nunca fatiamos um cliente
- *  entre advogados). */
+/** O plano determinístico: clientes com MAIS ATIVOS primeiro, somando PESO até
+ *  o alvo (o cliente que cruza o alvo ENTRA inteiro — nunca fatiamos um
+ *  cliente entre advogados; TODOS os contratos dele vão no envio). */
 export function planejarDistribuicao(
   elegiveis: readonly ClienteElegivel[],
   alvo: number,
-  maxPorCliente = MAX_CONTRATOS_POR_CLIENTE,
+  maxPorCliente = PESO_MAXIMO_POR_CLIENTE,
 ): PlanoDistribuicao {
   const ordenados = [...elegiveis].sort(
     (a, b) =>
@@ -69,17 +84,31 @@ export function planejarDistribuicao(
       a.nome.localeCompare(b.nome, 'pt-BR'),
   );
   const itens: ItemPlano[] = [];
-  let total = 0;
+  let totalPeso = 0;
+  let totalContratos = 0;
   for (const c of ordenados) {
-    if (total >= alvo) break;
-    const contagem = contarParaOPlano(c, maxPorCliente);
-    if (contagem.contratos === 0) continue;
-    itens.push({ chatId: c.chatId, missionId: c.missionId, nome: c.nome, ...contagem });
-    total += contagem.contratos;
+    if (totalPeso >= alvo) break;
+    const contratos = c.ativos + c.suspensos + c.outros;
+    if (contratos === 0) continue;
+    const peso = pesoDoCliente(c.porBanco, maxPorCliente);
+    if (peso === 0) continue;
+    itens.push({
+      chatId: c.chatId,
+      missionId: c.missionId,
+      nome: c.nome,
+      contratos,
+      peso,
+      ativos: c.ativos,
+      suspensos: c.suspensos,
+      outros: c.outros,
+    });
+    totalPeso += peso;
+    totalContratos += contratos;
   }
   return {
     alvo,
-    totalContratos: total,
+    totalContratos,
+    totalPeso,
     itens,
     elegiveisRestantes: Math.max(0, elegiveis.length - itens.length),
   };

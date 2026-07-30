@@ -44,7 +44,30 @@ function normalizarCanalCliente(bruto: string): string {
 
 export function buildAdvogadoServer(
   op: AssembledAdvogadoOperation,
-  opts: { readonly accessSecret?: string } = {},
+  opts: {
+    readonly accessSecret?: string;
+    /** Decreto 2026-07-30: o ESTUDO do cliente destinado — dossiê de contratos
+     *  da janela + a MESMA planilha (CSV Excel-BR) do perito, por chat. */
+    readonly estudo?: {
+      dossiePorChat(chatId: string): Promise<{
+        quem: string;
+        cpf: string | null;
+        colunas: readonly string[];
+        linhas: ReadonlyArray<ReadonlyArray<string | number | null>>;
+      } | null>;
+      planilhaPorChat(
+        chatId: string,
+      ): Promise<{ nomeArquivo: string; mime: string; conteudo: string } | null>;
+    };
+    /** Decreto 2026-07-30: docs da fase 2 humana (procuração/RG/comprovante). */
+    readonly docsEquipe?: {
+      listar(chatId: string): Promise<readonly unknown[]>;
+      baixar(
+        chatId: string,
+        id: string,
+      ): Promise<{ nome: string; mime: string; bytes: Uint8Array } | null>;
+    };
+  } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: false });
 
@@ -486,6 +509,91 @@ export function buildAdvogadoServer(
     );
     clientes.sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
     return { clientes };
+  });
+
+  // ── ESTUDO DO CLIENTE DESTINADO (decreto 2026-07-30) — o advogado recebe o
+  //    dossiê organizado pelos contratos da janela (a MESMA leitura do perito),
+  //    a planilha em Excel (CSV Excel-BR, contrato EXATO como no HISCON) e os
+  //    documentos da fase 2 colhidos pelo time (procuração/RG/comprovante).
+  //    Tudo ISOLADO por atribuição: só o advogado da missão enxerga. ──────────
+  async function chatDaMissaoAtribuida(
+    request: FastifyRequest,
+    missionId: string,
+  ): Promise<{ chatId: string } | { erro: 'auth' | 'atribuicao' | 'conversa' }> {
+    const advogadoId = await advogadoOf(request);
+    if (!advogadoId) return { erro: 'auth' };
+    const assignments = await op.work.myMissions(advogadoId);
+    if (!assignments.some((a) => a.missionId === missionId)) return { erro: 'atribuicao' };
+    await op.projector.refresh();
+    const chatId = op.projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null;
+    if (chatId === null) return { erro: 'conversa' };
+    return { chatId };
+  }
+
+  app.get('/advogado/processos/:missionId/estudo', async (request, reply) => {
+    if (!opts.estudo) return reply.code(503).send({ error: 'estudo indisponível nesta montagem' });
+    const { missionId } = request.params as { missionId: string };
+    const r = await chatDaMissaoAtribuida(request, missionId);
+    if ('erro' in r) {
+      if (r.erro === 'auth') return reply.code(401).send({ error: 'advogado não identificado' });
+      if (r.erro === 'atribuicao')
+        return reply.code(403).send({ error: 'processo não atribuído a você' });
+      return reply.code(404).send({ error: 'conversa do processo não encontrada' });
+    }
+    const dossie = await opts.estudo.dossiePorChat(r.chatId);
+    if (dossie === null) return reply.code(404).send({ error: 'estudo indisponível' });
+    return dossie;
+  });
+
+  app.get('/advogado/processos/:missionId/planilha', async (request, reply) => {
+    if (!opts.estudo) return reply.code(503).send({ error: 'estudo indisponível nesta montagem' });
+    const { missionId } = request.params as { missionId: string };
+    const r = await chatDaMissaoAtribuida(request, missionId);
+    if ('erro' in r) {
+      if (r.erro === 'auth') return reply.code(401).send({ error: 'advogado não identificado' });
+      if (r.erro === 'atribuicao')
+        return reply.code(403).send({ error: 'processo não atribuído a você' });
+      return reply.code(404).send({ error: 'conversa do processo não encontrada' });
+    }
+    const plan = await opts.estudo.planilhaPorChat(r.chatId);
+    if (plan === null) return reply.code(404).send({ error: 'planilha indisponível' });
+    return reply
+      .header('content-type', plan.mime)
+      .header('content-disposition', `attachment; filename="${plan.nomeArquivo.replace(/"/g, '')}"`)
+      .send(plan.conteudo);
+  });
+
+  app.get('/advogado/processos/:missionId/docs-equipe', async (request, reply) => {
+    if (!opts.docsEquipe)
+      return reply.code(503).send({ error: 'docs da equipe indisponíveis nesta montagem' });
+    const { missionId } = request.params as { missionId: string };
+    const r = await chatDaMissaoAtribuida(request, missionId);
+    if ('erro' in r) {
+      if (r.erro === 'auth') return reply.code(401).send({ error: 'advogado não identificado' });
+      if (r.erro === 'atribuicao')
+        return reply.code(403).send({ error: 'processo não atribuído a você' });
+      return reply.code(404).send({ error: 'conversa do processo não encontrada' });
+    }
+    return { docs: await opts.docsEquipe.listar(r.chatId) };
+  });
+
+  app.get('/advogado/processos/:missionId/docs-equipe/:id/content', async (request, reply) => {
+    if (!opts.docsEquipe)
+      return reply.code(503).send({ error: 'docs da equipe indisponíveis nesta montagem' });
+    const { missionId, id } = request.params as { missionId: string; id: string };
+    const r = await chatDaMissaoAtribuida(request, missionId);
+    if ('erro' in r) {
+      if (r.erro === 'auth') return reply.code(401).send({ error: 'advogado não identificado' });
+      if (r.erro === 'atribuicao')
+        return reply.code(403).send({ error: 'processo não atribuído a você' });
+      return reply.code(404).send({ error: 'conversa do processo não encontrada' });
+    }
+    const doc = await opts.docsEquipe.baixar(r.chatId, id);
+    if (doc === null) return reply.code(404).send({ error: 'documento não encontrado' });
+    return reply
+      .header('content-type', doc.mime)
+      .header('content-disposition', `attachment; filename="${doc.nome.replace(/"/g, '')}"`)
+      .send(Buffer.from(doc.bytes));
   });
 
   // ── ATIVIDADES (informam a AHRI automaticamente) ─────────────────────────────

@@ -203,6 +203,7 @@ import { PericiaService, ReleituraComparativa, RevinculoHiscon } from '../perici
 import { JarvisRuntime } from '../administration/jarvis-runtime.js';
 import { WebchatGatewayRouter } from '../webchat/webchat-gateway-router.js';
 import { WebchatRuntime } from '../webchat/webchat-runtime.js';
+import { DocsEquipeService } from '../docs-equipe/docs-equipe-service.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
 import { CustodiaService, JsonCasoStore, PericiaDigitalService } from '../pericia-digital/index.js';
@@ -267,6 +268,9 @@ export interface AssembledProduction {
   /** Decreto 2026-07-30: o WEBCHAT da AHRI — canal próprio, mesmo fluxo do
    *  WhatsApp (mesma entrada única, mesmo media store, mesma memória). */
   readonly webchat: WebchatRuntime;
+  /** Decreto 2026-07-30: docs da FASE 2 humana (procuração/RG/comprovante)
+   *  anexados pelo time no Painel Admin — mesmo media store do WhatsApp. */
+  readonly docsEquipe: DocsEquipeService;
   /** Decreto Dossiê Pericial: visão do PERITO (HISCON→contratos/migrados/indícios). */
   readonly pericia: PericiaService;
   /** Decreto 2026-07-27: relatório V2 × leitura atual (só leitura, nada grava). */
@@ -1227,6 +1231,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         const janela = contratosDaJanela(h.contratos, clock.now());
         const ativos = janela.filter((k) => /^ATIVO/i.test(k.situacao ?? '')).length;
         const suspensos = janela.filter((k) => /^SUSPENS/i.test(k.situacao ?? '')).length;
+        // Decreto 2026-07-30: o PESO da distribuição conta lotes de 3 por banco.
+        const porBanco: Record<string, number> = {};
+        for (const k of janela) {
+          const banco = (k.bancoNome ?? k.bancoCodigo ?? 'SEM BANCO').trim() || 'SEM BANCO';
+          porBanco[banco] = (porBanco[banco] ?? 0) + 1;
+        }
         out.push({
           chatId: c.chatId,
           missionId,
@@ -1234,6 +1244,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           ativos,
           suspensos,
           outros: janela.length - ativos - suspensos,
+          porBanco,
         });
       }
       return out;
@@ -1617,6 +1628,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
   });
 
+  // ── DOCS DA EQUIPE (decreto 2026-07-30): fase 2 humana — procuração/RG/
+  //    comprovante anexados pelo time ao cliente concluso da fase 1 ─────────
+  const docsEquipe = new DocsEquipeService({ json, media: mediaStore, clock });
+
   return {
     ingress: shadowMode ? shadow : plainIngress,
     shadow,
@@ -1647,6 +1662,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     databaseUrl,
     mediaCapture,
     webchat,
+    docsEquipe,
     pericia,
     releitura,
     revinculo,

@@ -93,6 +93,8 @@ export interface JarvisPlanoItem {
   missionId: string;
   nome: string;
   contratos: number;
+  /** Decreto 2026-07-30: o PESO contado para o alvo (lotes de 3 por banco). */
+  peso: number;
   ativos: number;
   suspensos: number;
   outros: number;
@@ -104,6 +106,7 @@ export interface JarvisPlano {
   plano: {
     alvo: number;
     totalContratos: number;
+    totalPeso: number;
     itens: JarvisPlanoItem[];
     elegiveisRestantes: number;
   };
@@ -151,6 +154,43 @@ export async function enviarMensagemJarvis(
   planoId: string,
 ): Promise<{ ok: boolean; erro?: string } | null> {
   return sendJson('POST', '/admin/founder/jarvis/enviar', { planoId });
+}
+
+// ── DOCS DA EQUIPE (decreto 2026-07-30) — fase 2 humana: o time anexa a
+//    procuração assinada, o RG e o comprovante ao cliente concluso da fase 1. ─
+export interface DocEquipe {
+  id: string;
+  tipo: string;
+  rotulo: string;
+  nome: string;
+  mime: string;
+  size: number;
+  em: string;
+}
+export async function docsEquipeListar(chatId: string): Promise<{ docs: DocEquipe[] } | null> {
+  return getJson(`/admin/clientes/${encodeURIComponent(chatId)}/docs-equipe`);
+}
+export async function docsEquipeAnexar(
+  chatId: string,
+  tipo: string,
+  nome: string,
+  base64: string,
+): Promise<{ ok: boolean; error?: string } | null> {
+  return sendJson('POST', `/admin/clientes/${encodeURIComponent(chatId)}/docs-equipe`, {
+    tipo,
+    nome,
+    base64,
+  });
+}
+export async function docsEquipeRemover(
+  chatId: string,
+  id: string,
+): Promise<{ ok: boolean } | null> {
+  return sendJson(
+    'DELETE',
+    `/admin/clientes/${encodeURIComponent(chatId)}/docs-equipe/${encodeURIComponent(id)}`,
+    {},
+  );
 }
 
 export async function fetchStaff(role: string): Promise<StaffData | null> {

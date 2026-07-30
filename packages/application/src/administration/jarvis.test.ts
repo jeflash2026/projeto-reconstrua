@@ -9,12 +9,32 @@ import {
   interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
   interpretarComandoMensagem,
+  pesoDoCliente,
   planejarDistribuicao,
   type ClienteElegivel,
 } from './jarvis.js';
 
-function cliente(nome: string, ativos: number, suspensos = 0, outros = 0): ClienteElegivel {
-  return { chatId: `${nome}@w`, missionId: `m-${nome}`, nome, ativos, suspensos, outros };
+function cliente(
+  nome: string,
+  ativos: number,
+  suspensos = 0,
+  outros = 0,
+  porBanco?: Readonly<Record<string, number>>,
+): ClienteElegivel {
+  // Sem porBanco explícito, cada contrato num banco próprio (peso = contratos,
+  // até o teto) — o caso "vários bancos com 1 contrato cada".
+  const total = ativos + suspensos + outros;
+  const bancos: Record<string, number> = {};
+  if (porBanco === undefined) for (let i = 0; i < total; i += 1) bancos[`B${String(i)}`] = 1;
+  return {
+    chatId: `${nome}@w`,
+    missionId: `m-${nome}`,
+    nome,
+    ativos,
+    suspensos,
+    outros,
+    porBanco: porBanco ?? bancos,
+  };
 }
 
 describe('interpretarComandoDistribuicao', () => {
@@ -89,28 +109,49 @@ describe('interpretarComandoCobrancaCpf', () => {
   });
 });
 
-describe('planejarDistribuicao', () => {
-  it('máx. 10 por cliente, ATIVOS primeiro, soma até o alvo (quem cruza entra inteiro)', () => {
+describe('pesoDoCliente — lotes de 3 por banco (decreto 2026-07-30)', () => {
+  it('a régua do dono: 9 contratos do BMB = 3 lotes = peso 3 (todos os 9 vão)', () => {
+    expect(pesoDoCliente({ BMB: 9 })).toBe(3);
+    expect(pesoDoCliente({ BMB: 20 })).toBe(7); // ⌈20/3⌉
+    expect(pesoDoCliente({ BMB: 1 })).toBe(1);
+    expect(pesoDoCliente({ BMB: 4 })).toBe(2); // 3+1 ⇒ 2 lotes
+    expect(pesoDoCliente({ BMB: 3, ITAU: 3, BRADESCO: 2 })).toBe(3);
+    expect(pesoDoCliente({})).toBe(0);
+  });
+  it('teto de 10 por cliente vale sobre o PESO', () => {
+    expect(pesoDoCliente({ A: 30, B: 30, C: 30 })).toBe(10); // 10+10+10 ⇒ teto
+  });
+});
+
+describe('planejarDistribuicao — alvo em PESO, cliente vai INTEIRO', () => {
+  it('caso do decreto: 9 do mesmo banco enviam 9 contratos mas contam 3', () => {
+    const plano = planejarDistribuicao(
+      [cliente('Humberto', 9, 0, 0, { BMB: 9 }), cliente('Ana', 2, 0, 0, { ITAU: 2 })],
+      4,
+    );
+    // Humberto: peso 3 (9 contratos vão TODOS); Ana: peso 1 ⇒ total peso 4.
+    expect(plano.itens.map((i) => i.nome)).toEqual(['Humberto', 'Ana']);
+    expect(plano.itens[0]).toMatchObject({ contratos: 9, peso: 3 });
+    expect(plano.totalContratos).toBe(11);
+    expect(plano.totalPeso).toBe(4);
+  });
+  it('ATIVOS primeiro; quem cruza o alvo entra inteiro; teto de peso 10', () => {
     const plano = planejarDistribuicao(
       [
-        cliente('Almerinda', 10, 2, 150), // 10+2+150 ⇒ conta 10 (só ativos)
-        cliente('Bruna', 7, 1, 0), // conta 8
-        cliente('Carlos', 3, 0, 30), // conta 10 (3 ativos + 7 outros)
-        cliente('Dora', 1, 0, 0), // não deve entrar (alvo já cruzado)
+        cliente('Almerinda', 10, 2, 150), // 162 bancos distintos ⇒ peso teto 10
+        cliente('Bruna', 7, 1, 0), // peso 8
+        cliente('Dora', 1, 0, 0), // fora (alvo já cruzado)
       ],
-      20,
+      15,
     );
-    // Ordem: mais ATIVOS primeiro ⇒ Almerinda (10) + Bruna (8) = 18 < 20 ⇒
-    // Carlos entra inteiro (10) e cruza o alvo ⇒ total 28, Dora fica fora.
-    expect(plano.itens.map((i) => i.nome)).toEqual(['Almerinda', 'Bruna', 'Carlos']);
-    expect(plano.itens[0]).toMatchObject({ contratos: 10, ativos: 10, suspensos: 0, outros: 0 });
-    expect(plano.itens[2]).toMatchObject({ contratos: 10, ativos: 3, outros: 7 });
-    expect(plano.totalContratos).toBe(28);
+    expect(plano.itens.map((i) => i.nome)).toEqual(['Almerinda', 'Bruna']);
+    expect(plano.itens[0]).toMatchObject({ contratos: 162, peso: 10 });
+    expect(plano.totalPeso).toBe(18);
     expect(plano.elegiveisRestantes).toBe(1);
   });
   it('sem elegíveis suficientes, entrega o que há (nunca inventa)', () => {
     const plano = planejarDistribuicao([cliente('Ana', 2)], 20);
-    expect(plano.totalContratos).toBe(2);
+    expect(plano.totalPeso).toBe(2);
     expect(plano.itens).toHaveLength(1);
   });
 });

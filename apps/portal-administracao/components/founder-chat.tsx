@@ -192,6 +192,7 @@ const PlanoCard = ({
             <tr>
               <th>Cliente</th>
               <th>Contratos</th>
+              <th>Peso (lotes de 3/banco)</th>
               <th>Ativos</th>
               <th>Suspensos</th>
               <th>Outros</th>
@@ -202,6 +203,7 @@ const PlanoCard = ({
               <tr key={i.chatId}>
                 <td style={{ fontWeight: 600 }}>{i.nome}</td>
                 <td>{i.contratos}</td>
+                <td>{i.peso}</td>
                 <td>{i.ativos}</td>
                 <td>{i.suspensos}</td>
                 <td>{i.outros}</td>
@@ -234,7 +236,7 @@ const PlanoCard = ({
         >
           {busy
             ? 'Executando…'
-            : `Confirmar — mover ${String(plano.plano.totalContratos)} contrato(s)`}
+            : `Confirmar — mover ${String(plano.plano.totalContratos)} contrato(s) (peso ${String(plano.plano.totalPeso)})`}
         </button>
         <button
           disabled={busy}

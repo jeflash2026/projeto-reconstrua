@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { assembleProduction, ProductionGoLive } from '@reconstrua/infrastructure';
 import { SystemClock, UuidV4Generator } from '@reconstrua/infrastructure';
+import { planilhaDeContratosDetalhada } from '@reconstrua/application';
 import { buildProductionServer } from './production-server.js';
 import { buildAdminServer } from '../admin/admin-server.js';
 import { buildAdvogadoServer } from '../advogado/advogado-server.js';
@@ -116,6 +117,8 @@ async function main(): Promise<void> {
     revinculo: prod.revinculo,
     // Decreto 2026-07-29: o Jarvis do Founder Console.
     jarvis: prod.jarvis,
+    // Decreto 2026-07-30: docs da fase 2 humana (procuração/RG/comprovante).
+    docsEquipe: prod.docsEquipe,
     // Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag).
     periciaDigitalHabilitado: prod.periciaDigitalHabilitado,
     periciaDigital: prod.periciaDigital,
@@ -128,8 +131,44 @@ async function main(): Promise<void> {
       verificar: (id: string) => prod.periciaDigital.verificarCustodia(id),
     },
   });
+  // Decreto 2026-07-30: o cliente destinado chega ao advogado com o ESTUDO —
+  // dossiê de contratos da janela + a MESMA planilha (CSV Excel-BR) do perito.
+  const clienteDoChat = async (
+    chatId: string,
+  ): Promise<{ clienteId: string; quem: string } | null> => {
+    const lista = (await prod.adminView.clientes?.list()) ?? [];
+    const c = lista.find((x) => x.chatId === chatId);
+    return c ? { clienteId: c.clienteId, quem: c.quem } : null;
+  };
   const advogado = buildAdvogadoServer(prod.advogadoView, {
     accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',
+    estudo: {
+      dossiePorChat: async (chatId) => {
+        const cliente = await clienteDoChat(chatId);
+        if (cliente === null || prod.adminView.perito === undefined) return null;
+        const c = await prod.adminView.perito.contratos(cliente.clienteId);
+        if (c === null || c.detalhado.contratos.length === 0) return null;
+        const plan = planilhaDeContratosDetalhada(
+          `Contratos — ${cliente.quem}`,
+          c.detalhado,
+          clock.now(),
+        );
+        const cpf = (await prod.jornadaComercial.fatos(chatId).catch(() => null))?.registro.cpf;
+        return { quem: cliente.quem, cpf: cpf ?? null, colunas: plan.colunas, linhas: plan.linhas };
+      },
+      planilhaPorChat: async (chatId) => {
+        const cliente = await clienteDoChat(chatId);
+        if (cliente === null || prod.adminView.perito === undefined) return null;
+        const gerada = await prod.adminView.perito.planilha(cliente.clienteId);
+        return gerada !== null
+          ? { nomeArquivo: gerada.nomeArquivo, mime: gerada.mime, conteudo: gerada.conteudo }
+          : null;
+      },
+    },
+    docsEquipe: {
+      listar: (chatId) => prod.docsEquipe.listar(chatId),
+      baixar: (chatId, id) => prod.docsEquipe.baixar(chatId, id),
+    },
   });
   const lx = buildLawyerExperienceServer(prod.lxView, {
     advogadoSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',

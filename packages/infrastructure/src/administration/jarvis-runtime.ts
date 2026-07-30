@@ -125,15 +125,16 @@ function resumoDoPlanoTexto(p: PlanoDistribuicao, advogadoNome: string | null): 
   const linhas = p.itens
     .map(
       (i) =>
-        `• ${i.nome} — ${String(i.contratos)} contrato(s) (${String(i.ativos)} ativo(s), ${String(i.suspensos)} suspenso(s), ${String(i.outros)} outro(s))`,
+        `• ${i.nome} — ${String(i.contratos)} contrato(s), peso ${String(i.peso)} (${String(i.ativos)} ativo(s), ${String(i.suspensos)} suspenso(s), ${String(i.outros)} outro(s))`,
     )
     .join('\n');
   const destino = advogadoNome !== null ? ` para ${advogadoNome}` : '';
   return (
-    `Montei o plano${destino}: ${String(p.itens.length)} cliente(s), ${String(p.totalContratos)} contrato(s) no total (alvo: ${String(p.alvo)}; máximo de 10 por cliente, ativos primeiro).\n\n` +
+    `Montei o plano${destino}: ${String(p.itens.length)} cliente(s), peso ${String(p.totalPeso)} contado (alvo: ${String(p.alvo)}) com ${String(p.totalContratos)} contrato(s) reais no envio.\n` +
+    'A contagem segue a régua dos lotes: a cada 3 contratos do MESMO banco conta 1 (9 do BMB = 3), com teto de 10 por cliente — mas TODOS os contratos do cliente vão juntos, priorizando quem tem mais ativos.\n\n' +
     `${linhas}\n\n` +
-    (p.totalContratos < p.alvo
-      ? `Atenção: só encontrei ${String(p.totalContratos)} contrato(s) elegíveis — não há clientes suficientes na fase 1 completa sem advogado para chegar a ${String(p.alvo)}.\n\n`
+    (p.totalPeso < p.alvo
+      ? `Atenção: só encontrei peso ${String(p.totalPeso)} elegível — não há clientes suficientes na fase 1 completa sem advogado para chegar a ${String(p.alvo)}.\n\n`
       : '') +
     'Confira o resumo, escolha (ou confirme) o advogado responsável e clique em CONFIRMAR para eu executar. Nada é movido sem a sua confirmação.'
   );

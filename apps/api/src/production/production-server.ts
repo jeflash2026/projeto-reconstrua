@@ -27,6 +27,7 @@ import type { FastifyRequest } from 'fastify';
 import { bearerToken, requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 import { PRODUCTION_UI_HTML } from './production-ui.js';
 import { LANDING_HTML } from './landing-html.js';
+import { WEBCHAT_UI_HTML } from '../webchat/webchat-ui.js';
 
 // B5.1 — rotas /production/* SENSÍVEIS (config, monitor, go-live, first-client, shadow)
 // exigem o segredo do operador (BL-2.1). Ficam PÚBLICAS apenas a landing `/`, o health
@@ -98,6 +99,43 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
         .send({ error: 'peça um novo link de acesso conversando com a AHRI no WhatsApp' });
     }
     return view;
+  });
+
+  // ── WEBCHAT DA AHRI (decreto 2026-07-30) — canal PRÓPRIO de atendimento:
+  //    a Meta derrubou o WhatsApp; o atendimento nunca mais depende de um único
+  //    canal. Página pública em /webchat (o dono envia o link); a conversa entra
+  //    pela MESMA entrada única e o PDF pelo MESMO media store do WhatsApp.
+  //    Sem Bearer: o acesso de cada conversa é escopado pelo TOKEN da sessão. ──
+  app.get('/webchat', (_request, reply) => {
+    void reply.type('text/html').send(WEBCHAT_UI_HTML);
+  });
+  app.post('/webchat/sessao', async (request, reply) => {
+    const body = request.body as { nome?: string; telefone?: string };
+    const r = await prod.webchat.abrirSessao(body.nome ?? '', body.telefone ?? '');
+    if (!r.ok) return reply.code(400).send(r);
+    return r;
+  });
+  app.post('/webchat/mensagem', async (request, reply) => {
+    const body = request.body as { token?: string; texto?: string };
+    const r = await prod.webchat.receberTexto(body.token ?? '', body.texto ?? '');
+    if (!r.ok) return reply.code(r.error.startsWith('sess') ? 401 : 400).send(r);
+    return r;
+  });
+  app.post('/webchat/anexo', async (request, reply) => {
+    const body = request.body as { token?: string; base64?: string; fileName?: string };
+    const r = await prod.webchat.receberPdf(
+      body.token ?? '',
+      body.base64 ?? '',
+      body.fileName ?? null,
+    );
+    if (!r.ok) return reply.code(r.error.startsWith('sess') ? 401 : 400).send(r);
+    return r;
+  });
+  app.get('/webchat/historico', async (request, reply) => {
+    const { token } = request.query as { token?: string };
+    const r = await prod.webchat.historico(token ?? '');
+    if (!r.ok) return reply.code(401).send(r);
+    return r;
   });
 
   // ── WEBHOOK Evolution (produção): ACK imediato; turno destacado entra pela

@@ -201,6 +201,8 @@ import {
 } from '../reading/index.js';
 import { PericiaService, ReleituraComparativa, RevinculoHiscon } from '../pericia/index.js';
 import { JarvisRuntime } from '../administration/jarvis-runtime.js';
+import { WebchatGatewayRouter } from '../webchat/webchat-gateway-router.js';
+import { WebchatRuntime } from '../webchat/webchat-runtime.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
 import { CustodiaService, JsonCasoStore, PericiaDigitalService } from '../pericia-digital/index.js';
@@ -256,6 +258,9 @@ export interface AssembledProduction {
   readonly databaseUrl: string | null;
   /** CAT-02A: captura assíncrona dos bytes reais de documentos (best-effort). */
   readonly mediaCapture: MediaCaptureRuntime;
+  /** Decreto 2026-07-30: o WEBCHAT da AHRI — canal próprio, mesmo fluxo do
+   *  WhatsApp (mesma entrada única, mesmo media store, mesma memória). */
+  readonly webchat: WebchatRuntime;
   /** Decreto Dossiê Pericial: visão do PERITO (HISCON→contratos/migrados/indícios). */
   readonly pericia: PericiaService;
   /** Decreto 2026-07-27: relatório V2 × leitura atual (só leitura, nada grava). */
@@ -744,7 +749,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     config.evolution.baseUrl !== '' &&
     config.evolution.instance !== '' &&
     config.evolution.apiKey !== '';
-  const gateway =
+  const gatewayInterno =
     wiring.gateway ??
     (evolutionConfigured
       ? // 15ª rodada — SEM retry cego em ENVIO de mensagem: o retry do
@@ -761,6 +766,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           clock,
         )
       : new InMemoryConversationGateway(clock));
+  // WEBCHAT (decreto 2026-07-30): conversas `…@webchat` nunca vão à Evolution —
+  // a resposta fica na memória da conversa e a página do webchat lê de lá.
+  // Conversas de WhatsApp seguem intocadas ao gateway interno.
+  const gateway = new WebchatGatewayRouter(gatewayInterno, clock);
 
   // ── 2B: Conversa (peças públicas; handles retidos para a ponte 3B) ───────────
   const sessions = new SessionRuntime(sessionStore);
@@ -1564,6 +1573,20 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     () => shadowMode,
   );
 
+  // ── WEBCHAT DA AHRI (decreto 2026-07-30): o canal próprio — mesmo fluxo,
+  //    mesma jornada, mesmo armazenamento; só o transporte muda ──────────────
+  const webchat = new WebchatRuntime({
+    json,
+    clock,
+    ingress: () => (shadowMode ? shadow : plainIngress),
+    conversas: conversationStore,
+    media: mediaStore,
+    references: mediaReferences,
+    aoFalhar: (mensagem) => {
+      observability.error('webchat', 'turno', clock.now(), mensagem);
+    },
+  });
+
   return {
     ingress: shadowMode ? shadow : plainIngress,
     shadow,
@@ -1593,6 +1616,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     llm,
     databaseUrl,
     mediaCapture,
+    webchat,
     pericia,
     releitura,
     revinculo,

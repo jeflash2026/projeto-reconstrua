@@ -6,15 +6,18 @@
 import { describe, it, expect } from 'vitest';
 import {
   MENSAGENS_JORNADA,
+  PASSO_A_PASSO_HISCON,
   capturarIdentificacao,
   ehAdiamento,
   ehDesistencia,
+  ehPedidoDeExplicacao,
   pareceNome,
   derivarEtapa,
   ehSaudacaoPura,
   interpretarInteresse,
   novaJornada,
   responderTurno,
+  vaiReceberCobranca,
   type FatosDaJornada,
   type JornadaRecord,
 } from './jornada-comercial.js';
@@ -445,6 +448,30 @@ describe('escada de cobrança — nunca a mesma cobrança duas vezes', () => {
 });
 
 // ── CASO MARILEIDE (2026-07-22): saudação + preâmbulo antes do nome ──────────
+describe('caso Gloria — "Ok meu explica" recebe o PASSO A PASSO, nunca cobrança', () => {
+  const triagem = { nome: 'Gloria Mielke', cidade: 'Laranja da Terra', consentiu: true };
+  it('o diálogo REAL: pedido de explicação (com o typo "meu") ⇒ passo a passo canônico', () => {
+    for (const t of [
+      'Ok meu explica',
+      'me explica',
+      'como faço para baixar?',
+      'não consigo',
+      'pode explicar',
+      'não sei onde baixa',
+    ]) {
+      const r = responderTurno(fatos(triagem), texto(t));
+      expect(r, t).toContain(PASSO_A_PASSO_HISCON);
+      expect(vaiReceberCobranca(t), t).toBe(false); // e a escada NÃO conta degrau
+    }
+  });
+  it('negação e conversa comum NÃO viram passo a passo', () => {
+    expect(ehPedidoDeExplicacao('não precisa explicar, já sei')).toBe(false);
+    expect(ehPedidoDeExplicacao('obrigado')).toBe(false);
+    const r = responderTurno(fatos(triagem), texto('vou providenciar o documento amanhã'));
+    expect(r).not.toContain(PASSO_A_PASSO_HISCON);
+  });
+});
+
 describe('caso Marileide — "Olá bom dia meu nome completo X" captura o nome', () => {
   it('a frase EXATA da cliente real captura o nome limpo', () => {
     const c = capturarIdentificacao('Olá bom dia meu nome completo Marileide Brites Prates Costa', {

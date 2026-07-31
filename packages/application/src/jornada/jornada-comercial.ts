@@ -465,6 +465,24 @@ export function ehSobreFamiliar(texto: string): boolean {
   return PARENTE_COM_POSSESSIVO.test(t) && CONTEXTO_DE_TITULARIDADE.test(t);
 }
 
+// Caso REAL Gloria (2026-07-31): a AHRI ofereceu "me avise que eu te explico o
+// passo a passo", a cliente respondeu "Ok meu explica" ("me" com typo) — DUAS
+// vezes — e recebeu COBRANÇA no lugar da explicação (sem "?", o pedido não era
+// pergunta livre e caía na escada). PEDIDO DE AJUDA tem resposta canônica: o
+// PASSO_A_PASSO_HISCON, sem esperar interrogação nem grafia perfeita.
+const PEDIDO_DE_EXPLICACAO =
+  /\b(m[eu]{1,2}\s+explica|me\s+ensina|me\s+ajuda|preciso\s+de\s+ajuda|como\s+(fa[çc]o|fazer|baixa|baixar|tira|tirar|emite|emitir|consigo|entro|entrar)|n[ãa]o\s+sei\s+(baixar|fazer|tirar|mexer|entrar|onde)|n[ãa]o\s+(consigo|conseguir?)|passo\s+a\s+passo|pode\s+explicar|quero\s+ajuda|explica\s+(ai|a[íi]|pra\s+mim))\b/i;
+
+/** O cliente está PEDINDO a explicação/ajuda para tirar o documento? Aceita o
+ *  pedido curto sem "?" ("Ok meu explica", "explica", "não consigo"). */
+export function ehPedidoDeExplicacao(texto: string): boolean {
+  const t = texto.trim();
+  if (/\bn[ãa]o\s+(precisa|quero)\b/i.test(t)) return false;
+  if (PEDIDO_DE_EXPLICACAO.test(t)) return true;
+  // Mensagem CURTA contendo "explic..." é pedido ("Ok explica", "explicar?").
+  return t.length <= 40 && /\bexplic/i.test(t);
+}
+
 /** Este texto, na TRIAGEM, cairá na COBRANÇA de documento? (nenhum outro
  *  manejo o captura). O runtime usa para contar a escada de cobrança. */
 export function vaiReceberCobranca(texto: string): boolean {
@@ -473,6 +491,7 @@ export function vaiReceberCobranca(texto: string): boolean {
     !ehDesistencia(texto) &&
     !ehAdiamento(texto) &&
     !ehAgradecimentoPuro(texto) &&
+    !ehPedidoDeExplicacao(texto) &&
     !ehPerguntaLivre(texto) &&
     !ehPerguntaDeDireito(texto) &&
     !ehPerguntaDeLocalizacao(texto) &&
@@ -808,6 +827,12 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
       }
       // Agradecimento/confirmação curta NÃO merece cobrança — cortesia breve.
       if (ehAgradecimentoPuro(entrada.texto)) return MENSAGENS_JORNADA.socialCurto;
+      // Caso REAL Gloria (2026-07-31): "Ok meu explica" É o aceite da oferta
+      // ("me avise que eu te explico o passo a passo") — quem oferece, cumpre.
+      // Resposta canônica: o passo a passo do HISCON, nunca a cobrança de novo.
+      if (ehPedidoDeExplicacao(entrada.texto)) {
+        return `Claro! ${PASSO_A_PASSO_HISCON}`;
+      }
       // Caso Sidinei: LINK de documento ⇒ orientação de envio (antes da checagem
       // de pergunta — URLs contêm '?' e virariam delegação errada ao LLM).
       if (ehLinkExterno(entrada.texto)) return MENSAGENS_JORNADA.linkDeDocumento(proximo);

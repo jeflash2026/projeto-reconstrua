@@ -16,13 +16,16 @@
 //    painel (work.assign + aviso ao advogado pela AHRI).
 // ─────────────────────────────────────────────────────────────────────────────
 import {
+  acharEstadoNoTexto,
   casarAdvogadoPorNome,
   interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
   interpretarComandoMensagem,
+  interpretarComandoRelatorio,
   planejarDistribuicao,
   type ClienteElegivel,
   type PlanoDistribuicao,
+  type RecorteRelatorio,
 } from '@reconstrua/application';
 import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
@@ -114,6 +117,12 @@ export interface JarvisDeps {
   readonly resolverDestinatario: (
     termo: string,
   ) => Promise<{ chatId: string; nome: string } | null>;
+  /** RELATÓRIO NOMINAL (decreto 2026-07-30): as linhas reais dos Read Models
+   *  para o recorte pedido — nome, telefone, UF e contratos, sem narração. */
+  readonly relatorioClientes: (
+    recorte: RecorteRelatorio,
+    uf: string | null,
+  ) => Promise<readonly { nome: string; telefone: string; uf: string | null; contratos: number }[]>;
   /** ENVIA a mensagem ditada — o MESMO trilho manual do admin (gateway +
    *  memória da conversa; a AHRI fica ciente do que foi dito). */
   readonly enviarAoCliente: (chatId: string, texto: string) => Promise<void>;
@@ -150,6 +159,10 @@ export class JarvisRuntime {
     // não pode cair na distribuição nem na cobrança pelo conteúdo do texto.
     const mensagem = interpretarComandoMensagem(pergunta);
     if (mensagem !== null) return this.montarMensagem(mensagem.destinatario, mensagem.texto);
+    // RELATÓRIO NOMINAL antes da cobrança: "lista dos clientes com cpf" é um
+    // pedido de relatório, nunca um disparo.
+    const relatorio = interpretarComandoRelatorio(pergunta, acharEstadoNoTexto);
+    if (relatorio !== null) return this.montarRelatorio(relatorio.recorte, relatorio.uf);
     const comando = interpretarComandoDistribuicao(pergunta);
     if (comando !== null)
       return this.montarPlano(pergunta, comando.contratos, comando.advogadoNome);
@@ -170,7 +183,7 @@ export class JarvisRuntime {
       'Use EXCLUSIVAMENTE os FATOS fornecidos (Read Models reais): PROIBIDO inventar dados, nomes ou valores; se o fato não está no dossiê, diga com naturalidade que ainda não está registrado e o que você TEM de mais próximo. ' +
       'Nomes de clientes podem vir com ruído de captura — apresente-os limpos. ' +
       'Feche, quando fizer sentido, com UMA sugestão de próximo passo. ' +
-      'Você não executa nada nesta resposta, mas TEM poderes administrativos com confirmação: se o assunto pedir, ofereça — "mova N contratos para o advogado X" (distribuição), "cobre o CPF dos clientes que faltam" (cobrança em lote) ou "mande a mensagem para <cliente>: <texto>" (mensagem ditada, enviada EXATAMENTE como o fundador escrever). Nunca diga que não consegue disparar mensagens: o fundador só precisa dar o comando e confirmar o plano. ' +
+      'Você não executa nada nesta resposta, mas TEM poderes administrativos com confirmação: se o assunto pedir, ofereça — "mova N contratos para o advogado X" (distribuição), "cobre o CPF dos clientes que faltam" (cobrança em lote), "mande a mensagem para <cliente>: <texto>" (mensagem ditada, enviada EXATAMENTE como o fundador escrever) ou "relatório com nome e telefone dos clientes de <estado>" (lista nominal direto dos registros). Nunca diga que não consegue disparar mensagens nem gerar listas nominais: o fundador só precisa dar o comando. ' +
       'IMPORTANTE (decreto 2026-07-30): mensagens automáticas proativas foram DESLIGADAS — todo contato proativo com cliente passa por comando + confirmação do fundador.';
     const user = `PERGUNTA DO FUNDADOR: ${pergunta}\n\nFATOS (JSON):\n${JSON.stringify(fatos)}`;
     // Caso real 2026-07-29: uma falha pontual do narrador despejava JSON cru na
@@ -209,6 +222,54 @@ export class JarvisRuntime {
         `Encontrei ${String(itens.length)} cliente(s) com o HISCON legível e ainda SEM o CPF registrado:\n\n${linhas}\n\n` +
         'Se você confirmar, eu envio a cada um o pedido do CPF pelo WhatsApp — o mesmo texto da cobrança da aba Clientes, respeitando a trava de 24 horas (quem já foi cobrado hoje é pulado automaticamente). Nada é enviado sem a sua confirmação.',
       cobranca: pendente,
+    };
+  }
+
+  /** RELATÓRIO NOMINAL (decreto 2026-07-30, caso real: "relatório com nome e
+   *  telefone dos 25 clientes de são paulo"): dados EXATOS dos Read Models —
+   *  a LLM não participa (nome/telefone nunca são narrados, são citados). */
+  private async montarRelatorio(
+    recorte: RecorteRelatorio,
+    uf: string | null,
+  ): Promise<JarvisResposta> {
+    const linhas = await this.deps.relatorioClientes(recorte, uf);
+    const rotulo =
+      recorte === 'fase1'
+        ? 'fase 1 completa (CPF + HISCON)'
+        : recorte === 'sem-cpf'
+          ? 'com HISCON e AINDA SEM CPF'
+          : 'com HISCON legível';
+    const onde = uf !== null ? ` em ${uf}` : ' (Brasil inteiro)';
+    if (linhas.length === 0) {
+      return { resposta: `Relatório — clientes ${rotulo}${onde}: nenhum cliente no recorte.` };
+    }
+    const TETO_LINHAS = 120;
+    const fone = (digitos: string): string => {
+      const d = digitos.replace(/\D/g, '');
+      if (d.startsWith('55') && d.length >= 12) {
+        const ddd = d.slice(2, 4);
+        const numero = d.slice(4);
+        return `+55 (${ddd}) ${numero.slice(0, numero.length - 4)}-${numero.slice(-4)}`;
+      }
+      return `+${d}`;
+    };
+    const corpo = linhas
+      .slice(0, TETO_LINHAS)
+      .map(
+        (l, i) =>
+          `${String(i + 1)}. ${l.nome} — ${fone(l.telefone)}${l.uf !== null ? ` — ${l.uf}` : ''} — ${String(l.contratos)} contrato(s)`,
+      )
+      .join('\n');
+    const totalContratos = linhas.reduce((s, l) => s + l.contratos, 0);
+    const nota =
+      linhas.length > TETO_LINHAS
+        ? `\n\n(mostrando ${String(TETO_LINHAS)} de ${String(linhas.length)} — peça por estado para recortes menores)`
+        : '';
+    return {
+      resposta:
+        `Relatório — clientes ${rotulo}${onde}: ${String(linhas.length)} cliente(s), ${String(totalContratos)} contrato(s).\n\n` +
+        corpo +
+        nota,
     };
   }
 

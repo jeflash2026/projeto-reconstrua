@@ -9,10 +9,12 @@ import {
   interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
   interpretarComandoMensagem,
+  interpretarComandoRelatorio,
   pesoDoCliente,
   planejarDistribuicao,
   type ClienteElegivel,
 } from './jarvis.js';
+import { acharEstadoNoTexto } from '../jornada/jornada-comercial.js';
 
 function cliente(
   nome: string,
@@ -82,6 +84,32 @@ describe('interpretarComandoMensagem (decreto 2026-07-30)', () => {
     expect(interpretarComandoMensagem('quantos clientes eu tenho em SP?')).toBe(null);
     expect(interpretarComandoMensagem('mova 20 contratos para o advogado Cornélio')).toBe(null);
     expect(interpretarComandoMensagem('cobre o cpf dos clientes que faltam')).toBe(null);
+  });
+});
+
+describe('interpretarComandoRelatorio (decreto 2026-07-30)', () => {
+  it('o pedido real do fundador vira comando com UF e recorte fase 1', () => {
+    const r = interpretarComandoRelatorio(
+      'preciso que voce gere um relatorio contendo nome e telefone desses 25 clientes de são paulo com hiscon e cpf ja enviado',
+      acharEstadoNoTexto,
+    );
+    expect(r).toEqual({ uf: 'SP', recorte: 'fase1' });
+  });
+  it('variações: sigla, sem estado, sem cpf', () => {
+    expect(
+      interpretarComandoRelatorio('lista dos clientes de SC com hiscon', acharEstadoNoTexto),
+    ).toEqual({ uf: 'SC', recorte: 'hiscon' });
+    expect(
+      interpretarComandoRelatorio('me dá a lista dos clientes sem cpf', acharEstadoNoTexto),
+    ).toEqual({ uf: null, recorte: 'sem-cpf' });
+  });
+  it('sem gatilho de relatório/lista, não é comando (pergunta segue livre)', () => {
+    expect(
+      interpretarComandoRelatorio('quantos clientes tenho em são paulo?', acharEstadoNoTexto),
+    ).toBe(null);
+    expect(
+      interpretarComandoRelatorio('mova 20 contratos para o Cornélio', acharEstadoNoTexto),
+    ).toBe(null);
   });
 });
 

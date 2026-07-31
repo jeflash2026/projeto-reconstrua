@@ -42,6 +42,16 @@ function runtime(
           ? { chatId: '551199@s.whatsapp.net', nome: 'Maria' }
           : null,
       ),
+    // RELATÓRIO NOMINAL fake: 2 clientes de SP fase 1 (o caso real dos 25).
+    relatorioClientes: (recorte, uf) =>
+      Promise.resolve(
+        recorte === 'fase1' && uf === 'SP'
+          ? [
+              { nome: 'Ana Souza', telefone: '5511988887777', uf: 'SP', contratos: 12 },
+              { nome: 'Bruno Lima', telefone: '5515977776666', uf: 'SP', contratos: 5 },
+            ]
+          : [],
+      ),
     enviarAoCliente: (chatId, texto) => {
       enviadas.push({ chatId, texto });
       return Promise.resolve();
@@ -96,6 +106,26 @@ describe('JarvisRuntime · cobrança de CPF', () => {
     expect(r.ok).toBe(false);
     // Cobrar um id inexistente também falha limpo.
     expect((await jarvis.cobrar('plano-que-nao-existe')).ok).toBe(false);
+  });
+});
+
+describe('JarvisRuntime · relatório nominal (decreto 2026-07-30)', () => {
+  it('o pedido real: "relatório com nome e telefone dos clientes de são paulo" com cpf+hiscon', async () => {
+    const { jarvis } = runtime([], []);
+    const r = await jarvis.perguntar(
+      'preciso que voce gere um relatorio contendo nome e telefone desses 25 clientes de são paulo com hiscon e cpf',
+    );
+    expect(r.resposta).toContain('fase 1 completa');
+    expect(r.resposta).toContain('em SP');
+    expect(r.resposta).toContain('1. Ana Souza — +55 (11) 98888-7777 — SP — 12 contrato(s)');
+    expect(r.resposta).toContain('2. Bruno Lima — +55 (15) 97777-6666 — SP — 5 contrato(s)');
+    expect(r.resposta).toContain('2 cliente(s), 17 contrato(s)');
+  });
+  it('recorte vazio responde limpo (nunca inventa)', async () => {
+    const { jarvis } = runtime([], []);
+    const r = await jarvis.perguntar('lista dos clientes sem cpf de sergipe');
+    expect(r.resposta).toContain('nenhum cliente no recorte');
+    expect(r.resposta).toContain('AINDA SEM CPF');
   });
 });
 

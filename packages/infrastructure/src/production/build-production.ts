@@ -1431,6 +1431,27 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       const receipt = await gateway.sendText(chatId, texto);
       await convMemory.recordOutbound(chatId, texto, receipt.providerMessageId);
     },
+    // RELATÓRIO NOMINAL (decreto 2026-07-30): linhas exatas dos Read Models —
+    // nome, telefone (do chatId), UF (jornada, senão DDD) e contratos lidos.
+    relatorioClientes: async (recorte, uf) => {
+      const comHiscon = await perito.todosComHiscon();
+      const linhas: { nome: string; telefone: string; uf: string | null; contratos: number }[] = [];
+      for (const c of comHiscon) {
+        if (recorte === 'fase1' && !c.temCpf) continue;
+        if (recorte === 'sem-cpf' && c.temCpf) continue;
+        const fatos = await jornadaComercial.fatos(c.chatId).catch(() => null);
+        const ufCliente = fatos?.registro.estado ?? ufDoTelefone(c.chatId);
+        if (uf !== null && ufCliente !== uf) continue;
+        linhas.push({
+          nome: c.quem.replace(/\s+/g, ' ').trim(),
+          telefone: c.chatId.split('@')[0] ?? c.chatId,
+          uf: ufCliente,
+          contratos: c.totalContratos,
+        });
+      }
+      linhas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      return linhas;
+    },
     // A MESMA atribuição do painel (work.assign + aviso ao advogado pela AHRI).
     atribuir: async (missionId, advogadoId, assignedBy) => {
       try {

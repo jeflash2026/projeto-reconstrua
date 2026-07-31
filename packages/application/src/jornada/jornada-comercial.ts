@@ -314,6 +314,24 @@ function semAcento(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 }
 
+/** Acha um estado CITADO no meio de uma frase ("clientes de são paulo",
+ *  "relatório de SP") — nome por extenso (mais longo primeiro) ou sigla.
+ *  Usado pelo Jarvis nos comandos com recorte geográfico. */
+export function acharEstadoNoTexto(texto: string): string | null {
+  const t = ` ${semAcento(texto)} `;
+  const nomes = Object.keys(ESTADO_POR_NOME).sort((a, b) => b.length - a.length);
+  for (const nome of nomes) {
+    if (t.includes(` ${nome} `) || t.includes(` ${nome},`) || t.includes(` ${nome}?`)) {
+      return ESTADO_POR_NOME[nome] ?? null;
+    }
+  }
+  const sigla =
+    /(?:^|\s)(ac|al|ap|am|ba|ce|df|es|go|ma|mt|ms|mg|pa|pb|pr|pe|pi|rj|rn|rs|ro|rr|sc|sp|se|to)(?:$|[\s,?.!])/.exec(
+      t,
+    );
+  return sigla?.[1] !== undefined ? sigla[1].toUpperCase() : null;
+}
+
 /** A mensagem é SÓ um estado (UF "SP" ou nome "São Paulo")? Devolve a UF.
  *  Usado quando o cliente manda a cidade numa bolha e o estado na seguinte. */
 export function capturarEstado(texto: string): string | null {

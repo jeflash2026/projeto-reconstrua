@@ -167,6 +167,37 @@ export function interpretarComandoMensagem(texto: string): ComandoMensagem | nul
   return { destinatario, texto: corpo };
 }
 
+// ── Comando de RELATÓRIO NOMINAL (decreto 2026-07-30, caso real: "gere um
+// relatório contendo nome e telefone desses 25 clientes de são paulo") ───────
+// O Jarvis respondia que "não tem a lista nominal". Agora tem: o comando é
+// reconhecido deterministicamente e o RELATÓRIO sai direto dos Read Models —
+// a LLM não participa (nome e telefone são dados exatos, nunca narrados).
+export type RecorteRelatorio = 'fase1' | 'sem-cpf' | 'hiscon';
+
+export interface ComandoRelatorio {
+  /** UF citada no pedido ("de são paulo", "em SP") — null = Brasil inteiro. */
+  readonly uf: string | null;
+  readonly recorte: RecorteRelatorio;
+}
+
+const GATILHO_RELATORIO =
+  /\b(relat[óo]rio|lista(?:gem)?|listar|relacione|relacao)\b[\s\S]*\bclientes?\b|\bclientes?\b[\s\S]*\b(relat[óo]rio|lista(?:gem)?|listar|relacione|relacao)\b/i;
+
+/** Reconhece o pedido de relatório nominal de clientes. null = não é. */
+export function interpretarComandoRelatorio(
+  texto: string,
+  acharUf: (t: string) => string | null,
+): ComandoRelatorio | null {
+  if (!GATILHO_RELATORIO.test(texto)) return null;
+  const t = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const recorte: RecorteRelatorio = /sem\s+cpf|falta(?:ndo)?\s+(?:so\s+)?(?:o\s+)?cpf/.test(t)
+    ? 'sem-cpf'
+    : /\bcpf\b/.test(t) || /fase\s*1/.test(t)
+      ? 'fase1'
+      : 'hiscon';
+  return { uf: acharUf(texto), recorte };
+}
+
 // ── Comando de COBRANÇA DE CPF (decreto 2026-07-29, caso real: "consegue
 // disparar mensagem solicitando o cpf para esses 28 clientes?") ──────────────
 // Reconhece o pedido de disparar a cobrança de CPF para quem JÁ entregou o

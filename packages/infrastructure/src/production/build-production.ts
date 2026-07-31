@@ -1336,23 +1336,18 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         /* idem */
       }
       try {
+        // Decreto 2026-07-30 (2ª emenda): o teto de 10 por cliente FOI REMOVIDO
+        // — a contagem oficial é por LOTES de 3 por banco, calculada com
+        // exatidão pelo comando de distribuição ("mova N contratos..."). Aqui
+        // ficam os agregados baratos por estado (clientes e contratos reais).
         const fase1 = (await perito.todosComHiscon()).filter((c) => c.temCpf);
-        const porUf = new Map<
-          string,
-          { clientes: number; contratos: number; contratosComTetoDe10PorCliente: number }
-        >();
+        const porUf = new Map<string, { clientes: number; contratos: number }>();
         for (const c of fase1) {
           const uf = ufDoTelefone(c.chatId) ?? 'SEM-DDD';
-          const atual = porUf.get(uf) ?? {
-            clientes: 0,
-            contratos: 0,
-            contratosComTetoDe10PorCliente: 0,
-          };
+          const atual = porUf.get(uf) ?? { clientes: 0, contratos: 0 };
           porUf.set(uf, {
             clientes: atual.clientes + 1,
             contratos: atual.contratos + c.totalContratos,
-            contratosComTetoDe10PorCliente:
-              atual.contratosComTetoDe10PorCliente + Math.min(10, c.totalContratos),
           });
         }
         d['fase1PorEstado'] = Object.fromEntries(porUf);

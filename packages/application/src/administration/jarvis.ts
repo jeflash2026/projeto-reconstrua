@@ -31,8 +31,9 @@ export interface ItemPlano {
   readonly nome: string;
   /** TODOS os contratos na janela deste cliente — o cliente vai INTEIRO. */
   readonly contratos: number;
-  /** O PESO contado para o alvo: Σ por banco de ⌈contratos/3⌉ (lotes),
-   *  com o teto de 10 por cliente (decreto fundador do Jarvis). */
+  /** O PESO contado para o alvo: Σ por banco de ⌈contratos/3⌉ (lotes).
+   *  SEM teto (decreto 2026-07-30: o dono removeu o máximo de 10 por
+   *  cliente — todo contrato da janela vale). */
   readonly peso: number;
   readonly ativos: number;
   readonly suspensos: number;
@@ -51,22 +52,19 @@ export interface PlanoDistribuicao {
   readonly elegiveisRestantes: number;
 }
 
-export const PESO_MAXIMO_POR_CLIENTE = 10;
 /** Decreto 2026-07-30: o pedido administrativo sai em lotes de até 3 contratos
  *  do MESMO banco — 9 contratos do BMB = 3 lotes = peso 3 (todos os 9 vão). */
 export const LOTE_POR_BANCO = 3;
 
 /** O PESO de um cliente: Σ por banco de ⌈contratos/3⌉ (cada lote de até 3
- *  contratos do mesmo banco conta 1), com o teto por cliente. */
-export function pesoDoCliente(
-  porBanco: Readonly<Record<string, number>>,
-  maxPorCliente = PESO_MAXIMO_POR_CLIENTE,
-): number {
+ *  contratos do mesmo banco conta 1). SEM teto — decreto 2026-07-30: o dono
+ *  removeu o máximo de 10 por cliente; todo contrato da janela de 5 anos vale. */
+export function pesoDoCliente(porBanco: Readonly<Record<string, number>>): number {
   let peso = 0;
   for (const qtd of Object.values(porBanco)) {
     if (qtd > 0) peso += Math.ceil(qtd / LOTE_POR_BANCO);
   }
-  return Math.min(peso, maxPorCliente);
+  return peso;
 }
 
 /** O plano determinístico: clientes com MAIS ATIVOS primeiro, somando PESO até
@@ -75,7 +73,6 @@ export function pesoDoCliente(
 export function planejarDistribuicao(
   elegiveis: readonly ClienteElegivel[],
   alvo: number,
-  maxPorCliente = PESO_MAXIMO_POR_CLIENTE,
 ): PlanoDistribuicao {
   const ordenados = [...elegiveis].sort(
     (a, b) =>
@@ -90,7 +87,7 @@ export function planejarDistribuicao(
     if (totalPeso >= alvo) break;
     const contratos = c.ativos + c.suspensos + c.outros;
     if (contratos === 0) continue;
-    const peso = pesoDoCliente(c.porBanco, maxPorCliente);
+    const peso = pesoDoCliente(c.porBanco);
     if (peso === 0) continue;
     itens.push({
       chatId: c.chatId,

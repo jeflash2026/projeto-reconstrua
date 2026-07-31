@@ -140,7 +140,7 @@ function resumoDoPlanoTexto(p: PlanoDistribuicao, advogadoNome: string | null): 
   const destino = advogadoNome !== null ? ` para ${advogadoNome}` : '';
   return (
     `Montei o plano${destino}: ${String(p.itens.length)} cliente(s), peso ${String(p.totalPeso)} contado (alvo: ${String(p.alvo)}) com ${String(p.totalContratos)} contrato(s) reais no envio.\n` +
-    'A contagem segue a régua dos lotes: a cada 3 contratos do MESMO banco conta 1 (9 do BMB = 3), com teto de 10 por cliente — mas TODOS os contratos do cliente vão juntos, priorizando quem tem mais ativos.\n\n' +
+    'A contagem segue a régua dos lotes: a cada 3 contratos do MESMO banco conta 1 (9 do BMB = 3) — TODOS os contratos da janela de 5 anos vão juntos, priorizando quem tem mais ativos.\n\n' +
     `${linhas}\n\n` +
     (p.totalPeso < p.alvo
       ? `Atenção: só encontrei peso ${String(p.totalPeso)} elegível — não há clientes suficientes na fase 1 completa sem advogado para chegar a ${String(p.alvo)}.\n\n`

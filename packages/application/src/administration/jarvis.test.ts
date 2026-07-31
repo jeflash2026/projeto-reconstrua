@@ -146,8 +146,8 @@ describe('pesoDoCliente — lotes de 3 por banco (decreto 2026-07-30)', () => {
     expect(pesoDoCliente({ BMB: 3, ITAU: 3, BRADESCO: 2 })).toBe(3);
     expect(pesoDoCliente({})).toBe(0);
   });
-  it('teto de 10 por cliente vale sobre o PESO', () => {
-    expect(pesoDoCliente({ A: 30, B: 30, C: 30 })).toBe(10); // 10+10+10 ⇒ teto
+  it('SEM teto (decreto 2026-07-30): todo contrato da janela vale', () => {
+    expect(pesoDoCliente({ A: 30, B: 30, C: 30 })).toBe(30); // 10+10+10, sem corte
   });
 });
 
@@ -163,18 +163,18 @@ describe('planejarDistribuicao — alvo em PESO, cliente vai INTEIRO', () => {
     expect(plano.totalContratos).toBe(11);
     expect(plano.totalPeso).toBe(4);
   });
-  it('ATIVOS primeiro; quem cruza o alvo entra inteiro; teto de peso 10', () => {
+  it('ATIVOS primeiro; quem cruza o alvo entra inteiro (SEM teto de peso)', () => {
     const plano = planejarDistribuicao(
       [
-        cliente('Almerinda', 10, 2, 150), // 162 bancos distintos ⇒ peso teto 10
-        cliente('Bruna', 7, 1, 0), // peso 8
+        cliente('Almerinda', 10, 2, 8, { BMB: 12, ITAU: 8 }), // ⌈12/3⌉+⌈8/3⌉ = 7
+        cliente('Bruna', 7, 1, 0), // 8 bancos de 1 ⇒ peso 8
         cliente('Dora', 1, 0, 0), // fora (alvo já cruzado)
       ],
-      15,
+      12,
     );
     expect(plano.itens.map((i) => i.nome)).toEqual(['Almerinda', 'Bruna']);
-    expect(plano.itens[0]).toMatchObject({ contratos: 162, peso: 10 });
-    expect(plano.totalPeso).toBe(18);
+    expect(plano.itens[0]).toMatchObject({ contratos: 20, peso: 7 });
+    expect(plano.totalPeso).toBe(15);
     expect(plano.elegiveisRestantes).toBe(1);
   });
   it('sem elegíveis suficientes, entrega o que há (nunca inventa)', () => {

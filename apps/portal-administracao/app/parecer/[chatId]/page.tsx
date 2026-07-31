@@ -5,18 +5,29 @@
 // para não carregar a navegação — página limpa, pronta para imprimir. O gate de
 // login do middleware cobre esta rota (nada é público).
 import type { ReactElement } from 'react';
-import { getJson, type ClientDetail, type DossieJuridico } from '../../../lib/api';
+import {
+  getJson,
+  type ClientDetail,
+  type DossieJuridico,
+  type JornadaCliente,
+} from '../../../lib/api';
 import ImprimirParecer from '../../../components/imprimir-parecer';
 
 const VERMELHO = '#c62828';
 
 const ParecerPage = async ({ params }: { params: { chatId: string } }): Promise<ReactElement> => {
   const chatId = decodeURIComponent(params.chatId);
-  const [d, cliente] = await Promise.all([
+  const [d, cliente, jornada] = await Promise.all([
     getJson<DossieJuridico>(`/admin/clients/${encodeURIComponent(chatId)}/dossie`),
     getJson<ClientDetail>(`/admin/clients/${encodeURIComponent(chatId)}`),
+    // O NOME como aparece na aba Clientes (autoritativo do HISCON — a captura
+    // da conversa às vezes traz a cidade no lugar do nome).
+    getJson<{ clientes: JornadaCliente[] }>('/admin/jornada/clientes'),
   ]);
-  const nome = cliente?.relationship.knownName ?? 'Cliente';
+  const nome =
+    jornada?.clientes.find((c) => c.chatId === chatId)?.quem ??
+    cliente?.relationship.knownName ??
+    'Cliente';
   const hoje = new Date().toLocaleDateString('pt-BR', {
     timeZone: 'America/Sao_Paulo',
     day: '2-digit',
@@ -91,11 +102,13 @@ const ParecerPage = async ({ params }: { params: { chatId: string } }): Promise<
             <strong>✅ Seu caso foi analisado e é APTO.</strong> {d.resumoExecutivo}
           </div>
 
+          {/* EXATAMENTE as hipóteses do Dossiê do painel — mesma lista, mesma
+              ordem, mesmos números (decreto 2026-07-31: nada de cortar na 3ª). */}
           <div className="p-h2">O que a análise encontrou</div>
           {d.hipoteses.length === 0 ? (
             <p className="p-sub">Os indícios detalhados serão apresentados pelo advogado.</p>
           ) : (
-            d.hipoteses.slice(0, 3).map((t) => (
+            d.hipoteses.map((t) => (
               <div className="p-tese" key={t.ref}>
                 <span className="p-num">{t.posicao}</span>
                 <span>

@@ -74,6 +74,15 @@ export async function anexarDoc(
   return r ?? { ok: false, error: 'falha no envio — tente novamente' };
 }
 
+/** Marca/desmarca "documentação enviada — aguardando o cliente devolver assinada". */
+export async function marcarAguardando(chatId: string, valor: boolean): Promise<{ ok: boolean }> {
+  const r = await postJson<{ ok: boolean }>(
+    `/admin/humanizado/clientes/${encodeURIComponent(chatId)}/aguardando`,
+    { valor },
+  );
+  return { ok: r?.ok === true };
+}
+
 export async function removerDoc(chatId: string, id: string): Promise<{ ok: boolean }> {
   try {
     const res = await fetch(

@@ -159,7 +159,8 @@ export function buildAdminServer(
         senha: string,
       ): Promise<{ ok: true; advogadoId: string; nome: string } | { ok: false; error: string }>;
     };
-    /** Onda 2 (2026-07-31): a mesa do humanizado — clientes confirmados + docs. */
+    /** Onda 2 (2026-07-31): a mesa do humanizado — clientes confirmados + docs,
+     *  UF (organização por estado) e a marcação "aguardando devolução". */
     readonly humanizado?: {
       clientes(): Promise<
         readonly {
@@ -167,11 +168,14 @@ export function buildAdminServer(
           chatId: string;
           nome: string;
           telefone: string;
+          uf: string;
           confirmadoEm: string;
           docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
           completo: boolean;
+          aguardandoAssinatura: boolean;
         }[]
       >;
+      marcarAguardando(chatId: string, valor: boolean): Promise<void>;
     };
     /** Onda 3 (2026-07-31): o PARECER EM LOTE — a base legada nunca viu o
      *  dossiê; o disparo é ato do Admin (nunca automático). */
@@ -1411,6 +1415,16 @@ export function buildAdminServer(
     if (!opts.humanizado)
       return reply.code(503).send({ error: 'mesa do humanizado indisponível nesta montagem' });
     return { clientes: await opts.humanizado.clientes() };
+  });
+
+  // A secretária marca "documentação enviada — aguardando devolução assinada".
+  app.post('/admin/humanizado/clientes/:chatId/aguardando', async (request, reply) => {
+    if (!opts.humanizado)
+      return reply.code(503).send({ error: 'mesa do humanizado indisponível nesta montagem' });
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { valor?: boolean };
+    await opts.humanizado.marcarAguardando(chatId, body.valor === true);
+    return { ok: true, aguardando: body.valor === true };
   });
 
   // ── PARECER EM LOTE (Onda 3) — a base LEGADA (cadastro do fluxo antigo)

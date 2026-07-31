@@ -319,7 +319,8 @@ export interface AssembledProduction {
     enviar(clienteId: string): Promise<{ ok: boolean; motivo?: string }>;
   };
   /** Onda 2 (2026-07-31): a mesa do humanizado — clientes que CONFIRMARAM o
-   *  parecer (cadastro gerado) + status dos 3 documentos da fase 2. */
+   *  parecer (cadastro gerado) + status dos 3 documentos da fase 2, com a UF
+   *  (organização por estado) e a marcação "aguardando devolução assinada". */
   readonly humanizado: {
     clientes(): Promise<
       readonly {
@@ -327,11 +328,14 @@ export interface AssembledProduction {
         chatId: string;
         nome: string;
         telefone: string;
+        uf: string;
         confirmadoEm: string;
         docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
         completo: boolean;
+        aguardandoAssinatura: boolean;
       }[]
     >;
+    marcarAguardando(chatId: string, valor: boolean): Promise<void>;
   };
   /** Decreto 2026-07-23: rateio do potencial + cadastro/painel do SÓCIO (login por CPF). */
   readonly socios: SociosService;
@@ -1825,9 +1829,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         chatId: string;
         nome: string;
         telefone: string;
+        uf: string;
         confirmadoEm: string;
         docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
         completo: boolean;
+        aguardandoAssinatura: boolean;
       }[]
     > => {
       const lista = await clientes.list();
@@ -1845,17 +1851,38 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           rg: tem('rg'),
           comprovante: tem('comprovante'),
         };
+        // UF (organização da mesa): o estado coletado na jornada; sem ele, o DDD.
+        const uf =
+          (await jornadaComercial.fatos(c.chatId).catch(() => null))?.registro.estado ??
+          ufDoTelefone(c.chatId) ??
+          'SEM UF';
+        // Marcação da secretária (ns 'humanizado-status'): "enviei a
+        // documentação — aguardando o cliente devolver assinada".
+        const status = (await json.get('humanizado-status', c.chatId).catch(() => null)) as {
+          aguardando?: boolean;
+        } | null;
         out.push({
           clienteId: c.clienteId,
           chatId: c.chatId,
           nome: c.quem,
           telefone: c.chatId.split('@')[0]?.replace(/\D/g, '') ?? '',
+          uf,
           confirmadoEm: new Date(fato.confirmadoEm).toISOString(),
           docs,
           completo: docs.procuracao && docs.rg && docs.comprovante,
+          aguardandoAssinatura: status?.aguardando === true,
         });
       }
       return out.sort((a, b) => b.confirmadoEm.localeCompare(a.confirmadoEm));
+    },
+    // A secretária marca/desmarca o status "aguardando devolução assinada" —
+    // fato simples de organização da mesa; nada automático deriva dele.
+    marcarAguardando: async (chatId: string, valor: boolean): Promise<void> => {
+      await json.put('humanizado-status', chatId, {
+        chatId,
+        aguardando: valor,
+        em: clock.now().toISOString(),
+      });
     },
   };
 

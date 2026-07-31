@@ -41,9 +41,11 @@ export interface ClienteHumanizado {
   chatId: string;
   nome: string;
   telefone: string;
+  uf: string;
   confirmadoEm: string;
   docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
   completo: boolean;
+  aguardandoAssinatura: boolean;
 }
 
 export interface DocEquipe {

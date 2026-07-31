@@ -34,6 +34,19 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
   // Decreto 2026-07-26: o CPF é dado de trabalho do PERITO (sem ele não há
   // pedido administrativo). Fica visível já no topo do cadastro.
   const cpfLegivel = formatarCpf(data.cpf);
+  // Decreto 2026-07-31: o CONTATO HUMANO da fase 2 — abre o WhatsApp do DONO na
+  // conversa do cliente com a mensagem pronta (quem envia é o humano, nunca a
+  // máquina); o parecer visual sai em /parecer para salvar em PDF e anexar.
+  const nomeCliente = relationship.knownName ?? 'Cliente';
+  const primeiroNome = nomeCliente.split(/\s+/)[0] ?? nomeCliente;
+  const telefoneCliente = chatId.split('@')[0]?.replace(/\D/g, '') ?? '';
+  const mensagemFase2 =
+    `Olá, ${primeiroNome}! Aqui é do *Projeto Reconstrua*. ✅ Já analisamos o seu HISCON e o ` +
+    'seu caso é *APTO*: a nossa análise encontrou indícios de irregularidades nos seus ' +
+    'contratos de consignado. Agora entramos na fase de coleta dos documentos para um dos ' +
+    'nossos advogados representar você: *procuração*, *RG (frente e verso)* e *comprovante ' +
+    'de endereço*. Vou te enviar aqui o resumo da análise. Qualquer dúvida, estou à disposição.';
+  const linkWhatsApp = `https://wa.me/${telefoneCliente}?text=${encodeURIComponent(mensagemFase2)}`;
   return (
     <>
       <AutoRefresh seconds={5} />
@@ -47,6 +60,24 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
           <span className="badge">não informado — a perícia precisa dele para os pedidos</span>
         )}
       </p>
+
+      {/* Decreto 2026-07-31: fase 2 é contato HUMANO — âncoras cruas levam o
+          prefixo /admin explícito (lição do 'ver documento'). */}
+      {telefoneCliente.length >= 10 ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '4px 0 16px' }}>
+          <a className="btn primary" href={linkWhatsApp} target="_blank" rel="noreferrer">
+            📲 Chamar no WhatsApp (mensagem pronta)
+          </a>
+          <a
+            className="btn"
+            href={`/admin/parecer/${encodeURIComponent(chatId)}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            🧾 Parecer p/ enviar (salvar PDF)
+          </a>
+        </div>
+      ) : null}
 
       {/* GO-LIVE 13A — ORDEM NATURAL DO TRABALHO: primeiro o parecer, depois a
           história do caso, e só então a conversa completa e os documentos.

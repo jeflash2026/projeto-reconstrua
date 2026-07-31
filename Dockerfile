@@ -47,9 +47,10 @@ COPY apps/portal-advogado ./apps/portal-advogado
 COPY apps/portal-cliente ./apps/portal-cliente
 COPY apps/portal-perito ./apps/portal-perito
 COPY apps/portal-socio ./apps/portal-socio
+COPY apps/portal-humanizado ./apps/portal-humanizado
 COPY apps/landing-web ./apps/landing-web
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente --filter @reconstrua/portal-perito --filter @reconstrua/portal-socio --filter @reconstrua/landing-web build
+RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente --filter @reconstrua/portal-perito --filter @reconstrua/portal-socio --filter @reconstrua/portal-humanizado --filter @reconstrua/landing-web build
 
 FROM portal-build AS portal-admin
 ENV NODE_ENV=production
@@ -71,6 +72,12 @@ FROM portal-build AS portal-perito
 ENV NODE_ENV=production
 EXPOSE 3400
 CMD ["pnpm", "--filter", "@reconstrua/portal-perito", "start"]
+
+# Onda 2 (2026-07-31): Portal do ATENDIMENTO HUMANIZADO (basePath /humanizado).
+FROM portal-build AS portal-humanizado
+ENV NODE_ENV=production
+EXPOSE 3700
+CMD ["pnpm", "--filter", "@reconstrua/portal-humanizado", "start"]
 
 # Decreto 2026-07-23: Portal do SÓCIO — apartado do Admin (basePath /socios).
 FROM portal-build AS portal-socio

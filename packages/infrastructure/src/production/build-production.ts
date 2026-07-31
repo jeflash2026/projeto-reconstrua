@@ -307,6 +307,24 @@ export interface AssembledProduction {
   readonly mapaClientes: MapaClientesService;
   /** Decreto 2026-07-21: convite→senha própria→login do PERITO (Auth Runtime, papel 'perito'). */
   readonly peritoAuth: AdvogadoAuthRuntime;
+  /** Onda 2 (2026-07-31): convite→senha→login do ATENDIMENTO HUMANIZADO
+   *  (papel 'operador' — a secretária da fase 2). */
+  readonly humanizadoAuth: AdvogadoAuthRuntime;
+  /** Onda 2 (2026-07-31): a mesa do humanizado — clientes que CONFIRMARAM o
+   *  parecer (cadastro gerado) + status dos 3 documentos da fase 2. */
+  readonly humanizado: {
+    clientes(): Promise<
+      readonly {
+        clienteId: string;
+        chatId: string;
+        nome: string;
+        telefone: string;
+        confirmadoEm: string;
+        docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
+        completo: boolean;
+      }[]
+    >;
+  };
   /** Decreto 2026-07-23: rateio do potencial + cadastro/painel do SÓCIO (login por CPF). */
   readonly socios: SociosService;
   /** Decreto 2026-07-23: convite (link) → CPF+senha → login do SÓCIO. */
@@ -540,6 +558,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     secret: env['ADMIN_ACCESS_SECRET'] ?? '',
     role: 'perito',
     usoConvite: 'convite-perito',
+  });
+
+  // Onda 2 (decreto 2026-07-31): convite→senha própria→login TAMBÉM para o
+  // ATENDIMENTO HUMANIZADO (papel 'operador' — a secretária). Mesmo Auth
+  // Runtime; credenciais no MESMO store (ids são únicos).
+  const humanizadoAuth = new AdvogadoAuthRuntime({
+    staff: staffStore,
+    credenciais: new JsonCredenciaisAdvogadoStore(json),
+    secret: env['ADMIN_ACCESS_SECRET'] ?? '',
+    role: 'operador',
+    usoConvite: 'convite-operador',
   });
 
   // Releitura comparativa (decreto 2026-07-27): valida o leitor posicional V2
@@ -1775,6 +1804,48 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   //    comprovante anexados pelo time ao cliente concluso da fase 1 ─────────
   const docsEquipe = new DocsEquipeService({ json, media: mediaStore, clock });
 
+  // ── ATENDIMENTO HUMANIZADO (Onda 2, decreto 2026-07-31): a mesa da
+  //    secretária — SÓ os clientes que CONFIRMARAM o parecer (cadastro gerado),
+  //    com o status dos 3 documentos da fase 2. Derivado em leitura. ─────────
+  const humanizado = {
+    clientes: async (): Promise<
+      readonly {
+        clienteId: string;
+        chatId: string;
+        nome: string;
+        telefone: string;
+        confirmadoEm: string;
+        docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
+        completo: boolean;
+      }[]
+    > => {
+      const lista = await clientes.list();
+      const out = [];
+      for (const c of lista) {
+        if (c.clienteId === c.chatId) continue;
+        const lib = await liberacaoStore.load(c.clienteId);
+        if (lib === null) continue; // sem confirmação, fora da mesa
+        const anexos = await docsEquipe.listar(c.chatId).catch(() => []);
+        const tem = (tipo: string): boolean => anexos.some((d) => d.tipo === tipo);
+        const docs = {
+          procuracao: tem('procuracao'),
+          rg: tem('rg'),
+          comprovante: tem('comprovante'),
+        };
+        out.push({
+          clienteId: c.clienteId,
+          chatId: c.chatId,
+          nome: c.quem,
+          telefone: c.chatId.split('@')[0]?.replace(/\D/g, '') ?? '',
+          confirmadoEm: lib.comunicadoEm.toISOString(),
+          docs,
+          completo: docs.procuracao && docs.rg && docs.comprovante,
+        });
+      }
+      return out.sort((a, b) => b.confirmadoEm.localeCompare(a.confirmadoEm));
+    },
+  };
+
   return {
     ingress: shadowMode ? shadow : plainIngress,
     shadow,
@@ -1809,6 +1880,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     canalDoChat,
     drenarTurnos: (timeoutMs) => plainIngress.aguardarTurnosEmVoo(timeoutMs),
     docsEquipe,
+    humanizadoAuth,
+    humanizado,
     pericia,
     releitura,
     revinculo,

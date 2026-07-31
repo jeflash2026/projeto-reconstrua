@@ -98,6 +98,9 @@ async function main(): Promise<void> {
     pericia: prod.pericia,
     // Decreto 2026-07-21: convite→senha própria→login do perito.
     peritoAuth: prod.peritoAuth,
+    // Onda 2 (2026-07-31): o Atendimento Humanizado (secretária, papel operador).
+    humanizadoAuth: prod.humanizadoAuth,
+    humanizado: prod.humanizado,
     // Custos de IA: gasto por cliente (conversa + leitura de documentos).
     custos: prod.custos,
     // Reaquecimento de leads frios — autorizado pelo admin, lead a lead.

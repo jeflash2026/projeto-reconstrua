@@ -145,6 +145,34 @@ export function buildAdminServer(
         senha: string,
       ): Promise<{ ok: true; advogadoId: string; nome: string } | { ok: false; error: string }>;
     };
+    /** Onda 2 (2026-07-31): convite→senha→login do ATENDIMENTO HUMANIZADO
+     *  (papel 'operador' — a secretária da fase 2). */
+    readonly humanizadoAuth?: {
+      emitirConvite(operadorId: string, now: Date): Promise<string | null>;
+      definirSenha(
+        token: string,
+        senha: string,
+        now: Date,
+      ): Promise<{ ok: true; advogadoId: string; nome: string } | { ok: false; error: string }>;
+      login(
+        operadorId: string,
+        senha: string,
+      ): Promise<{ ok: true; advogadoId: string; nome: string } | { ok: false; error: string }>;
+    };
+    /** Onda 2 (2026-07-31): a mesa do humanizado — clientes confirmados + docs. */
+    readonly humanizado?: {
+      clientes(): Promise<
+        readonly {
+          clienteId: string;
+          chatId: string;
+          nome: string;
+          telefone: string;
+          confirmadoEm: string;
+          docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
+          completo: boolean;
+        }[]
+      >;
+    };
     /** Decreto 2026-07-23: cadastro/lista/painel dos SÓCIOS (identidade por CPF). */
     readonly socios?: {
       cadastrar(input: {
@@ -1304,6 +1332,56 @@ export function buildAdminServer(
     const result = await opts.peritoAuth.login(body.peritoId, body.senha);
     if (!result.ok) return reply.code(401).send({ error: result.error });
     return { ok: true, peritoId: result.advogadoId, nome: result.nome };
+  });
+
+  // ── ATENDIMENTO HUMANIZADO (Onda 2, decreto 2026-07-31) — a SECRETÁRIA:
+  //    convite emitido na aba Operadores → senha própria → login por CPF.
+  //    A mesa lista SÓ quem CONFIRMOU o parecer (cadastro gerado). ────────────
+  app.post('/admin/humanizado/convite', async (request, reply) => {
+    if (!opts.humanizadoAuth)
+      return reply.code(503).send({ error: 'autenticação do humanizado indisponível' });
+    const body = request.body as { operadorId?: string };
+    if (!body.operadorId) return reply.code(400).send({ error: 'operadorId obrigatório' });
+    const token = await opts.humanizadoAuth.emitirConvite(body.operadorId, new Date());
+    if (token === null)
+      return reply.code(404).send({ error: 'operador(a) não encontrado(a) ou inativo(a)' });
+    return { operadorId: body.operadorId, token, validadeDias: 7 };
+  });
+
+  app.post('/admin/humanizado/definir-senha', async (request, reply) => {
+    if (!opts.humanizadoAuth)
+      return reply.code(503).send({ error: 'autenticação do humanizado indisponível' });
+    const body = request.body as { token?: string; senha?: string };
+    if (!body.token || !body.senha)
+      return reply.code(400).send({ error: 'token e senha são obrigatórios' });
+    const result = await opts.humanizadoAuth.definirSenha(body.token, body.senha, new Date());
+    if (!result.ok) return reply.code(400).send({ error: result.error });
+    return { ok: true, operadorId: result.advogadoId, nome: result.nome };
+  });
+
+  app.post('/admin/humanizado/login', async (request, reply) => {
+    if (!opts.humanizadoAuth)
+      return reply.code(503).send({ error: 'autenticação do humanizado indisponível' });
+    const body = request.body as { login?: string; senha?: string };
+    if (!body.login || !body.senha)
+      return reply.code(400).send({ error: 'login (CPF ou id) e senha são obrigatórios' });
+    // Login HUMANO por CPF (o id interno segue valendo — retrocompatível).
+    let operadorId = body.login.trim();
+    const digitos = operadorId.replace(/\D/g, '');
+    if (digitos.length === 11) {
+      const operadores = await op.staff.list('operador');
+      const porCpf = operadores.find((m) => (m.cpf ?? '').replace(/\D/g, '') === digitos);
+      if (porCpf !== undefined) operadorId = porCpf.id;
+    }
+    const result = await opts.humanizadoAuth.login(operadorId, body.senha);
+    if (!result.ok) return reply.code(401).send({ error: result.error });
+    return { ok: true, operadorId: result.advogadoId, nome: result.nome };
+  });
+
+  app.get('/admin/humanizado/clientes', async (_request, reply) => {
+    if (!opts.humanizado)
+      return reply.code(503).send({ error: 'mesa do humanizado indisponível nesta montagem' });
+    return { clientes: await opts.humanizado.clientes() };
   });
 
   // ── SÓCIOS (Decreto 2026-07-23) — o Admin cadastra o sócio (CPF+nome+participação)

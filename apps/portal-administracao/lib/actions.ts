@@ -626,6 +626,43 @@ export async function gerarConvitePerito(
   }
 }
 
+/** Onda 2 (2026-07-31): convite do ATENDIMENTO HUMANIZADO (papel 'operador' —
+ *  a secretária). O link aponta ao portal /humanizado; o login depois é por CPF. */
+export async function gerarConviteHumanizado(
+  operadorId: string,
+): Promise<{ link: string | null; error: string | null }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/humanizado/convite`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
+      },
+      body: JSON.stringify({ operadorId }),
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      let detail = `HTTP ${String(res.status)}`;
+      try {
+        const parsed = (await res.json()) as { error?: string };
+        if (typeof parsed.error === 'string' && parsed.error !== '') detail = parsed.error;
+      } catch {
+        /* corpo não-JSON */
+      }
+      return { link: null, error: detail };
+    }
+    const data = (await res.json()) as { token: string };
+    const h = headers();
+    const proto = h.get('x-forwarded-proto') ?? 'https';
+    const host = h.get('x-forwarded-host') ?? h.get('host') ?? '';
+    if (host === '')
+      return { link: null, error: 'não foi possível determinar o domínio da plataforma' };
+    return { link: `${proto}://${host}/humanizado/convite?t=${data.token}`, error: null };
+  } catch {
+    return { link: null, error: 'API do Admin inacessível' };
+  }
+}
+
 // ── SÓCIOS (Decreto 2026-07-23) — cadastro (ato do Admin), lista com valor
 // estimado e geração do LINK de cadastro (o sócio cria a própria senha por CPF).
 export async function fetchSocios(): Promise<{ socios: SocioAdminView[] } | null> {

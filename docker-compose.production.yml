@@ -218,6 +218,31 @@ services:
       - npm-net
 
   # Decreto 2026-07-21: Portal do PERITO — apartado (senha própria; NPM /perito → :3400).
+  # Onda 2 (2026-07-31): Portal do ATENDIMENTO HUMANIZADO — a mesa da secretária
+  # (clientes que confirmaram o parecer + coleta dos 3 documentos da fase 2).
+  # NPM: custom location /humanizado → portal-humanizado:3700.
+  portal-humanizado:
+    build:
+      context: .
+      target: portal-humanizado
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:${ADMIN_PORT:-3102}
+      ADMIN_API_TOKEN: ${ADMIN_ACCESS_SECRET:-}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3700/humanizado/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   portal-perito:
     build:
       context: .

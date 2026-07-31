@@ -7,6 +7,7 @@ import {
   createStaff,
   fetchStaff,
   gerarConviteAdvogado,
+  gerarConviteHumanizado,
   gerarConvitePerito,
   setStaffActive,
   setStaffCpf,
@@ -32,7 +33,13 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
     setError(null);
     setConvite(null);
     // Decreto 2026-07-21: o MESMO fluxo de convite serve o PERITO (portal /perito).
-    const res = role === 'perito' ? await gerarConvitePerito(id) : await gerarConviteAdvogado(id);
+    // Onda 2 (2026-07-31): e o OPERADOR — Atendimento Humanizado (/humanizado).
+    const res =
+      role === 'perito'
+        ? await gerarConvitePerito(id)
+        : role === 'operador'
+          ? await gerarConviteHumanizado(id)
+          : await gerarConviteAdvogado(id);
     if (res.link === null) {
       setError(res.error ?? 'Falha ao gerar o convite.');
       return;
@@ -220,7 +227,8 @@ const StaffPanel = ({ role, title }: { role: string; title: string }): ReactElem
                       >
                         {m.active ? 'Desativar' : 'Ativar'}
                       </button>
-                      {(role === 'advogado' || role === 'perito') && m.active ? (
+                      {(role === 'advogado' || role === 'perito' || role === 'operador') &&
+                      m.active ? (
                         <button
                           style={{ marginLeft: 6 }}
                           onClick={() => {

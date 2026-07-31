@@ -173,6 +173,14 @@ export function buildAdminServer(
         }[]
       >;
     };
+    /** Onda 3 (2026-07-31): o PARECER EM LOTE — a base legada nunca viu o
+     *  dossiê; o disparo é ato do Admin (nunca automático). */
+    readonly parecerLote?: {
+      pendentes(): Promise<
+        readonly { clienteId: string; chatId: string; nome: string; contratos: number }[]
+      >;
+      enviar(clienteId: string): Promise<{ ok: boolean; motivo?: string }>;
+    };
     /** Decreto 2026-07-23: cadastro/lista/painel dos SÓCIOS (identidade por CPF). */
     readonly socios?: {
       cadastrar(input: {
@@ -629,8 +637,23 @@ export function buildAdminServer(
   // Lote: um arquivo POR CLIENTE (JSON com os conteúdos; a tela dispara os downloads).
   app.get('/admin/jornada/pericia/planilhas', async (_request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
-    return { planilhas: await op.perito.planilhasDaFila() };
+    // Onda 3: as planilhas do perito respeitam a MESMA trava (ciclo completo).
+    const aptos = await clientesAptosParaPedido();
+    const planilhas = await op.perito.planilhasDaFila();
+    return {
+      planilhas: aptos === null ? planilhas : planilhas.filter((p) => aptos.has(p.clienteId)),
+    };
   });
+
+  // TRAVA DO PERITO (Onda 3, adendo do dono 2026-07-31): o pedido administrativo
+  // só sai com o ciclo COMPLETO — fase 1 (CPF+HISCON) + interesse CONFIRMADO
+  // após o dossiê + os 3 documentos anexados pelo Atendimento Humanizado.
+  // Sem a mesa montada (opts.humanizado ausente), a trava não se aplica.
+  async function clientesAptosParaPedido(): Promise<Set<string> | null> {
+    if (!opts.humanizado) return null;
+    const mesa = await opts.humanizado.clientes();
+    return new Set(mesa.filter((c) => c.completo).map((c) => c.clienteId));
+  }
 
   // TODOS os clientes com HISCON legível (Decreto 2026-07-23) — o perito trabalha
   // a partir da ENTREGA do HISCON, não só da fila de sociedade. Rota ESTÁTICA
@@ -638,8 +661,10 @@ export function buildAdminServer(
   app.get('/admin/jornada/pericia/todos-com-hiscon', async (_request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
     // Decreto 2026-07-27: a fila da perícia exige a FASE 1 completa (CPF +
-    // HISCON) — quem falta CPF fica na aba Clientes, em cobrança.
-    return { clientes: (await op.perito.todosComHiscon()).filter((c) => c.temCpf) };
+    // HISCON). Onda 3: e o ciclo completo (confirmação + docs do humanizado).
+    const aptos = await clientesAptosParaPedido();
+    const todos = (await op.perito.todosComHiscon()).filter((c) => c.temCpf);
+    return { clientes: aptos === null ? todos : todos.filter((c) => aptos.has(c.clienteId)) };
   });
 
   // Decreto 2026-07-27: RELEITURA COMPARATIVA — o leitor posicional V2 rodado
@@ -974,7 +999,11 @@ export function buildAdminServer(
   // contratos dele num arquivo). Resiliente: cliente problemático é pulado (sem 500).
   app.get('/admin/jornada/pericia/planilhas-zip', async (_request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
-    const planilhas = await op.perito.planilhasDeTodos();
+    // Onda 3: o zip do perito respeita a trava do ciclo completo.
+    const aptosZip = await clientesAptosParaPedido();
+    const todasPlanilhas = await op.perito.planilhasDeTodos();
+    const planilhas =
+      aptosZip === null ? todasPlanilhas : todasPlanilhas.filter((p) => aptosZip.has(p.clienteId));
     const usados = new Map<string, number>();
     const arquivos = planilhas.map((p, i) => {
       const base = nomeArquivoSeguro(p.quem, `cliente-${String(i + 1)}`);
@@ -1382,6 +1411,36 @@ export function buildAdminServer(
     if (!opts.humanizado)
       return reply.code(503).send({ error: 'mesa do humanizado indisponível nesta montagem' });
     return { clientes: await opts.humanizado.clientes() };
+  });
+
+  // ── PARECER EM LOTE (Onda 3) — a base LEGADA (cadastro do fluxo antigo)
+  //    nunca recebeu o dossiê+confirmação; o disparo é um CLIQUE do Admin.
+  //    O fato do parecer é o claim (envio único — repetir o lote não duplica).
+  app.get('/admin/jornada/clientes/parecer-lote', async (_request, reply) => {
+    if (!opts.parecerLote)
+      return reply.code(503).send({ error: 'parecer em lote indisponível nesta montagem' });
+    return { pendentes: await opts.parecerLote.pendentes() };
+  });
+
+  app.post('/admin/jornada/clientes/parecer-lote', async (_request, reply) => {
+    if (!opts.parecerLote)
+      return reply.code(503).send({ error: 'parecer em lote indisponível nesta montagem' });
+    const pendentes = await opts.parecerLote.pendentes();
+    let enviados = 0;
+    let pulados = 0;
+    const erros: string[] = [];
+    for (const p of pendentes) {
+      const r = await opts.parecerLote.enviar(p.clienteId).catch(() => ({
+        ok: false as const,
+        motivo: 'falha inesperada',
+      }));
+      if (r.ok) enviados += 1;
+      else {
+        pulados += 1;
+        erros.push(`${p.nome}: ${r.motivo ?? 'não enviado'}`);
+      }
+    }
+    return { ok: true, enviados, pulados, erros };
   });
 
   // ── SÓCIOS (Decreto 2026-07-23) — o Admin cadastra o sócio (CPF+nome+participação)

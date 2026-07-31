@@ -202,6 +202,22 @@ export async function fetchStaff(role: string): Promise<StaffData | null> {
   return getJson<StaffData>(`/admin/staff/${role}`);
 }
 
+// ── PARECER EM LOTE (Onda 3, 2026-07-31) — a base legada nunca viu o dossiê;
+//    o Admin dispara o parecer + pedido de confirmação com UM clique. ─────────
+export async function parecerLotePendentes(): Promise<{
+  pendentes: { clienteId: string; nome: string; contratos: number }[];
+} | null> {
+  return getJson('/admin/jornada/clientes/parecer-lote');
+}
+export async function dispararParecerLote(): Promise<{
+  ok: boolean;
+  enviados: number;
+  pulados: number;
+  erros: string[];
+} | null> {
+  return sendJson('POST', '/admin/jornada/clientes/parecer-lote', {});
+}
+
 export async function createStaff(
   role: string,
   name: string,

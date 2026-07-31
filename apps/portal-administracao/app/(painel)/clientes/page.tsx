@@ -12,6 +12,7 @@ import CobrarHiscon from '../../../components/cobrar-hiscon';
 import CobrarCpf from '../../../components/cobrar-cpf';
 import DisparoEmLote from '../../../components/disparo-em-lote';
 import DisparoCpfEmLote from '../../../components/disparo-cpf-em-lote';
+import DisparoParecerEmLote from '../../../components/disparo-parecer-em-lote';
 import { getJson, type JornadaCliente, type StaffData } from '../../../lib/api';
 import { formatDate } from '../../../lib/format';
 import { SAUDE_ICON, STATUS_LABEL } from '../../../lib/status-cliente';
@@ -177,6 +178,8 @@ const ClientsPage = async ({
           <p className="page-sub">
             Documentação inicial completa — são estes que alimentam a fila da perícia.
           </p>
+          {/* Onda 3: a base legada recebe o parecer + confirmação com um clique. */}
+          <DisparoParecerEmLote />
           {fase1.length === 0 ? (
             <div className="card empty">Ninguém com CPF + HISCON ainda.</div>
           ) : (

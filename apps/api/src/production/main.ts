@@ -101,6 +101,8 @@ async function main(): Promise<void> {
     // Onda 2 (2026-07-31): o Atendimento Humanizado (secretária, papel operador).
     humanizadoAuth: prod.humanizadoAuth,
     humanizado: prod.humanizado,
+    // Onda 3 (2026-07-31): o parecer em LOTE para a base legada (ato do Admin).
+    parecerLote: prod.parecerLote,
     // Custos de IA: gasto por cliente (conversa + leitura de documentos).
     custos: prod.custos,
     // Reaquecimento de leads frios — autorizado pelo admin, lead a lead.

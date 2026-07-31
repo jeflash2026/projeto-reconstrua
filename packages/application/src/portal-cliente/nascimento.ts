@@ -31,6 +31,10 @@ export interface ParecerEnviado {
   readonly enviadoEm: Date;
   readonly contratos: number;
   readonly indicios: number;
+  /** Onda 3 (2026-07-31): o instante em que o cliente CONFIRMOU o interesse —
+   *  null/ausente = ainda aguardando o SIM. É a régua da mesa do Atendimento
+   *  Humanizado (só confirmados entram). */
+  readonly confirmadoEm?: Date | null;
 }
 export interface ParecerStore {
   load(clienteId: string): Promise<ParecerEnviado | null>;
@@ -134,23 +138,24 @@ export class NascimentoPortalRuntime {
       if (cliente.clienteId === cliente.chatId) continue;
       verificados += 1;
 
-      // ENVIO ÚNICO / IDEMPOTÊNCIA: cadastro existente ⇒ tudo já aconteceu.
-      if ((await liberacao.load(cliente.clienteId)) !== null) continue;
-
-      // PRONTO (Readiness determinístico, já refletido na lista única).
-      if (!cliente.pronto) continue;
-
-      // NUNCA PREMATURO: evidência REAL de recebimento — a contabilidade de
-      // pendências não basta se nenhum documento chegou de fato.
-      const memoria = await memory.load(cliente.chatId);
-      const recebidos = memoria?.documentsSent.length ?? 0;
-      const obrigatorios = requirementsFor('GENERICO').requiredDocuments.length;
-      if (recebidos < obrigatorios) continue;
-
       const parecerFato = await parecer.load(cliente.clienteId);
 
       // ── FASE 1 do momento: o PARECER (dossiê + pedido de confirmação) ────────
       if (parecerFato === null) {
+        // LEGADO (Onda 3): quem já tem cadastro do fluxo antigo NUNCA recebe o
+        // parecer automaticamente — só pelo LOTE do Admin (decreto anti-spam).
+        if ((await liberacao.load(cliente.clienteId)) !== null) continue;
+
+        // PRONTO (Readiness determinístico, já refletido na lista única).
+        if (!cliente.pronto) continue;
+
+        // NUNCA PREMATURO: evidência REAL de recebimento — a contabilidade de
+        // pendências não basta se nenhum documento chegou de fato.
+        const memoria = await memory.load(cliente.chatId);
+        const recebidos = memoria?.documentsSent.length ?? 0;
+        const obrigatorios = requirementsFor('GENERICO').requiredDocuments.length;
+        if (recebidos < obrigatorios) continue;
+
         // A análise precisa ter ENCONTRADO contratos — sem leitura, sem parecer
         // (nada é prometido sem fato; a varredura re-tenta quando a leitura sair).
         const resumo = await this.deps.resumoParecer(cliente.chatId).catch(() => null);
@@ -163,6 +168,7 @@ export class NascimentoPortalRuntime {
           enviadoEm: now,
           contratos: resumo.contratos,
           indicios: resumo.indicios,
+          confirmadoEm: null,
         });
 
         // O link do DOSSIÊ: token com o CHAT como sujeito (é pré-cadastro).
@@ -183,19 +189,24 @@ export class NascimentoPortalRuntime {
       }
 
       // ── FASE 2 do momento: a CONFIRMAÇÃO ⇒ o cadastro nasce ─────────────────
+      if (parecerFato.confirmadoEm != null) continue; // ciclo já completo
       const confirmou = await this.deps
         .confirmouApos(cliente.chatId, parecerFato.enviadoEm)
         .catch(() => false);
       if (!confirmou) continue; // sem SIM, sem cadastro — o filtro do decreto
 
-      // O FATO nasce ANTES da mensagem (Lei 8): crash depois daqui ⇒ nunca
-      // duplica; o cliente pode pedir o link em conversa (PC-R4).
-      await liberacao.save({
-        clienteId: cliente.clienteId,
-        chatId: cliente.chatId,
-        comunicadoEm: now,
-        estimativaDiasInformada: config.estimativaDias,
-      });
+      // O FATO nasce ANTES da mensagem (Lei 8): a CONFIRMAÇÃO registrada —
+      // crash depois daqui ⇒ nunca duplica. É a régua da mesa do Humanizado.
+      await parecer.save({ ...parecerFato, confirmadoEm: now });
+      // O cadastro (liberação do Portal) — legado já o tem; novo fluxo cria.
+      if ((await liberacao.load(cliente.clienteId)) === null) {
+        await liberacao.save({
+          clienteId: cliente.clienteId,
+          chatId: cliente.chatId,
+          comunicadoEm: now,
+          estimativaDiasInformada: config.estimativaDias,
+        });
+      }
 
       // O LINK nasce: extensão temporária da identidade do WhatsApp (D4).
       const token = emitirTokenCliente(
@@ -218,5 +229,45 @@ export class NascimentoPortalRuntime {
     }
 
     return { verificados, nascidos, pareceres };
+  }
+
+  /** Onda 3 (2026-07-31) — o PARECER para UM cliente, disparado pelo LOTE do
+   *  Admin (a base legada, com cadastro do fluxo antigo, nunca o recebeu). O
+   *  fato é o claim (envio único); nada sai sem HISCON legível. */
+  async enviarParecer(clienteId: string, now: Date): Promise<{ ok: boolean; motivo?: string }> {
+    const { clientes, parecer, comunicador, config } = this.deps;
+    if (config.tokenSecret === '') return { ok: false, motivo: 'sem segredo do link' };
+    const cliente = (await clientes.list(now)).find((c) => c.clienteId === clienteId);
+    if (cliente === undefined || cliente.clienteId === cliente.chatId) {
+      return { ok: false, motivo: 'cliente não reconhecido' };
+    }
+    if ((await parecer.load(clienteId)) !== null) {
+      return { ok: false, motivo: 'parecer já enviado' };
+    }
+    const resumo = await this.deps.resumoParecer(cliente.chatId).catch(() => null);
+    if (resumo === null || resumo.contratos === 0) {
+      return { ok: false, motivo: 'HISCON ainda não legível' };
+    }
+    await parecer.save({
+      clienteId,
+      chatId: cliente.chatId,
+      enviadoEm: now,
+      contratos: resumo.contratos,
+      indicios: resumo.indicios,
+      confirmadoEm: null,
+    });
+    const token = emitirTokenCliente(
+      cliente.chatId,
+      config.validadeLinkDias,
+      now,
+      config.tokenSecret,
+    );
+    const link = `${config.publicUrl.replace(/\/+$/, '')}/parecer?t=${token}`;
+    const entregue = await comunicador.comunicar(
+      cliente.chatId,
+      clienteId,
+      mensagemParecer(resumo.contratos, resumo.indicios, link),
+    );
+    return entregue ? { ok: true } : { ok: false, motivo: 'entrega vetada pelo canal' };
   }
 }

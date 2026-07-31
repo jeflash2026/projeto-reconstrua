@@ -55,11 +55,14 @@ class FakeLiberacao implements LiberacaoPortalStore {
 
 class FakeParecer implements ParecerStore {
   public salvos: ParecerEnviado[] = [];
+  public gravacoes = 0;
   load(clienteId: string): Promise<ParecerEnviado | null> {
     return Promise.resolve(this.salvos.find((p) => p.clienteId === clienteId) ?? null);
   }
   save(record: ParecerEnviado): Promise<void> {
-    this.salvos.push(record);
+    this.gravacoes += 1;
+    // UPSERT (mesma semântica do JsonStore): a confirmação ATUALIZA o fato.
+    this.salvos = [...this.salvos.filter((p) => p.clienteId !== record.clienteId), record];
     return Promise.resolve();
   }
 }
@@ -172,12 +175,16 @@ describe('Fase do PARECER · fase 1 completa manda o dossiê e ESPERA o sim', ()
 });
 
 describe('Fase da CONFIRMAÇÃO · o SIM gera o cadastro; sem SIM, nada', () => {
-  it('parecer enviado + SIM depois ⇒ liberação + mensagem do cadastro com Portal válido', async () => {
-    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 3, { confirmou: true });
+  it('parecer enviado + SIM depois ⇒ confirmação registrada + liberação + Portal válido', async () => {
+    const { nascimento, liberacao, parecer, comunicador } = runtime([resumo({})], 3, {
+      confirmou: true,
+    });
     await nascimento.verificar(NOW); // 1ª varredura: o parecer sai
     const r = await nascimento.verificar(new Date(NOW.getTime() + 60_000)); // 2ª: o sim vale
 
     expect(r.nascidos).toEqual(['cli-1']);
+    // Onda 3: o FATO da confirmação (a régua da mesa do Humanizado):
+    expect(parecer.salvos[0]?.confirmadoEm).toBeInstanceOf(Date);
     expect(liberacao.salvos[0]).toMatchObject({
       clienteId: 'cli-1',
       chatId: 'c1',
@@ -202,6 +209,46 @@ describe('Fase da CONFIRMAÇÃO · o SIM gera o cadastro; sem SIM, nada', () => 
     await nascimento.verificar(new Date(NOW.getTime() + 60_000));
     await nascimento.verificar(new Date(NOW.getTime() + 120_000));
     expect(liberacao.salvos).toEqual([]);
+  });
+});
+
+describe('Onda 3 · a base LEGADA (cadastro do fluxo antigo, sem parecer)', () => {
+  it('a varredura NUNCA manda parecer a quem já tem cadastro (anti-spam) — só o lote do Admin', async () => {
+    const { nascimento, liberacao, parecer, comunicador } = runtime([resumo({})], 3, {
+      confirmou: true,
+    });
+    // Cadastro do fluxo ANTIGO já existe:
+    await liberacao.save({
+      clienteId: 'cli-1',
+      chatId: 'c1',
+      comunicadoEm: new Date(NOW.getTime() - 86_400_000),
+      estimativaDiasInformada: 12,
+    });
+    await nascimento.verificar(NOW);
+    expect(parecer.salvos).toEqual([]); // nada automático para o legado
+    expect(comunicador.mensagens).toEqual([]);
+
+    // O ADMIN dispara o parecer (lote) — o fato nasce e a mensagem sai:
+    const envio = await nascimento.enviarParecer('cli-1', NOW);
+    expect(envio.ok).toBe(true);
+    expect(parecer.salvos[0]).toMatchObject({ clienteId: 'cli-1', contratos: 4 });
+    expect(comunicador.mensagens[0]?.texto).toContain('/parecer?t=');
+    // Repetir o lote NÃO duplica (o fato é o claim):
+    expect((await nascimento.enviarParecer('cli-1', NOW)).ok).toBe(false);
+    expect(comunicador.mensagens).toHaveLength(1);
+
+    // O cliente confirma ⇒ a confirmação é registrada SEM duplicar a liberação:
+    const r = await nascimento.verificar(new Date(NOW.getTime() + 60_000));
+    expect(r.nascidos).toEqual(['cli-1']);
+    expect(parecer.salvos[0]?.confirmadoEm).toBeInstanceOf(Date);
+    expect(liberacao.salvos).toHaveLength(1); // a antiga permanece; nada duplica
+  });
+
+  it('enviarParecer recusa cliente sem HISCON legível (nada é prometido sem fato)', async () => {
+    const { nascimento, parecer } = runtime([resumo({})], 3, { resumoParecer: null });
+    const r = await nascimento.enviarParecer('cli-1', NOW);
+    expect(r.ok).toBe(false);
+    expect(parecer.salvos).toEqual([]);
   });
 });
 

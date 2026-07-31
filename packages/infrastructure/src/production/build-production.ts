@@ -310,6 +310,14 @@ export interface AssembledProduction {
   /** Onda 2 (2026-07-31): convite→senha→login do ATENDIMENTO HUMANIZADO
    *  (papel 'operador' — a secretária da fase 2). */
   readonly humanizadoAuth: AdvogadoAuthRuntime;
+  /** Onda 3 (2026-07-31): o PARECER EM LOTE do Admin — pendentes da base
+   *  legada + envio unitário com claim (fato antes da mensagem). */
+  readonly parecerLote: {
+    pendentes(): Promise<
+      readonly { clienteId: string; chatId: string; nome: string; contratos: number }[]
+    >;
+    enviar(clienteId: string): Promise<{ ok: boolean; motivo?: string }>;
+  };
   /** Onda 2 (2026-07-31): a mesa do humanizado — clientes que CONFIRMARAM o
    *  parecer (cadastro gerado) + status dos 3 documentos da fase 2. */
   readonly humanizado: {
@@ -446,6 +454,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const estimativaDias = Number(env['PROCESSING_ESTIMATE_DAYS'] ?? '12');
   const clientePortalSecret = env['CLIENTE_PORTAL_SECRET'] ?? '';
   const liberacaoStore = new JsonLiberacaoPortalStore(json);
+  // Onda 1/3 (2026-07-31): o fato do PARECER (enviado + confirmado) — instância
+  // ÚNICA compartilhada por nascimento, mesa do humanizado e lote do Admin.
+  const parecerStore = new JsonParecerStore(json);
   const despedidaStore = new JsonDespedidaStore(json);
   const acompanhamento = new AcompanhamentoView({
     clientes,
@@ -1156,7 +1167,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     liberacao: liberacaoStore,
     // Decreto 2026-07-31 (funil com confirmação): a fase 1 completa envia o
     // PARECER (dossiê + pedido de confirmação); o cadastro espera o SIM.
-    parecer: new JsonParecerStore(json),
+    parecer: parecerStore,
     resumoParecer: async (chatId) => {
       const d = await pericia.dossie(chatId).catch(() => null);
       if (d === null) return null;
@@ -1823,8 +1834,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       const out = [];
       for (const c of lista) {
         if (c.clienteId === c.chatId) continue;
-        const lib = await liberacaoStore.load(c.clienteId);
-        if (lib === null) continue; // sem confirmação, fora da mesa
+        // Onda 3 (adendo do dono): a mesa exige o INTERESSE CONFIRMADO após o
+        // dossiê — cadastro do fluxo antigo (sem parecer/sem SIM) fica FORA.
+        const fato = await parecerStore.load(c.clienteId);
+        if (fato === null || fato.confirmadoEm == null) continue;
         const anexos = await docsEquipe.listar(c.chatId).catch(() => []);
         const tem = (tipo: string): boolean => anexos.some((d) => d.tipo === tipo);
         const docs = {
@@ -1837,13 +1850,38 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           chatId: c.chatId,
           nome: c.quem,
           telefone: c.chatId.split('@')[0]?.replace(/\D/g, '') ?? '',
-          confirmadoEm: lib.comunicadoEm.toISOString(),
+          confirmadoEm: new Date(fato.confirmadoEm).toISOString(),
           docs,
           completo: docs.procuracao && docs.rg && docs.comprovante,
         });
       }
       return out.sort((a, b) => b.confirmadoEm.localeCompare(a.confirmadoEm));
     },
+  };
+
+  // Onda 3 (adendo do dono): o PARECER EM LOTE — a base LEGADA (cadastro do
+  // fluxo antigo) nunca viu o dossiê; o disparo é ATO do Admin (um clique, um
+  // lote — decreto anti-spam: nada sai sozinho). O fato do parecer é o claim.
+  const parecerLote = {
+    pendentes: async (): Promise<
+      readonly { clienteId: string; chatId: string; nome: string; contratos: number }[]
+    > => {
+      const comHiscon = await perito.todosComHiscon();
+      const out = [];
+      for (const c of comHiscon) {
+        if (!c.temCpf) continue; // fase 1 completa: CPF + HISCON
+        if ((await parecerStore.load(c.clienteId)) !== null) continue;
+        out.push({
+          clienteId: c.clienteId,
+          chatId: c.chatId,
+          nome: c.quem,
+          contratos: c.totalContratos,
+        });
+      }
+      return out;
+    },
+    enviar: (clienteId: string): Promise<{ ok: boolean; motivo?: string }> =>
+      nascimento.enviarParecer(clienteId, clock.now()),
   };
 
   return {
@@ -1882,6 +1920,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     docsEquipe,
     humanizadoAuth,
     humanizado,
+    parecerLote,
     pericia,
     releitura,
     revinculo,

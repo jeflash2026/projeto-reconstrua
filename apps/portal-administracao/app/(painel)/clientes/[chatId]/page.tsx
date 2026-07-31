@@ -141,9 +141,12 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
                   <span className="when">{formatDate(d.source.at)}</span>
                   <div>
                     📄 {d.label}{' '}
-                    {/* Preview: o proxy /api/documento serve os bytes reais (inline). */}
+                    {/* Preview: o proxy /admin/api/documento serve os bytes reais
+                        (inline). Âncora crua NÃO ganha o basePath do Next — o
+                        prefixo /admin vai explícito (mesmo padrão do planilhas-zip);
+                        sem ele o clique caía no site e dava 404. */}
                     <a
-                      href={`/api/documento/${encodeURIComponent(d.ref)}`}
+                      href={`/admin/api/documento/${encodeURIComponent(d.ref)}`}
                       target="_blank"
                       rel="noreferrer"
                       style={{ color: 'var(--accent)', fontSize: 12 }}

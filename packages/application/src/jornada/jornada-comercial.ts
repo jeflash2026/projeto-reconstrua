@@ -494,6 +494,25 @@ export function ehPedidoDeExplicacao(texto: string): boolean {
   return t.length <= 40 && /\bexplic/i.test(t);
 }
 
+// Caso REAL Theresinha (16 9..., 2026-07-31): a cliente AGENDOU para o dia
+// seguinte ("amanhã te mando, hoje estou num aniversário"), a AHRI acolheu
+// ("sem problema, combinado") — e o "Ok 👍" seguinte virou uma NOVA cobrança de
+// CPF. Aceite curto ("ok", "tá bom", "👍", "combinado") é o FECHO da conversa,
+// não um pedido: quem acabou de agendar não é cobrado de novo.
+const ACEITE_CURTO =
+  /^(ok(ay|ey)?|blz|beleza|t[áa]\s*bom|tabom|t[áa]\s*certo|certo|combinado|fechado|isso|perfeito|show|valeu|entendi|entendido|uhum|aham|sim|t[áa])$/i;
+
+/** Aceite/encerramento CURTO — inclusive só emoji ("👍"). */
+export function ehAceiteCurto(texto: string): boolean {
+  const semEmoji = texto
+    .replace(/[\p{Extended_Pictographic}️‍]/gu, '')
+    .replace(/[!.,\s]+/g, ' ')
+    .trim();
+  if (semEmoji === '') return texto.trim() !== ''; // só emoji (👍) é aceite
+  if (semEmoji.length > 25) return false;
+  return ACEITE_CURTO.test(semEmoji);
+}
+
 /** Este texto, na TRIAGEM, cairá na COBRANÇA de documento? (nenhum outro
  *  manejo o captura). O runtime usa para contar a escada de cobrança. */
 export function vaiReceberCobranca(texto: string): boolean {
@@ -501,6 +520,7 @@ export function vaiReceberCobranca(texto: string): boolean {
     !ehDesconfianca(texto) &&
     !ehDesistencia(texto) &&
     !ehAdiamento(texto) &&
+    !ehAceiteCurto(texto) &&
     !ehAgradecimentoPuro(texto) &&
     !ehPedidoDeExplicacao(texto) &&
     !ehPerguntaLivre(texto) &&
@@ -718,6 +738,11 @@ export const MENSAGENS_JORNADA = {
   despedidaRespeitosa:
     'Entendo e respeito a sua decisão. Se mudar de ideia ou quiser esclarecer qualquer dúvida sobre a análise, é só mandar uma mensagem por aqui — este canal fica à sua disposição. Obrigada pelo contato.',
   socialCurto: 'Por nada. Qualquer dúvida, estou à disposição.',
+  /** Caso REAL Theresinha (2026-07-31): depois de acolher o adiamento, o "Ok
+   *  👍" do cliente é só o FECHO da conversa — cortesia breve e ponto final.
+   *  Nunca uma nova cobrança de quem acabou de agendar. */
+  adiamentoFecho: (nome: string | null): string =>
+    `Combinado${nome !== null && nome !== '' ? `, ${primeiroNome(nome)}` : ''}! Fico no aguardo, sem pressa. Até logo.`,
   // Caso Sidinei: documento mandado como LINK ⇒ orientação clara, nunca cobrança.
   linkDeDocumento: (proximo: string): string =>
     'Recebi o seu link, obrigada. Só que por segurança eu não consigo abrir documentos por link — preciso do ARQUIVO aqui na conversa mesmo.\n\n' +
@@ -857,6 +882,13 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
         return r.avisosDeAdiamento > 1
           ? MENSAGENS_JORNADA.adiamentoOkCurto
           : MENSAGENS_JORNADA.adiamentoOk(proximo);
+      }
+      // Caso REAL Theresinha (2026-07-31): a cliente AGENDOU para o dia
+      // seguinte, a AHRI acolheu — e o "Ok 👍" seguinte virou nova cobrança de
+      // CPF. Aceite curto DEPOIS de um adiamento acolhido é o fecho da
+      // conversa: cortesia breve, nada de recobrar quem acabou de agendar.
+      if (r.avisosDeAdiamento > 0 && ehAceiteCurto(entrada.texto)) {
+        return MENSAGENS_JORNADA.adiamentoFecho(r.nome);
       }
       // Agradecimento/confirmação curta NÃO merece cobrança — cortesia breve.
       if (ehAgradecimentoPuro(entrada.texto)) return MENSAGENS_JORNADA.socialCurto;

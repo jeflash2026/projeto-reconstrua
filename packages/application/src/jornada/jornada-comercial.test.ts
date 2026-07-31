@@ -8,6 +8,7 @@ import {
   MENSAGENS_JORNADA,
   PASSO_A_PASSO_HISCON,
   capturarIdentificacao,
+  ehAceiteCurto,
   ehAdiamento,
   ehDesistencia,
   ehPedidoDeExplicacao,
@@ -449,6 +450,39 @@ describe('escada de cobrança — nunca a mesma cobrança duas vezes', () => {
 });
 
 // ── CASO MARILEIDE (2026-07-22): saudação + preâmbulo antes do nome ──────────
+describe('caso Theresinha — quem AGENDOU não é recobrado no "Ok 👍"', () => {
+  // A cliente adiou ("amanhã te mando, hoje estou num aniversário"), a AHRI
+  // acolheu — e o "Ok 👍" seguinte disparava nova cobrança de CPF.
+  const agendou = {
+    nome: 'Theresinha de Paula',
+    cidade: 'Araraquara',
+    consentiu: true,
+    cpf: null,
+    avisosDeAdiamento: 1,
+  };
+  it('o "Ok 👍" real recebe o fecho cordial — NUNCA a cobrança de CPF', () => {
+    const r = responderTurno(fatos(agendou), texto('Ok 👍'));
+    expect(r).toContain('Combinado, Theresinha');
+    expect(r).toContain('Fico no aguardo');
+    expect(r).not.toMatch(/CPF|preciso do|digitar/i);
+  });
+  it('as formas de aceite curto (inclusive só o emoji) fecham a conversa', () => {
+    for (const t of ['ok', 'Tá bom', 'certo', 'combinado', 'blz', '👍', 'valeu']) {
+      expect(ehAceiteCurto(t), t).toBe(true);
+      expect(responderTurno(fatos(agendou), texto(t)), t).not.toMatch(/CPF/i);
+      expect(vaiReceberCobranca(t), t).toBe(false); // nem conta degrau
+    }
+  });
+  it('SEM adiamento acolhido, o fluxo normal de cobrança segue intacto', () => {
+    const r = responderTurno(fatos({ ...agendou, avisosDeAdiamento: 0 }), texto('estou aqui'));
+    expect(r).toMatch(/CPF/i);
+  });
+  it('mensagem de VERDADE (não aceite) volta a ser tratada normalmente', () => {
+    expect(ehAceiteCurto('ok, mas preciso de ajuda para baixar o hiscon')).toBe(false);
+    expect(ehAceiteCurto('certo, o meu CPF é 529.982.247-25')).toBe(false);
+  });
+});
+
 describe('caso Elisabete — "Simq" (typo) É um sim (a confirmação do parecer)', () => {
   it('o typo real e as variações datilografadas contam como SIM', () => {
     for (const t of ['Simq', 'simm', 'siim', 'ssim', 'Sin', 'sim!', 'SIMQ']) {

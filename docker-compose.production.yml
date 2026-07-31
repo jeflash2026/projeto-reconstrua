@@ -70,7 +70,7 @@ services:
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
       EVOLUTION_GLOBAL_API_KEY: ${EVOLUTION_GLOBAL_API_KEY:-}
       FOUNDER_ACCESS_SECRET: ${FOUNDER_ACCESS_SECRET:-}
-      OFFICIAL_WHATSAPP_NUMBER: ${OFFICIAL_WHATSAPP_NUMBER:-554137989737}
+      OFFICIAL_WHATSAPP_NUMBER: ${OFFICIAL_WHATSAPP_NUMBER:-5516996369934}
       # Canal OFICIAL Meta Cloud API (decreto 2026-07-31): sem as três envs o
       # canal fica desligado (webhook /webhook/meta responde 503; nada muda).
       META_WHATSAPP_TOKEN: ${META_WHATSAPP_TOKEN:-}
@@ -281,7 +281,7 @@ services:
     restart: unless-stopped
     environment:
       # O CTA aponta SEMPRE ao número OFICIAL (mesma regra da landing anterior).
-      OFFICIAL_WHATSAPP_NUMBER: ${OFFICIAL_WHATSAPP_NUMBER:-554137989737}
+      OFFICIAL_WHATSAPP_NUMBER: ${OFFICIAL_WHATSAPP_NUMBER:-5516996369934}
       META_PIXEL_ID: ${META_PIXEL_ID:-}
       GA_MEASUREMENT_ID: ${GA_MEASUREMENT_ID:-}
     healthcheck:

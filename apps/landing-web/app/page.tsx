@@ -17,8 +17,9 @@ import { TimelineSection } from '@/sections/timeline-section';
 export const dynamic = 'force-dynamic';
 
 export default function Home() {
-  const numeroWhatsApp = (process.env['OFFICIAL_WHATSAPP_NUMBER'] ?? '554137989737').replace(
-    /D/g,
+  // Decreto 2026-07-31: default = o número OFICIAL do canal Meta Cloud API.
+  const numeroWhatsApp = (process.env['OFFICIAL_WHATSAPP_NUMBER'] ?? '5516996369934').replace(
+    /\D/g,
     '',
   );
   return (

@@ -412,7 +412,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // ── PORTAL DO CLIENTE · PC-R1/R3/R4: a projeção segura ÚNICA (Portal + AHRI) ──
   // D1: PROCESSING_ESTIMATE_DAYS lida AQUI, em um único ponto — Portal e mensagens
   // da AHRI consomem o MESMO valor. D3: a visão só compõe; nada nasce nela.
-  const officialNumber = (env['OFFICIAL_WHATSAPP_NUMBER'] ?? '554137989737').replace(/\D/g, '');
+  // Decreto 2026-07-31: o número OFICIAL da empresa agora é o do canal Meta
+  // Cloud API (+55 16 99636-9934) — é ele que aparece em CTA/Portal/landing.
+  const officialNumber = (env['OFFICIAL_WHATSAPP_NUMBER'] ?? '5516996369934').replace(/\D/g, '');
   const estimativaDias = Number(env['PROCESSING_ESTIMATE_DAYS'] ?? '12');
   const clientePortalSecret = env['CLIENTE_PORTAL_SECRET'] ?? '';
   const liberacaoStore = new JsonLiberacaoPortalStore(json);
@@ -1217,7 +1219,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     configStore,
     observability,
     clock,
-    officialNumber,
+    // Decreto 2026-07-31: o card valida o pareamento da INSTÂNCIA EVOLUTION —
+    // o número esperado aqui é o da Evolution (WHATSAPP_NUMBER), NÃO o oficial
+    // da empresa (que agora vive no canal Meta e nunca aparece num QR).
+    officialNumber: (config.evolution.whatsappNumber ?? '').replace(/\D/g, '') || officialNumber,
     active: {
       instance: config.evolution.instance,
       number: (config.evolution.whatsappNumber ?? '').replace(/\D/g, ''),

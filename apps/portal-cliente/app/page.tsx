@@ -28,7 +28,7 @@ const PedirLink = (): ReactElement => (
       </p>
     </section>
     <section className="bloco fecho">
-      <VoltarAoWhatsApp numero="554137989737" />
+      <VoltarAoWhatsApp numero="5516996369934" />
     </section>
   </main>
 );

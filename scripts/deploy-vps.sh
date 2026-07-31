@@ -20,7 +20,7 @@ SCRIPT_SHA="proof-45dd83e6"   # build id único desta publicação (bater com o 
 REPO_URL="https://github.com/jeflash2026/projeto-reconstrua.git"
 APP_DIR="/opt/reconstrua"
 OFFICIAL_INSTANCE="BB66E755DEB1-48BF-B1AA-2D845B947A87"
-OFFICIAL_NUMBER="554137989737"
+OFFICIAL_NUMBER="5516996369934"   # decreto 2026-07-31: canal Meta oficial
 OFFICIAL_DOMAIN="projetoreconstrua.com.br"   # domínio AUTORITATIVO do projeto (imune a placeholders/legado da VPS)
 TAB="$(printf '\t')"
 

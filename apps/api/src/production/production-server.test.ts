@@ -390,11 +390,12 @@ describe('Produção — Landing pública (GET /) injeta config do ambiente', ()
     }
   });
 
-  it('sem OFFICIAL_WHATSAPP_NUMBER ⇒ CTA cai no default oficial 554137989737 (nunca placeholder cru)', async () => {
+  it('sem OFFICIAL_WHATSAPP_NUMBER ⇒ CTA cai no default oficial 5516996369934 (nunca placeholder cru)', async () => {
     const { app } = harness({});
     const res = await app.inject({ method: 'GET', url: '/' });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('var WA = "554137989737"'); // default oficial
+    // Decreto 2026-07-31: o default é o número do canal Meta oficial.
+    expect(res.body).toContain('var WA = "5516996369934"'); // default oficial
     for (const ph of ['__URL__', '__WA__', '__OAB__', '__CNPJ__']) {
       expect(res.body, ph).not.toContain(ph);
     }

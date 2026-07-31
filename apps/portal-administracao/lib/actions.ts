@@ -133,8 +133,13 @@ export interface JarvisResposta {
   mensagem?: JarvisMensagem;
 }
 /** Pergunta livre OU comando ("mova 20 contratos para o advogado X"). */
-export async function perguntarJarvis(pergunta: string): Promise<JarvisResposta | null> {
-  return sendJson<JarvisResposta>('POST', '/admin/founder/jarvis', { pergunta });
+export async function perguntarJarvis(
+  pergunta: string,
+  chatId?: string,
+): Promise<JarvisResposta | null> {
+  // Decreto 2026-07-31: chatId opcional = Jarvis em CONTEXTO de um cliente (a
+  // caixa do cadastro) — habilita "retomar o atendimento" daquele chat.
+  return sendJson<JarvisResposta>('POST', '/admin/founder/jarvis', { pergunta, chatId });
 }
 /** EXECUTA um plano confirmado pelo fundador (com o advogado escolhido). */
 export async function executarJarvis(

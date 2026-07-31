@@ -17,9 +17,11 @@ function runtime(
   jarvis: JarvisRuntime;
   json: InMemoryJsonStore;
   enviadas: { chatId: string; texto: string }[];
+  retomados: string[];
 } {
   const json = new InMemoryJsonStore();
   const enviadas: { chatId: string; texto: string }[] = [];
+  const retomados: string[] = [];
   const deps: JarvisDeps = {
     json,
     clock: { now: () => new Date('2026-07-29T20:00:00Z') },
@@ -56,9 +58,16 @@ function runtime(
       enviadas.push({ chatId, texto });
       return Promise.resolve();
     },
+    // RETOMADA fake (decreto 2026-07-31): registra o chat reprocessado.
+    retomarAtendimento: (chatId) => {
+      retomados.push(chatId);
+      return chatId.includes('semtexto')
+        ? Promise.resolve({ ok: false, motivo: 'não encontrei mensagem de texto' })
+        : Promise.resolve({ ok: true, texto: 'Porto Alegre' });
+    },
     narrar: null,
   };
-  return { jarvis: new JarvisRuntime(deps), json, enviadas };
+  return { jarvis: new JarvisRuntime(deps), json, enviadas, retomados };
 }
 
 const MARIA: PendenteCpf = { chatId: '551199@s.whatsapp.net', nome: 'Maria', telefone: '551199' };
@@ -106,6 +115,29 @@ describe('JarvisRuntime · cobrança de CPF', () => {
     expect(r.ok).toBe(false);
     // Cobrar um id inexistente também falha limpo.
     expect((await jarvis.cobrar('plano-que-nao-existe')).ok).toBe(false);
+  });
+});
+
+describe('JarvisRuntime · retomada de atendimento (decreto 2026-07-31)', () => {
+  it('com o cliente em CONTEXTO, "retoma o atendimento" reprocessa e reporta', async () => {
+    const { jarvis, retomados } = runtime([], []);
+    const r = await jarvis.perguntar('retoma o atendimento', '555192323343@s.whatsapp.net');
+    expect(retomados).toEqual(['555192323343@s.whatsapp.net']);
+    expect(r.resposta).toContain('Retomei o atendimento');
+    expect(r.resposta).toContain('Porto Alegre'); // ecoa a mensagem reprocessada
+  });
+
+  it('sem mensagem de texto para reprocessar, reporta o motivo (nunca inventa)', async () => {
+    const { jarvis } = runtime([], []);
+    const r = await jarvis.perguntar('retomar o atendimento', 'semtexto@s.whatsapp.net');
+    expect(r.resposta).toContain('Não consegui retomar');
+  });
+
+  it('SEM contexto de cliente, "retomar" NÃO vira comando (segue pergunta livre)', async () => {
+    const { jarvis, retomados } = runtime([], []);
+    const r = await jarvis.perguntar('como retomar o atendimento de um cliente?');
+    expect(retomados).toHaveLength(0);
+    expect(r.resposta).not.toContain('Retomei o atendimento');
   });
 });
 

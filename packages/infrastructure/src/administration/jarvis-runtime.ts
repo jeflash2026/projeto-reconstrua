@@ -126,6 +126,13 @@ export interface JarvisDeps {
   /** ENVIA a mensagem ditada — o MESMO trilho manual do admin (gateway +
    *  memória da conversa; a AHRI fica ciente do que foi dito). */
   readonly enviarAoCliente: (chatId: string, texto: string) => Promise<void>;
+  /** Decreto 2026-07-31 (Jarvis no cadastro): REPROCESSA a última mensagem de
+   *  TEXTO do cliente pela entrada única — o resgate de um turno engolido por
+   *  restart ("a AHRI parou de responder"). ok=false com o motivo quando não
+   *  há o que reprocessar. */
+  readonly retomarAtendimento: (
+    chatId: string,
+  ) => Promise<{ ok: boolean; texto?: string; motivo?: string }>;
   /** Narração pela LLM (system, user) → texto. null = offline (determinístico). */
   readonly narrar: ((system: string, user: string) => Promise<string>) | null;
 }
@@ -154,7 +161,20 @@ export class JarvisRuntime {
 
   /** A conversa do fundador: comando ⇒ plano com confirmação; senão, resposta
    *  fundamentada no dossiê (LLM narra; sem LLM, resumo determinístico). */
-  async perguntar(pergunta: string): Promise<JarvisResposta> {
+  async perguntar(pergunta: string, chatIdContexto?: string): Promise<JarvisResposta> {
+    // JARVIS NO CADASTRO (decreto 2026-07-31): com um cliente em CONTEXTO,
+    // "retoma o atendimento" reprocessa a última mensagem DELE pela entrada
+    // única — o resgate imediato de um turno engolido (caso Iracema). Execução
+    // direta, sem plano: é RESPOSTA à mensagem do próprio cliente, pedida
+    // explicitamente pelo dono.
+    if (chatIdContexto !== undefined && /\bretom(?:a|e|ar|e o)\b|\breprocess/i.test(pergunta)) {
+      const r = await this.deps.retomarAtendimento(chatIdContexto);
+      return {
+        resposta: r.ok
+          ? `Retomei o atendimento: reprocessei a última mensagem do cliente ("${r.texto ?? ''}") e a resposta seguiu pelo canal dele. Em instantes ela aparece na Conversa aqui embaixo.`
+          : `Não consegui retomar: ${r.motivo ?? 'nada a reprocessar'}.`,
+      };
+    }
     // MENSAGEM DITADA primeiro: "mande a mensagem para Maria: seus 20 contratos…"
     // não pode cair na distribuição nem na cobrança pelo conteúdo do texto.
     const mensagem = interpretarComandoMensagem(pergunta);

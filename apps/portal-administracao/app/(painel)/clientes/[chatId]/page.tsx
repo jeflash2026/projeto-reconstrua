@@ -7,6 +7,7 @@ import AhriThinking from '../../../../components/ahri-thinking';
 import ConversaChat from '../../../../components/conversa-chat';
 import Dossie from '../../../../components/dossie';
 import DocsEquipe from '../../../../components/docs-equipe';
+import JarvisCliente from '../../../../components/jarvis-cliente';
 import PericiaHiscon from '../../../../components/pericia-hiscon';
 import TimelineCognitiva from '../../../../components/timeline-cognitiva';
 import { getJson, type ClientDetail } from '../../../../lib/api';
@@ -78,6 +79,10 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
           </a>
         </div>
       ) : null}
+
+      {/* Decreto 2026-07-31: o Jarvis EM CONTEXTO deste cliente — o resgate de
+          atendimento travado mora aqui ("retomar o atendimento"). */}
+      <JarvisCliente chatId={chatId} />
 
       {/* GO-LIVE 13A — ORDEM NATURAL DO TRABALHO: primeiro o parecer, depois a
           história do caso, e só então a conversa completa e os documentos.

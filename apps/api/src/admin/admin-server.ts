@@ -186,7 +186,9 @@ export function buildAdminServer(
      *  fundamentada nos Read Models + comando de distribuição de contratos
      *  (plano com confirmação; NADA executa sem o clique do fundador). */
     readonly jarvis?: {
-      perguntar(pergunta: string): Promise<unknown>;
+      /** Decreto 2026-07-31: chatId opcional = Jarvis EM CONTEXTO de um cliente
+       *  (a caixa do cadastro) — habilita "retomar o atendimento" daquele chat. */
+      perguntar(pergunta: string, chatId?: string): Promise<unknown>;
       executar(
         planoId: string,
         advogadoId: string,
@@ -2013,10 +2015,14 @@ export function buildAdminServer(
   // um PLANO que só executa após a confirmação explícita (com o advogado).
   app.post('/admin/founder/jarvis', async (request, reply) => {
     if (!opts.jarvis) return reply.code(503).send({ error: 'jarvis indisponível nesta montagem' });
-    const body = request.body as { pergunta?: string };
+    const body = request.body as { pergunta?: string; chatId?: string };
     if (!body.pergunta || body.pergunta.trim() === '')
       return reply.code(400).send({ error: 'pergunta obrigatória' });
-    return opts.jarvis.perguntar(body.pergunta.trim());
+    // Decreto 2026-07-31: chatId opcional = Jarvis em CONTEXTO de um cliente
+    // (a caixa do cadastro) — habilita "retomar o atendimento" daquele chat.
+    const chatId =
+      typeof body.chatId === 'string' && body.chatId.trim() !== '' ? body.chatId.trim() : undefined;
+    return opts.jarvis.perguntar(body.pergunta.trim(), chatId);
   });
   app.post('/admin/founder/jarvis/executar', async (request, reply) => {
     if (!opts.jarvis) return reply.code(503).send({ error: 'jarvis indisponível nesta montagem' });

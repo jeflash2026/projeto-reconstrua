@@ -83,6 +83,7 @@ import {
   type EnviadorDeDocumento,
   contratosDaJanela,
   type ClienteElegivel,
+  type InboundEnvelope,
   ufDoTelefone,
 } from '@reconstrua/application';
 import type { BootableComponent } from '@reconstrua/application';
@@ -1471,6 +1472,39 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     enviarAoCliente: async (chatId, texto) => {
       const receipt = await gateway.sendText(chatId, texto);
       await convMemory.recordOutbound(chatId, texto, receipt.providerMessageId);
+    },
+    // Decreto 2026-07-31 (Jarvis no cadastro): reprocessa a última mensagem de
+    // TEXTO do cliente pela MESMA entrada única — messageId NOVO (a idempotência
+    // não engole o resgate); a resposta sai pelo canal do próprio chat.
+    retomarAtendimento: async (chatId) => {
+      const entradas = await conversationStore.recent(chatId, 80);
+      const ultima = [...entradas]
+        .reverse()
+        .find((e) => e.kind === 'inbound' && e.text !== null && e.text.trim() !== '');
+      if (ultima === undefined) {
+        return { ok: false, motivo: 'não encontrei mensagem de texto do cliente nesta conversa' };
+      }
+      const agora = clock.now();
+      const envelope: InboundEnvelope = {
+        messageId: `retomada-${String(agora.getTime())}-${Math.random().toString(36).slice(2, 8)}`,
+        chatId,
+        from: chatId,
+        kind: 'text',
+        text: ultima.text,
+        mediaUrl: null,
+        mediaMimeType: null,
+        fileName: null,
+        location: null,
+        contact: null,
+        reactionEmoji: null,
+        reactionToMessageId: null,
+        editedText: null,
+        deletedMessageId: null,
+        silenceMs: null,
+        timestamp: agora,
+      };
+      await (shadowMode ? shadow : plainIngress).receive(envelope);
+      return { ok: true, texto: ultima.text ?? '' };
     },
     // RELATÓRIO NOMINAL (decreto 2026-07-30): linhas exatas dos Read Models —
     // nome, telefone (do chatId), UF (jornada, senão DDD) e contratos lidos.

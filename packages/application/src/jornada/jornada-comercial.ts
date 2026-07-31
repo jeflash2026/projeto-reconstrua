@@ -546,7 +546,12 @@ export const PASSO_A_PASSO_HISCON =
 // trocar a pergunta de interesse por uma cobrança de cidade inventada. O
 // roteiro do consentimento ("análise gratuita") passa a sair VERBATIM também.
 export function ehRoteiroDeColeta(roteiro: string): boolean {
-  return /\bCPF\b|\bHISCON\b|nome completo|qual cidade|an[áa]lise gratuita/i.test(roteiro);
+  // Caso Ubirajara (2026-07-31): a RECUSA e o seu agradecimento também saem
+  // VERBATIM — o humanizador emendava uma cobrança de HISCON ao "respeito a
+  // sua decisão", insistindo com quem acabou de dizer não.
+  return /\bCPF\b|\bHISCON\b|nome completo|qual cidade|an[áa]lise gratuita|respeito a sua decis|se mudar de ideia/i.test(
+    roteiro,
+  );
 }
 
 // Decreto 2026-07-22 (caso Lucas): tom de CONSULTORA JURÍDICA — profissional,
@@ -570,8 +575,17 @@ export const MENSAGENS_JORNADA = {
     'Você tem interesse em fazer essa análise gratuita?',
   reforcoConsentimento:
     'Só para eu confirmar: você tem interesse em fazer a análise gratuita do seu consignado?',
+  // Caso REAL Ubirajara (21 9..., 2026-07-31): o cliente disse NÃO e a resposta
+  // respeitava a decisão na primeira frase e COBRAVA o HISCON na segunda (o
+  // humanizador emendava a pendência). Recusa é recusa: cordial, agradece e
+  // ENCERRA — nenhuma cobrança, nenhuma insistência. Texto VERBATIM (protegido
+  // do humanizador pelo ehRoteiroDeColeta).
   recusa:
-    'Sem problemas, respeito a sua decisão. Fico à disposição — se mudar de ideia ou tiver qualquer dúvida sobre a análise, é só me chamar por aqui.',
+    'Sem problemas, respeito a sua decisão — e agradeço muito pelo seu tempo. Se mudar de ideia ou tiver qualquer dúvida sobre os seus contratos, é só me chamar por aqui. Um abraço!',
+  /** Agradecimento DEPOIS da recusa ("Obrigado") ⇒ cortesia e encerramento —
+   *  nunca uma nova cobrança. */
+  recusaAgradecimento: (nome: string | null): string =>
+    `Eu que agradeço${nome !== null && nome !== '' ? `, ${primeiroNome(nome)}` : ''}. Se mudar de ideia, estou por aqui — um abraço!`,
   // Decreto HISCON-ONLY + PDF-ONLY (2026-07-22): a análise precisa de UM
   // documento, e SÓ o ARQUIVO PDF serve — a foto/print do app vem incompleta
   // (sem todos os contratos e sem o valor das parcelas), e a análise não roda.
@@ -798,7 +812,15 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
         return prefixoDireito + MENSAGENS_JORNADA.explicacaoConsentimento(r.nome ?? '');
       }
       if (perguntaLivre) return '';
-      if (r.recusou) return prefixoDireito + MENSAGENS_JORNADA.recusa;
+      // Caso REAL Ubirajara (2026-07-31): recusa é recusa — cordial, agradece
+      // e ENCERRA. "Obrigado" depois do não ganha cortesia curta; nada de
+      // cobrança, nada de insistência (a retomada é SÓ por interesse novo).
+      if (r.recusou) {
+        if (ehAgradecimentoPuro(entrada.texto)) {
+          return MENSAGENS_JORNADA.recusaAgradecimento(r.nome);
+        }
+        return prefixoDireito + MENSAGENS_JORNADA.recusa;
+      }
       return prefixoDireito + MENSAGENS_JORNADA.reforcoConsentimento;
     }
     case 'TRIAGEM': {

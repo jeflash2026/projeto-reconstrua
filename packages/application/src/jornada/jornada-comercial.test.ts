@@ -11,6 +11,7 @@ import {
   ehAdiamento,
   ehDesistencia,
   ehPedidoDeExplicacao,
+  ehRoteiroDeColeta,
   pareceNome,
   derivarEtapa,
   ehSaudacaoPura,
@@ -448,6 +449,28 @@ describe('escada de cobrança — nunca a mesma cobrança duas vezes', () => {
 });
 
 // ── CASO MARILEIDE (2026-07-22): saudação + preâmbulo antes do nome ──────────
+describe('caso Ubirajara — o NÃO é respeitado: cordial, agradece e ENCERRA', () => {
+  const recusado = { nome: 'Ubirajara Oliveira', cidade: 'Belford Roxo', recusou: true };
+  it('a recusa responde o script cordial de encerramento — SEM cobrança de HISCON', () => {
+    const r = responderTurno(fatos(recusado), texto('Não'));
+    expect(r).toContain('respeito a sua decisão');
+    expect(r).toContain('agradeço');
+    expect(r).not.toMatch(/HISCON|preciso do|me manda|extrato/i); // nenhuma insistência
+  });
+  it('"Obrigado" depois do não ganha cortesia curta — nunca nova cobrança', () => {
+    const r = responderTurno(fatos(recusado), texto('Obrigado'));
+    expect(r).toContain('Eu que agradeço, Ubirajara');
+    expect(r).not.toMatch(/HISCON|preciso do|extrato/i);
+  });
+  it('os scripts da recusa são VERBATIM (protegidos do humanizador que emendava a cobrança)', () => {
+    expect(ehRoteiroDeColeta(MENSAGENS_JORNADA.recusa)).toBe(true);
+    expect(ehRoteiroDeColeta(MENSAGENS_JORNADA.recusaAgradecimento(null))).toBe(true);
+  });
+  it('a retomada continua viva: interesse novo reabre o funil', () => {
+    expect(interpretarInteresse('mudei de ideia, quero sim')).toBe('sim');
+  });
+});
+
 describe('caso Gloria — "Ok meu explica" recebe o PASSO A PASSO, nunca cobrança', () => {
   const triagem = { nome: 'Gloria Mielke', cidade: 'Laranja da Terra', consentiu: true };
   it('o diálogo REAL: pedido de explicação (com o typo "meu") ⇒ passo a passo canônico', () => {

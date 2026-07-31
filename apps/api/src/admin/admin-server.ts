@@ -513,9 +513,34 @@ export function buildAdminServer(
 
   // ── JORNADA (GO LIVE A · R2) — lista única com status DERIVADO em leitura ────
   // `?fila=venda` devolve apenas a fila do Modelo A (PRONTO_AGUARDANDO_VENDA).
+  //
+  // PERFORMANCE (2026-07-31): esta lista deriva TUDO em leitura — para CADA
+  // cliente, os textos dos documentos + DOIS parses de HISCON. Com a aba
+  // Clientes se atualizando a cada 8s, o mundo inteiro era recomputado toda
+  // hora e a página se arrastava. CACHE DE LEITURA com validade curta (20s),
+  // invalidado por qualquer ação de jornada (modalidade/venda/perícia): a
+  // página voa e o dado envelhece no máximo 20s. Nada é persistido — a régua
+  // continua 100% derivada.
+  const cacheJornada = new Map<string, { em: number; corpo: unknown }>();
+  const TTL_JORNADA_MS = 20_000;
+  const invalidarCacheJornada = (): void => {
+    cacheJornada.clear();
+  };
+  // Qualquer AÇÃO no painel (POST/PUT/DELETE) invalida o cache — o clique do
+  // Admin (vender, modalidade, perícia, upload…) reflete na lista na hora; o
+  // cache só serve leituras repetidas entre ações.
+  app.addHook('preHandler', (request, _reply, done) => {
+    if (request.method !== 'GET' && request.url.startsWith('/admin/')) invalidarCacheJornada();
+    done();
+  });
   app.get('/admin/jornada/clientes', async (request, reply) => {
     if (!op.clientes) return reply.code(503).send({ error: 'jornada indisponível nesta montagem' });
     const { fila } = request.query as { fila?: string };
+    const chaveCache = fila ?? '';
+    const cacheado = cacheJornada.get(chaveCache);
+    if (cacheado !== undefined && Date.now() - cacheado.em < TTL_JORNADA_MS) {
+      return cacheado.corpo;
+    }
     // As filas nomeadas do SO — todas DERIVADAS (Regra 1); B-R4 adiciona `socio`.
     const FILAS: Record<string, string> = {
       venda: 'PRONTO_AGUARDANDO_VENDA',
@@ -541,9 +566,13 @@ export function buildAdminServer(
             : ((await opts.jornadaCpf?.(c.chatId).catch(() => null)) ?? null) !== null;
         anotados.push({ ...c, hisconLegivel: h !== undefined, cpfRegistrado });
       }
-      return { clientes: anotados };
+      const corpo = { clientes: anotados };
+      cacheJornada.set(chaveCache, { em: Date.now(), corpo });
+      return corpo;
     }
-    return { clientes };
+    const corpo = { clientes };
+    cacheJornada.set(chaveCache, { em: Date.now(), corpo });
+    return corpo;
   });
 
   // ── JORNADA B (B-R2) — PERITO: contratos organizados + planilha (CSV hoje; a

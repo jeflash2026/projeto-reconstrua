@@ -27,6 +27,7 @@ import type { FastifyRequest } from 'fastify';
 import { bearerToken, requireBearer, secretsMatch } from '../auth/bearer-guard.js';
 import { PRODUCTION_UI_HTML } from './production-ui.js';
 import { LANDING_HTML } from './landing-html.js';
+import { PRIVACIDADE_HTML } from './privacidade-html.js';
 import { WEBCHAT_UI_HTML } from '../webchat/webchat-ui.js';
 
 // B5.1 — rotas /production/* SENSÍVEIS (config, monitor, go-live, first-client, shadow)
@@ -357,6 +358,12 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
       .replace('<!-- __PIXEL__ -->', pixel)
       .replace('<!-- __GA__ -->', ga);
     void reply.type('text/html').send(html);
+  });
+
+  // ── POLÍTICA DE PRIVACIDADE (LGPD) — página PÚBLICA exigida pela Meta para
+  //    publicar o app do canal oficial (decreto 2026-07-31) ────────────────────
+  app.get('/privacidade', (_request, reply) => {
+    void reply.type('text/html').send(PRIVACIDADE_HTML);
   });
 
   // ── UI mínima (Monitor + Config) servida pela API — portal congelado intocado ─

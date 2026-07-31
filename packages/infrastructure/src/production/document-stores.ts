@@ -32,6 +32,8 @@ import type {
   DespedidaStore,
   LiberacaoPortal,
   LiberacaoPortalStore,
+  ParecerEnviado,
+  ParecerStore,
   ModalidadeRecord,
   ModalidadeStore,
   PedidosAdministrativosRecord,
@@ -89,6 +91,7 @@ const DATE_KEYS = [
   'comunicadoEm',
   'comunicadaEm',
   'atualizadaEm',
+  'enviadoEm',
 ] as const;
 
 function revive<T>(value: unknown): T {
@@ -433,6 +436,19 @@ export class JsonLiberacaoPortalStore implements LiberacaoPortalStore {
   }
   save(record: LiberacaoPortal): Promise<void> {
     return this.store.put('liberacao-portal', record.clienteId, record);
+  }
+}
+
+/** Decreto 2026-07-31 (funil com confirmação): o fato do PARECER enviado — a
+ *  fase 1 completa manda o dossiê ao cliente e o CADASTRO espera o SIM dele. */
+export class JsonParecerStore implements ParecerStore {
+  constructor(private readonly store: JsonStore) {}
+  async load(clienteId: string): Promise<ParecerEnviado | null> {
+    const raw = await this.store.get('parecer-enviado', clienteId);
+    return raw === null ? null : revive<ParecerEnviado>(raw);
+  }
+  save(record: ParecerEnviado): Promise<void> {
+    return this.store.put('parecer-enviado', record.clienteId, record);
   }
 }
 

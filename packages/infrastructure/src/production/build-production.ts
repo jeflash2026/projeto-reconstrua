@@ -82,6 +82,7 @@ import {
   type OnboardingDocumentalProvider,
   type EnviadorDeDocumento,
   contratosDaJanela,
+  interpretarInteresse,
   type ClienteElegivel,
   type InboundEnvelope,
   ufDoTelefone,
@@ -172,6 +173,7 @@ import {
   JsonMemoryStore,
   JsonMetricsStore,
   JsonModalidadeStore,
+  JsonParecerStore,
   JsonPedidosAdministrativosStore,
   JsonProductivityStore,
   JsonVendaStore,
@@ -1123,6 +1125,27 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     clientes,
     memory: memoryStore,
     liberacao: liberacaoStore,
+    // Decreto 2026-07-31 (funil com confirmação): a fase 1 completa envia o
+    // PARECER (dossiê + pedido de confirmação); o cadastro espera o SIM.
+    parecer: new JsonParecerStore(json),
+    resumoParecer: async (chatId) => {
+      const d = await pericia.dossie(chatId).catch(() => null);
+      if (d === null) return null;
+      const contratos = d.porBanco.reduce((s, b) => s + b.contratos.length, 0);
+      return { contratos, indicios: d.indicios.length };
+    },
+    // O SIM depois do parecer: um inbound de texto afirmativo (a MESMA régua
+    // determinística do consentimento — interpretarInteresse).
+    confirmouApos: async (chatId, desde) => {
+      const entradas = await conversationStore.recent(chatId, 60);
+      return entradas.some(
+        (e) =>
+          e.kind === 'inbound' &&
+          e.text !== null &&
+          new Date(e.at).getTime() > desde.getTime() &&
+          interpretarInteresse(e.text) === 'sim',
+      );
+    },
     comunicador: new BrainNascimentoComunicador({
       brain: brainAssembly.brain,
       memory: convMemory,

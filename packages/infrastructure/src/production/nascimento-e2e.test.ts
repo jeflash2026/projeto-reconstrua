@@ -26,6 +26,7 @@ import {
   JsonVendaStore,
   JsonPedidosAdministrativosStore,
   JsonLiberacaoPortalStore,
+  JsonParecerStore,
 } from './document-stores.js';
 import { JsonDecisionStateStore } from '../executive-brain/decision-state-read-model.js';
 import { assembleALIR } from '../alir/build-alir.js';
@@ -111,10 +112,15 @@ describe('Nascimento e2e (Json stores reais)', () => {
         return Promise.resolve(true);
       },
     };
+    // Decreto 2026-07-31 (funil com confirmação): o SIM chega entre as varreduras.
+    let confirmou = false;
     const nascimento = new NascimentoPortalRuntime({
       clientes,
       memory: memoryStore,
       liberacao: liberacaoStore,
+      parecer: new JsonParecerStore(json),
+      resumoParecer: () => Promise.resolve({ contratos: 3, indicios: 1 }),
+      confirmouApos: () => Promise.resolve(confirmou),
       comunicador,
       config: {
         estimativaDias: 12,
@@ -124,8 +130,17 @@ describe('Nascimento e2e (Json stores reais)', () => {
       },
     });
 
-    // O momento acontece:
-    const r = await nascimento.verificar(NOW);
+    // 1ª varredura: o PARECER sai (fato com Date revivida no round-trip Json).
+    const r1 = await nascimento.verificar(NOW);
+    expect(r1.pareceres).toEqual(['cli-1']);
+    expect(r1.nascidos).toEqual([]);
+    const fatoParecer = await new JsonParecerStore(json).load('cli-1');
+    expect(fatoParecer?.enviadoEm).toBeInstanceOf(Date);
+    expect(mensagens[0]).toContain('/parecer?t=');
+
+    // O cliente CONFIRMA ⇒ 2ª varredura: o cadastro nasce.
+    confirmou = true;
+    const r = await nascimento.verificar(new Date(NOW.getTime() + 30_000));
     expect(r.nascidos).toEqual(['cli-1']);
 
     // Fato persistido de verdade (Date revivida no round-trip):
@@ -133,8 +148,8 @@ describe('Nascimento e2e (Json stores reais)', () => {
     expect(fato?.comunicadoEm).toBeInstanceOf(Date);
     expect(fato?.estimativaDiasInformada).toBe(12);
 
-    // O link da mensagem valida para o cliente certo:
-    const token = /\?t=([^\s]+)/.exec(mensagens[0] ?? '')?.[1] ?? '';
+    // O link do PORTAL valida para o cliente certo:
+    const token = /portal\?t=([^\s]+)/.exec(mensagens[1] ?? '')?.[1] ?? '';
     expect(validarTokenCliente(token, NOW, SECRET)).toBe('cli-1');
 
     // A visão do Portal agora ANCORA o relógio no fato (nada muda na relação):
@@ -150,8 +165,8 @@ describe('Nascimento e2e (Json stores reais)', () => {
     const a = await view.acompanhamento('cli-1', NOW);
     expect(a?.estimativaAte?.toISOString().slice(0, 10)).toBe('2026-07-30'); // fato + 12 dias
 
-    // Idempotência ponta a ponta:
+    // Idempotência ponta a ponta (parecer + cadastro já aconteceram):
     await nascimento.verificar(new Date(NOW.getTime() + 60_000));
-    expect(mensagens).toHaveLength(1);
+    expect(mensagens).toHaveLength(2);
   });
 });

@@ -28,6 +28,7 @@ import { bearerToken, requireBearer, secretsMatch } from '../auth/bearer-guard.j
 import { PRODUCTION_UI_HTML } from './production-ui.js';
 import { LANDING_HTML } from './landing-html.js';
 import { PRIVACIDADE_HTML } from './privacidade-html.js';
+import { PARECER_INDISPONIVEL_HTML, parecerPublicoHtml } from './parecer-html.js';
 import { WEBCHAT_UI_HTML } from '../webchat/webchat-ui.js';
 
 // B5.1 — rotas /production/* SENSÍVEIS (config, monitor, go-live, first-client, shadow)
@@ -365,6 +366,34 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
   //    publicar o app do canal oficial (decreto 2026-07-31) ────────────────────
   app.get('/privacidade', (_request, reply) => {
     void reply.type('text/html').send(PRIVACIDADE_HTML);
+  });
+
+  // ── PARECER DO CLIENTE (decreto 2026-07-31, funil com confirmação) — o
+  //    Dossiê Jurídico simplificado que a AHRI envia ao concluir a fase 1.
+  //    Token com o CHAT como sujeito (é pré-cadastro); sem token válido, a
+  //    página neutra de link expirado (nunca confirma a existência de ninguém).
+  app.get('/parecer', async (request, reply) => {
+    const { t } = request.query as { t?: string };
+    const chatId = t ? validarTokenCliente(t, new Date(), clientePortalSecret) : null;
+    if (chatId === null) {
+      return reply.code(401).type('text/html').send(PARECER_INDISPONIVEL_HTML);
+    }
+    const d = await prod.pericia.dossie(chatId).catch(() => null);
+    if (d === null) {
+      return reply.code(404).type('text/html').send(PARECER_INDISPONIVEL_HTML);
+    }
+    const contratos = d.porBanco.reduce((s, b) => s + b.contratos.length, 0);
+    return reply.type('text/html').send(
+      parecerPublicoHtml(
+        {
+          nome: d.nomeCliente ?? 'Cliente',
+          contratos,
+          bancos: d.porBanco.length,
+          indicios: d.indicios.map((i) => ({ titulo: i.titulo, fundamento: i.fundamentoFactual })),
+        },
+        new Date(),
+      ),
+    );
   });
 
   // ── UI mínima (Monitor + Config) servida pela API — portal congelado intocado ─

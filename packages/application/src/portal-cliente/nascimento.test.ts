@@ -1,7 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// O NASCIMENTO DO PORTAL (PC-R3) — testes das INVARIANTES auditadas: envio único,
-// idempotência, nunca prematuro (evidência real de recebimento), fato ANTES da
-// mensagem (Lei 8), fail-closed sem segredo e o texto homologado (D2) íntegro.
+// O NASCIMENTO DO PORTAL (PC-R3, reformado pelo decreto 2026-07-31 "funil com
+// confirmação") — testes das INVARIANTES auditadas nas DUAS fases:
+//  • fase 1 completa ⇒ PARECER (dossiê + pedido de confirmação) — envio único,
+//    fato ANTES da mensagem, nunca prematuro, nada sem leitura do HISCON;
+//  • SIM do cliente ⇒ CADASTRO (liberação + Portal + fase 2 anunciada) —
+//    mesmas invariantes; sem SIM, sem cadastro (o filtro do decreto).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import type { ClientesList, ClienteResumo } from '../clientes/clientes-list.js';
@@ -12,8 +15,11 @@ import type { LiberacaoPortal } from './acompanhamento.js';
 import {
   NascimentoPortalRuntime,
   mensagemNascimento,
+  mensagemParecer,
   type LiberacaoPortalStore,
   type ComunicadorNascimento,
+  type ParecerEnviado,
+  type ParecerStore,
 } from './nascimento.js';
 
 const NOW = new Date('2026-07-18T12:00:00.000Z');
@@ -47,6 +53,17 @@ class FakeLiberacao implements LiberacaoPortalStore {
   }
 }
 
+class FakeParecer implements ParecerStore {
+  public salvos: ParecerEnviado[] = [];
+  load(clienteId: string): Promise<ParecerEnviado | null> {
+    return Promise.resolve(this.salvos.find((p) => p.clienteId === clienteId) ?? null);
+  }
+  save(record: ParecerEnviado): Promise<void> {
+    this.salvos.push(record);
+    return Promise.resolve();
+  }
+}
+
 class FakeComunicador implements ComunicadorNascimento {
   public mensagens: Array<{ chatId: string; clienteId: string; texto: string }> = [];
   constructor(private readonly aceita = true) {}
@@ -59,9 +76,16 @@ class FakeComunicador implements ComunicadorNascimento {
 function runtime(
   clientes: readonly ClienteResumo[],
   documentosRecebidos: number,
-  opts: { aceita?: boolean; secret?: string } = {},
+  opts: {
+    aceita?: boolean;
+    secret?: string;
+    /** null = HISCON ilegível (o parecer não sai). */
+    resumoParecer?: { contratos: number; indicios: number } | null;
+    confirmou?: boolean;
+  } = {},
 ) {
   const liberacao = new FakeLiberacao();
+  const parecer = new FakeParecer();
   const comunicador = new FakeComunicador(opts.aceita ?? true);
   const memory: MemoryStore = {
     load: (chatId: string): Promise<ClientMemory | null> =>
@@ -80,6 +104,12 @@ function runtime(
     clientes: { list: () => Promise.resolve(clientes) } as unknown as ClientesList,
     memory,
     liberacao,
+    parecer,
+    resumoParecer: () =>
+      Promise.resolve(
+        opts.resumoParecer === undefined ? { contratos: 4, indicios: 2 } : opts.resumoParecer,
+      ),
+    confirmouApos: () => Promise.resolve(opts.confirmou ?? false),
     comunicador,
     config: {
       estimativaDias: 12,
@@ -88,43 +118,94 @@ function runtime(
       tokenSecret: opts.secret ?? SECRET,
     },
   });
-  return { nascimento, liberacao, comunicador };
+  return { nascimento, liberacao, parecer, comunicador };
 }
 
-describe('Nascimento · o momento acontece (sem clique humano)', () => {
-  it('cliente PRONTO com evidência real → fato + mensagem homologada com link válido', async () => {
-    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 3);
+describe('Fase do PARECER · fase 1 completa manda o dossiê e ESPERA o sim', () => {
+  it('cliente PRONTO com evidência real → fato do parecer + mensagem com link /parecer válido', async () => {
+    const { nascimento, liberacao, parecer, comunicador } = runtime([resumo({})], 3);
     const r = await nascimento.verificar(NOW);
 
+    expect(r.pareceres).toEqual(['cli-1']);
+    expect(r.nascidos).toEqual([]); // o CADASTRO espera a confirmação
+    expect(liberacao.salvos).toEqual([]); // nada de liberação ainda
+    // O FATO do parecer (com os números DITOS — Lei 10):
+    expect(parecer.salvos[0]).toMatchObject({
+      clienteId: 'cli-1',
+      chatId: 'c1',
+      contratos: 4,
+      indicios: 2,
+    });
+    // A MENSAGEM: números reais + link do PARECER com token do CHAT (pré-cadastro):
+    const msg = comunicador.mensagens[0];
+    expect(msg?.texto).toContain('4 contrato(s)');
+    expect(msg?.texto).toContain('2 indício(s)');
+    expect(msg?.texto).toContain('/parecer?t=');
+    expect(msg?.texto).toContain('responder SIM');
+    const token = /\?t=([^\s]+)/.exec(msg?.texto ?? '')?.[1] ?? '';
+    expect(validarTokenCliente(token, NOW, SECRET)).toBe('c1');
+  });
+
+  it('ENVIO ÚNICO: sem confirmação, as varreduras seguintes não repetem o parecer', async () => {
+    const { nascimento, comunicador } = runtime([resumo({})], 3);
+    await nascimento.verificar(NOW);
+    await nascimento.verificar(new Date(NOW.getTime() + 60_000));
+    expect(comunicador.mensagens).toHaveLength(1);
+  });
+
+  it('HISCON ilegível/sem contratos ⇒ o parecer NÃO sai (nada é prometido sem fato)', async () => {
+    const { nascimento, parecer, comunicador } = runtime([resumo({})], 3, { resumoParecer: null });
+    const r = await nascimento.verificar(NOW);
+    expect(r.pareceres).toEqual([]);
+    expect(parecer.salvos).toEqual([]);
+    expect(comunicador.mensagens).toEqual([]);
+  });
+
+  it('Lei 8 no parecer: entrega vetada ⇒ o FATO permanece e nada re-envia', async () => {
+    const { nascimento, parecer, comunicador } = runtime([resumo({})], 3, { aceita: false });
+    const r = await nascimento.verificar(NOW);
+    expect(r.pareceres).toEqual([]); // não entregue…
+    expect(parecer.salvos).toHaveLength(1); // …mas a DECISÃO está registrada
+    await nascimento.verificar(new Date(NOW.getTime() + 60_000));
+    expect(comunicador.mensagens).toHaveLength(1);
+  });
+});
+
+describe('Fase da CONFIRMAÇÃO · o SIM gera o cadastro; sem SIM, nada', () => {
+  it('parecer enviado + SIM depois ⇒ liberação + mensagem do cadastro com Portal válido', async () => {
+    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 3, { confirmou: true });
+    await nascimento.verificar(NOW); // 1ª varredura: o parecer sai
+    const r = await nascimento.verificar(new Date(NOW.getTime() + 60_000)); // 2ª: o sim vale
+
     expect(r.nascidos).toEqual(['cli-1']);
-    // O FATO (com o que foi DITO — Lei 10):
-    expect(liberacao.salvos).toHaveLength(1);
     expect(liberacao.salvos[0]).toMatchObject({
       clienteId: 'cli-1',
       chatId: 'c1',
       estimativaDiasInformada: 12,
     });
-
-    // A MENSAGEM (D2 revisado — conteúdo homologado):
-    const msg = comunicador.mensagens[0];
-    expect(msg?.texto).toContain('Recebi o seu HISCON');
-    expect(msg?.texto).toContain('até 12 dias úteis');
-    expect(msg?.texto).toContain('estou à disposição.'); // a frase final OBRIGATÓRIA
-    // O LINK verbatim, com token VÁLIDO do cliente certo:
-    const token = /\?t=([^\s]+)/.exec(msg?.texto ?? '')?.[1] ?? '';
+    const msg = comunicador.mensagens[1];
+    expect(msg?.texto).toContain('cadastro foi gerado');
+    expect(msg?.texto).toContain('/portal?t=');
+    expect(msg?.texto).toContain('(41) 3798-9737');
+    const token = /portal\?t=([^\s]+)/.exec(msg?.texto ?? '')?.[1] ?? '';
     expect(validarTokenCliente(token, NOW, SECRET)).toBe('cli-1');
+
+    // Idempotência: a varredura seguinte é no-op.
+    await nascimento.verificar(new Date(NOW.getTime() + 120_000));
+    expect(liberacao.salvos).toHaveLength(1);
+    expect(comunicador.mensagens).toHaveLength(2);
   });
 
-  it('ENVIO ÚNICO / IDEMPOTÊNCIA: segunda varredura é no-op', async () => {
-    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 3);
+  it('SEM o sim, o cadastro NUNCA nasce (o filtro de interesse do decreto)', async () => {
+    const { nascimento, liberacao } = runtime([resumo({})], 3, { confirmou: false });
     await nascimento.verificar(NOW);
     await nascimento.verificar(new Date(NOW.getTime() + 60_000));
-    expect(liberacao.salvos).toHaveLength(1);
-    expect(comunicador.mensagens).toHaveLength(1);
+    await nascimento.verificar(new Date(NOW.getTime() + 120_000));
+    expect(liberacao.salvos).toEqual([]);
   });
 });
 
-describe('Nascimento · NUNCA prematuro', () => {
+describe('Nascimento · NUNCA prematuro (invariantes preservadas)', () => {
   it('não pronto → silêncio; contato não reconhecido → nem candidato', async () => {
     const { nascimento, comunicador } = runtime(
       [
@@ -135,61 +216,55 @@ describe('Nascimento · NUNCA prematuro', () => {
     );
     const r = await nascimento.verificar(NOW);
     expect(r.nascidos).toEqual([]);
+    expect(r.pareceres).toEqual([]);
     expect(comunicador.mensagens).toEqual([]);
   });
 
-  it('sem evidência REAL de recebimento (0 docs < 1 obrigatório) → silêncio, mesmo PRONTO', async () => {
-    // Decreto HISCON-ONLY: o obrigatório é 1 (o HISCON); com 0 recebidos, o
-    // portal NÃO nasce mesmo o Readiness dizendo PRONTO (nunca prematuro).
-    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 0);
+  it('sem evidência REAL de recebimento → silêncio, mesmo PRONTO', async () => {
+    const { nascimento, liberacao, parecer, comunicador } = runtime([resumo({})], 0);
     const r = await nascimento.verificar(NOW);
-    expect(r.nascidos).toEqual([]);
+    expect(r.pareceres).toEqual([]);
     expect(liberacao.salvos).toEqual([]);
+    expect(parecer.salvos).toEqual([]);
     expect(comunicador.mensagens).toEqual([]);
   });
 
-  it('FAIL-CLOSED: sem segredo do link, o nascimento não acontece', async () => {
-    const { nascimento, liberacao } = runtime([resumo({})], 3, { secret: '' });
+  it('FAIL-CLOSED: sem segredo do link, nada acontece', async () => {
+    const { nascimento, liberacao, parecer } = runtime([resumo({})], 3, { secret: '' });
     const r = await nascimento.verificar(NOW);
     expect(r.verificados).toBe(0);
     expect(liberacao.salvos).toEqual([]);
+    expect(parecer.salvos).toEqual([]);
   });
 });
 
-describe('Nascimento · Lei 8 (fato ANTES da mensagem)', () => {
-  it('se a entrega falhar, o fato PERMANECE e não há re-tentativa automática (link renasce em conversa)', async () => {
-    const { nascimento, liberacao, comunicador } = runtime([resumo({})], 3, { aceita: false });
-    const r = await nascimento.verificar(NOW);
-    expect(r.nascidos).toEqual([]); // não entregue…
-    expect(liberacao.salvos).toHaveLength(1); // …mas a DECISÃO está registrada
-    // varredura seguinte: nada duplica
-    await nascimento.verificar(new Date(NOW.getTime() + 60_000));
-    expect(comunicador.mensagens).toHaveLength(1);
-  });
-});
-
-describe('mensagemNascimento (D2 — revisado pelo decreto "Jornada Documental Inicial")', () => {
-  it('contém os 6 elementos do decreto, na ordem', () => {
-    const m = mensagemNascimento(10, 'https://x/portal?t=abc');
+describe('as mensagens homologadas (decreto 2026-07-31)', () => {
+  it('mensagemParecer: números reais + dossiê + pedido de confirmação', () => {
+    const m = mensagemParecer(9, 3, 'https://x/parecer?t=abc');
     for (const trecho of [
-      // 1. Recebemos toda a documentação inicial (os 3 nomeados):
-      'Recebi o seu HISCON',
-      // (sentimento: terminou a primeira etapa; nada mais a enviar espontaneamente)
-      'a documentação desta primeira etapa está completa',
-      'Você não precisa enviar mais nada por enquanto',
-      // 2. Entrou na análise:
-      'entrou agora na etapa de análise',
-      // 3. Prazo esperado:
-      'até 10 dias úteis',
-      // 4. Decreto 2026-07-31: a FASE 2 é da equipe humana — o cliente só
-      //    aguarda o contato pelo número fixo ditado pelo Fundador:
+      'Concluí a análise do seu HISCON',
+      '9 contrato(s)',
+      '3 indício(s)',
+      'APTO',
+      'DOSSIÊ JURÍDICO',
+      'https://x/parecer?t=abc',
+      'CONFIRMAÇÃO',
+      'responder SIM',
+      'estou à disposição.',
+    ]) {
+      expect(m).toContain(trecho);
+    }
+  });
+
+  it('mensagemNascimento: cadastro gerado + Portal + fase 2 da equipe humana', () => {
+    const m = mensagemNascimento('https://x/portal?t=abc');
+    for (const trecho of [
+      'Confirmação registrada',
+      'cadastro foi gerado',
+      'https://x/portal?t=abc',
       'a nossa equipe vai entrar em contato',
       'a procuração, o RG (frente e verso) e o comprovante de endereço',
       'entraremos em contato por ligação no WhatsApp, pelo número (41) 3798-9737',
-      // 5. Portal para acompanhamento (link verbatim):
-      'acompanhar o andamento pelo Portal do Cliente',
-      'https://x/portal?t=abc',
-      // Invariante PC-R3: o relacionamento nunca termina.
       'estou à disposição.',
     ]) {
       expect(m).toContain(trecho);

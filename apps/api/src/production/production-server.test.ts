@@ -307,6 +307,67 @@ describe('Produção — B5.1 Segurança', () => {
   });
 });
 
+// Decreto 2026-07-31 — CANAL OFICIAL (Meta Cloud API): verificação do webhook
+// (hub.challenge), POST autenticado por ?token= (fail-closed) e 503 quando as
+// envs do gateway não estão configuradas.
+describe('Produção — Webhook Meta (canal oficial)', () => {
+  const META_ENV = {
+    META_WEBHOOK_VERIFY_TOKEN: 'VERIFY-META',
+    META_WHATSAPP_TOKEN: 'TOKEN-META',
+    META_PHONE_NUMBER_ID: '111222333',
+  };
+
+  it('GET verifica a assinatura: token certo devolve o hub.challenge em texto', async () => {
+    const { app } = harness(META_ENV);
+    const ok = await app.inject({
+      method: 'GET',
+      url: '/webhook/meta?hub.mode=subscribe&hub.verify_token=VERIFY-META&hub.challenge=DESAFIO-42',
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.body).toBe('DESAFIO-42');
+    const errado = await app.inject({
+      method: 'GET',
+      url: '/webhook/meta?hub.mode=subscribe&hub.verify_token=ERRADO&hub.challenge=X',
+    });
+    expect(errado.statusCode).toBe(403);
+  });
+
+  it('POST sem token ⇒ 401 (fail-closed); com token e envs ⇒ ACK {ok:true}', async () => {
+    const { app } = harness(META_ENV);
+    const semToken = await app.inject({ method: 'POST', url: '/webhook/meta', payload: {} });
+    expect(semToken.statusCode).toBe(401);
+    const comToken = await app.inject({
+      method: 'POST',
+      url: '/webhook/meta?token=VERIFY-META',
+      payload: { object: 'whatsapp_business_account', entry: [] },
+    });
+    expect(comToken.statusCode).toBe(200);
+    const ack: { ok: boolean } = comToken.json();
+    expect(ack.ok).toBe(true);
+  });
+
+  it('sem META_WHATSAPP_TOKEN/META_PHONE_NUMBER_ID o canal não existe ⇒ 503', async () => {
+    const { app } = harness({ META_WEBHOOK_VERIFY_TOKEN: 'VERIFY-META' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/meta?token=VERIFY-META',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(503);
+  });
+
+  it('sem META_WEBHOOK_VERIFY_TOKEN, GET e POST recusam (nunca aberto)', async () => {
+    const { app } = harness();
+    const get = await app.inject({
+      method: 'GET',
+      url: '/webhook/meta?hub.mode=subscribe&hub.verify_token=&hub.challenge=X',
+    });
+    expect(get.statusCode).toBe(403);
+    const post = await app.inject({ method: 'POST', url: '/webhook/meta', payload: {} });
+    expect(post.statusCode).toBe(401);
+  });
+});
+
 describe('Produção — Landing pública (GET /) injeta config do ambiente', () => {
   it('CTA usa EXCLUSIVAMENTE o número OFICIAL (ignora WHATSAPP_NUMBER); OAB/CNPJ do env', async () => {
     const { app } = harness({

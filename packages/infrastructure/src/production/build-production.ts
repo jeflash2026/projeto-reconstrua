@@ -125,6 +125,11 @@ import {
   FetchHttpClient,
   EvolutionGateway,
   criarMissaoProvider,
+  CanalDoChatStore,
+  FetchMetaHttp,
+  MetaCanalRuntime,
+  MetaCloudGateway,
+  MetaGatewayRouter,
 } from '../conversation/index.js';
 import { assembleExecutiveBrain } from '../executive-brain/build-executive-brain.js';
 // RFC-0035-G: fronteira de decisão como Read Model Projection (Alternativa B).
@@ -268,6 +273,9 @@ export interface AssembledProduction {
   /** Decreto 2026-07-30: o WEBCHAT da AHRI — canal próprio, mesmo fluxo do
    *  WhatsApp (mesma entrada única, mesmo media store, mesma memória). */
   readonly webchat: WebchatRuntime;
+  /** Decreto 2026-07-31: o canal OFICIAL (Meta Cloud API) — null quando as
+   *  envs META_WHATSAPP_TOKEN/META_PHONE_NUMBER_ID não estão configuradas. */
+  readonly metaCanal: MetaCanalRuntime | null;
   /** Decreto 2026-07-30: docs da FASE 2 humana (procuração/RG/comprovante)
    *  anexados pelo time no Painel Admin — mesmo media store do WhatsApp. */
   readonly docsEquipe: DocsEquipeService;
@@ -776,10 +784,36 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           clock,
         )
       : new InMemoryConversationGateway(clock));
+  // CANAL OFICIAL META (decreto 2026-07-31): quando META_WHATSAPP_TOKEN +
+  // META_PHONE_NUMBER_ID estão no ambiente, chats registrados como 'meta' (o
+  // cliente escreveu no número OFICIAL) respondem pela Meta Cloud API; todo o
+  // resto segue intocado ao gateway interno. Os dois canais CONVIVEM.
+  const metaToken = env['META_WHATSAPP_TOKEN'] ?? '';
+  const metaPhoneNumberId = env['META_PHONE_NUMBER_ID'] ?? '';
+  const canais = new CanalDoChatStore(json);
+  const metaGateway =
+    metaToken !== '' && metaPhoneNumberId !== ''
+      ? new MetaCloudGateway(
+          new FetchMetaHttp(),
+          {
+            token: metaToken,
+            phoneNumberId: metaPhoneNumberId,
+            graphVersion: env['META_GRAPH_VERSION'],
+          },
+          clock,
+          (mensagem) => {
+            observability.error('meta', 'gateway', clock.now(), mensagem);
+          },
+        )
+      : null;
+  const comCanalMeta =
+    metaGateway === null
+      ? gatewayInterno
+      : new MetaGatewayRouter(gatewayInterno, metaGateway, canais);
   // WEBCHAT (decreto 2026-07-30): conversas `…@webchat` nunca vão à Evolution —
   // a resposta fica na memória da conversa e a página do webchat lê de lá.
   // Conversas de WhatsApp seguem intocadas ao gateway interno.
-  const gateway = new WebchatGatewayRouter(gatewayInterno, clock);
+  const gateway = new WebchatGatewayRouter(comCanalMeta, clock);
 
   // ── 2B: Conversa (peças públicas; handles retidos para a ponte 3B) ───────────
   const sessions = new SessionRuntime(sessionStore);
@@ -1644,6 +1678,23 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
   });
 
+  // ── CANAL OFICIAL META (decreto 2026-07-31): o webhook da Cloud API entra
+  //    pela MESMA entrada única; mídia baixada pelo Graph vai ao MESMO media
+  //    store. Montado só quando META_WHATSAPP_TOKEN + META_PHONE_NUMBER_ID. ──
+  const metaCanal =
+    metaGateway === null
+      ? null
+      : new MetaCanalRuntime({
+          gateway: metaGateway,
+          canais,
+          ingress: () => (shadowMode ? shadow : plainIngress),
+          media: mediaStore,
+          references: mediaReferences,
+          aoFalhar: (mensagem) => {
+            observability.error('meta', 'webhook', clock.now(), mensagem);
+          },
+        });
+
   // ── DOCS DA EQUIPE (decreto 2026-07-30): fase 2 humana — procuração/RG/
   //    comprovante anexados pelo time ao cliente concluso da fase 1 ─────────
   const docsEquipe = new DocsEquipeService({ json, media: mediaStore, clock });
@@ -1678,6 +1729,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     databaseUrl,
     mediaCapture,
     webchat,
+    metaCanal,
     docsEquipe,
     pericia,
     releitura,

@@ -148,6 +148,9 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     }
     const envelope = mapEvolutionUpsert(request.body);
     if (envelope) {
+      // Canal oficial Meta ativo? O cliente falou pela EVOLUTION ⇒ a resposta
+      // volta por lá (o canal é sempre o do último contato do cliente).
+      void prod.metaCanal?.chegouPelaEvolution(envelope.chatId).catch(() => undefined);
       void prod.ingress.receive(envelope).catch((error: unknown) => {
         prod.observability.error(
           'webhook',
@@ -169,6 +172,35 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
         });
       }
     }
+    return { ok: true };
+  });
+
+  // ── WEBHOOK Meta Cloud API (decreto 2026-07-31, canal OFICIAL) ───────────────
+  //    GET: verificação de assinatura do webhook (hub.challenge) exigida pela
+  //    Meta ao configurar o callback. POST: mensagens reais — a URL configurada
+  //    na Meta leva `?token=<META_WEBHOOK_VERIFY_TOKEN>` (a Meta preserva a
+  //    query string), reaproveitando o MESMO guard fail-closed do Evolution.
+  const metaVerifyToken = env['META_WEBHOOK_VERIFY_TOKEN'] ?? '';
+  app.get('/webhook/meta', (request, reply) => {
+    const query = request.query as Record<string, string | undefined>;
+    if (
+      metaVerifyToken !== '' &&
+      query['hub.mode'] === 'subscribe' &&
+      query['hub.verify_token'] === metaVerifyToken
+    ) {
+      return reply.type('text/plain').send(query['hub.challenge'] ?? '');
+    }
+    return reply.code(403).send({ error: 'verificação recusada' });
+  });
+  app.post('/webhook/meta', (request, reply) => {
+    if (!webhookAuthorized(request, metaVerifyToken)) {
+      return reply.code(401).send({ error: 'webhook não autenticado' });
+    }
+    if (!prod.metaCanal) {
+      return reply.code(503).send({ error: 'canal Meta não configurado' });
+    }
+    // ACK imediato; turnos destacados (mesma disciplina do webhook Evolution).
+    prod.metaCanal.processar(request.body);
     return { ok: true };
   });
 

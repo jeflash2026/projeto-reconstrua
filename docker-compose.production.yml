@@ -71,6 +71,11 @@ services:
       EVOLUTION_GLOBAL_API_KEY: ${EVOLUTION_GLOBAL_API_KEY:-}
       FOUNDER_ACCESS_SECRET: ${FOUNDER_ACCESS_SECRET:-}
       OFFICIAL_WHATSAPP_NUMBER: ${OFFICIAL_WHATSAPP_NUMBER:-554137989737}
+      # Canal OFICIAL Meta Cloud API (decreto 2026-07-31): sem as três envs o
+      # canal fica desligado (webhook /webhook/meta responde 503; nada muda).
+      META_WHATSAPP_TOKEN: ${META_WHATSAPP_TOKEN:-}
+      META_PHONE_NUMBER_ID: ${META_PHONE_NUMBER_ID:-}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
       # PC-R3 — Portal do Cliente: assinatura do link mágico (fail-closed se vazio)
       # e a POLÍTICA única de estimativa (D1) usada na mensagem e no Portal.
       CLIENTE_PORTAL_SECRET: ${CLIENTE_PORTAL_SECRET:-}

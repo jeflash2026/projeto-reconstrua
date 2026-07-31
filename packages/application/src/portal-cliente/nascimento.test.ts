@@ -185,7 +185,7 @@ describe('mensagemNascimento (D2 — revisado pelo decreto "Jornada Documental I
       //    aguarda o contato pelo número fixo ditado pelo Fundador:
       'a nossa equipe vai entrar em contato',
       'a procuração, o RG (frente e verso) e o comprovante de endereço',
-      'entraremos em contato pelo número (41) 3798-9737',
+      'entraremos em contato por ligação no WhatsApp, pelo número (41) 3798-9737',
       // 5. Portal para acompanhamento (link verbatim):
       'acompanhar o andamento pelo Portal do Cliente',
       'https://x/portal?t=abc',

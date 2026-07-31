@@ -69,7 +69,7 @@ export function mensagemNascimento(dias: number, link: string): string {
     'Você pode acompanhar o andamento pelo Portal do Cliente: ' +
     `${link} ` +
     'Após a análise, a nossa equipe vai entrar em contato com você para colher os demais documentos: a procuração, o RG (frente e verso) e o comprovante de endereço. ' +
-    `É só aguardar o contato — entraremos em contato pelo número ${NUMERO_CONTATO_EQUIPE}. ` +
+    `É só aguardar — entraremos em contato por ligação no WhatsApp, pelo número ${NUMERO_CONTATO_EQUIPE}. ` +
     'Enquanto isso, se você tiver qualquer dúvida, é só me chamar por aqui — estou à disposição.'
   );
 }

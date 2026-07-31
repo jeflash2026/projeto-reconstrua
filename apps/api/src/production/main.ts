@@ -119,6 +119,8 @@ async function main(): Promise<void> {
     jarvis: prod.jarvis,
     // Decreto 2026-07-30: docs da fase 2 humana (procuração/RG/comprovante).
     docsEquipe: prod.docsEquipe,
+    // Decreto 2026-07-31: canal do último contato (meta/evolution/webchat).
+    canalDoChat: prod.canalDoChat,
     // Decreto 2026-07-24: Central de Perícia Digital (atrás de feature flag).
     periciaDigitalHabilitado: prod.periciaDigitalHabilitado,
     periciaDigital: prod.periciaDigital,

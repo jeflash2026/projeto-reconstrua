@@ -206,7 +206,7 @@ import {
 } from '../reading/index.js';
 import { PericiaService, ReleituraComparativa, RevinculoHiscon } from '../pericia/index.js';
 import { JarvisRuntime } from '../administration/jarvis-runtime.js';
-import { WebchatGatewayRouter } from '../webchat/webchat-gateway-router.js';
+import { WebchatGatewayRouter, ehChatWeb } from '../webchat/webchat-gateway-router.js';
 import { WebchatRuntime } from '../webchat/webchat-runtime.js';
 import { DocsEquipeService } from '../docs-equipe/docs-equipe-service.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
@@ -276,6 +276,9 @@ export interface AssembledProduction {
   /** Decreto 2026-07-31: o canal OFICIAL (Meta Cloud API) — null quando as
    *  envs META_WHATSAPP_TOKEN/META_PHONE_NUMBER_ID não estão configuradas. */
   readonly metaCanal: MetaCanalRuntime | null;
+  /** Decreto 2026-07-31: o CANAL do último contato do chat (aba Conversa do
+   *  Painel Admin) — 'meta' | 'evolution' | 'webchat'. */
+  readonly canalDoChat: (chatId: string) => Promise<'meta' | 'evolution' | 'webchat'>;
   /** Decreto 2026-07-30: docs da FASE 2 humana (procuração/RG/comprovante)
    *  anexados pelo time no Painel Admin — mesmo media store do WhatsApp. */
   readonly docsEquipe: DocsEquipeService;
@@ -1700,6 +1703,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           },
         });
 
+  // Decreto 2026-07-31: o canal do ÚLTIMO contato do chat, para a aba Conversa
+  // do Painel Admin. Sem registro ⇒ Evolution (o canal historicamente padrão).
+  const canalDoChat = async (chatId: string): Promise<'meta' | 'evolution' | 'webchat'> => {
+    if (ehChatWeb(chatId)) return 'webchat';
+    return (await canais.canalDe(chatId)) ?? 'evolution';
+  };
+
   // ── DOCS DA EQUIPE (decreto 2026-07-30): fase 2 humana — procuração/RG/
   //    comprovante anexados pelo time ao cliente concluso da fase 1 ─────────
   const docsEquipe = new DocsEquipeService({ json, media: mediaStore, clock });
@@ -1735,6 +1745,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     mediaCapture,
     webchat,
     metaCanal,
+    canalDoChat,
     docsEquipe,
     pericia,
     releitura,

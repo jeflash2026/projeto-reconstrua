@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Suspense, type ReactElement } from 'react';
 import AutoRefresh from '../../../../components/auto-refresh';
 import AhriThinking from '../../../../components/ahri-thinking';
+import ConversaChat from '../../../../components/conversa-chat';
 import Dossie from '../../../../components/dossie';
 import DocsEquipe from '../../../../components/docs-equipe';
 import PericiaHiscon from '../../../../components/pericia-hiscon';
@@ -163,46 +164,22 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
         </div>
       </div>
 
-      <div className="card">
-        <h3>Conversa WhatsApp (linha do tempo)</h3>
-        {conversation.length === 0 ? (
-          <div className="empty">Sem mensagens.</div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Quando</th>
-                  <th>Tipo</th>
-                  <th>Conteúdo</th>
-                  <th>Regra Operacional</th>
-                </tr>
-              </thead>
-              <tbody>
-                {conversation.map((e, i) => (
-                  <tr key={i}>
-                    <td className="mono">{formatDate(e.at)}</td>
-                    <td>
-                      <span
-                        className={`badge ${e.kind === 'inbound' ? 'accent' : e.kind === 'outbound' ? 'ok' : 'dim'}`}
-                      >
-                        {e.kind}
-                      </span>
-                      {e.intentDirective ? (
-                        <span className="badge dim" style={{ marginLeft: 4 }}>
-                          {e.intentDirective}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td style={{ whiteSpace: 'normal' }}>{e.text ?? '—'}</td>
-                    <td className="mono">{e.operationalRuleRef ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Decreto 2026-07-31: a CONVERSA em bolhas (cliente ↔ AHRI), com o canal
+          do último contato. Nasceu com o canal oficial Meta: o número novo não
+          tem aplicativo — o painel é o lugar de ler o diálogo, de TODOS os
+          canais. Só inbound/outbound entram no chat (os eventos técnicos vivem
+          na Timeline Cognitiva). */}
+      <ConversaChat
+        canal={data.canal ?? null}
+        mensagens={[...conversation]
+          .filter((e) => e.kind === 'inbound' || e.kind === 'outbound')
+          .sort((a, b) => a.at.localeCompare(b.at))
+          .map((e) => ({
+            de: e.kind === 'inbound' ? ('cliente' as const) : ('ahri' as const),
+            texto: e.text ?? '[documento/mídia enviada]',
+            em: e.at,
+          }))}
+      />
     </>
   );
 };

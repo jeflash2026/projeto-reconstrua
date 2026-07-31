@@ -199,6 +199,9 @@ export function buildAdminServer(
       /** Decreto 2026-07-30: mensagem DITADA pelo dono, confirmada no console. */
       enviarMensagem(planoId: string): Promise<{ ok: boolean; erro?: string }>;
     };
+    /** Decreto 2026-07-31: o CANAL do último contato do chat (meta/evolution/
+     *  webchat) — mostrado na aba Conversa do cadastro do cliente. */
+    readonly canalDoChat?: (chatId: string) => Promise<string>;
     /** Decreto 2026-07-30: docs da FASE 2 humana (procuração assinada, RG,
      *  comprovante de endereço) anexados pelo time ao cliente concluso. */
     readonly docsEquipe?: {
@@ -1123,11 +1126,14 @@ export function buildAdminServer(
     // Decreto 2026-07-26: o CPF do funil viaja no cadastro (null enquanto a
     // pessoa não informou — nunca inventado, nunca inferido do telefone).
     const cpf = opts.jornadaCpf ? await opts.jornadaCpf(chatId).catch(() => null) : null;
+    // Decreto 2026-07-31: o canal do último contato (meta/evolution/webchat).
+    const canal = opts.canalDoChat ? await opts.canalDoChat(chatId).catch(() => null) : null;
     return {
       memory: memoriaComRotulos(memory, await rotulosDe(chatId)),
       cpf,
       relationship,
       conversation,
+      canal,
       missions,
     };
   });

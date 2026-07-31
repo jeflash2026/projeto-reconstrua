@@ -343,6 +343,9 @@ export interface ClientDetail {
     intentDirective: string | null;
     operationalRuleRef: string | null;
   }>;
+  /** Decreto 2026-07-31: canal do ÚLTIMO contato — 'meta' (WhatsApp oficial),
+   *  'evolution' (instância) ou 'webchat'. null = API sem a informação. */
+  canal?: string | null;
   missions: Array<{ missionId: string; progress: { steps: string[] } | null }>;
 }
 

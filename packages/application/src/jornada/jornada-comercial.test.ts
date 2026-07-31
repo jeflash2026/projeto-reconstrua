@@ -449,6 +449,23 @@ describe('escada de cobrança — nunca a mesma cobrança duas vezes', () => {
 });
 
 // ── CASO MARILEIDE (2026-07-22): saudação + preâmbulo antes do nome ──────────
+describe('caso Elisabete — "Simq" (typo) É um sim (a confirmação do parecer)', () => {
+  it('o typo real e as variações datilografadas contam como SIM', () => {
+    for (const t of ['Simq', 'simm', 'siim', 'ssim', 'Sin', 'sim!', 'SIMQ']) {
+      expect(interpretarInteresse(t), t).toBe('sim');
+    }
+  });
+  it('palavras legítimas que começam com "sim" NÃO viram confirmação', () => {
+    for (const t of ['simples', 'simplesmente não', 'é similar ao meu caso']) {
+      expect(interpretarInteresse(t), t).not.toBe('sim');
+    }
+  });
+  it('a negação continua tendo precedência (nada de falso sim)', () => {
+    expect(interpretarInteresse('não')).toBe('nao');
+    expect(interpretarInteresse('sim, mas não quero agora')).toBe('nao');
+  });
+});
+
 describe('caso Ubirajara — o NÃO é respeitado: cordial, agradece e ENCERRA', () => {
   const recusado = { nome: 'Ubirajara Oliveira', cidade: 'Belford Roxo', recusou: true };
   it('a recusa responde o script cordial de encerramento — SEM cobrança de HISCON', () => {

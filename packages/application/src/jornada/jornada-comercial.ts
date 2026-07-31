@@ -148,6 +148,13 @@ export function interpretarInteresse(texto: string): 'sim' | 'nao' | 'incerto' {
   // virava 'incerto' e o reforço idêntico morria no guarda anti-eco: silêncio.
   // "Tenho"/"Tenho sim" SOZINHOS são SIM ("tenho uma dúvida" segue incerto).
   if (/^tenho(\s+sim)?[!.\s]*$/i.test(t)) return 'sim';
+  // Caso REAL Elisabete (19 99313-0064, 2026-07-31): ela CONFIRMOU o parecer
+  // com "Simq" (typo de teclado) — `\bsim\b` não casa com "simq", o SIM não
+  // virou fato e ela ficou fora da mesa do Humanizado (o LLM ainda respondeu
+  // como se tivesse confirmado, mascarando a falha). Mensagem CURTA que é só
+  // um "sim" datilografado torto ("simq", "simm", "siim", "ssim", "sin") É um
+  // sim. O tamanho curto protege palavras legítimas ("simples", "similar").
+  if (/^s+i+[mn]+[a-z]?[!.,?\s]*$/i.test(t)) return 'sim';
   return 'incerto';
 }
 

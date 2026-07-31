@@ -185,8 +185,12 @@ main() {
   ok "container api recriado: ${API_C:0:19}…"
 
   STEP="7/8 · aguardar a API (health interno em localhost:${PORT})"
+  # Janela de 360s (deploy #237, 2026-07-31): o DESLIGAMENTO GRACIOSO da api
+  # antiga (drena turnos em voo, até ~60s antes do SIGKILL) somado ao boot da
+  # nova estourava os 180s antigos — o deploy desistia e fazia rollback de uma
+  # api que ficaria verde segundos depois.
   OKH=""
-  for _ in $(seq 1 45); do
+  for _ in $(seq 1 90); do
     [ "$(http "http://localhost:${PORT}/production/health")" = "200" ] && { OKH=1; break; }
     sleep 4
   done

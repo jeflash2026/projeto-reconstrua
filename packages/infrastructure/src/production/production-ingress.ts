@@ -160,4 +160,18 @@ export class ProductionIngress {
     if (this.autonomia) await this.autonomia.varredura(now).catch(() => undefined);
     return results;
   }
+
+  /** DEPLOY GRACIOSO (caso REAL Iracema 5551 9232-3343, 2026-07-31): o restart
+   *  do container matava turnos EM VOO (~20s de decisão cada) — a mensagem do
+   *  cliente ficava registrada e a resposta nunca nascia. Espera as cadeias em
+   *  andamento terminarem (com teto), para o processo morrer sem engolir turno. */
+  async aguardarTurnosEmVoo(timeoutMs: number): Promise<void> {
+    const emVoo = Promise.allSettled([...this.chains.values()]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const teto = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, timeoutMs);
+    });
+    await Promise.race([emVoo, teto]);
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }

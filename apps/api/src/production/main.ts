@@ -185,6 +185,35 @@ async function main(): Promise<void> {
     `AHRIOS em produção: main:${String(port)} admin:${String(port + 1)} advogado:${String(port + 2)} lx:${String(port + 3)}\n`,
   );
 
+  // DEPLOY GRACIOSO (caso REAL Iracema 5551 9232-3343, 2026-07-31): o restart
+  // do container (deploy/rebuild) matava o processo NO MEIO de um turno (~20s
+  // de decisão) — a mensagem do cliente ficava registrada e a resposta nunca
+  // nascia; nenhum erro, nenhum shadow report. Agora, no SIGTERM/SIGINT:
+  //  1. fecha o servidor MAIN primeiro (webhook para de aceitar — a Meta
+  //     reentrega o que chegar durante a troca);
+  //  2. espera os turnos EM VOO terminarem (até 45s; compose dá 60s de graça);
+  //  3. drena o outbox (entregas produzidas pelos turnos drenados) e morre.
+  let encerrando = false;
+  const encerrarComGraca = (sinal: string): void => {
+    if (encerrando) return;
+    encerrando = true;
+    void (async () => {
+      process.stdout.write(`[reconstrua] ${sinal}: encerrando com graça (drenando turnos)…\n`);
+      await main.close().catch(() => undefined);
+      await prod.drenarTurnos(45_000).catch(() => undefined);
+      await prod.outbox.drainToIdle().catch(() => undefined);
+      await Promise.allSettled([admin.close(), advogado.close(), lx.close()]);
+      process.stdout.write('[reconstrua] turnos drenados — processo encerrado.\n');
+      process.exit(0);
+    })();
+  };
+  process.once('SIGTERM', () => {
+    encerrarComGraca('SIGTERM');
+  });
+  process.once('SIGINT', () => {
+    encerrarComGraca('SIGINT');
+  });
+
   // DECRETO 2026-07-30 (ban da Meta por "spam"): o loop temporal NÃO fala mais
   // com cliente nenhum por INICIATIVA própria. Saíram do ar: ingress.tick
   // (follow-ups agendados + lembretes de SLA + retomada + CPF das 09:00 — o

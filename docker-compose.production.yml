@@ -89,6 +89,10 @@ services:
       # Central de Perícia Digital — feature flag (default OFF; endpoints 404
       # enquanto false). Ligue definindo PERICIA_DIGITAL_ENABLED=true no .env.
       PERICIA_DIGITAL_ENABLED: ${PERICIA_DIGITAL_ENABLED:-false}
+    # DEPLOY GRACIOSO (caso Iracema, 2026-07-31): a API drena os turnos em voo
+    # no SIGTERM (até 45s) — o Docker precisa dar mais que os 10s padrão antes
+    # do SIGKILL, senão o desligamento gracioso morre no meio.
+    stop_grace_period: 60s
     # GO-LIVE-02: healthcheck REAL — a mesma rota pública de saúde da plataforma.
     healthcheck:
       test:

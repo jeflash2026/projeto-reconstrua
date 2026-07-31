@@ -279,6 +279,10 @@ export interface AssembledProduction {
   /** Decreto 2026-07-31: o CANAL do último contato do chat (aba Conversa do
    *  Painel Admin) — 'meta' | 'evolution' | 'webchat'. */
   readonly canalDoChat: (chatId: string) => Promise<'meta' | 'evolution' | 'webchat'>;
+  /** DEPLOY GRACIOSO (caso Iracema, 2026-07-31): espera os turnos EM VOO
+   *  terminarem (com teto) antes de o processo morrer — restart nunca mais
+   *  engole a resposta de um cliente. */
+  readonly drenarTurnos: (timeoutMs: number) => Promise<void>;
   /** Decreto 2026-07-30: docs da FASE 2 humana (procuração/RG/comprovante)
    *  anexados pelo time no Painel Admin — mesmo media store do WhatsApp. */
   readonly docsEquipe: DocsEquipeService;
@@ -1746,6 +1750,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     webchat,
     metaCanal,
     canalDoChat,
+    drenarTurnos: (timeoutMs) => plainIngress.aguardarTurnosEmVoo(timeoutMs),
     docsEquipe,
     pericia,
     releitura,

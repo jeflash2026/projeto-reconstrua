@@ -455,6 +455,37 @@ describe('caso Elisabete — "Simq" (typo) É um sim (a confirmação do parecer
       expect(interpretarInteresse(t), t).toBe('sim');
     }
   });
+  it('o vocabulário REAL de confirmação (adendo do dono) conta como SIM', () => {
+    for (const t of [
+      'quero',
+      'queria sim',
+      'aceito',
+      'pode ser',
+      'pode',
+      'tabom',
+      'tá bom',
+      'ta ok',
+      'tudo bem',
+      'certo',
+      'combinado',
+      'fechado',
+      'concordo',
+      'autorizo',
+      'confirmo',
+      'perfeito',
+      'isso mesmo',
+      'exato',
+      'blz',
+      'uhum',
+      'aham',
+      'pode continuar',
+      'vamos seguir',
+      'tenho interesse',
+      'estou interessada',
+    ]) {
+      expect(interpretarInteresse(t), t).toBe('sim');
+    }
+  });
   it('palavras legítimas que começam com "sim" NÃO viram confirmação', () => {
     for (const t of ['simples', 'simplesmente não', 'é similar ao meu caso']) {
       expect(interpretarInteresse(t), t).not.toBe('sim');

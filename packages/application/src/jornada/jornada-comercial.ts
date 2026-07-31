@@ -97,8 +97,12 @@ export function derivarEtapa(f: FatosDaJornada): EtapaJornada {
 // ── Interpretações DETERMINÍSTICAS do texto do cliente ────────────────────────
 
 const SAUDACOES = /^(oi+|ol[áa]+|bom dia|boa tarde|boa noite|hey|opa|e a[íi])[!.,\s]*$/i;
+// Decreto 2026-07-31 (adendo do dono, casos reais Elisabete/Daniela): o cliente
+// confirma do jeito dele — "quero", "aceito", "pode ser", "tabom", "certo",
+// "combinado". TUDO isso é SIM. A negação mantém a precedência (o "não" é
+// avaliado antes), então "não pode" e "agora não" seguem recusa.
 const AFIRMATIVAS =
-  /\b(sim|quero|pode|claro|vamos|aceito|bora|com certeza|isso|positivo|tenho interesse|ok|okay|beleza|demorou|manda|pode sim|quero sim)\b/i;
+  /\b(sim|quero|queria|pode|podemos|poderia|claro|vamos|va[ií]|aceito|aceita|aceitar|bora|com certeza|isso|positivo|afirmativo|tenho interesse|interessado|interessada|ok|okay|okey|blz|beleza|demorou|manda|manda ver|t[áa]\s*bom|tabom|t[áa]\s*ok|tudo bem|tudo certo|certo|correto|exato|isso mesmo|perfeito|fechado|combinado|concordo|autorizo|autorizado|confirmo|confirmado|prossiga|prosseguir|segue|seguir|continua|continuar|uhum|aham|ahan|s[ií]m?\s*senhora?)\b/i;
 const NEGATIVAS =
   /\b(n[ãa]o|nao quero|agora n[ãa]o|depois|talvez mais tarde|sem interesse|deixa)\b/i;
 

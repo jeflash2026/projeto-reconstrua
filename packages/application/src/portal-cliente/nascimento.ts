@@ -49,21 +49,27 @@ export interface NascimentoResumo {
   readonly nascidos: readonly string[]; // clienteIds comunicados nesta varredura
 }
 
+/** Decreto 2026-07-31: o número pelo qual a EQUIPE HUMANA entra em contato na
+ *  fase 2 (coleta de procuração, RG frente e verso e comprovante de endereço).
+ *  Ditado pelo Fundador; muda SÓ aqui. */
+export const NUMERO_CONTATO_EQUIPE = '(41) 3798-9737';
+
 /** O texto HOMOLOGADO (Decisão 2, revisado pelo decreto "Jornada Documental
- *  Inicial") — conteúdo do Fundador; slots determinísticos. É a ÚNICA mensagem
- *  oficial que encerra o ONBOARDING_DOCUMENTAL e marca a transição para a
- *  ANALISE_ADMINISTRATIVA. Toda a plataforma usa exclusivamente o D2. */
+ *  Inicial" e pelo decreto 2026-07-31 — fase 2 é da EQUIPE HUMANA) — conteúdo
+ *  do Fundador; slots determinísticos. É a ÚNICA mensagem oficial que encerra o
+ *  ONBOARDING_DOCUMENTAL e marca a transição para a ANALISE_ADMINISTRATIVA. */
 export function mensagemNascimento(dias: number, link: string): string {
   return (
-    // Decreto HISCON-ONLY + Fluxo (2026-07-22): só o HISCON; a AHRI retoma o
-    // contato pedindo o restante SE a análise encontrar viabilidade.
+    // Decreto HISCON-ONLY + Fluxo (2026-07-22): só o HISCON na fase 1.
+    // Decreto 2026-07-31: quem colhe o restante é a EQUIPE (não a AHRI) — o
+    // cliente só aguarda o contato pelo número fixo da equipe.
     'Recebi o seu HISCON — a documentação desta primeira etapa está completa. ' +
     'Você não precisa enviar mais nada por enquanto. ' +
     `Seu caso entrou agora na etapa de análise, que pode levar até ${String(dias)} dias úteis. ` +
     'Você pode acompanhar o andamento pelo Portal do Cliente: ' +
     `${link} ` +
-    'Assim que a análise for concluída, eu retomo o contato por aqui mesmo. ' +
-    'Se identificarmos que o seu caso é viável, aí sim vou te pedir os documentos para dar entrada: RG (frente e verso) ou CNH, comprovante de endereço e a procuração assinada pelo advogado que vai te representar. ' +
+    'Após a análise, a nossa equipe vai entrar em contato com você para colher os demais documentos: a procuração, o RG (frente e verso) e o comprovante de endereço. ' +
+    `É só aguardar o contato — entraremos em contato pelo número ${NUMERO_CONTATO_EQUIPE}. ` +
     'Enquanto isso, se você tiver qualquer dúvida, é só me chamar por aqui — estou à disposição.'
   );
 }

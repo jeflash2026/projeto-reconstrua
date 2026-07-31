@@ -181,14 +181,14 @@ describe('mensagemNascimento (D2 — revisado pelo decreto "Jornada Documental I
       'entrou agora na etapa de análise',
       // 3. Prazo esperado:
       'até 10 dias úteis',
-      // 4. Decreto Fluxo 2026-07-22: a AHRI retoma pedindo o restante SE viável:
-      'Se identificarmos que o seu caso é viável',
-      'RG (frente e verso) ou CNH, comprovante de endereço e a procuração assinada',
+      // 4. Decreto 2026-07-31: a FASE 2 é da equipe humana — o cliente só
+      //    aguarda o contato pelo número fixo ditado pelo Fundador:
+      'a nossa equipe vai entrar em contato',
+      'a procuração, o RG (frente e verso) e o comprovante de endereço',
+      'entraremos em contato pelo número (41) 3798-9737',
       // 5. Portal para acompanhamento (link verbatim):
       'acompanhar o andamento pelo Portal do Cliente',
       'https://x/portal?t=abc',
-      // 6. Retoma o contato ao concluir:
-      'eu retomo o contato por aqui',
       // Invariante PC-R3: o relacionamento nunca termina.
       'estou à disposição.',
     ]) {

@@ -20,6 +20,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { href: '/operacao', label: 'Métricas' },
   { href: '/mapa-clientes', label: 'Mapa de Clientes' },
   { href: '/clientes', label: 'Clientes' },
+  { href: '/clientes/hoje', label: 'Clientes Hoje' },
   { href: '/reaquecimento', label: 'Reaquecimento' },
   { href: '/clientes-prontos', label: 'Prontos p/ Advogado' },
   { href: '/contratos-migrados', label: 'Contratos Migrados' },
@@ -46,6 +47,14 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
 
 const Nav = (): ReactElement => {
   const pathname = usePathname();
+  // O item ativo é o de prefixo MAIS LONGO que casa com a rota — assim
+  // "/clientes/hoje" acende só "Clientes Hoje" (e não "Clientes" junto).
+  const ativo = ITEMS.reduce<string>((melhor, item) => {
+    if ('sep' in item) return melhor;
+    const casa =
+      pathname === item.href || (item.href !== '/' && pathname.startsWith(`${item.href}/`));
+    return casa && item.href.length > melhor.length ? item.href : melhor;
+  }, '');
   return (
     <nav className="nav">
       {ITEMS.map((item, i) =>
@@ -54,15 +63,7 @@ const Nav = (): ReactElement => {
             {item.sep}
           </div>
         ) : (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={
-              pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
-                ? 'active'
-                : ''
-            }
-          >
+          <Link key={item.href} href={item.href} className={item.href === ativo ? 'active' : ''}>
             {item.label}
           </Link>
         ),

@@ -12,27 +12,9 @@ import CobrarHiscon from '../../../components/cobrar-hiscon';
 import CobrarCpf from '../../../components/cobrar-cpf';
 import DisparoEmLote from '../../../components/disparo-em-lote';
 import DisparoCpfEmLote from '../../../components/disparo-cpf-em-lote';
-import { getJson, type ClienteStatus, type JornadaCliente, type StaffData } from '../../../lib/api';
+import { getJson, type JornadaCliente, type StaffData } from '../../../lib/api';
 import { formatDate } from '../../../lib/format';
-
-const STATUS_LABEL: Record<ClienteStatus, { label: string; badge: 'ok' | 'warn' | '' }> = {
-  ATENDIMENTO: { label: 'em atendimento', badge: '' },
-  COLETANDO_DOCUMENTOS: { label: 'coletando documentos', badge: 'warn' },
-  PRONTO_AGUARDANDO_MODALIDADE: { label: 'pronto — decidir modalidade', badge: 'warn' },
-  PRONTO_AGUARDANDO_VENDA: { label: 'pronto — aguardando venda', badge: 'ok' },
-  PRONTO_AGUARDANDO_PERICIA: { label: 'pronto — fila da perícia', badge: 'ok' },
-  AGUARDANDO_10_DIAS: { label: 'pedidos enviados — prazo de 10 dias', badge: 'warn' },
-  AGUARDANDO_SOCIO: { label: 'prazo vencido — escolher sócio', badge: 'warn' },
-  EM_PROCESSO: { label: 'em processo', badge: 'ok' },
-  VENDIDO: { label: 'vendido', badge: 'ok' },
-  ENCERRADO: { label: 'encerrado', badge: '' },
-};
-
-const SAUDE_ICON: Record<'GREEN' | 'YELLOW' | 'RED', string> = {
-  GREEN: '🟢',
-  YELLOW: '🟡',
-  RED: '🔴',
-};
+import { SAUDE_ICON, STATUS_LABEL } from '../../../lib/status-cliente';
 
 /** Tabela de um segmento. `acao` troca a coluna de ação: quem não mandou o
  *  HISCON ganha "Cobrar HISCON"; quem mandou mas falta o CPF, "Cobrar CPF";

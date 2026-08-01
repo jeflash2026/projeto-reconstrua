@@ -186,6 +186,36 @@ button {
   font-size: 0.92em;
 }
 
+/* O TAMANHO do caso no card (contratos · indícios · potencial) */
+.tamanho-caso {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--borda);
+  border-left: 4px solid var(--vermelho);
+  border-radius: 8px;
+  background: #fbfcfe;
+  font-size: 13px;
+  color: var(--texto-dim);
+}
+
+.tamanho-caso strong {
+  color: var(--texto);
+}
+
+.tamanho-caso span + span::before {
+  content: '·';
+  margin-right: 10px;
+  color: var(--borda);
+}
+
+.tamanho-caso .valor strong {
+  color: var(--ok);
+}
+
 /* Cabeçalho de ESTADO (organização da mesa por UF) */
 .uf-titulo {
   display: flex;

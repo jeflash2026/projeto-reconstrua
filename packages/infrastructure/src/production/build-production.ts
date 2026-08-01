@@ -330,6 +330,9 @@ export interface AssembledProduction {
         telefone: string;
         uf: string;
         confirmadoEm: string;
+        contratos: number;
+        indicios: number;
+        potencial: number;
         docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
         completo: boolean;
         aguardandoAssinatura: boolean;
@@ -1861,12 +1864,23 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         telefone: string;
         uf: string;
         confirmadoEm: string;
+        contratos: number;
+        indicios: number;
+        potencial: number;
         docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
         completo: boolean;
         aguardandoAssinatura: boolean;
       }[]
     > => {
       const lista = await clientes.list();
+      // Pedido do dono (2026-07-31): a mesa mostra o TAMANHO de cada caso —
+      // contratos e potencial de recuperação. Uma leitura só (mapa por chat).
+      const potenciais = new Map(
+        (await pericia.potencialDeTodos().catch(() => ({ porCliente: [] }))).porCliente.map((p) => [
+          p.chatId,
+          p,
+        ]),
+      );
       const out = [];
       for (const c of lista) {
         if (c.clienteId === c.chatId) continue;
@@ -1891,6 +1905,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         const status = (await json.get('humanizado-status', c.chatId).catch(() => null)) as {
           aguardando?: boolean;
         } | null;
+        const pot = potenciais.get(c.chatId);
         out.push({
           clienteId: c.clienteId,
           chatId: c.chatId,
@@ -1898,6 +1913,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           telefone: c.chatId.split('@')[0]?.replace(/\D/g, '') ?? '',
           uf,
           confirmadoEm: new Date(fato.confirmadoEm).toISOString(),
+          // O tamanho do caso: contratos/indícios do parecer (o que a AHRI
+          // disse ao cliente) e o potencial já descontado (perícia).
+          contratos: fato.contratos,
+          indicios: fato.indicios,
+          potencial: pot?.valor ?? 0,
           docs,
           completo: docs.procuracao && docs.rg && docs.comprovante,
           aguardandoAssinatura: status?.aguardando === true,

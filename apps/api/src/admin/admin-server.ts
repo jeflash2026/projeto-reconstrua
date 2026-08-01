@@ -170,6 +170,9 @@ export function buildAdminServer(
           telefone: string;
           uf: string;
           confirmadoEm: string;
+          contratos: number;
+          indicios: number;
+          potencial: number;
           docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
           completo: boolean;
           aguardandoAssinatura: boolean;

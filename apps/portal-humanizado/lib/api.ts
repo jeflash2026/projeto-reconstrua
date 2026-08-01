@@ -43,6 +43,10 @@ export interface ClienteHumanizado {
   telefone: string;
   uf: string;
   confirmadoEm: string;
+  /** O TAMANHO do caso: contratos e indícios do parecer + potencial (R$). */
+  contratos: number;
+  indicios: number;
+  potencial: number;
   docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
   completo: boolean;
   aguardandoAssinatura: boolean;

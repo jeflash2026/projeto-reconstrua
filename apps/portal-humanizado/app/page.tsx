@@ -54,6 +54,30 @@ const Badge = ({ ok, rotulo }: { ok: boolean; rotulo: string }): ReactElement =>
   </span>
 );
 
+/** Reais sem centavos — a leitura de relance do valor do caso. */
+function reais(v: number): string {
+  return v.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  });
+}
+
+/** O TAMANHO do caso (pedido do dono): contratos, indícios e potencial. */
+const TamanhoDoCaso = ({ c }: { c: ClienteHumanizado }): ReactElement => (
+  <div className="tamanho-caso">
+    <span>
+      <strong>{c.contratos}</strong> contrato(s)
+    </span>
+    <span>
+      <strong>{c.indicios}</strong> indício(s)
+    </span>
+    <span className="valor">
+      Potencial: <strong>{c.potencial > 0 ? reais(c.potencial) : '—'}</strong>
+    </span>
+  </div>
+);
+
 const CartaoCliente = ({ c }: { c: ClienteHumanizado }): ReactElement => (
   <div className="card" style={{ marginBottom: 12 }}>
     <div
@@ -79,6 +103,7 @@ const CartaoCliente = ({ c }: { c: ClienteHumanizado }): ReactElement => (
         📲 Chamar no WhatsApp (mensagem pronta)
       </a>
     </div>
+    <TamanhoDoCaso c={c} />
     <div style={{ marginTop: 8 }}>
       <Badge ok={c.docs.procuracao} rotulo="Procuração" />
       <Badge ok={c.docs.rg} rotulo="RG" />
@@ -153,6 +178,7 @@ const MesaPage = async (): Promise<ReactElement> => {
                       {c.telefone}
                     </span>{' '}
                     <span className="badge ok">pronto para o pedido administrativo</span>
+                    <TamanhoDoCaso c={c} />
                     <DocsFase2 chatId={c.chatId} />
                   </div>
                 ))}

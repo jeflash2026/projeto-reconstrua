@@ -124,6 +124,18 @@ export function ehPreocupacaoComCusto(texto: string): boolean {
   return PREOCUPACAO_COM_CUSTO.test(texto);
 }
 
+// Caso REAL Rosana (2026-07-31, 21:20): a AHRI enviou o DOSSIÊ, a cliente disse
+// "o link não abre" — e a AHRI NEGOU o próprio envio ("não tem nenhum link pra
+// abrir mesmo"), chegando a tratar a mensagem dela mesma como golpe. Quem
+// pergunta do link/dossiê/análise pronta tem resposta AUTORADA: o link volta.
+const SOBRE_DOSSIE_OU_LINK =
+  /\b(link|linque|dossi[êe]|parecer|an[áa]lise\s+(pronta|conclu[íi]da|do\s+hiscon)|documento\s+que\s+(voc[êe]|vc)\s+mandou|arquivo\s+que\s+(voc[êe]|vc)\s+mandou)\b|n[ãa]o\s+(abre|abriu|consigo\s+abrir|carrega)|\bme\s+manda\s+(a\s+an[áa]lise|o\s+dossi[êe]|de\s+novo)/i;
+
+/** A mensagem é sobre o DOSSIÊ/link que a AHRI enviou? */
+export function ehSobreDossieOuLink(texto: string): boolean {
+  return SOBRE_DOSSIE_OU_LINK.test(texto);
+}
+
 export function ehSaudacaoPura(texto: string): boolean {
   return SAUDACOES.test(texto.trim());
 }
@@ -773,6 +785,18 @@ export const MENSAGENS_JORNADA = {
   despedidaRespeitosa:
     'Entendo e respeito a sua decisão. Se mudar de ideia ou quiser esclarecer qualquer dúvida sobre a análise, é só mandar uma mensagem por aqui — este canal fica à sua disposição. Obrigada pelo contato.',
   socialCurto: 'Por nada. Qualquer dúvida, estou à disposição.',
+  /** Caso REAL Rosana (2026-07-31): o cliente diz que o link do dossiê não
+   *  abre. A AHRI CONFIRMA o envio (foi ela), reenvia o MESMO endereço, ensina
+   *  a abrir e oferece o resumo por aqui. NUNCA negar o próprio dossiê. */
+  dossieReenvio: (link: string, contratos: number, indicios: number): string =>
+    'Claro, aqui está de novo o seu DOSSIÊ JURÍDICO — fui eu mesma que te enviei, pode abrir com tranquilidade:\n\n' +
+    `${link}\n\n` +
+    `Nele estão os ${String(contratos)} contrato(s) de consignado que encontrei na janela de 5 anos e os ${String(indicios)} indício(s) de irregularidade da sua análise.\n\n` +
+    'Se não abrir aí no celular: toque no link (ele fica azul) ou copie e cole no navegador (Chrome/Safari). Se ainda assim não abrir, me avisa que eu te conto por aqui mesmo, em texto, tudo o que a análise encontrou.',
+  /** O cliente fala de link/dossiê mas a análise ainda não foi concluída —
+   *  a verdade, sem inventar documento nenhum. */
+  dossieAindaNaoPronto:
+    'Ainda não te enviei nenhum dossiê — a sua análise está em andamento. Assim que ela concluir, eu te mando aqui o documento completo, com os contratos e os indícios encontrados. Se você recebeu algum link em outro lugar dizendo ser nosso, me mostra antes de clicar, por favor.',
   /** Caso REAL Theresinha (2026-07-31): depois de acolher o adiamento, o "Ok
    *  👍" do cliente é só o FECHO da conversa — cortesia breve e ponto final.
    *  Nunca uma nova cobrança de quem acabou de agendar. */

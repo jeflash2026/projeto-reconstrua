@@ -16,6 +16,7 @@ import {
   ehAdiamento,
   capturarEstado,
   ehDesistencia,
+  ehSobreDossieOuLink,
   interpretarInteresse,
   vaiReceberCobranca,
   novaJornada,
@@ -60,6 +61,15 @@ export interface JornadaRuntimeDeps {
    *  divergido? Sem isto, a jornada re-pedia o HISCON já recebido (caso Maria
    *  Angela, 2026-07-23). Opcional (ausente ⇒ só o onboarding decide). */
   readonly casoConcluido?: (chatId: string) => Promise<boolean>;
+  /** Decreto 2026-07-31 (caso REAL Rosana): o PARECER que a AHRI já enviou ao
+   *  cliente. Sem isto, ela NEGAVA o próprio dossiê ("não tem nenhum link") e
+   *  chegou a tratar a mensagem dela mesma como golpe. null = ainda não houve
+   *  parecer (a AHRI diz a verdade: a análise está em andamento). */
+  readonly parecerDoCliente?: (chatId: string) => Promise<{
+    readonly link: string;
+    readonly contratos: number;
+    readonly indicios: number;
+  } | null>;
 }
 
 export class JornadaComercialRuntime {
@@ -275,6 +285,19 @@ export class JornadaComercialRuntime {
   /** A RESPOSTA AUTORADA do turno — '' quando a jornada NÃO governa (CONCLUIDA). */
   async responder(chatId: string, entrada: EntradaDoTurno): Promise<string> {
     const fatos = await this.fatos(chatId);
+    // Caso REAL Rosana (2026-07-31, 21:20): "o link não abre" ⇒ a AHRI NEGOU o
+    // dossiê que ela mesma enviou e tratou a própria mensagem como golpe. Em
+    // QUALQUER etapa, falar do dossiê/link tem resposta AUTORADA: o link volta
+    // (com os números reais) ou a verdade — a análise ainda está em andamento.
+    if (entrada.tipo === 'texto' && ehSobreDossieOuLink(entrada.texto)) {
+      const parecer = (await this.deps.parecerDoCliente?.(chatId).catch(() => null)) ?? null;
+      if (parecer !== null) {
+        return MENSAGENS_JORNADA.dossieReenvio(parecer.link, parecer.contratos, parecer.indicios);
+      }
+      // Sem parecer, só respondemos se a jornada governa a etapa (fase 1) — na
+      // conversa livre o LLM segue com o contexto (que já declara a ausência).
+      if (derivarEtapa(fatos) !== 'CONCLUIDA') return MENSAGENS_JORNADA.dossieAindaNaoPronto;
+    }
     // CPF CAPTURADO NESTE TURNO na CONCLUIDA ⇒ a confirmação é AUTORADA — caso
     // real 51 9109-4367 (2026-07-27): o cliente respondeu ao follow-up com o
     // CPF, o atalho abaixo entregava a voz ao LLM (que não sabia do pedido) e a

@@ -30,7 +30,21 @@ export const PACOTE_CASO_EM_ABERTURA =
  * Monta o pacote compacto e determinístico para o prompt de expressão.
  * `link` null = Portal ainda não nasceu ⇒ NENHUMA menção a link/portal é permitida.
  */
-export function pacoteDeEstado(view: AcompanhamentoCliente, link: string | null): string {
+/** Decreto 2026-07-31 (caso REAL Rosana): o PARECER que a AHRI já enviou —
+ *  sem este fato no contexto, ela NEGAVA o próprio dossiê ("não tem nenhum
+ *  link") e chegou a tratar a mensagem dela mesma como golpe. */
+export interface ParecerNoContexto {
+  readonly link: string;
+  readonly contratos: number;
+  readonly indicios: number;
+  readonly confirmado: boolean;
+}
+
+export function pacoteDeEstado(
+  view: AcompanhamentoCliente,
+  link: string | null,
+  parecer: ParecerNoContexto | null = null,
+): string {
   const linhas: string[] = [
     'O QUE É VERDADE SOBRE O CASO DESTA PESSOA (use quando a conversa pedir; NUNCA invente nada além disto; NUNCA prometa datas ou resultados):',
     `- Situação: ${view.ondeEsta}. ${view.agora}`,
@@ -64,6 +78,20 @@ export function pacoteDeEstado(view: AcompanhamentoCliente, link: string | null)
   } else {
     linhas.push(
       '- O Portal do Cliente ainda não foi liberado para esta pessoa: NÃO mencione portal nem link.',
+    );
+  }
+
+  // Decreto 2026-07-31 (caso REAL Rosana, 21:20): a AHRI NEGOU o dossiê que ela
+  // mesma tinha acabado de enviar ("não tem nenhum link pra abrir mesmo") e,
+  // quando a cliente colou a mensagem, tratou como golpe. O parecer enviado é
+  // FATO no contexto — e negá-lo é proibido.
+  if (parecer !== null) {
+    linhas.push(
+      `- DOSSIÊ JURÍDICO JÁ ENVIADO POR VOCÊ a esta pessoa: a análise do HISCON encontrou ${String(parecer.contratos)} contrato(s) e ${String(parecer.indicios)} indício(s) de irregularidade. O endereço do dossiê é ${parecer.link}`,
+      '- NUNCA negue esse envio nem trate essa mensagem como falsa/golpe: foi VOCÊ quem enviou. Se a pessoa disser que o link não abre, reenvie o MESMO endereço e oriente (tocar no link, abrir no navegador, ou dizer que você resume os achados por aqui mesmo).',
+      parecer.confirmado
+        ? '- Esta pessoa JÁ confirmou que deseja seguir: o cadastro está gerado; a equipe entra em contato para colher procuração, RG (frente e verso) e comprovante.'
+        : '- Esta pessoa AINDA NÃO confirmou se deseja seguir: quando ela confirmar (SIM), o cadastro é gerado na hora.',
     );
   }
 

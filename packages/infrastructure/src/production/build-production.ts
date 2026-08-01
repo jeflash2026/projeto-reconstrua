@@ -506,7 +506,20 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         liberado !== null && clientePortalSecret !== ''
           ? `${config.publicUrl.replace(/\/+$/, '')}/portal?t=${emitirTokenCliente(clienteId, 90, clock.now(), clientePortalSecret)}`
           : null;
-      return pacoteDeEstado(visao, link);
+      // Decreto 2026-07-31 (caso REAL Rosana): o DOSSIÊ já enviado entra no
+      // contexto — a AHRI nunca mais nega o próprio parecer nem o trata como
+      // golpe quando o cliente o menciona.
+      const fatoParecer = await parecerStore.load(clienteId).catch(() => null);
+      const parecerCtx =
+        fatoParecer !== null && clientePortalSecret !== ''
+          ? {
+              link: `${config.publicUrl.replace(/\/+$/, '')}/parecer?t=${emitirTokenCliente(identity.chatId, 90, clock.now(), clientePortalSecret)}`,
+              contratos: fatoParecer.contratos,
+              indicios: fatoParecer.indicios,
+              confirmado: fatoParecer.confirmadoEm != null,
+            }
+          : null;
+      return pacoteDeEstado(visao, link, parecerCtx);
     } catch {
       return null;
     }
@@ -916,6 +929,23 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     casoConcluido: async (chatId) => {
       const memoria = await memoryStore.load(chatId).catch(() => null);
       return (memoria?.documentsSent ?? []).some((d) => /hiscon|consignad|cnis/i.test(d.label));
+    },
+    // Decreto 2026-07-31 (caso REAL Rosana): o PARECER que a AHRI já enviou —
+    // o link é REGERADO com o mesmo sujeito (chatId), então nunca vence nem
+    // some. Sem este fato, ela negava o próprio dossiê.
+    parecerDoCliente: async (chatId) => {
+      if (clientePortalSecret === '') return null;
+      const identity = await identityMap.load(chatId).catch(() => null);
+      const clienteId = identity?.clienteId ?? null;
+      if (clienteId === null) return null;
+      const fato = await parecerStore.load(clienteId).catch(() => null);
+      if (fato === null) return null;
+      const token = emitirTokenCliente(chatId, 90, clock.now(), clientePortalSecret);
+      return {
+        link: `${config.publicUrl.replace(/\/+$/, '')}/parecer?t=${token}`,
+        contratos: fato.contratos,
+        indicios: fato.indicios,
+      };
     },
   });
   // Decreto 2026-07-22: REAQUECIMENTO DE LEADS — lista os frios e executa o

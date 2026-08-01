@@ -14,6 +14,7 @@ import {
   ehPedidoDeExplicacao,
   ehPreocupacaoComCusto,
   ehRoteiroDeColeta,
+  ehSobreDossieOuLink,
   pareceNome,
   derivarEtapa,
   ehSaudacaoPura,
@@ -451,6 +452,38 @@ describe('escada de cobrança — nunca a mesma cobrança duas vezes', () => {
 });
 
 // ── CASO MARILEIDE (2026-07-22): saudação + preâmbulo antes do nome ──────────
+describe('caso Rosana (2ª parte) — a AHRI NUNCA nega o dossiê que ela enviou', () => {
+  it('reconhece que a mensagem é sobre o dossiê/link — inclusive "o link não abre"', () => {
+    for (const t of [
+      'O link não abre',
+      'Porque o link não abre',
+      'Me manda a análise que aparecia nesse link',
+      'não consigo abrir o dossiê',
+      'cadê o parecer?',
+      'me manda de novo',
+    ]) {
+      expect(ehSobreDossieOuLink(t), t).toBe(true);
+    }
+  });
+  it('o reenvio traz o MESMO link, os números reais e ensina a abrir', () => {
+    const m = MENSAGENS_JORNADA.dossieReenvio('https://x/parecer?t=abc', 18, 4);
+    expect(m).toContain('fui eu mesma que te enviei');
+    expect(m).toContain('https://x/parecer?t=abc');
+    expect(m).toContain('18 contrato(s)');
+    expect(m).toContain('4 indício(s)');
+    expect(m).toContain('copie e cole no navegador');
+    expect(m).toContain('eu te conto por aqui mesmo');
+  });
+  it('sem parecer ainda, diz a VERDADE (análise em andamento) e alerta sobre golpe externo', () => {
+    expect(MENSAGENS_JORNADA.dossieAindaNaoPronto).toContain('Ainda não te enviei nenhum dossiê');
+    expect(MENSAGENS_JORNADA.dossieAindaNaoPronto).toContain('me mostra antes de clicar');
+  });
+  it('conversa comum não vira reenvio de dossiê', () => {
+    expect(ehSobreDossieOuLink('bom dia, tudo bem?')).toBe(false);
+    expect(ehSobreDossieOuLink('meu CPF é 529.982.247-25')).toBe(false);
+  });
+});
+
 describe('caso Rosana — "não tenho dinheiro" NÃO é recusa (é medo de custo)', () => {
   const noConsentimento = { nome: 'Rosana Maria Romualdo', cidade: 'São Carlos', estado: 'SP' };
   it('a frase REAL dela é ACEITE com desabafo — jamais recusa', () => {

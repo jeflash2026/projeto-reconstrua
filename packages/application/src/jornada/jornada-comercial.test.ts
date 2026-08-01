@@ -12,6 +12,7 @@ import {
   ehAdiamento,
   ehDesistencia,
   ehPedidoDeExplicacao,
+  ehPreocupacaoComCusto,
   ehRoteiroDeColeta,
   pareceNome,
   derivarEtapa,
@@ -450,6 +451,49 @@ describe('escada de cobrança — nunca a mesma cobrança duas vezes', () => {
 });
 
 // ── CASO MARILEIDE (2026-07-22): saudação + preâmbulo antes do nome ──────────
+describe('caso Rosana — "não tenho dinheiro" NÃO é recusa (é medo de custo)', () => {
+  const noConsentimento = { nome: 'Rosana Maria Romualdo', cidade: 'São Carlos', estado: 'SP' };
+  it('a frase REAL dela é ACEITE com desabafo — jamais recusa', () => {
+    const dela = 'Olha, vc até pode fazer a análise, mas não tenho dinheiro pra nada, nada mesmo';
+    expect(interpretarInteresse(dela)).toBe('sim');
+    expect(interpretarInteresse(dela)).not.toBe('nao');
+  });
+  it('medo de custo puro vira acolhimento (gratuidade) — nunca encerramento', () => {
+    for (const t of [
+      'não tenho dinheiro',
+      'não tenho condições',
+      'não posso pagar',
+      'quanto custa?',
+      'tem algum custo?',
+      'é pago?',
+    ]) {
+      expect(ehPreocupacaoComCusto(t), t).toBe(true);
+      expect(interpretarInteresse(t), t).not.toBe('nao');
+      const r = responderTurno(fatos(noConsentimento), texto(t));
+      expect(r, t).toContain('realmente gratuita');
+      expect(r, t).not.toContain('respeito a sua decisão');
+    }
+  });
+  it('a recusa DE VERDADE continua sendo entendida', () => {
+    for (const t of ['não', 'Não quero', 'não tenho interesse', 'sem interesse', 'acho que não']) {
+      expect(interpretarInteresse(t), t).toBe('nao');
+    }
+  });
+  it('dificuldade ("não sei baixar", "não consigo") não vira recusa', () => {
+    for (const t of ['não sei baixar o hiscon', 'não consigo achar essa opção']) {
+      expect(interpretarInteresse(t), t).not.toBe('nao');
+    }
+  });
+  it('na TRIAGEM, o medo do custo é acolhido E o passo pendente é reposto', () => {
+    const r = responderTurno(
+      fatos({ ...noConsentimento, consentiu: true, cpf: null }),
+      texto('mas não tenho dinheiro pra pagar advogado'),
+    );
+    expect(r).toContain('realmente gratuita');
+    expect(r).toMatch(/CPF/i); // o fio da coleta não se perde
+  });
+});
+
 describe('caso Theresinha — quem AGENDOU não é recobrado no "Ok 👍"', () => {
   // A cliente adiou ("amanhã te mando, hoje estou num aniversário"), a AHRI
   // acolheu — e o "Ok 👍" seguinte disparava nova cobrança de CPF.

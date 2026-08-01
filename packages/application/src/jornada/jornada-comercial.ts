@@ -103,8 +103,26 @@ const SAUDACOES = /^(oi+|ol[áa]+|bom dia|boa tarde|boa noite|hey|opa|e a[íi])[
 // avaliado antes), então "não pode" e "agora não" seguem recusa.
 const AFIRMATIVAS =
   /\b(sim|quero|queria|pode|podemos|poderia|claro|vamos|va[ií]|aceito|aceita|aceitar|bora|com certeza|isso|positivo|afirmativo|tenho interesse|interessado|interessada|ok|okay|okey|blz|beleza|demorou|manda|manda ver|t[áa]\s*bom|tabom|t[áa]\s*ok|tudo bem|tudo certo|certo|correto|exato|isso mesmo|perfeito|fechado|combinado|concordo|autorizo|autorizado|confirmo|confirmado|prossiga|prosseguir|segue|seguir|continua|continuar|uhum|aham|ahan|s[ií]m?\s*senhora?)\b/i;
+// Caso REAL Rosana (16 9..., 2026-07-31): ela ACEITOU ("vc até pode fazer a
+// análise") e desabafou sobre dinheiro ("mas não tenho dinheiro pra nada") — o
+// "não" genérico casou, virou RECUSA e a AHRI encerrou o atendimento de quem
+// tinha acabado de dizer sim. Negativa agora é ESPECÍFICA: o "não" precisa
+// recusar a ANÁLISE (sozinho, no fim da frase, ou grudado num verbo de
+// vontade). "não tenho dinheiro", "não sei baixar", "não consigo" NÃO são
+// recusa — são preocupação/dificuldade, tratadas com acolhimento.
 const NEGATIVAS =
-  /\b(n[ãa]o|nao quero|agora n[ãa]o|depois|talvez mais tarde|sem interesse|deixa)\b/i;
+  /^\s*n[ãa]o\b[\s!.,]*$|n[ãa]o[\s!.,]*$|\bn[ãa]o[\s,!.]+(quero|queria|desejo|tenho\s+interesse|tenho[\s!.,]*$|me\s+interessa|pretendo|vou\s+querer|obrigad[oa]|preciso\s+disso|estou\s+interessad[oa])|\bsem\s+interesse\b|\bagora\s+n[ãa]o\b|\bdeixa\s+(pra\s+l[áa]|quieto|assim|estar|de\s+lado)\b|\btalvez\s+(mais\s+tarde|depois|outra\s+hora)\b|\bdesisto\b/i;
+
+// Preocupação com CUSTO (o medo nº 1 deste público): "não tenho dinheiro",
+// "não posso pagar", "quanto custa". NÃO é recusa — é a hora de reafirmar a
+// gratuidade com clareza, e seguir perguntando o interesse.
+const PREOCUPACAO_COM_CUSTO =
+  /\bn[ãa]o\s+tenho\s+(dinheiro|condi[çc][õo]es|como\s+pagar|grana)|\bsem\s+(dinheiro|condi[çc][õo]es)\b|\bn[ãa]o\s+(posso|consigo|d[áa]\s+pra)\s+pagar|\bt[oô]\s+duro\b|\bestou\s+duro\b|\bquanto\s+(custa|vou\s+pagar|fica)|\bvai\s+custar\b|\btem\s+(algum\s+)?custo|\bcobra(m)?\s+(alguma\s+coisa|quanto)|(^|[\s,])[ée]\s+pago\b/i;
+
+/** O cliente está preocupado com CUSTO (não recusando)? */
+export function ehPreocupacaoComCusto(texto: string): boolean {
+  return PREOCUPACAO_COM_CUSTO.test(texto);
+}
 
 export function ehSaudacaoPura(texto: string): boolean {
   return SAUDACOES.test(texto.trim());
@@ -143,6 +161,11 @@ export function capturarCpf(texto: string): string | null {
 
 export function interpretarInteresse(texto: string): 'sim' | 'nao' | 'incerto' {
   const t = texto.trim();
+  // Caso REAL Rosana (2026-07-31): PREOCUPAÇÃO COM CUSTO nunca é recusa — a
+  // frase dela ("vc até pode fazer a análise, mas não tenho dinheiro") tem o
+  // aceite E o desabafo. O custo é respondido com acolhimento (a gratuidade);
+  // o interesse, se houver afirmativa explícita, continua valendo.
+  if (ehPreocupacaoComCusto(t)) return AFIRMATIVAS.test(t) ? 'sim' : 'incerto';
   // NEGAÇÃO tem precedência: "não quero" contém "quero" — sem precedência, a
   // recusa viraria consentimento (defeito pego em teste).
   if (NEGATIVAS.test(t)) return 'nao';
@@ -606,6 +629,18 @@ export const MENSAGENS_JORNADA = {
     'Você tem interesse em fazer essa análise gratuita?',
   reforcoConsentimento:
     'Só para eu confirmar: você tem interesse em fazer a análise gratuita do seu consignado?',
+  /** Caso REAL Rosana (2026-07-31): "não tenho dinheiro pra nada" NÃO é recusa
+   *  — é o medo nº 1 deste público. A resposta acolhe e desfaz o medo com
+   *  clareza (VERBATIM: contém "análise gratuita"). */
+  tranquilizarCusto:
+    'Fica tranquilo(a) quanto a isso: a análise gratuita é realmente gratuita — você não paga NADA agora, e também não paga nada para dar entrada no processo.\n\n' +
+    'Os honorários são do advogado e só existem se conseguirmos recuperar valores para você: eles saem do que for recuperado, lá no final. Se não houver êxito, você não paga nada — nunca sai dinheiro do seu bolso.\n\n' +
+    'Posso seguir com a análise gratuita do seu consignado?',
+  /** A mesma tranquilização, sem a pergunta final — para quando o cliente JÁ
+   *  consentiu e o medo do custo aparece no meio da coleta (a mensagem emenda
+   *  o passo pendente). */
+  tranquilizarCustoCurto:
+    'Fica tranquilo(a): a análise gratuita é realmente gratuita e você não paga NADA agora, nem para dar entrada no processo. Os honorários são do advogado e só existem em caso de êxito — saem do valor recuperado, no final. Sem êxito, você não paga nada.',
   // Caso REAL Ubirajara (21 9..., 2026-07-31): o cliente disse NÃO e a resposta
   // respeitava a decisão na primeira frase e COBRAVA o HISCON na segunda (o
   // humanizador emendava a pendência). Recusa é recusa: cordial, agradece e
@@ -847,6 +882,11 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
         // Identificação recém-completa ⇒ explicação + pergunta de interesse (uma mensagem).
         return prefixoDireito + MENSAGENS_JORNADA.explicacaoConsentimento(r.nome ?? '');
       }
+      // Caso REAL Rosana (2026-07-31): medo de CUSTO tem resposta canônica —
+      // antes de qualquer outra coisa, desfaz o medo e repõe a pergunta.
+      if (ehPreocupacaoComCusto(entrada.texto)) {
+        return MENSAGENS_JORNADA.tranquilizarCusto;
+      }
       if (perguntaLivre) return '';
       // Caso REAL Ubirajara (2026-07-31): recusa é recusa — cordial, agradece
       // e ENCERRA. "Obrigado" depois do não ganha cortesia curta; nada de
@@ -861,6 +901,16 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
     }
     case 'TRIAGEM': {
       const proximo = f.proximoDocumento ?? 'o documento pendente';
+      // Caso REAL Rosana (2026-07-31): o medo do custo pode voltar DEPOIS do
+      // consentimento — acolhe e emenda o passo pendente (nunca ignora o medo,
+      // nunca perde o fio da coleta).
+      if (ehPreocupacaoComCusto(entrada.texto)) {
+        const passo =
+          r.cpf === null
+            ? MENSAGENS_JORNADA.pedirCpf(r.nome)
+            : MENSAGENS_JORNADA.pedirHiscon(proximo);
+        return `${MENSAGENS_JORNADA.tranquilizarCustoCurto}\n\n${passo}`;
+      }
       // Decreto 2026-07-26 (CPF): a triagem tem DUAS partes — CPF e depois o
       // HISCON. O consentimento abre anunciando as duas e pedindo o CPF.
       if (r.ultimaCaptura === 'consentimento')

@@ -6,6 +6,7 @@
 //  • anexo dos 3 documentos da fase 2 (procuração, RG f/v, comprovante);
 //  • completos ⇒ 100% prontos para o perito protocolar o pedido administrativo.
 import { cookies } from 'next/headers';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { ReactElement } from 'react';
 import { getJson, type ClienteHumanizado } from '../lib/api';
@@ -47,6 +48,33 @@ function porEstado(
     a === 'SEM UF' ? 1 : b === 'SEM UF' ? -1 : a.localeCompare(b),
   );
 }
+
+/** Pedido do dono (2026-08-03): SELETOR DE ESTADO — a mesa já passou de 40
+ *  clientes; a secretária escolhe a UF e trabalha só aquela fila. */
+const FiltroEstados = ({
+  contagens,
+  ativo,
+  total,
+}: {
+  contagens: readonly [string, ClienteHumanizado[]][];
+  ativo: string | null;
+  total: number;
+}): ReactElement => (
+  <div className="filtro-uf">
+    <Link href="/" className={`chip-uf${ativo === null ? ' ativo' : ''}`}>
+      Todos <span className="chip-num">{total}</span>
+    </Link>
+    {contagens.map(([uf, lista]) => (
+      <Link
+        key={uf}
+        href={`/?uf=${encodeURIComponent(uf)}`}
+        className={`chip-uf${ativo === uf ? ' ativo' : ''}`}
+      >
+        {uf} <span className="chip-num">{lista.length}</span>
+      </Link>
+    ))}
+  </div>
+);
 
 const Badge = ({ ok, rotulo }: { ok: boolean; rotulo: string }): ReactElement => (
   <span className={`badge ${ok ? 'ok' : 'warn'}`} style={{ marginRight: 4 }}>
@@ -116,12 +144,23 @@ const CartaoCliente = ({ c }: { c: ClienteHumanizado }): ReactElement => (
   </div>
 );
 
-const MesaPage = async (): Promise<ReactElement> => {
+const MesaPage = async ({
+  searchParams,
+}: {
+  searchParams: { uf?: string };
+}): Promise<ReactElement> => {
   const cookie = cookies().get(HUMANIZADO_SESSION_COOKIE)?.value ?? '';
   if (operadorDaSessao(SEGREDO_SESSAO, cookie) === null) redirect('/login');
 
   const data = await getJson<{ clientes: ClienteHumanizado[] }>('/admin/humanizado/clientes');
-  const clientes = data?.clientes ?? null;
+  const todos = data?.clientes ?? null;
+  // Filtro por ESTADO (pedido do dono): a UF escolhida vira a fila da vez.
+  const ufEscolhida = (searchParams.uf ?? '').trim().toUpperCase() || null;
+  const gruposDeTodos = porEstado(todos ?? []);
+  const ufValida = ufEscolhida !== null && gruposDeTodos.some(([uf]) => uf === ufEscolhida);
+  const ativo = ufValida ? ufEscolhida : null;
+  const clientes =
+    todos === null ? null : ativo === null ? todos : todos.filter((c) => c.uf === ativo);
   const pendentes = clientes?.filter((c) => !c.completo) ?? [];
   const completos = clientes?.filter((c) => c.completo) ?? [];
 
@@ -142,11 +181,21 @@ const MesaPage = async (): Promise<ReactElement> => {
         <div className="error-box">API indisponível — recarregue a página.</div>
       ) : (
         <>
+          <FiltroEstados contagens={gruposDeTodos} ativo={ativo} total={(todos ?? []).length} />
+
           <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 16 }}>
             📞 Aguardando documentos <span className="badge warn">{pendentes.length}</span>
+            {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
           </h2>
           {pendentes.length === 0 ? (
-            <div className="card empty">Ninguém aguardando — tudo em dia.</div>
+            <div className="card empty">
+              {ativo === null
+                ? 'Ninguém aguardando — tudo em dia.'
+                : `Ninguém aguardando em ${ativo}.`}
+            </div>
+          ) : ativo !== null ? (
+            // Com um estado escolhido, a lista é direta (sem repetir o título).
+            pendentes.map((c) => <CartaoCliente key={c.chatId} c={c} />)
           ) : (
             porEstado(pendentes).map(([uf, lista]) => (
               <section key={uf}>
@@ -162,9 +211,12 @@ const MesaPage = async (): Promise<ReactElement> => {
 
           <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
             ✅ Documentação completa <span className="badge ok">{completos.length}</span>
+            {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
           </h2>
           {completos.length === 0 ? (
-            <div className="card empty">Nenhum concluído ainda.</div>
+            <div className="card empty">
+              {ativo === null ? 'Nenhum concluído ainda.' : `Nenhum concluído em ${ativo}.`}
+            </div>
           ) : (
             porEstado(completos).map(([uf, lista]) => (
               <section key={uf}>

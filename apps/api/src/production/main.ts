@@ -103,6 +103,8 @@ async function main(): Promise<void> {
     humanizado: prod.humanizado,
     // Onda 3 (2026-07-31): o parecer em LOTE para a base legada (ato do Admin).
     parecerLote: prod.parecerLote,
+    // Decreto 2026-08-03: o funil real na Visão Executiva do Centro de Comando.
+    funilResumo: prod.funilResumo,
     // Custos de IA: gasto por cliente (conversa + leitura de documentos).
     custos: prod.custos,
     // Reaquecimento de leads frios — autorizado pelo admin, lead a lead.

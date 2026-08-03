@@ -180,6 +180,14 @@ export function buildAdminServer(
       >;
       marcarAguardando(chatId: string, valor: boolean): Promise<void>;
     };
+    /** Decreto 2026-08-03: o retrato do FUNIL para a Visão Executiva. */
+    readonly funilResumo?: () => Promise<{
+      fase1Completa: number;
+      semParecer: number;
+      aguardandoConfirmacao: number;
+      confirmados: number;
+      prontosParaPerito: number;
+    }>;
     /** Onda 3 (2026-07-31): o PARECER EM LOTE — a base legada nunca viu o
      *  dossiê; o disparo é ato do Admin (nunca automático). */
     readonly parecerLote?: {
@@ -480,6 +488,16 @@ export function buildAdminServer(
     const totalContratos =
       potencialCC !== null ? potencialCC.porCliente.reduce((s, c) => s + c.contratos, 0) : null;
 
+    // Decreto 2026-08-03 (pedido do dono): a Visão Executiva espelha o FUNIL
+    // REAL. Sem a montagem do funil (ex.: testes), os contadores ficam em 0 —
+    // nunca inventados.
+    const funil = (await opts.funilResumo?.().catch(() => null)) ?? {
+      fase1Completa: 0,
+      semParecer: 0,
+      aguardandoConfirmacao: 0,
+      confirmados: 0,
+      prontosParaPerito: 0,
+    };
     const indicadores = indicadoresExecutivos({
       clientesAtivos: listaCC !== null ? listaCC.length : (metrics?.clientCount ?? 0),
       novosClientesHoje,
@@ -491,16 +509,12 @@ export function buildAdminServer(
           ? listaCC.filter((c) => c.status === 'EM_PROCESSO').length
           : (metrics?.processCount ?? 0),
       aguardandoDocumentos,
-      casosCriticos: 0,
-      tempoMedioAteDecisaoMs: temFeedback ? painel.tempoMedioAteDecisaoMs : null,
-      precisaoDecisoes: temFeedback ? painel.taxaAcerto : null,
-      confiancaMediaIA: temFeedback ? painel.confiancaMedia : null,
       documentosProcessados: documentosReaisCC ?? metrics?.documentCount ?? 0,
       valorRecuperavel:
         potencialCC !== null && potencialCC.porCliente.length > 0
           ? potencialCC.total
           : (metrics?.financialUnderAdministration ?? null),
-      receitaPrevista: null,
+      ...funil,
     });
 
     return { briefing, indicadores };

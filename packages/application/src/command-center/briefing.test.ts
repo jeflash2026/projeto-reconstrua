@@ -128,7 +128,7 @@ describe('13A · o briefing dinâmico da AHRI', () => {
   });
 });
 
-describe('13A · indicadores executivos (negócio, não técnico)', () => {
+describe('13A · indicadores executivos (o FUNIL real — decreto 2026-08-03)', () => {
   const base = {
     clientesAtivos: 40,
     novosClientesHoje: 3,
@@ -136,40 +136,43 @@ describe('13A · indicadores executivos (negócio, não técnico)', () => {
     dossiesGerados: 12,
     casosDistribuidos: 20,
     aguardandoDocumentos: 4,
-    casosCriticos: 1,
-    tempoMedioAteDecisaoMs: 3_600_000,
-    precisaoDecisoes: 0.85,
-    confiancaMediaIA: 0.7,
     documentosProcessados: 130,
     valorRecuperavel: 250000,
-    receitaPrevista: 50000,
+    fase1Completa: 30,
+    semParecer: 5,
+    aguardandoConfirmacao: 9,
+    confirmados: 16,
+    prontosParaPerito: 7,
   };
 
-  it('traduz Read Models em indicadores apresentáveis, com fonte', () => {
+  it('traduz os Read Models em indicadores do FUNIL, com rótulo e explicação', () => {
     const ind = indicadoresExecutivos(base);
     const byId = Object.fromEntries(ind.map((i) => [i.id, i]));
-    expect(byId['precisao']?.valor).toBe('85%');
-    expect(byId['precisao']?.tom).toBe('positivo');
-    expect(byId['criticos']?.tom).toBe('critico');
-    expect(byId['valor-recuperavel']?.valor).toContain('R$');
+    expect(byId['fase1-completa']?.valor).toBe('30');
+    expect(byId['sem-parecer']?.valor).toBe('5');
+    expect(byId['aguardando-confirmacao']?.valor).toBe('9');
+    expect(byId['confirmados']?.valor).toBe('16');
+    expect(byId['prontos-perito']?.valor).toBe('7');
     expect(byId['total-contratos']?.valor).toBe('87');
-    for (const i of ind) expect(i.fonte.startsWith('read-model')).toBe(true);
+    expect(byId['valor-recuperavel']?.valor).toContain('R$');
+    // Todo indicador EXPLICA o que é (a fonte técnica vive só no tooltip).
+    for (const i of ind) {
+      expect(i.explicacao.length, i.id).toBeGreaterThan(10);
+      expect(i.fonte.startsWith('read-model'), i.id).toBe(true);
+    }
   });
 
-  it('valores ausentes viram estado explícito (—), nunca inventados', () => {
-    const ind = indicadoresExecutivos({
-      ...base,
-      totalContratos: null,
-      precisaoDecisoes: null,
-      valorRecuperavel: null,
-      receitaPrevista: null,
-      confiancaMediaIA: null,
-      tempoMedioAteDecisaoMs: null,
-    });
+  it('os indicadores de LABORATÓRIO saíram (viviam vazios sem feedback manual)', () => {
+    const ids = indicadoresExecutivos(base).map((i) => i.id);
+    for (const morto of ['tempo-decisao', 'precisao', 'confianca-ia', 'receita-prevista']) {
+      expect(ids, morto).not.toContain(morto);
+    }
+  });
+
+  it('valor ausente vira estado explícito (—), nunca inventado', () => {
+    const ind = indicadoresExecutivos({ ...base, totalContratos: null, valorRecuperavel: null });
     const byId = Object.fromEntries(ind.map((i) => [i.id, i]));
     expect(byId['total-contratos']?.valor).toBe('—');
-    expect(byId['precisao']?.valor).toBe('—');
     expect(byId['valor-recuperavel']?.valor).toBe('—');
-    expect(byId['tempo-decisao']?.valor).toBe('—');
   });
 });

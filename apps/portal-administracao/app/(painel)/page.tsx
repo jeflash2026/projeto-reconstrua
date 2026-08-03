@@ -53,8 +53,10 @@ const Indicador = ({ ind }: { ind: CCIndicador }): ReactElement => {
         {ind.valor}
       </div>
       <div className="cc-ind-label">{ind.rotulo}</div>
-      <div className="cc-source cc-ind-source" title={`Fonte: ${ind.fonte}`}>
-        {ind.fonte}
+      {/* Decreto 2026-08-03: o card explica o que o número SIGNIFICA; a fonte
+          técnica (read-model:…) vive só no tooltip, para auditoria. */}
+      <div className="cc-ind-help" title={`Fonte: ${ind.fonte}`}>
+        {ind.explicacao ?? ind.fonte}
       </div>
     </>
   );

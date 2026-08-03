@@ -224,6 +224,15 @@ import {
   WhatsAppConnectionRuntime,
 } from '../whatsapp-connection/index.js';
 
+/** Decreto 2026-08-03: o retrato do FUNIL para a Visão Executiva. */
+export interface FunilResumo {
+  readonly fase1Completa: number;
+  readonly semParecer: number;
+  readonly aguardandoConfirmacao: number;
+  readonly confirmados: number;
+  readonly prontosParaPerito: number;
+}
+
 export interface ProductionWiring {
   readonly clock: Clock;
   readonly uuid: UuidGenerator;
@@ -310,6 +319,9 @@ export interface AssembledProduction {
   /** Onda 2 (2026-07-31): convite→senha→login do ATENDIMENTO HUMANIZADO
    *  (papel 'operador' — a secretária da fase 2). */
   readonly humanizadoAuth: AdvogadoAuthRuntime;
+  /** Decreto 2026-08-03: o retrato do FUNIL (Visão Executiva) — fase 1,
+   *  parecer, confirmação, mesa do humanizado e prontos para o perito. */
+  readonly funilResumo: () => Promise<FunilResumo>;
   /** Onda 3 (2026-07-31): o PARECER EM LOTE do Admin — pendentes da base
    *  legada + envio unitário com claim (fato antes da mensagem). */
   readonly parecerLote: {
@@ -1936,6 +1948,37 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
   };
 
+  // Decreto 2026-08-03 (pedido do dono): o FUNIL para a Visão Executiva —
+  // fase 1 → parecer → confirmação → humanizado → perito. Cache de 60s: o
+  // Centro de Comando atualiza a cada 15s e esta contagem varre os HISCONs.
+  let funilCache: { em: number; dados: FunilResumo } | null = null;
+  const funilResumo = async (): Promise<FunilResumo> => {
+    if (funilCache !== null && Date.now() - funilCache.em < 60_000) return funilCache.dados;
+    const comHiscon = await perito.todosComHiscon();
+    const fase1 = comHiscon.filter((c) => c.temCpf);
+    let semParecer = 0;
+    let aguardandoConfirmacao = 0;
+    let confirmados = 0;
+    for (const c of fase1) {
+      const p = await parecerStore.load(c.clienteId).catch(() => null);
+      if (p === null) semParecer += 1;
+      else if (p.confirmadoEm == null) aguardandoConfirmacao += 1;
+      else confirmados += 1;
+    }
+    const prontosParaPerito = (await humanizado.clientes().catch(() => [])).filter(
+      (m) => m.completo,
+    ).length;
+    const dados: FunilResumo = {
+      fase1Completa: fase1.length,
+      semParecer,
+      aguardandoConfirmacao,
+      confirmados,
+      prontosParaPerito,
+    };
+    funilCache = { em: Date.now(), dados };
+    return dados;
+  };
+
   // Onda 3 (adendo do dono): o PARECER EM LOTE — a base LEGADA (cadastro do
   // fluxo antigo) nunca viu o dossiê; o disparo é ATO do Admin (um clique, um
   // lote — decreto anti-spam: nada sai sozinho). O fato do parecer é o claim.
@@ -1997,6 +2040,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     docsEquipe,
     humanizadoAuth,
     humanizado,
+    funilResumo,
     parecerLote,
     pericia,
     releitura,

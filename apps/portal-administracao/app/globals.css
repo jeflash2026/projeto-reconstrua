@@ -634,6 +634,15 @@ button:hover {
   display: block;
   margin-top: 8px;
 }
+/* Decreto 2026-08-03: o card explica o NÚMERO (a fonte técnica foi para o
+   tooltip) — texto discreto e legível, sem cara de log. */
+.cc-ind-help {
+  margin-top: 8px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  opacity: 0.85;
+}
 
 .cc-entry-grid {
   display: grid;

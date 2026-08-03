@@ -81,6 +81,9 @@ export interface CCIndicador {
   id: string;
   rotulo: string;
   valor: string;
+  /** Decreto 2026-08-03: o que o número significa (o card mostra isto no lugar
+   *  da fonte técnica). Opcional para compatibilidade com respostas antigas. */
+  explicacao?: string;
   tom: 'neutro' | 'positivo' | 'atencao' | 'critico';
   fonte: string;
   href: string | null;

@@ -229,7 +229,18 @@ const MesaPage = async ({
                     <span className="mono" style={{ fontSize: 12 }}>
                       {c.telefone}
                     </span>{' '}
-                    <span className="badge ok">pronto para o pedido administrativo</span>
+                    <span className="badge">{c.uf}</span>
+                    {/* Pedido do dono (2026-08-03): com os 3 documentos, o
+                        cartão anuncia a conclusão e o caso segue ao perito. */}
+                    <div className="concluido">
+                      ✅ <strong>Documentação completa recebida</strong> — este cliente saiu da sua
+                      fila e seguiu para o perito fazer o pedido administrativo.
+                    </div>
+                    <div style={{ marginTop: 6 }}>
+                      <Badge ok rotulo="Procuração" />
+                      <Badge ok rotulo="RG" />
+                      <Badge ok rotulo="Comprovante" />
+                    </div>
                     <TamanhoDoCaso c={c} />
                     <DocsFase2 chatId={c.chatId} />
                   </div>

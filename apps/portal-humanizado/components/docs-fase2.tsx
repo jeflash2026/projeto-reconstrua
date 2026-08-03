@@ -3,7 +3,14 @@
 // Atendimento Humanizado: procuração assinada, RG (frente e verso) e
 // comprovante de endereço. Mesmo docs-equipe do Admin; o advogado destinado
 // baixa tudo no portal dele. PDF/JPG/PNG até 20 MB.
+//
+// Caso REAL Helio Fontes (2026-08-03): o envio da procuração ficava
+// "Enviando…" para sempre — o limite de 1 MB (server action + Fastify)
+// derrubava a chamada sem erro visível. Além dos limites (corrigidos), aqui:
+// o botão NUNCA trava (finally), o tamanho é conferido ANTES do envio e a
+// página é atualizada ao concluir (selos ficam verdes; completos saem da fila).
 import { useEffect, useState, type ReactElement } from 'react';
+import { useRouter } from 'next/navigation';
 import { anexarDoc, listarDocs, removerDoc } from '../lib/actions';
 import type { DocEquipe } from '../lib/api';
 
@@ -14,45 +21,67 @@ const TIPOS = [
   { valor: 'outro', rotulo: 'Outro documento' },
 ];
 
+const MAX_BYTES = 20 * 1024 * 1024; // a MESMA régua do DocsEquipeService
+
 const DocsFase2 = ({ chatId }: { chatId: string }): ReactElement => {
+  const router = useRouter();
   const [docs, setDocs] = useState<DocEquipe[]>([]);
   const [tipo, setTipo] = useState('procuracao');
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const carregar = async (): Promise<void> => {
-    setDocs(await listarDocs(chatId));
-  };
   useEffect(() => {
     void listarDocs(chatId).then(setDocs);
   }, [chatId]);
 
   const enviar = async (): Promise<void> => {
     if (arquivo === null || busy) return;
-    setBusy(true);
-    setErro(null);
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const r = reader.result;
-        resolve(typeof r === 'string' ? r : '');
-      };
-      reader.onerror = () => {
-        reject(new Error('falha na leitura do arquivo'));
-      };
-      reader.readAsDataURL(arquivo);
-    }).catch(() => '');
-    if (base64 === '') {
-      setErro('não consegui ler o arquivo — tente novamente');
-      setBusy(false);
+    if (arquivo.size > MAX_BYTES) {
+      setErro(
+        `Arquivo de ${(arquivo.size / 1024 / 1024).toFixed(1)} MB — o limite é 20 MB. Reduza o PDF (ou envie por partes) e tente de novo.`,
+      );
       return;
     }
-    const r = await anexarDoc(chatId, tipo, arquivo.name, base64);
-    if (!r.ok) setErro(r.error ?? 'falha no envio');
-    setArquivo(null);
-    await carregar();
-    setBusy(false);
+    setBusy(true);
+    setErro(null);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const r = reader.result;
+          resolve(typeof r === 'string' ? r : '');
+        };
+        reader.onerror = () => {
+          reject(new Error('falha na leitura do arquivo'));
+        };
+        reader.readAsDataURL(arquivo);
+      });
+      if (base64 === '') {
+        setErro('não consegui ler o arquivo — tente novamente');
+        return;
+      }
+      const r = await anexarDoc(chatId, tipo, arquivo.name, base64);
+      if (!r.ok) {
+        setErro(r.error ?? 'falha no envio — tente novamente');
+        return;
+      }
+      setArquivo(null);
+      setDocs(await listarDocs(chatId));
+      // Atualiza a página: os selos ficam verdes e, com os 3 documentos, o
+      // cliente sai da fila de pendentes e segue para o perito.
+      router.refresh();
+    } catch {
+      setErro('falha no envio — verifique a conexão e tente novamente');
+    } finally {
+      setBusy(false); // o botão NUNCA fica preso em "Enviando…"
+    }
+  };
+
+  const remover = async (id: string): Promise<void> => {
+    await removerDoc(chatId, id);
+    setDocs(await listarDocs(chatId));
+    router.refresh();
   };
 
   return (
@@ -75,6 +104,7 @@ const DocsFase2 = ({ chatId }: { chatId: string }): ReactElement => {
           accept=".pdf,.jpg,.jpeg,.png"
           onChange={(e) => {
             setArquivo(e.target.files?.[0] ?? null);
+            setErro(null);
           }}
         />
         <button
@@ -98,8 +128,9 @@ const DocsFase2 = ({ chatId }: { chatId: string }): ReactElement => {
                 type="button"
                 className="btn"
                 style={{ fontSize: 11, padding: '1px 8px', marginLeft: 6 }}
+                disabled={busy}
                 onClick={() => {
-                  void removerDoc(chatId, d.id).then(() => carregar());
+                  void remover(d.id);
                 }}
               >
                 remover

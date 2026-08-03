@@ -165,10 +165,38 @@ export class PericiaFluxoService {
    *  do banco, quando houver) vai para o ns 'pericia-fluxo-backup' ANTES de
    *  sair do fluxo; nada é perdido, tudo é reversível. Ato explícito do admin. */
   async estornarTodos(): Promise<{ estornados: number }> {
+    return this.estornar(() => true);
+  }
+
+  /** Decreto 2026-08-03 (adendo do dono): CADA CLIENTE NO SEU ESTÁGIO REAL. As
+   *  perícias iniciadas no fluxo ANTIGO (antes do parecer/confirmação/coleta da
+   *  fase 2) não representam trabalho válido — o cliente nem viu o dossiê. Este
+   *  estorno devolve ao estágio real TODOS os que NÃO completaram o ciclo,
+   *  preservando quem está legitimamente em perícia. Mesmo backup do geral. */
+  async estornarSemCicloCompleto(
+    chatIdsAptos: readonly string[],
+  ): Promise<{ estornados: number; preservados: number }> {
+    const aptos = new Set(chatIdsAptos);
+    let preservados = 0;
+    const r = await this.estornar((chatId) => {
+      if (aptos.has(chatId)) {
+        preservados += 1;
+        return false;
+      }
+      return true;
+    });
+    return { estornados: r.estornados, preservados };
+  }
+
+  /** Núcleo do estorno (backup ANTES de sair do fluxo; nada é perdido). */
+  private async estornar(
+    deveEstornar: (chatId: string) => boolean,
+  ): Promise<{ estornados: number }> {
     const agora = this.deps.clock.now().toISOString();
     const chats = await this.deps.json.keys(NS);
     let estornados = 0;
     for (const chatId of chats) {
+      if (!deveEstornar(chatId)) continue;
       const r = await this.recordDe(chatId);
       if (r === null) continue;
       // Backup nunca sobrescreve um anterior: chave com carimbo quando preciso.

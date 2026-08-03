@@ -10,6 +10,7 @@ import {
 } from '../../../lib/actions';
 import AtribuirAdvogado from '../../../components/atribuir-advogado';
 import EstornarPericias from '../../../components/estornar-pericias';
+import EstornarIncompletas from '../../../components/estornar-incompletas';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,10 @@ const ClientesProntosPage = async (): Promise<ReactElement> => {
       {/* Decreto 2026-07-27: estudos baixados na LEITURA ANTIGA — estorno geral
           para novo download, agora com a leitura corrigida do HISCON. */}
       <EstornarPericias baixadas={baixadas} />
+
+      {/* Decreto 2026-08-03: cada cliente no seu ESTÁGIO REAL — as perícias do
+          fluxo antigo voltam ao funil; quem completou o ciclo é preservado. */}
+      <EstornarIncompletas />
 
       {/* Decreto 2026-07-24: perícias com 10 dias vencidos — com as CREDENCIAIS e a
           RESPOSTA DO BANCO, como prova do pedido, para o advogado consultar. */}

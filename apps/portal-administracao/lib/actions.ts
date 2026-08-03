@@ -817,6 +817,16 @@ export async function pdEstornarPericias(): Promise<{ estornados: number } | nul
   return sendJson<{ estornados: number }>('POST', '/admin/jornada/pericia/estornar-todos', {});
 }
 
+/** CADA CLIENTE NO SEU ESTÁGIO REAL (decreto 2026-08-03): devolve ao funil as
+ *  perícias iniciadas no fluxo ANTIGO (sem dossiê/confirmação/documentos da
+ *  fase 2). Quem completou o ciclo é PRESERVADO. Backup como sempre. */
+export async function pdEstornarPericiasIncompletas(): Promise<{
+  estornados: number;
+  preservados: number;
+} | null> {
+  return sendJson('POST', '/admin/jornada/pericia/estornar-incompletos', {});
+}
+
 /** MAPA DE CLIENTES (Decreto 2026-07-24) — distribuição por estado + cidades. */
 export interface MapaClientesView {
   total: number;

@@ -325,11 +325,16 @@ export function buildAdminServer(
         cred: { email: string; senha: string; provedor: string },
       ): Promise<{ ok: boolean; error?: string }>;
       salvarRespostaBanco(chatId: string, texto: string): Promise<{ ok: boolean; error?: string }>;
-      emAndamento(): Promise<readonly unknown[]>;
-      concluidas(): Promise<readonly unknown[]>;
+      emAndamento(): Promise<readonly { chatId: string }[]>;
+      concluidas(): Promise<readonly { chatId: string }[]>;
       /** Decreto 2026-07-27: estudos baixados na leitura ANTIGA voltam a
        *  "prontos p/ download" (backup preservado) — ato explícito do admin. */
       estornarTodos(): Promise<{ estornados: number }>;
+      /** Decreto 2026-08-03: devolve ao estágio real quem está em perícia SEM
+       *  o ciclo completo (o fluxo antigo); os aptos são preservados. */
+      estornarSemCicloCompleto?(
+        chatIdsAptos: readonly string[],
+      ): Promise<{ estornados: number; preservados: number }>;
       listar(): Promise<readonly unknown[]>;
       registro(chatId: string): Promise<unknown>;
     };
@@ -679,6 +684,12 @@ export function buildAdminServer(
     const mesa = await opts.humanizado.clientes();
     return new Set(mesa.filter((c) => c.completo).map((c) => c.clienteId));
   }
+  /** Os mesmos aptos, indexados por chatId (o fluxo de perícia usa o chat). */
+  async function chatsAptosParaPedido(): Promise<Set<string> | null> {
+    if (!opts.humanizado) return null;
+    const mesa = await opts.humanizado.clientes();
+    return new Set(mesa.filter((c) => c.completo).map((c) => c.chatId));
+  }
 
   // TODOS os clientes com HISCON legível (Decreto 2026-07-23) — o perito trabalha
   // a partir da ENTREGA do HISCON, não só da fila de sociedade. Rota ESTÁTICA
@@ -961,9 +972,16 @@ export function buildAdminServer(
 
   app.get('/admin/jornada/pericia/em-fluxo', async (_request, reply) => {
     if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
+    // Decreto 2026-08-03 (adendo do dono): a Central do Perito mostra APENAS
+    // quem completou o ciclo (confirmação + procuração + RG + comprovante).
+    // As perícias iniciadas no fluxo ANTIGO ficam fora da tela até o cliente
+    // percorrer o funil — o fato permanece no banco (estorno é ato do Admin).
+    const chatsAptos = await chatsAptosParaPedido();
+    const filtra = <T extends { chatId: string }>(itens: readonly T[]): readonly T[] =>
+      chatsAptos === null ? itens : itens.filter((i) => chatsAptos.has(i.chatId));
     return {
-      emAndamento: await opts.periciaFluxo.emAndamento(),
-      concluidas: await opts.periciaFluxo.concluidas(),
+      emAndamento: filtra(await opts.periciaFluxo.emAndamento()),
+      concluidas: filtra(await opts.periciaFluxo.concluidas()),
     };
   });
 
@@ -973,6 +991,18 @@ export function buildAdminServer(
   app.post('/admin/jornada/pericia/estornar-todos', async (_request, reply) => {
     if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
     return opts.periciaFluxo.estornarTodos();
+  });
+
+  // CADA CLIENTE NO SEU ESTÁGIO REAL (decreto 2026-08-03): as perícias
+  // iniciadas no fluxo ANTIGO — antes do dossiê, da confirmação e da coleta da
+  // fase 2 — voltam ao ponto real do funil. Quem completou o ciclo é
+  // PRESERVADO. Ato explícito do Admin; tudo com backup (reversível).
+  app.post('/admin/jornada/pericia/estornar-incompletos', async (_request, reply) => {
+    if (!opts.periciaFluxo?.estornarSemCicloCompleto) {
+      return reply.code(503).send({ error: 'fluxo de perícia indisponível nesta montagem' });
+    }
+    const chatsAptos = await chatsAptosParaPedido();
+    return opts.periciaFluxo.estornarSemCicloCompleto([...(chatsAptos ?? [])]);
   });
 
   app.post('/admin/jornada/pericia/iniciar-todos', async (request, reply) => {

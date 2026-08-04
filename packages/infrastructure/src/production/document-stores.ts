@@ -450,6 +450,15 @@ export class JsonParecerStore implements ParecerStore {
   save(record: ParecerEnviado): Promise<void> {
     return this.store.put('parecer-enviado', record.clienteId, record);
   }
+  /** PERFORMANCE (2026-08-04): a mesa do Atendimento Humanizado só existe para
+   *  quem CONFIRMOU. Ler o namespace inteiro de uma vez substitui uma consulta
+   *  por cliente da base — era isso que fazia a mesa (e o login) se arrastarem. */
+  async listarConfirmados(): Promise<readonly ParecerEnviado[]> {
+    const brutos = await this.store.list('parecer-enviado');
+    return brutos
+      .map((raw) => revive<ParecerEnviado>(raw))
+      .filter((p) => typeof p.clienteId === 'string' && p.confirmadoEm != null);
+  }
 }
 
 /** GO-LIVE-04 — credenciais INDIVIDUAIS do Portal do Advogado (hash scrypt; a

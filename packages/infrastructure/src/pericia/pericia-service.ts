@@ -13,8 +13,10 @@ import {
   contratosParaPedidoAdministrativo,
   indiciosDeEstrategias,
   mapaDeMigracoes,
+  memoCurto,
   parseHisconDetalhado,
   potencialDeRecuperacao,
+  type MemoCurto,
   type BancoComContratos,
   type ContratoHiscon,
   type HisconExtraido,
@@ -95,10 +97,22 @@ export interface PericiaServiceDeps {
   readonly clock: Clock;
   /** Teto de juros mensal para o indício EST-CONSIG-JUROS (ausente ⇒ sem indício). */
   readonly tetoJurosMensal?: number | null;
+  /** PERFORMANCE (2026-08-04): validade, em ms, do cache de potencialDeTodos().
+   *  Essa varredura lê e parseia o HISCON de TODOS os chats — e é consumida
+   *  pelo Centro de Comando (polling), pela mesa do humanizado e pelo funil.
+   *  Ausente/0 ⇒ SEM cache (o padrão dos testes). */
+  readonly cachePotencialMs?: number;
 }
 
 export class PericiaService {
-  constructor(private readonly deps: PericiaServiceDeps) {}
+  constructor(private readonly deps: PericiaServiceDeps) {
+    this.potencialMemo = memoCurto(() => this.varrerPotencial(), this.deps.cachePotencialMs ?? 0);
+  }
+
+  private readonly potencialMemo: MemoCurto<{
+    total: number;
+    porCliente: readonly PotencialDoCliente[];
+  }>;
 
   /** documentId → rótulo HUMANO ("RG (frente)", "Comprovante de endereço",
    *  "HISCON") a partir da contabilidade documental — para o Dossiê Jurídico e
@@ -228,6 +242,13 @@ export class PericiaService {
   /** FINANCEIRO/Centro de Comando: potencial de recuperação (o JÁ descontado
    *  até hoje) por cliente com HISCON legível + total geral. */
   async potencialDeTodos(): Promise<{
+    total: number;
+    porCliente: readonly PotencialDoCliente[];
+  }> {
+    return this.potencialMemo();
+  }
+
+  private async varrerPotencial(): Promise<{
     total: number;
     porCliente: readonly PotencialDoCliente[];
   }> {

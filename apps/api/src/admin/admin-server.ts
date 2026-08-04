@@ -179,6 +179,9 @@ export function buildAdminServer(
         }[]
       >;
       marcarAguardando(chatId: string, valor: boolean): Promise<void>;
+      /** PERFORMANCE (2026-08-04): a mesa é cara de derivar e fica em cache
+       *  curto; qualquer AÇÃO do painel descarta o guardado. */
+      invalidar?(): void;
     };
     /** Decreto 2026-08-03: o retrato do FUNIL para a Visão Executiva. */
     readonly funilResumo?: () => Promise<{
@@ -598,7 +601,12 @@ export function buildAdminServer(
   // Admin (vender, modalidade, perícia, upload…) reflete na lista na hora; o
   // cache só serve leituras repetidas entre ações.
   app.addHook('preHandler', (request, _reply, done) => {
-    if (request.method !== 'GET' && request.url.startsWith('/admin/')) invalidarCacheJornada();
+    if (request.method !== 'GET' && request.url.startsWith('/admin/')) {
+      invalidarCacheJornada();
+      // A mesa do Atendimento Humanizado também é derivada em cache curto: o
+      // anexo de um documento ou a marcação da secretária refletem na hora.
+      opts.humanizado?.invalidar?.();
+    }
     done();
   });
   app.get('/admin/jornada/clientes', async (request, reply) => {

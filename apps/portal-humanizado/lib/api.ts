@@ -10,9 +10,15 @@ export function authHeaders(): Record<string, string> {
   return ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {};
 }
 
-export async function getJson<T>(path: string): Promise<T | null> {
+export async function getJson<T>(path: string, timeoutMs?: number): Promise<T | null> {
   try {
-    const res = await fetch(`${API_BASE}${path}`, { cache: 'no-store', headers: authHeaders() });
+    const res = await fetch(`${API_BASE}${path}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+      // Blindagem: uma API ocupada NUNCA pode deixar a mesa carregando para
+      // sempre — expira e a página mostra o aviso em vez de ficar em branco.
+      ...(timeoutMs !== undefined ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+    });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {

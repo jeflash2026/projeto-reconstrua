@@ -86,6 +86,7 @@ import {
   type ClienteElegivel,
   type InboundEnvelope,
   ufDoTelefone,
+  memoCurto,
 } from '@reconstrua/application';
 import type { BootableComponent } from '@reconstrua/application';
 import {
@@ -351,6 +352,9 @@ export interface AssembledProduction {
       }[]
     >;
     marcarAguardando(chatId: string, valor: boolean): Promise<void>;
+    /** PERFORMANCE (2026-08-04): descarta a mesa em cache — qualquer ação do
+     *  painel (anexo, marcação, confirmação) chama para o dado ser fresco. */
+    invalidar(): void;
   };
   /** Decreto 2026-07-23: rateio do potencial + cadastro/painel do SÓCIO (login por CPF). */
   readonly socios: SociosService;
@@ -639,6 +643,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     json,
     reader: documentReader,
     clock,
+    // PERFORMANCE (2026-08-04): o potencial de TODOS varre e parseia o HISCON
+    // do sistema inteiro, e é consumido pelo Centro de Comando (que atualiza
+    // sozinho), pela mesa do humanizado e pelo funil. Sem cache, o processo
+    // ficava ocupado nessa conta e o login dos portais se arrastava.
+    cachePotencialMs: 60_000,
     tetoJurosMensal:
       env['PERICIA_TETO_JUROS_MENSAL'] !== undefined && env['PERICIA_TETO_JUROS_MENSAL'] !== ''
         ? Number(env['PERICIA_TETO_JUROS_MENSAL'])
@@ -1186,6 +1195,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       const r = (await json.get('jornada', chatId)) as { cpf?: string | null } | null;
       return r?.cpf ?? null;
     },
+    // PERFORMANCE (2026-08-04): a lista "todos com HISCON" é a varredura mais
+    // cara do sistema (texto de todos os documentos + dois parses por cliente)
+    // e é consumida pela Central do Perito, pela aba Clientes, pelo funil e
+    // pela trava do pedido administrativo. Cache curto + voo único.
+    cacheListaMs: 60_000,
   });
 
   // Decreto 2026-07-24: FLUXO DA PERÍCIA — o perito baixa o estudo ⇒ 10 dias
@@ -1867,8 +1881,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // ── ATENDIMENTO HUMANIZADO (Onda 2, decreto 2026-07-31): a mesa da
   //    secretária — SÓ os clientes que CONFIRMARAM o parecer (cadastro gerado),
   //    com o status dos 3 documentos da fase 2. Derivado em leitura. ─────────
-  const humanizado = {
-    clientes: async (): Promise<
+  // PERFORMANCE (2026-08-04): a mesa era recalculada INTEIRA a cada abertura,
+  // a cada filtro por estado e a cada checagem da trava do perito — e cada
+  // cálculo varria a base toda. Cache curto com VOO ÚNICO: cliques repetidos
+  // e abas simultâneas compartilham uma leitura só. Qualquer ação do painel
+  // (anexo, marcação, confirmação) invalida — a secretária nunca vê dado velho.
+  const mesaHumanizada = memoCurto(
+    async (): Promise<
       readonly {
         clienteId: string;
         chatId: string;
@@ -1884,7 +1903,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         aguardandoAssinatura: boolean;
       }[]
     > => {
-      const lista = await clientes.list();
+      // Onda 3 (adendo do dono): a mesa exige o INTERESSE CONFIRMADO após o
+      // dossiê — cadastro do fluxo antigo (sem parecer/sem SIM) fica FORA.
+      // Uma leitura do namespace do parecer decide isso para TODOS de uma vez
+      // (antes era uma consulta por cliente da base inteira).
+      const confirmados = new Map(
+        (await parecerStore.listarConfirmados()).map((p) => [p.clienteId, p]),
+      );
+      if (confirmados.size === 0) return [];
+      const lista = (await clientes.list()).filter(
+        (c) => c.clienteId !== c.chatId && confirmados.has(c.clienteId),
+      );
       // Pedido do dono (2026-07-31): a mesa mostra o TAMANHO de cada caso —
       // contratos e potencial de recuperação. Uma leitura só (mapa por chat).
       const potenciais = new Map(
@@ -1895,11 +1924,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       );
       const out = [];
       for (const c of lista) {
-        if (c.clienteId === c.chatId) continue;
-        // Onda 3 (adendo do dono): a mesa exige o INTERESSE CONFIRMADO após o
-        // dossiê — cadastro do fluxo antigo (sem parecer/sem SIM) fica FORA.
-        const fato = await parecerStore.load(c.clienteId);
-        if (fato === null || fato.confirmadoEm == null) continue;
+        const fato = confirmados.get(c.clienteId);
+        if (fato?.confirmadoEm == null) continue;
         const anexos = await docsEquipe.listar(c.chatId).catch(() => []);
         const tem = (tipo: string): boolean => anexos.some((d) => d.tipo === tipo);
         const docs = {
@@ -1937,6 +1963,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       }
       return out.sort((a, b) => b.confirmadoEm.localeCompare(a.confirmadoEm));
     },
+    15_000,
+  );
+
+  const humanizado = {
+    clientes: mesaHumanizada,
     // A secretária marca/desmarca o status "aguardando devolução assinada" —
     // fato simples de organização da mesa; nada automático deriva dele.
     marcarAguardando: async (chatId: string, valor: boolean): Promise<void> => {
@@ -1945,6 +1976,11 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         aguardando: valor,
         em: clock.now().toISOString(),
       });
+      mesaHumanizada.invalidar(); // o clique aparece na hora, sem esperar o TTL
+    },
+    /** Descarta a mesa guardada — chamado por QUALQUER ação do painel. */
+    invalidar: (): void => {
+      mesaHumanizada.invalidar();
     },
   };
 

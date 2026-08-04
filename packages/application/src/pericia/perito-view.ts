@@ -14,6 +14,7 @@
 // zero à esquerda — o perito recebia "CPF inválido" em tudo. Com a máscara a
 // célula é TEXTO e o número chega íntegro. Reuso do formatador dos sócios.
 import { formatarCpf } from '../socios/socio-model.js';
+import { memoCurto, type MemoCurto } from '../production/memo-curto.js';
 import type { ClientesList, ClienteResumo } from '../clientes/clientes-list.js';
 import { parseHiscon, type HisconParse } from './hiscon.js';
 import { parseHisconDetalhado, type HisconExtraido } from './hiscon-parser.js';
@@ -35,6 +36,12 @@ export interface PeritoDeps {
   /** Decreto 2026-07-27: o CPF da jornada — a fila da perícia exige a FASE 1
    *  completa (CPF + HISCON). Ausente ⇒ temCpf=false em todos (fail-closed). */
   readonly cpfDe?: (chatId: string) => Promise<string | null>;
+  /** PERFORMANCE (2026-08-04): validade, em ms, do cache de leitura de
+   *  todosComHiscon(). A varredura lê o TEXTO de todos os documentos e parseia
+   *  o HISCON de cada cliente — repeti-la a cada abertura de tela travava o
+   *  processo inteiro (single-thread), inclusive o login dos portais e as
+   *  respostas da AHRI. Ausente/0 ⇒ SEM cache (o padrão dos testes). */
+  readonly cacheListaMs?: number;
 }
 
 export interface ContratosDoCliente {
@@ -247,6 +254,24 @@ export class PeritoView {
    *  todo mundo que já entregou o HISCON, não só a fila de sociedade. Mesma fonte
    *  do CSV geral; cada linha traz nº de contratos e o status atual da jornada. */
   async todosComHiscon(now?: Date): Promise<readonly ClienteComHiscon[]> {
+    // Com instante EXPLÍCITO a varredura é sempre fresca (auditorias/testes);
+    // a chamada corrente (a das telas) passa pelo cache curto de voo único.
+    if (now !== undefined) return this.varrerComHiscon(now);
+    const ttl = this.deps.cacheListaMs ?? 0;
+    if (ttl <= 0) return this.varrerComHiscon();
+    this.listaMemo ??= memoCurto(() => this.varrerComHiscon(), ttl);
+    return this.listaMemo();
+  }
+
+  /** Descarta o cache da lista — usado quando um ato do painel muda a base
+   *  (upload de HISCON, revínculo, releitura aplicada). */
+  invalidarLista(): void {
+    this.listaMemo?.invalidar();
+  }
+
+  private listaMemo: MemoCurto<readonly ClienteComHiscon[]> | null = null;
+
+  private async varrerComHiscon(now?: Date): Promise<readonly ClienteComHiscon[]> {
     const clientes = await this.deps.clientes.list(now); // lista UMA vez (O(n))
     const out: ClienteComHiscon[] = [];
     for (const cliente of clientes) {

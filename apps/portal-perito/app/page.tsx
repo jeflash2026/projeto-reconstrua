@@ -75,16 +75,16 @@ function cpfBr(cpf: string | null): string {
 }
 
 const CentralPerito = async (): Promise<ReactElement> => {
-  const comHiscon =
-    (
-      await getJson<{ clientes: ClienteComHiscon[] }>(
-        '/admin/jornada/pericia/todos-com-hiscon',
-        20000,
-      )
-    )?.clientes ?? [];
-  const fluxo = await getJson<{ emAndamento: PericiaEmFluxo[]; concluidas: PericiaEmFluxo[] }>(
-    '/admin/jornada/pericia/em-fluxo',
-  );
+  // As duas leituras são INDEPENDENTES: vão JUNTAS (uma esperava a outra e a
+  // tela abria na soma dos dois tempos).
+  const [lista, fluxo] = await Promise.all([
+    getJson<{ clientes: ClienteComHiscon[] }>('/admin/jornada/pericia/todos-com-hiscon', 20000),
+    getJson<{ emAndamento: PericiaEmFluxo[]; concluidas: PericiaEmFluxo[] }>(
+      '/admin/jornada/pericia/em-fluxo',
+      20000,
+    ),
+  ]);
+  const comHiscon = lista?.clientes ?? [];
   const emAndamento = fluxo?.emAndamento ?? [];
   const concluidas = fluxo?.concluidas ?? [];
   const emFluxo = new Set([...emAndamento, ...concluidas].map((p) => p.chatId));

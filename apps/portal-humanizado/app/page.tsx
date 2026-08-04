@@ -152,7 +152,10 @@ const MesaPage = async ({
   const cookie = cookies().get(HUMANIZADO_SESSION_COOKIE)?.value ?? '';
   if (operadorDaSessao(SEGREDO_SESSAO, cookie) === null) redirect('/login');
 
-  const data = await getJson<{ clientes: ClienteHumanizado[] }>('/admin/humanizado/clientes');
+  const data = await getJson<{ clientes: ClienteHumanizado[] }>(
+    '/admin/humanizado/clientes',
+    20000,
+  );
   const todos = data?.clientes ?? null;
   // Filtro por ESTADO (pedido do dono): a UF escolhida vira a fila da vez.
   const ufEscolhida = (searchParams.uf ?? '').trim().toUpperCase() || null;

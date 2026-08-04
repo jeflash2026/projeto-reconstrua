@@ -77,6 +77,16 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
           >
             🧾 Parecer p/ enviar (salvar PDF)
           </a>
+          {/* Decreto 2026-08-04: o guia de agrupamento aplicado, para imprimir
+              e conferir com o HISCON original (auditoria da lógica). */}
+          <a
+            className="btn"
+            href={`/admin/acoes/${encodeURIComponent(chatId)}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            ⚖️ Dossiê de Ações (imprimir)
+          </a>
         </div>
       ) : null}
 

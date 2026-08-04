@@ -110,6 +110,9 @@ export function buildAdminServer(
         clientes: number;
         porCategoria: Readonly<Record<'ATIVOS' | 'EXCLUIDOS' | 'RMC' | 'RCC', number>>;
       }>;
+      /** Decreto 2026-08-04: o DOSSIÊ DE AÇÕES de UM cliente — para o Admin
+       *  imprimir e auditar contra o HISCON original. */
+      acoesDe?(chatId: string): Promise<object | null>;
     };
     /** Medidor de Custo (2026-07-21): registros de gasto de IA (conversa +
      *  leitura de documentos) para o painel "Custos de IA". */
@@ -732,6 +735,18 @@ export function buildAdminServer(
     const aptos = await clientesAptosParaPedido();
     const todos = (await op.perito.todosComHiscon()).filter((c) => c.temCpf);
     return { clientes: aptos === null ? todos : todos.filter((c) => aptos.has(c.clienteId)) };
+  });
+
+  // Decreto 2026-08-04: o DOSSIÊ DE AÇÕES de UM cliente — o guia de
+  // classificação/agrupamento aplicado ao HISCON dele. O Admin imprime esta
+  // visão e confere lado a lado com o HISCON original (auditoria da lógica).
+  app.get('/admin/pericia/acoes/:chatId', async (request, reply) => {
+    if (!opts.pericia?.acoesDe)
+      return reply.code(503).send({ error: 'dossiê de ações indisponível nesta montagem' });
+    const { chatId } = request.params as { chatId: string };
+    const acoes = await opts.pericia.acoesDe(decodeURIComponent(chatId));
+    if (acoes === null) return reply.code(404).send({ error: 'HISCON ainda não legível' });
+    return acoes;
   });
 
   // Decreto 2026-07-27: RELEITURA COMPARATIVA — o leitor posicional V2 rodado

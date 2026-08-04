@@ -27,12 +27,22 @@ function dataBr(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+// Emojis por CODE POINT — o fonte fica 100% ASCII neste trecho. Com os
+// caracteres literais, o minificador do build os escapava ("\uD83D...") e o
+// texto chegava ao WhatsApp corrompido (caso real MARLENE, 2026-08-04).
+const E_DOC = String.fromCodePoint(0x1f4c4); // pagina de documento
+const E_ASSINA = String.fromCodePoint(0x270d, 0xfe0f); // mao escrevendo
+const E_CASA = String.fromCodePoint(0x1f3e0); // casa
+const E_BALANCA = String.fromCodePoint(0x2696, 0xfe0f); // balanca da justica
+
 /** A mensagem de ORIENTAÇÃO FINAL, pronta no WhatsApp da equipe (texto ditado
  *  pelo dono em 2026-08-04). A CONSULTORA envia esta mensagem, anexa a
  *  procuração em seguida e aguarda a devolução — por isso o pedido vem inteiro
  *  de uma vez. Assinada por quem está atendendo (o nome vem da sessão). */
 function mensagemDaEquipe(c: ClienteHumanizado, assinatura: string): string {
-  const primeiro = c.nome.split(/\s+/)[0] ?? c.nome;
+  const bruto = c.nome.split(/\s+/)[0] ?? c.nome;
+  // O cadastro guarda o nome em CAIXA ALTA ("MARLENE") — a saudação sai humana.
+  const primeiro = bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
   return [
     `Olá, ${primeiro}!`,
     '',
@@ -40,9 +50,9 @@ function mensagemDaEquipe(c: ClienteHumanizado, assinatura: string): string {
     '',
     'Para darmos continuidade ao seu atendimento, pedimos que envie o quanto antes:',
     '',
-    '📄 *RG* — frente e verso',
-    '✍️ *Procuração* devidamente assinada',
-    '🏠 *Comprovante de endereço*',
+    `${E_DOC} *RG* — frente e verso`,
+    `${E_ASSINA} *Procuração* devidamente assinada`,
+    `${E_CASA} *Comprovante de endereço*`,
     '',
     'Assim que recebermos a documentação completa, nossa equipe fará a conferência e, ' +
       'estando tudo correto, dará prosseguimento ao protocolo do processo.',
@@ -50,7 +60,7 @@ function mensagemDaEquipe(c: ClienteHumanizado, assinatura: string): string {
     'Quanto antes você enviar, mais rápido conseguiremos avançar com o seu caso.',
     '',
     'Atenciosamente,',
-    `${assinatura} — Consultora do Projeto Reconstrua ⚖️`,
+    `${assinatura} — Consultora do Projeto Reconstrua ${E_BALANCA}`,
   ].join('\n');
 }
 
@@ -186,9 +196,11 @@ const MesaPage = async ({
   const cookie = cookies().get(HUMANIZADO_SESSION_COOKIE)?.value ?? '';
   if (operadorDaSessao(SEGREDO_SESSAO, cookie) === null) redirect('/login');
   // Quem assina a mensagem: o PRIMEIRO NOME de quem está atendendo. Sessão
-  // antiga (antes deste campo) assina como a equipe — nunca fica sem assinatura.
+  // antiga (sem o nome guardado) assina como a Layara — pedido do dono
+  // 2026-08-04: a mensagem SEMPRE se apresenta como a consultora, nunca
+  // genérica ("Equipe Reconstrua — Consultora" saiu errado no caso real).
   const nomeOperador = cookies().get(HUMANIZADO_NOME_COOKIE)?.value ?? '';
-  const assinatura = nomeOperador.trim().split(/\s+/)[0] || 'Equipe Reconstrua';
+  const assinatura = nomeOperador.trim().split(/\s+/)[0] || 'Layara';
 
   const data = await getJson<{ clientes: ClienteHumanizado[] }>(
     '/admin/humanizado/clientes',

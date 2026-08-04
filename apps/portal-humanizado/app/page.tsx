@@ -166,9 +166,11 @@ const ResumoDaMesa = ({ todos }: { todos: readonly ClienteHumanizado[] }): React
 };
 
 /** BUSCA por nome ou telefone (ferramenta da mesa) — formulário GET simples:
- *  funciona sem JavaScript, preserva a UF escolhida e limpa com um clique. */
+ *  funciona sem JavaScript, preserva a UF escolhida e limpa com um clique.
+ *  SEM action: o envio fica na URL ATUAL (que já carrega o basePath
+ *  /humanizado) — action="/" caía na raiz do domínio, o site principal. */
 const BuscaCliente = ({ q, uf }: { q: string; uf: string | null }): ReactElement => (
-  <form method="GET" action="/" className="busca-mesa">
+  <form method="GET" className="busca-mesa">
     {uf !== null ? <input type="hidden" name="uf" value={uf} /> : null}
     <input
       type="text"

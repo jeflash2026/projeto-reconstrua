@@ -98,6 +98,19 @@ export async function descartarCliente(chatId: string, valor: boolean): Promise<
   return { ok: r?.ok === true };
 }
 
+/** ADVOGADO RESPONSÁVEL (guia v2, 2026-08-04): a secretária marca a quem o
+ *  cliente pertence ao enviar a procuração — o Jarvis monta pacotes por ele. */
+export async function marcarAdvogadoCliente(
+  chatId: string,
+  advogadoId: string | null,
+): Promise<{ ok: boolean }> {
+  const r = await postJson<{ ok: boolean }>(
+    `/admin/humanizado/clientes/${encodeURIComponent(chatId)}/advogado`,
+    { advogadoId },
+  );
+  return { ok: r?.ok === true };
+}
+
 export async function removerDoc(chatId: string, id: string): Promise<{ ok: boolean }> {
   try {
     const res = await fetch(

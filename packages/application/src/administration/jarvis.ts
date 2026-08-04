@@ -23,6 +23,10 @@ export interface ClienteElegivel {
   /** Contratos NA JANELA por banco — a régua do PESO (decreto 2026-07-30):
    *  o pedido administrativo sai em LOTES de até 3 contratos por banco. */
   readonly porBanco: Readonly<Record<string, number>>;
+  /** Guia v2 (decreto 2026-08-04): os PROCESSOS do cliente já contados pela
+   *  régua oficial (ativos 1=1; não-ativos 3=1 por banco+ano, teto 15).
+   *  Presente ⇒ substitui o peso por lotes (a contagem única do negócio). */
+  readonly processos?: number;
 }
 
 export interface ItemPlano {
@@ -87,7 +91,9 @@ export function planejarDistribuicao(
     if (totalPeso >= alvo) break;
     const contratos = c.ativos + c.suspensos + c.outros;
     if (contratos === 0) continue;
-    const peso = pesoDoCliente(c.porBanco);
+    // Guia v2 (2026-08-04): quando os PROCESSOS já vêm contados pela régua
+    // oficial, ELES são o peso; senão, o peso por lotes de banco (legado).
+    const peso = c.processos ?? pesoDoCliente(c.porBanco);
     if (peso === 0) continue;
     itens.push({
       chatId: c.chatId,
@@ -119,7 +125,7 @@ export interface ComandoDistribuicao {
 }
 
 const VERBO_DISTRIBUIR =
-  /\b(mova|mover|movimenta?r?|aloque|alocar|distribua|distribuir|separe|separar|envie|enviar|mande|mandar|atribua|atribuir|encaminhe|encaminhar|destine|destinar)\b/i;
+  /\b(mova|mover|movimenta?r?|aloque|alocar|distribua|distribuir|separe|separar|envie|enviar|mande|mandar|atribua|atribuir|encaminhe|encaminhar|destine|destinar|organiz[ea]r?|monte|montar)\b/i;
 
 /** Reconhece o comando de distribuição. null = não é comando (pergunta livre). */
 export function interpretarComandoDistribuicao(texto: string): ComandoDistribuicao | null {

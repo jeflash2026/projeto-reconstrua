@@ -9,7 +9,7 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { ReactElement } from 'react';
-import { getJson, type ClienteHumanizado } from '../lib/api';
+import { getJson, type AdvogadoOpcao, type ClienteHumanizado } from '../lib/api';
 import {
   operadorDaSessao,
   HUMANIZADO_SESSION_COOKIE,
@@ -19,6 +19,7 @@ import { SairButton } from '../components/sair-button';
 import DocsFase2 from '../components/docs-fase2';
 import AguardandoToggle from '../components/aguardando-toggle';
 import DescartarButton from '../components/descartar-button';
+import AdvogadoSelect from '../components/advogado-select';
 
 export const dynamic = 'force-dynamic';
 
@@ -217,9 +218,11 @@ const TamanhoDoCaso = ({ c }: { c: ClienteHumanizado }): ReactElement => (
 const CartaoCliente = ({
   c,
   assinatura,
+  advogados,
 }: {
   c: ClienteHumanizado;
   assinatura: string;
+  advogados: AdvogadoOpcao[];
 }): ReactElement => (
   // COR DO CARTÃO (pedido do dono, 2026-08-04): o ESTADO de relance —
   // vermelho = ainda falta entrar em contato; âmbar = documentação enviada,
@@ -269,6 +272,9 @@ const CartaoCliente = ({
       />
     </div>
     <DocsFase2 chatId={c.chatId} />
+    {/* Guia v2 (2026-08-04): ao enviar a procuração, a secretária marca a quem
+        o cliente pertence — o Jarvis monta os pacotes por advogado. */}
+    <AdvogadoSelect chatId={c.chatId} advogadoId={c.advogadoId ?? null} advogados={advogados} />
     <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--borda)' }}>
       <DescartarButton chatId={c.chatId} descartado={false} />
     </div>
@@ -289,10 +295,11 @@ const MesaPage = async ({
   const nomeOperador = cookies().get(HUMANIZADO_NOME_COOKIE)?.value ?? '';
   const assinatura = nomeOperador.trim().split(/\s+/)[0] || 'Layara';
 
-  const data = await getJson<{ clientes: ClienteHumanizado[] }>(
-    '/admin/humanizado/clientes',
-    20000,
-  );
+  const [data, advs] = await Promise.all([
+    getJson<{ clientes: ClienteHumanizado[] }>('/admin/humanizado/clientes', 20000),
+    getJson<{ advogados: AdvogadoOpcao[] }>('/admin/humanizado/advogados', 10000),
+  ]);
+  const advogados = advs?.advogados ?? [];
   const todos = data?.clientes ?? null;
   // Filtro por ESTADO (pedido do dono): a UF escolhida vira a fila da vez.
   const ufEscolhida = (searchParams.uf ?? '').trim().toUpperCase() || null;
@@ -378,7 +385,7 @@ const MesaPage = async ({
             // Com estado escolhido (ou busca), a lista é direta em GRADE.
             <div className="grade-cartoes">
               {pendentes.map((c) => (
-                <CartaoCliente key={c.chatId} c={c} assinatura={assinatura} />
+                <CartaoCliente key={c.chatId} c={c} assinatura={assinatura} advogados={advogados} />
               ))}
             </div>
           ) : (
@@ -389,7 +396,12 @@ const MesaPage = async ({
                 </div>
                 <div className="grade-cartoes">
                   {lista.map((c) => (
-                    <CartaoCliente key={c.chatId} c={c} assinatura={assinatura} />
+                    <CartaoCliente
+                      key={c.chatId}
+                      c={c}
+                      assinatura={assinatura}
+                      advogados={advogados}
+                    />
                   ))}
                 </div>
               </section>
@@ -434,6 +446,13 @@ const MesaPage = async ({
                         <Badge ok rotulo="Comprovante" />
                       </div>
                       <TamanhoDoCaso c={c} />
+                      {/* Guia v2: o pacote do Jarvis usa OS COMPLETOS — a
+                          marcação do advogado precisa estar viva aqui. */}
+                      <AdvogadoSelect
+                        chatId={c.chatId}
+                        advogadoId={c.advogadoId ?? null}
+                        advogados={advogados}
+                      />
                       <DocsFase2 chatId={c.chatId} />
                     </div>
                   ))}

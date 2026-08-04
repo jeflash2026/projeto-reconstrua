@@ -81,7 +81,6 @@ import {
   OnboardingDocumentalRuntime,
   type OnboardingDocumentalProvider,
   type EnviadorDeDocumento,
-  contratosDaJanela,
   interpretarInteresse,
   type ClienteElegivel,
   type InboundEnvelope,
@@ -367,11 +366,16 @@ export interface AssembledProduction {
          *  descarte (confirmadoEm > descartadoEm) — ou pela reativação manual. */
         descartado: boolean;
         descartadoEm: string | null;
+        /** ADVOGADO RESPONSÁVEL (2026-08-04): marcado pela secretária ao
+         *  enviar a procuração — a régua do pacote do Jarvis. */
+        advogadoId: string | null;
       }[]
     >;
     marcarAguardando(chatId: string, valor: boolean): Promise<void>;
     /** Descarta (valor=true) ou REATIVA (valor=false) um cliente da mesa. */
     marcarDescarte(chatId: string, valor: boolean): Promise<void>;
+    /** Marca (ou limpa, com null) o advogado responsável pelo cliente. */
+    marcarAdvogado(chatId: string, advogadoId: string | null): Promise<void>;
     /** PERFORMANCE (2026-08-04): descarta a mesa em cache — qualquer ação do
      *  painel (anexo, marcação, confirmação) chama para o dado ser fresco. */
     invalidar(): void;
@@ -1442,6 +1446,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
 
   // ── JARVIS DO FOUNDER CONSOLE (decreto 2026-07-29) — conhecimento total dos
   //    Read Models + distribuição de contratos para advogado COM confirmação.
+  // Guia v2 (2026-08-04): o POOL do pacote é a mesa do humanizado (procuração
+  // assinada), que nasce ADIANTE na composição — ref tardio, ligado lá.
+  let poolProcuracaoRef: (advogadoId: string | null) => Promise<readonly ClienteElegivel[]> = () =>
+    Promise.resolve([]);
   const jarvisCompletion = llm.completion;
   const jarvis = new JarvisRuntime({
     json,
@@ -1450,39 +1458,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       jarvisCompletion !== null
         ? async (system, user) => (await jarvisCompletion.complete(system, user)).text
         : null,
-    // Elegíveis = FASE 1 completa (CPF + HISCON legível) e AINDA SEM advogado,
-    // com a contagem de contratos NA JANELA por situação (ativos primeiro).
-    elegiveis: async () => {
-      const [lista, comHiscon] = await Promise.all([clientes.list(), perito.todosComHiscon()]);
-      const out: ClienteElegivel[] = [];
-      for (const c of comHiscon) {
-        if (!c.temCpf) continue;
-        const missionId = lista.find((x) => x.chatId === c.chatId)?.missionId ?? null;
-        if (missionId === null) continue;
-        if ((await work.assignedTo(missionId).catch(() => null)) !== null) continue;
-        const h = await pericia.hisconDe(c.chatId).catch(() => null);
-        if (h === null) continue;
-        const janela = contratosDaJanela(h.contratos, clock.now());
-        const ativos = janela.filter((k) => /^ATIVO/i.test(k.situacao ?? '')).length;
-        const suspensos = janela.filter((k) => /^SUSPENS/i.test(k.situacao ?? '')).length;
-        // Decreto 2026-07-30: o PESO da distribuição conta lotes de 3 por banco.
-        const porBanco: Record<string, number> = {};
-        for (const k of janela) {
-          const banco = (k.bancoNome ?? k.bancoCodigo ?? 'SEM BANCO').trim() || 'SEM BANCO';
-          porBanco[banco] = (porBanco[banco] ?? 0) + 1;
-        }
-        out.push({
-          chatId: c.chatId,
-          missionId,
-          nome: c.quem,
-          ativos,
-          suspensos,
-          outros: janela.length - ativos - suspensos,
-          porBanco,
-        });
-      }
-      return out;
-    },
+    // GUIA V2 (decreto 2026-08-04): o pool do pacote é a MESA do humanizado
+    // (procuração ASSINADA), ligada adiante na composição (ref tardio — a mesa
+    // nasce depois). Com advogado citado, só os clientes MARCADOS para ele.
+    elegiveis: (advogadoId) => poolProcuracaoRef(advogadoId),
     advogados: async () => {
       const advs = await staffStore.byRole('advogado');
       const out = [];
@@ -1968,6 +1947,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         aguardandoDesde: string | null;
         descartado: boolean;
         descartadoEm: string | null;
+        advogadoId: string | null;
       }[]
     > => {
       // Onda 3 (adendo do dono): a mesa exige o INTERESSE CONFIRMADO após o
@@ -1986,6 +1966,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           .map((raw) => raw as { chatId?: string; em?: string })
           .filter((d) => typeof d.chatId === 'string' && typeof d.em === 'string')
           .map((d) => [d.chatId as string, d.em as string]),
+      );
+      // ADVOGADO RESPONSÁVEL (2026-08-04): marcado pela secretária no card —
+      // uma leitura do namespace inteiro (a régua do pacote do Jarvis).
+      const marcasAdvogado = new Map(
+        ((await json.list('humanizado-advogado').catch(() => [])) as readonly unknown[])
+          .map((raw) => raw as { chatId?: string; advogadoId?: string })
+          .filter((m) => typeof m.chatId === 'string' && typeof m.advogadoId === 'string')
+          .map((m) => [m.chatId as string, m.advogadoId as string]),
       );
       const lista = (await clientes.list()).filter(
         (c) => c.clienteId !== c.chatId && confirmados.has(c.clienteId),
@@ -2054,6 +2042,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           aguardandoDesde: status?.aguardando === true ? (status.em ?? null) : null,
           descartado,
           descartadoEm: descartado ? descarteEm : null,
+          advogadoId: marcasAdvogado.get(c.chatId) ?? null,
         });
       }
       return out.sort((a, b) => b.confirmadoEm.localeCompare(a.confirmadoEm));
@@ -2087,6 +2076,20 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       }
       mesaHumanizada.invalidar();
     },
+    // ADVOGADO RESPONSÁVEL (2026-08-04): a secretária marca a quem o cliente
+    // pertence ao enviar a procuração — a régua do pacote do Jarvis.
+    marcarAdvogado: async (chatId: string, advogadoId: string | null): Promise<void> => {
+      if (advogadoId !== null && advogadoId !== '') {
+        await json.put('humanizado-advogado', chatId, {
+          chatId,
+          advogadoId,
+          em: clock.now().toISOString(),
+        });
+      } else {
+        await json.del('humanizado-advogado', chatId);
+      }
+      mesaHumanizada.invalidar();
+    },
     /** Descarta a mesa guardada — chamado por QUALQUER ação do painel. */
     invalidar: (): void => {
       mesaHumanizada.invalidar();
@@ -2106,6 +2109,38 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     };
   };
   baseConfirmadaRef = potencialConfirmado; // liga o rateio do sócio (declarado acima)
+
+  // GUIA V2 (decreto 2026-08-04): o POOL do pacote do Jarvis — clientes com a
+  // PROCURAÇÃO ASSINADA na mesa (completos, fora descartados), ainda sem
+  // advogado atribuído; com advogado citado, SÓ os MARCADOS para ele pela
+  // secretária. `processos` já vem contado pela régua oficial do guia.
+  poolProcuracaoRef = async (advogadoId) => {
+    const [mesa, lista] = await Promise.all([humanizado.clientes(), clientes.list()]);
+    const out: ClienteElegivel[] = [];
+    for (const m of mesa) {
+      if (!m.completo || m.descartado) continue;
+      if (advogadoId !== null && m.advogadoId !== advogadoId) continue;
+      const missionId = lista.find((x) => x.clienteId === m.clienteId)?.missionId ?? null;
+      if (missionId === null) continue;
+      if ((await work.assignedTo(missionId).catch(() => null)) !== null) continue;
+      const acoes = await pericia.acoesDe(m.chatId).catch(() => null);
+      if (acoes === null || acoes.agrupamento.resumo.totalAcoes === 0) continue;
+      const r = acoes.agrupamento.resumo;
+      out.push({
+        chatId: m.chatId,
+        missionId,
+        nome: m.nome,
+        // "ativos" = contratos ativos (1=1 ⇒ igual aos processos ativos);
+        // "outros" completa o TOTAL REAL de contratos (o resumo mostra ambos).
+        ativos: r.porCategoria.ATIVOS,
+        suspensos: 0,
+        outros: Math.max(0, r.totalContratos - r.porCategoria.ATIVOS),
+        porBanco: {},
+        processos: r.totalAcoes,
+      });
+    }
+    return out;
+  };
 
   // Decreto 2026-08-03 (pedido do dono): o FUNIL para a Visão Executiva —
   // fase 1 → parecer → confirmação → humanizado → perito. Cache de 60s: o

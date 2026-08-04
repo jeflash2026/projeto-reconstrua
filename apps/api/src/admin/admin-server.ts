@@ -193,11 +193,15 @@ export function buildAdminServer(
            *  novo do cliente ou a reativação manual. */
           descartado?: boolean;
           descartadoEm?: string | null;
+          /** Advogado responsável marcado pela secretária (guia v2). */
+          advogadoId?: string | null;
         }[]
       >;
       marcarAguardando(chatId: string, valor: boolean): Promise<void>;
       /** Descarta (true) ou reativa (false) um cliente da mesa. */
       marcarDescarte?(chatId: string, valor: boolean): Promise<void>;
+      /** Marca (ou limpa, com null) o advogado responsável (guia v2). */
+      marcarAdvogado?(chatId: string, advogadoId: string | null): Promise<void>;
       /** PERFORMANCE (2026-08-04): a mesa é cara de derivar e fica em cache
        *  curto; qualquer AÇÃO do painel descarta o guardado. */
       invalidar?(): void;
@@ -1631,6 +1635,27 @@ export function buildAdminServer(
     const body = (request.body ?? {}) as { valor?: boolean };
     await opts.humanizado.marcarAguardando(chatId, body.valor === true);
     return { ok: true, aguardando: body.valor === true };
+  });
+
+  // ADVOGADO RESPONSÁVEL (2026-08-04): a secretária marca a quem o cliente
+  // pertence ao enviar a procuração — a régua do pacote do Jarvis.
+  app.post('/admin/humanizado/clientes/:chatId/advogado', async (request, reply) => {
+    if (!opts.humanizado?.marcarAdvogado)
+      return reply.code(503).send({ error: 'marcação indisponível nesta montagem' });
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { advogadoId?: string | null };
+    const advogadoId =
+      typeof body.advogadoId === 'string' && body.advogadoId.trim() !== ''
+        ? body.advogadoId.trim()
+        : null;
+    await opts.humanizado.marcarAdvogado(chatId, advogadoId);
+    return { ok: true, advogadoId };
+  });
+
+  // A lista de advogados para o dropdown da mesa (id + nome; só ativos).
+  app.get('/admin/humanizado/advogados', async () => {
+    const advogados = await op.staff.list('advogado');
+    return { advogados: advogados.map((a) => ({ id: a.id, nome: a.name })) };
   });
 
   // DESCARTE (2026-08-04): sem interesse ou sem documentação, o cliente sai da

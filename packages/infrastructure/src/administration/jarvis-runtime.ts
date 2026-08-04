@@ -92,9 +92,12 @@ export interface FichaCliente {
 export interface JarvisDeps {
   readonly json: JsonStore;
   readonly clock: Clock;
-  /** Clientes da FASE 1 completa (CPF+HISCON) AINDA SEM advogado, com a
-   *  contagem de contratos na janela por situação. */
-  readonly elegiveis: () => Promise<readonly ClienteElegivel[]>;
+  /** O POOL da distribuição (guia v2, decreto 2026-08-04): clientes com a
+   *  PROCURAÇÃO ASSINADA na mesa do humanizado, ainda sem advogado atribuído.
+   *  Com um advogado citado no comando, SÓ os clientes MARCADOS para ele pela
+   *  secretária; sem advogado citado, todos os completos. `processos` vem
+   *  contado pela régua oficial (ativos 1=1; não-ativos 3=1, teto 15/banco). */
+  readonly elegiveis: (advogadoId: string | null) => Promise<readonly ClienteElegivel[]>;
   /** O DOSSIÊ da plataforma (números derivados dos Read Models). */
   readonly dossier: () => Promise<Record<string, unknown>>;
   /** Advogados ATIVOS com a carga atual (casos atribuídos). */
@@ -141,18 +144,21 @@ function resumoDoPlanoTexto(p: PlanoDistribuicao, advogadoNome: string | null): 
   const linhas = p.itens
     .map(
       (i) =>
-        `• ${i.nome} — ${String(i.contratos)} contrato(s), peso ${String(i.peso)} (${String(i.ativos)} ativo(s), ${String(i.suspensos)} suspenso(s), ${String(i.outros)} outro(s))`,
+        `• ${i.nome} — ${String(i.contratos)} contrato(s) no total, ${String(i.peso)} processo(s) contados (${String(i.ativos)} ativo(s))`,
     )
     .join('\n');
   const destino = advogadoNome !== null ? ` para ${advogadoNome}` : '';
   return (
-    `Montei o plano${destino}: ${String(p.itens.length)} cliente(s), peso ${String(p.totalPeso)} contado (alvo: ${String(p.alvo)}) com ${String(p.totalContratos)} contrato(s) reais no envio.\n` +
-    'A contagem segue a régua dos lotes: a cada 3 contratos do MESMO banco conta 1 (9 do BMB = 3) — TODOS os contratos da janela de 5 anos vão juntos, priorizando quem tem mais ativos.\n\n' +
+    `Montei o pacote${destino}: ${String(p.itens.length)} cliente(s), ${String(p.totalPeso)} processo(s) contados (alvo: ${String(p.alvo)}) com ${String(p.totalContratos)} contrato(s) reais no envio.\n` +
+    'A contagem segue o guia oficial: ativos 1=1; não-ativos em lotes de 3 do mesmo banco/ano = 1 (teto 15 por banco). ' +
+    (advogadoNome !== null
+      ? `Só entraram clientes com a PROCURAÇÃO ASSINADA já marcados para ${advogadoNome} pela equipe.\n\n`
+      : 'Só entraram clientes com a PROCURAÇÃO ASSINADA entregue no Atendimento Humanizado.\n\n') +
     `${linhas}\n\n` +
     (p.totalPeso < p.alvo
-      ? `Atenção: só encontrei peso ${String(p.totalPeso)} elegível — não há clientes suficientes na fase 1 completa sem advogado para chegar a ${String(p.alvo)}.\n\n`
+      ? `Atenção: só encontrei ${String(p.totalPeso)} processo(s) elegíveis — ainda não há clientes com procuração pronta suficientes para chegar a ${String(p.alvo)}.\n\n`
       : '') +
-    'Confira o resumo, escolha (ou confirme) o advogado responsável e clique em CONFIRMAR para eu executar. Nada é movido sem a sua confirmação.'
+    'Confira o resumo, escolha (ou confirme) o advogado responsável e clique em CONFIRMAR para eu executar — a atribuição também ABATE os processos da carteira dele. Nada é movido sem a sua confirmação.'
   );
 }
 
@@ -422,19 +428,22 @@ export class JarvisRuntime {
     alvo: number,
     advogadoNome: string | null,
   ): Promise<JarvisResposta> {
-    const [elegiveis, advogados] = await Promise.all([
-      this.deps.elegiveis(),
-      this.deps.advogados(),
-    ]);
+    // O advogado citado define o POOL (guia v2): só clientes com procuração
+    // assinada MARCADOS para ele pela equipe do humanizado.
+    const advogados = await this.deps.advogados();
+    const sugerido = casarAdvogadoPorNome(advogadoNome, advogados);
+    const elegiveis = await this.deps.elegiveis(sugerido?.id ?? null);
     const plano = planejarDistribuicao(elegiveis, alvo);
     if (plano.itens.length === 0) {
       return {
         resposta:
-          'Não encontrei nenhum cliente elegível agora: a distribuição usa clientes com a FASE 1 completa (CPF + HISCON legível) que ainda não têm advogado. ' +
-          'Assim que houver clientes nessa condição, é só me pedir de novo.',
+          advogadoNome !== null
+            ? `Não encontrei nenhum cliente elegível agora: o pacote usa clientes com a PROCURAÇÃO ASSINADA entregue no Atendimento Humanizado e MARCADOS para ${sugerido?.name ?? advogadoNome} pela equipe, ainda sem advogado atribuído. ` +
+              'Confira se a secretária já marcou o advogado responsável nos cards da mesa.'
+            : 'Não encontrei nenhum cliente elegível agora: o pacote usa clientes com a PROCURAÇÃO ASSINADA entregue no Atendimento Humanizado que ainda não têm advogado. ' +
+              'Assim que houver clientes nessa condição, é só me pedir de novo.',
       };
     }
-    const sugerido = casarAdvogadoPorNome(advogadoNome, advogados);
     const agora = this.deps.clock.now().toISOString();
     const pendente: PlanoPendente = {
       id: `plano-${String(Date.now())}`,

@@ -62,6 +62,13 @@ export interface ClienteHumanizado {
    *  reativação manual. Opcionais: a API do build anterior não os envia. */
   descartado?: boolean;
   descartadoEm?: string | null;
+  /** ADVOGADO RESPONSÁVEL (guia v2): marcado ao enviar a procuração. */
+  advogadoId?: string | null;
+}
+
+export interface AdvogadoOpcao {
+  id: string;
+  nome: string;
 }
 
 export interface DocEquipe {

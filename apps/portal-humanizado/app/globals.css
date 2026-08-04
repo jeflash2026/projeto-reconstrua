@@ -287,6 +287,93 @@ button {
   color: var(--ok);
 }
 
+/* ── RESUMO DA MESA (2026-08-04): os 4 contadores do dia ───────────────────── */
+.resumo-mesa {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+
+.stat-card {
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  border-left: 4px solid var(--texto-dim);
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 1px 2px rgba(28, 36, 48, 0.05);
+}
+
+.stat-card.atencao {
+  border-left-color: var(--vermelho);
+}
+
+.stat-card.enviado {
+  border-left-color: var(--aviso);
+}
+
+.stat-card.ok {
+  border-left-color: var(--ok);
+}
+
+.stat-valor {
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.stat-card.atencao .stat-valor {
+  color: var(--vermelho);
+}
+
+.stat-card.enviado .stat-valor {
+  color: var(--aviso);
+}
+
+.stat-card.ok .stat-valor {
+  color: var(--ok);
+}
+
+.stat-rotulo {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stat-dica {
+  font-size: 11.5px;
+  color: var(--texto-dim);
+  margin-top: 2px;
+}
+
+/* ── BUSCA da mesa (nome ou telefone) ──────────────────────────────────────── */
+.busca-mesa {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+
+.busca-mesa input[type='text'] {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+
+/* ── GRADE DE CARTÕES (a mesa usa a tela inteira, 2026-08-04) ──────────────── */
+.grade-cartoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 560px) {
+  .grade-cartoes {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Cabeçalho de ESTADO (organização da mesa por UF) */
 .uf-titulo {
   display: flex;

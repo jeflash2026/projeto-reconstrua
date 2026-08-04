@@ -56,6 +56,8 @@ export interface ClienteHumanizado {
   docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
   completo: boolean;
   aguardandoAssinatura: boolean;
+  /** QUANDO a secretária marcou "enviei a documentação" (ISO) — null se não marcou. */
+  aguardandoDesde: string | null;
 }
 
 export interface DocEquipe {

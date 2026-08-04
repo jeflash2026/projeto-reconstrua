@@ -349,6 +349,9 @@ export interface AssembledProduction {
         docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
         completo: boolean;
         aguardandoAssinatura: boolean;
+        /** QUANDO a secretária marcou "enviei a documentação" (ISO) — o
+         *  registro sempre existiu no fato; agora a mesa exibe (2026-08-04). */
+        aguardandoDesde: string | null;
       }[]
     >;
     marcarAguardando(chatId: string, valor: boolean): Promise<void>;
@@ -1901,6 +1904,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
         completo: boolean;
         aguardandoAssinatura: boolean;
+        aguardandoDesde: string | null;
       }[]
     > => {
       // Onda 3 (adendo do dono): a mesa exige o INTERESSE CONFIRMADO após o
@@ -1942,6 +1946,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         // documentação — aguardando o cliente devolver assinada".
         const status = (await json.get('humanizado-status', c.chatId).catch(() => null)) as {
           aguardando?: boolean;
+          em?: string;
         } | null;
         const pot = potenciais.get(c.chatId);
         out.push({
@@ -1959,6 +1964,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           docs,
           completo: docs.procuracao && docs.rg && docs.comprovante,
           aguardandoAssinatura: status?.aguardando === true,
+          aguardandoDesde: status?.aguardando === true ? (status.em ?? null) : null,
         });
       }
       return out.sort((a, b) => b.confirmadoEm.localeCompare(a.confirmadoEm));

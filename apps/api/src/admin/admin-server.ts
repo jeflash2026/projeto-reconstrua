@@ -176,6 +176,7 @@ export function buildAdminServer(
           docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
           completo: boolean;
           aguardandoAssinatura: boolean;
+          aguardandoDesde: string | null;
         }[]
       >;
       marcarAguardando(chatId: string, valor: boolean): Promise<void>;

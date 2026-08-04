@@ -9,9 +9,12 @@ import { marcarAguardando } from '../lib/actions';
 const AguardandoToggle = ({
   chatId,
   aguardando,
+  desde,
 }: {
   chatId: string;
   aguardando: boolean;
+  /** QUANDO foi marcado (já formatado) — a mesa mostra o horário do envio. */
+  desde?: string | null;
 }): ReactElement => {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -26,7 +29,10 @@ const AguardandoToggle = ({
 
   return aguardando ? (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <span className="badge aviso">⏳ documentação enviada — aguardando devolução assinada</span>
+      <span className="badge aviso">
+        ⏳ documentação enviada{desde != null && desde !== '' ? ` em ${desde}` : ''} — aguardando
+        devolução assinada
+      </span>
       <button
         type="button"
         className="btn"

@@ -109,6 +109,76 @@ const Badge = ({ ok, rotulo }: { ok: boolean; rotulo: string }): ReactElement =>
   </span>
 );
 
+/** O RESUMO DO DIA (pedido do dono, 2026-08-04): a secretária vê de relance o
+ *  tamanho de cada fila — quantos aguardam contato, quantos já receberam a
+ *  documentação e quantos concluíram. Sobre a base TODA (o filtro de UF não
+ *  esconde o total do trabalho). */
+const ResumoDaMesa = ({ todos }: { todos: readonly ClienteHumanizado[] }): ReactElement => {
+  const completos = todos.filter((c) => c.completo).length;
+  const enviados = todos.filter((c) => !c.completo && c.aguardandoAssinatura).length;
+  const aChamar = todos.length - completos - enviados;
+  const itens: readonly { rotulo: string; valor: number; classe: string; dica: string }[] = [
+    {
+      rotulo: 'Confirmados na mesa',
+      valor: todos.length,
+      classe: '',
+      dica: 'Todos os clientes que confirmaram o interesse após o dossiê',
+    },
+    {
+      rotulo: 'A chamar',
+      valor: aChamar,
+      classe: 'atencao',
+      dica: 'Ainda sem documentação enviada — o próximo contato é com eles',
+    },
+    {
+      rotulo: 'Documentação enviada',
+      valor: enviados,
+      classe: 'enviado',
+      dica: 'Você já enviou os documentos — aguardando o cliente devolver assinado',
+    },
+    {
+      rotulo: 'Concluídos',
+      valor: completos,
+      classe: 'ok',
+      dica: 'Os 3 documentos recebidos — seguiram para o perito',
+    },
+  ];
+  return (
+    <div className="resumo-mesa">
+      {itens.map((i) => (
+        <div key={i.rotulo} className={`stat-card ${i.classe}`} title={i.dica}>
+          <div className="stat-valor">{i.valor}</div>
+          <div className="stat-rotulo">{i.rotulo}</div>
+          <div className="stat-dica">{i.dica}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/** BUSCA por nome ou telefone (ferramenta da mesa) — formulário GET simples:
+ *  funciona sem JavaScript, preserva a UF escolhida e limpa com um clique. */
+const BuscaCliente = ({ q, uf }: { q: string; uf: string | null }): ReactElement => (
+  <form method="GET" action="/" className="busca-mesa">
+    {uf !== null ? <input type="hidden" name="uf" value={uf} /> : null}
+    <input
+      type="text"
+      name="q"
+      defaultValue={q}
+      placeholder="Buscar por nome ou telefone…"
+      aria-label="Buscar cliente"
+    />
+    <button type="submit" className="btn">
+      Buscar
+    </button>
+    {q !== '' ? (
+      <Link className="btn" href={uf !== null ? `/?uf=${encodeURIComponent(uf)}` : '/'}>
+        Limpar
+      </Link>
+    ) : null}
+  </form>
+);
+
 /** Reais sem centavos — a leitura de relance do valor do caso. */
 function reais(v: number): string {
   return v.toLocaleString('pt-BR', {
@@ -140,7 +210,7 @@ const CartaoCliente = ({
   c: ClienteHumanizado;
   assinatura: string;
 }): ReactElement => (
-  <div className="card" style={{ marginBottom: 12 }}>
+  <div className="card">
     <div
       style={{
         display: 'flex',
@@ -176,7 +246,11 @@ const CartaoCliente = ({
       <Badge ok={c.docs.comprovante} rotulo="Comprovante" />
     </div>
     <div style={{ marginTop: 8 }}>
-      <AguardandoToggle chatId={c.chatId} aguardando={c.aguardandoAssinatura} />
+      <AguardandoToggle
+        chatId={c.chatId}
+        aguardando={c.aguardandoAssinatura}
+        desde={c.aguardandoDesde !== null ? dataBr(c.aguardandoDesde) : null}
+      />
     </div>
     <DocsFase2 chatId={c.chatId} />
   </div>
@@ -185,7 +259,7 @@ const CartaoCliente = ({
 const MesaPage = async ({
   searchParams,
 }: {
-  searchParams: { uf?: string };
+  searchParams: { uf?: string; q?: string };
 }): Promise<ReactElement> => {
   const cookie = cookies().get(HUMANIZADO_SESSION_COOKIE)?.value ?? '';
   if (operadorDaSessao(SEGREDO_SESSAO, cookie) === null) redirect('/login');
@@ -206,13 +280,24 @@ const MesaPage = async ({
   const gruposDeTodos = porEstado(todos ?? []);
   const ufValida = ufEscolhida !== null && gruposDeTodos.some(([uf]) => uf === ufEscolhida);
   const ativo = ufValida ? ufEscolhida : null;
+  // BUSCA (ferramenta da mesa, 2026-08-04): nome ou telefone, combinável com a UF.
+  const q = (searchParams.q ?? '').trim();
+  const qMin = q.toLowerCase();
+  const qDigitos = q.replace(/\D/g, '');
+  const daUf = todos === null ? null : ativo === null ? todos : todos.filter((c) => c.uf === ativo);
   const clientes =
-    todos === null ? null : ativo === null ? todos : todos.filter((c) => c.uf === ativo);
+    daUf === null || q === ''
+      ? daUf
+      : daUf.filter(
+          (c) =>
+            c.nome.toLowerCase().includes(qMin) ||
+            (qDigitos !== '' && c.telefone.includes(qDigitos)),
+        );
   const pendentes = clientes?.filter((c) => !c.completo) ?? [];
   const completos = clientes?.filter((c) => c.completo) ?? [];
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px 48px' }}>
+    <div style={{ maxWidth: 1500, margin: '0 auto', padding: '24px 20px 48px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="page-title">Atendimento Humanizado</h1>
         <SairButton />
@@ -224,11 +309,19 @@ const MesaPage = async ({
         administrativo.
       </p>
 
-      {clientes === null ? (
+      {clientes === null || todos === null ? (
         <div className="error-box">API indisponível — recarregue a página.</div>
       ) : (
         <>
-          <FiltroEstados contagens={gruposDeTodos} ativo={ativo} total={(todos ?? []).length} />
+          <ResumoDaMesa todos={todos} />
+          <FiltroEstados contagens={gruposDeTodos} ativo={ativo} total={todos.length} />
+          <BuscaCliente q={q} uf={ativo} />
+          {q !== '' ? (
+            <p className="page-sub">
+              Resultado da busca por &quot;{q}&quot;: {pendentes.length + completos.length}{' '}
+              cliente(s){ativo !== null ? ` em ${ativo}` : ''}.
+            </p>
+          ) : null}
 
           <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 16 }}>
             📞 Aguardando documentos <span className="badge warn">{pendentes.length}</span>
@@ -236,22 +329,30 @@ const MesaPage = async ({
           </h2>
           {pendentes.length === 0 ? (
             <div className="card empty">
-              {ativo === null
-                ? 'Ninguém aguardando — tudo em dia.'
-                : `Ninguém aguardando em ${ativo}.`}
+              {q !== ''
+                ? 'Nenhum cliente pendente na busca.'
+                : ativo === null
+                  ? 'Ninguém aguardando — tudo em dia.'
+                  : `Ninguém aguardando em ${ativo}.`}
             </div>
-          ) : ativo !== null ? (
-            // Com um estado escolhido, a lista é direta (sem repetir o título).
-            pendentes.map((c) => <CartaoCliente key={c.chatId} c={c} assinatura={assinatura} />)
+          ) : ativo !== null || q !== '' ? (
+            // Com estado escolhido (ou busca), a lista é direta em GRADE.
+            <div className="grade-cartoes">
+              {pendentes.map((c) => (
+                <CartaoCliente key={c.chatId} c={c} assinatura={assinatura} />
+              ))}
+            </div>
           ) : (
             porEstado(pendentes).map(([uf, lista]) => (
               <section key={uf}>
                 <div className="uf-titulo">
                   {uf} <span className="badge">{lista.length}</span>
                 </div>
-                {lista.map((c) => (
-                  <CartaoCliente key={c.chatId} c={c} assinatura={assinatura} />
-                ))}
+                <div className="grade-cartoes">
+                  {lista.map((c) => (
+                    <CartaoCliente key={c.chatId} c={c} assinatura={assinatura} />
+                  ))}
+                </div>
               </section>
             ))
           )}
@@ -262,7 +363,11 @@ const MesaPage = async ({
           </h2>
           {completos.length === 0 ? (
             <div className="card empty">
-              {ativo === null ? 'Nenhum concluído ainda.' : `Nenhum concluído em ${ativo}.`}
+              {q !== ''
+                ? 'Nenhum concluído na busca.'
+                : ativo === null
+                  ? 'Nenhum concluído ainda.'
+                  : `Nenhum concluído em ${ativo}.`}
             </div>
           ) : (
             porEstado(completos).map(([uf, lista]) => (
@@ -270,28 +375,30 @@ const MesaPage = async ({
                 <div className="uf-titulo">
                   {uf} <span className="badge">{lista.length}</span>
                 </div>
-                {lista.map((c) => (
-                  <div className="card" key={c.chatId} style={{ marginBottom: 10 }}>
-                    <strong>{c.nome}</strong>{' '}
-                    <span className="mono" style={{ fontSize: 12 }}>
-                      {c.telefone}
-                    </span>{' '}
-                    <span className="badge">{c.uf}</span>
-                    {/* Pedido do dono (2026-08-03): com os 3 documentos, o
-                        cartão anuncia a conclusão e o caso segue ao perito. */}
-                    <div className="concluido">
-                      ✅ <strong>Documentação completa recebida</strong> — este cliente saiu da sua
-                      fila e seguiu para o perito fazer o pedido administrativo.
+                <div className="grade-cartoes">
+                  {lista.map((c) => (
+                    <div className="card" key={c.chatId}>
+                      <strong>{c.nome}</strong>{' '}
+                      <span className="mono" style={{ fontSize: 12 }}>
+                        {c.telefone}
+                      </span>{' '}
+                      <span className="badge">{c.uf}</span>
+                      {/* Pedido do dono (2026-08-03): com os 3 documentos, o
+                          cartão anuncia a conclusão e o caso segue ao perito. */}
+                      <div className="concluido">
+                        ✅ <strong>Documentação completa recebida</strong> — este cliente saiu da
+                        sua fila e seguiu para o perito fazer o pedido administrativo.
+                      </div>
+                      <div style={{ marginTop: 6 }}>
+                        <Badge ok rotulo="Procuração" />
+                        <Badge ok rotulo="RG" />
+                        <Badge ok rotulo="Comprovante" />
+                      </div>
+                      <TamanhoDoCaso c={c} />
+                      <DocsFase2 chatId={c.chatId} />
                     </div>
-                    <div style={{ marginTop: 6 }}>
-                      <Badge ok rotulo="Procuração" />
-                      <Badge ok rotulo="RG" />
-                      <Badge ok rotulo="Comprovante" />
-                    </div>
-                    <TamanhoDoCaso c={c} />
-                    <DocsFase2 chatId={c.chatId} />
-                  </div>
-                ))}
+                  ))}
+                </div>
               </section>
             ))
           )}

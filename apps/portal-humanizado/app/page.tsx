@@ -249,7 +249,9 @@ const CartaoCliente = ({
       <AguardandoToggle
         chatId={c.chatId}
         aguardando={c.aguardandoAssinatura}
-        desde={c.aguardandoDesde !== null ? dataBr(c.aguardandoDesde) : null}
+        // != null cobre também o undefined de uma API ainda no build anterior
+        // (portal e api sobem em containers separados) — nunca "Invalid Date".
+        desde={c.aguardandoDesde != null ? dataBr(c.aguardandoDesde) : null}
       />
     </div>
     <DocsFase2 chatId={c.chatId} />

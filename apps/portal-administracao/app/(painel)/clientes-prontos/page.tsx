@@ -8,7 +8,9 @@ import {
   fetchPericiasConcluidas,
   fetchTotalPericiasBaixadas,
 } from '../../../lib/actions';
+import { getJson, type CarteiraAdvogadoView } from '../../../lib/api';
 import AtribuirAdvogado from '../../../components/atribuir-advogado';
+import CarteiraAdvogados from '../../../components/carteira-advogados';
 import EstornarPericias from '../../../components/estornar-pericias';
 import EstornarIncompletas from '../../../components/estornar-incompletas';
 
@@ -22,6 +24,10 @@ const ClientesProntosPage = async (): Promise<ReactElement> => {
   const dados = await listarClientesProntos();
   const concluidas = await fetchPericiasConcluidas();
   const baixadas = await fetchTotalPericiasBaixadas();
+  // Decreto 2026-08-04: a carteira de créditos dos advogados parceiros.
+  const carteiras =
+    (await getJson<{ carteiras: CarteiraAdvogadoView[] }>('/admin/creditos-advogado'))?.carteiras ??
+    [];
   return (
     <>
       <h1 className="page-title">Clientes prontos p/ Advogado</h1>
@@ -41,6 +47,10 @@ const ClientesProntosPage = async (): Promise<ReactElement> => {
       ) : (
         <AtribuirAdvogado prontos={dados.prontos} advogados={dados.advogados} />
       )}
+
+      {/* Decreto 2026-08-04: a CARTEIRA de créditos — compra de contratos +
+          abate automático por cliente encaminhado (extrato por advogado). */}
+      <CarteiraAdvogados carteiras={carteiras} />
 
       {/* Decreto 2026-07-27: estudos baixados na LEITURA ANTIGA — estorno geral
           para novo download, agora com a leitura corrigida do HISCON. */}

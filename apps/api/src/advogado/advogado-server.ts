@@ -63,6 +63,9 @@ export function buildAdvogadoServer(
        *  em linguagem clara. Opcional (montagens antigas não o têm). */
       acoesPorChat?(chatId: string): Promise<object | null>;
     };
+    /** Decreto 2026-08-04: gancho pós-atribuição — ABATE os processos do
+     *  cliente na carteira do advogado parceiro (best-effort). */
+    readonly aoAtribuir?: (missionId: string, advogadoId: string) => Promise<void>;
     /** Decreto 2026-07-30: docs da fase 2 humana (procuração/RG/comprovante). */
     readonly docsEquipe?: {
       listar(chatId: string): Promise<readonly unknown[]>;
@@ -207,6 +210,9 @@ export function buildAdvogadoServer(
         aviso = 'falhou';
       }
     }
+    // Decreto 2026-08-04: o encaminhamento ABATE os processos do cliente na
+    // carteira do advogado parceiro (best-effort; nunca desfaz a atribuição).
+    await opts.aoAtribuir?.(body.missionId, body.advogadoId).catch(() => undefined);
     return { ...assignment, aviso };
   });
 

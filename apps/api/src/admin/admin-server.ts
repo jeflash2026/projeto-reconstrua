@@ -205,6 +205,29 @@ export function buildAdminServer(
     /** Decreto 2026-08-04: o VALOR POTENCIAL CONFIRMADO — só clientes com a
      *  documentação completa (procuração assinada + RG + comprovante). */
     readonly potencialConfirmado?: () => Promise<{ total: number; clientes: number }>;
+    /** Decreto 2026-08-04: a carteira de créditos do advogado parceiro. */
+    readonly creditosAdvogado?: {
+      saldo(advogadoId: string): Promise<{
+        advogadoId: string;
+        comprados: number;
+        abatidos: number;
+        saldo: number;
+        clientesAbatidos: number;
+      }>;
+      extrato(advogadoId: string): Promise<
+        readonly {
+          em: string;
+          tipo: 'compra' | 'abate';
+          quantidade: number;
+          clienteId?: string;
+          nome?: string;
+        }[]
+      >;
+      registrarCompra(
+        advogadoId: string,
+        quantidade: number,
+      ): Promise<{ ok: boolean; error?: string }>;
+    };
     /** Decreto 2026-08-03: o retrato do FUNIL para a Visão Executiva. */
     readonly funilResumo?: () => Promise<{
       fase1Completa: number;
@@ -788,6 +811,32 @@ export function buildAdminServer(
     const aptos = await clientesAptosParaPedido();
     const todos = (await op.perito.todosComHiscon()).filter((c) => c.temCpf);
     return { clientes: aptos === null ? todos : todos.filter((c) => aptos.has(c.clienteId)) };
+  });
+
+  // ── CARTEIRA DE CRÉDITOS DO ADVOGADO PARCEIRO (decreto 2026-08-04) ─────────
+  // O advogado compra contratos (R$100/un); cada cliente encaminhado abate os
+  // PROCESSOS do guia v2. Aqui: saldos de todos + extrato + registrar compra.
+  app.get('/admin/creditos-advogado', async (_request, reply) => {
+    if (!opts.creditosAdvogado)
+      return reply.code(503).send({ error: 'carteira indisponível nesta montagem' });
+    const advogados = await op.staff.list('advogado');
+    const carteiras = [];
+    for (const a of advogados) {
+      const s = await opts.creditosAdvogado.saldo(a.id);
+      const extrato = await opts.creditosAdvogado.extrato(a.id);
+      carteiras.push({ nome: a.name, ...s, extrato: extrato.slice(0, 30) });
+    }
+    return { carteiras: carteiras.sort((a, b) => b.comprados - a.comprados) };
+  });
+
+  app.post('/admin/creditos-advogado/:advogadoId/compra', async (request, reply) => {
+    if (!opts.creditosAdvogado)
+      return reply.code(503).send({ error: 'carteira indisponível nesta montagem' });
+    const { advogadoId } = request.params as { advogadoId: string };
+    const body = (request.body ?? {}) as { quantidade?: number };
+    const r = await opts.creditosAdvogado.registrarCompra(advogadoId, Number(body.quantidade));
+    if (!r.ok) return reply.code(400).send({ error: r.error ?? 'compra inválida' });
+    return { ok: true };
   });
 
   // Decreto 2026-08-04: o DOSSIÊ DE AÇÕES de UM cliente — o guia de

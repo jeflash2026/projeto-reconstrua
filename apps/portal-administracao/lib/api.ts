@@ -148,6 +148,25 @@ export interface DossieJuridico {
   fonte: string;
 }
 
+// ── CARTEIRA DE CRÉDITOS DO ADVOGADO PARCEIRO (decreto 2026-08-04) ────────────
+export interface LancamentoCarteira {
+  em: string;
+  tipo: 'compra' | 'abate';
+  quantidade: number;
+  clienteId?: string;
+  nome?: string;
+}
+
+export interface CarteiraAdvogadoView {
+  advogadoId: string;
+  nome: string;
+  comprados: number;
+  abatidos: number;
+  saldo: number;
+  clientesAbatidos: number;
+  extrato: LancamentoCarteira[];
+}
+
 // ── TIMELINE COGNITIVA (13A · seção 5) ─────────────────────────────────────────
 export interface TimelineCognitivaItem {
   ordem: number;

@@ -215,6 +215,7 @@ import { WebchatRuntime } from '../webchat/webchat-runtime.js';
 import { DocsEquipeService } from '../docs-equipe/docs-equipe-service.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
+import { CreditosAdvogadoService } from '../advogado/creditos-advogado.js';
 import { CustodiaService, JsonCasoStore, PericiaDigitalService } from '../pericia-digital/index.js';
 import { JsonSocioStore, JsonSocioCredenciaisStore, SociosService } from '../socios/index.js';
 import { MedidorDeCusto } from '../custos/index.js';
@@ -326,6 +327,12 @@ export interface AssembledProduction {
   /** Decreto 2026-08-04: o VALOR POTENCIAL CONFIRMADO — só clientes com a
    *  documentação completa (procuração assinada + RG + comprovante) na mesa. */
   readonly potencialConfirmado: () => Promise<{ total: number; clientes: number }>;
+  /** Decreto 2026-08-04: a CARTEIRA de créditos do advogado parceiro (compra
+   *  de contratos + abate por cliente encaminhado, idempotente). */
+  readonly creditosAdvogado: CreditosAdvogadoService;
+  /** Abate os processos do cliente na carteira (best-effort; nunca desfaz a
+   *  atribuição) — chamado pelos DOIS trilhos de encaminhamento. */
+  readonly abaterPorAtribuicao: (missionId: string, advogadoId: string) => Promise<void>;
   /** Onda 3 (2026-07-31): o PARECER EM LOTE do Admin — pendentes da base
    *  legada + envio unitário com claim (fato antes da mensagem). */
   readonly parecerLote: {
@@ -1241,6 +1248,36 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // Decreto 2026-07-24: MAPA DE CLIENTES — distribuição por estado (DDD) + cidades.
   const mapaClientes = new MapaClientesService({ json });
 
+  // ── CARTEIRA DE CRÉDITOS DO ADVOGADO PARCEIRO (decreto 2026-08-04) ─────────
+  // O advogado compra contratos; cada cliente ENCAMINHADO abate os PROCESSOS
+  // do guia v2 (idempotente por cliente). Contábil: o perito não é afetado.
+  const creditosAdvogado = new CreditosAdvogadoService({ json, clock });
+  /** Abate os processos do cliente na carteira do advogado (best-effort — a
+   *  atribuição NUNCA é desfeita por falha do abate; falha vira log). */
+  const abaterPorAtribuicao = async (missionId: string, advogadoId: string): Promise<void> => {
+    try {
+      await projector.refresh().catch(() => undefined);
+      const chatId = projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null;
+      if (chatId === null) return;
+      const cliente = (await clientes.list()).find((c) => c.chatId === chatId);
+      if (cliente === undefined) return;
+      const acoes = await pericia.acoesDe(chatId);
+      const processos = acoes?.agrupamento.resumo.totalAcoes ?? 0;
+      await creditosAdvogado.abaterPorCliente(
+        advogadoId,
+        { clienteId: cliente.clienteId, nome: cliente.quem },
+        processos,
+      );
+    } catch (e) {
+      observability.error(
+        'creditos-advogado',
+        'abate',
+        clock.now(),
+        e instanceof Error ? e.message : 'falha no abate',
+      );
+    }
+  };
+
   // O SIM depois de um instante: um inbound de texto afirmativo (a MESMA régua
   // determinística do consentimento — interpretarInteresse). Compartilhado pelo
   // nascimento (confirmação do parecer) e pela RETOMADA pós-descarte da mesa.
@@ -1697,6 +1734,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         } catch {
           /* o aviso é cortesia; a atribuição nunca é desfeita por falha dele */
         }
+        // Decreto 2026-08-04: o encaminhamento ABATE os processos do cliente
+        // na carteira do advogado parceiro (best-effort, idempotente).
+        await abaterPorAtribuicao(missionId, advogadoId);
         return { ok: true };
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : 'falha na atribuição' };
@@ -2161,6 +2201,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     humanizado,
     funilResumo,
     potencialConfirmado,
+    creditosAdvogado,
+    abaterPorAtribuicao,
     parecerLote,
     pericia,
     releitura,

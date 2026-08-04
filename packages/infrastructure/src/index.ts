@@ -30,6 +30,8 @@ export * from './administration/index.js';
 export * from './go-live/index.js';
 export * from './admin-portal/index.js';
 export * from './advogado-portal/index.js';
+// Decreto 2026-08-04: carteira de créditos do advogado parceiro (compra/abate).
+export * from './advogado/index.js';
 export * from './lawyer-experience/index.js';
 export * from './production/index.js';
 export * from './migrations/index.js';

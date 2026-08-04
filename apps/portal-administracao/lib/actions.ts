@@ -1170,3 +1170,19 @@ export async function pdRegistrarChecklist(
     itens,
   });
 }
+
+// ── CARTEIRA DE CRÉDITOS DO ADVOGADO PARCEIRO (decreto 2026-08-04) ────────────
+/** Registra a COMPRA de N contratos pelo advogado (R$ 100/un — ex.: R$ 20.000
+ *  = 200). O abate acontece sozinho a cada cliente encaminhado. */
+export async function registrarCompraContratos(
+  advogadoId: string,
+  quantidade: number,
+): Promise<{ ok: boolean; error?: string }> {
+  const r = await sendJson<{ ok?: boolean; error?: string }>(
+    'POST',
+    `/admin/creditos-advogado/${encodeURIComponent(advogadoId)}/compra`,
+    { quantidade },
+  );
+  if (r === null) return { ok: false, error: 'API indisponível — tente novamente' };
+  return r.ok === true ? { ok: true } : { ok: false, error: r.error ?? 'compra inválida' };
+}

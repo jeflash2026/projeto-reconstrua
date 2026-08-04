@@ -107,6 +107,8 @@ async function main(): Promise<void> {
     funilResumo: prod.funilResumo,
     // Decreto 2026-08-04: o potencial CONFIRMADO (docs completos na mesa).
     potencialConfirmado: prod.potencialConfirmado,
+    // Decreto 2026-08-04: a carteira de créditos do advogado parceiro.
+    creditosAdvogado: prod.creditosAdvogado,
     // Custos de IA: gasto por cliente (conversa + leitura de documentos).
     custos: prod.custos,
     // Reaquecimento de leads frios — autorizado pelo admin, lead a lead.
@@ -178,6 +180,9 @@ async function main(): Promise<void> {
       // Decreto 2026-08-04: o dossiê de AÇÕES (o guia de agrupamento aplicado).
       acoesPorChat: (chatId) => prod.pericia.acoesDe(chatId),
     },
+    // Decreto 2026-08-04: o encaminhamento abate os processos do cliente na
+    // carteira do advogado parceiro (best-effort, idempotente por cliente).
+    aoAtribuir: prod.abaterPorAtribuicao,
     docsEquipe: {
       listar: (chatId) => prod.docsEquipe.listar(chatId),
       baixar: (chatId, id) => prod.docsEquipe.baixar(chatId, id),

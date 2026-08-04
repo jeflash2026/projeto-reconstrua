@@ -82,8 +82,8 @@ export interface NascimentoResumo {
 
 /** Decreto 2026-07-31: o número pelo qual a EQUIPE HUMANA entra em contato na
  *  fase 2 (coleta de procuração, RG frente e verso e comprovante de endereço).
- *  Ditado pelo Fundador; muda SÓ aqui. */
-export const NUMERO_CONTATO_EQUIPE = '(41) 3798-9737';
+ *  Ditado pelo Fundador; muda SÓ aqui. (Atualizado 2026-08-04.) */
+export const NUMERO_CONTATO_EQUIPE = '(41) 99802-8530';
 
 /** Decreto 2026-07-31 (funil com confirmação) — a mensagem do PARECER: a fase 1
  *  fechou, a análise encontrou contratos aptos, e o cliente recebe o DOSSIÊ

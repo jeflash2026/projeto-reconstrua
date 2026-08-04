@@ -1774,7 +1774,16 @@ export function buildAdminServer(
     const { chatId } = request.params as { chatId: string };
     const dossie = await dossieDoCliente(chatId);
     if (!dossie) return reply.code(404).send({ error: 'cliente não encontrado' });
-    return dossie;
+    // Pedido do dono (2026-08-04): os "Documentos reconhecidos" saem com o ID —
+    // a tela vira LINK de download do arquivo ORIGINAL (o mesmo proxy do
+    // "ver documento": /admin/documents/:id/content).
+    const memoria = await op.memoryStore.load(chatId);
+    const rotulos = await rotulosDe(chatId);
+    const documentosParaDownload = (memoria?.documentsSent ?? []).map((d) => ({
+      id: d.ref,
+      rotulo: rotulos[d.ref] ?? d.label,
+    }));
+    return { ...dossie, documentosParaDownload };
   });
 
   // ── TIMELINE COGNITIVA (GO-LIVE 13A · seção 5) — a HISTÓRIA do caso, derivada

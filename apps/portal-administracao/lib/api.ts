@@ -135,6 +135,9 @@ export interface DossieJuridico {
   evidenciasEncontradas: string[];
   evidenciasAusentes: string[];
   documentosReconhecidos: string[];
+  /** Pedido do dono (2026-08-04): os reconhecidos COM o id — a tela vira link
+   *  de download do arquivo original. Opcional (API do build anterior). */
+  documentosParaDownload?: { id: string; rotulo: string }[];
   documentosPendentes: string[];
   contratosEncontrados: string[];
   timeline: { rotulo: string; em: string | null; fonte: string }[];

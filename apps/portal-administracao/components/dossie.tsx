@@ -94,12 +94,36 @@ const Dossie = async ({ chatId }: { chatId: string }): Promise<ReactElement | nu
           vazio="Nada faltando."
           tone="warn"
         />
-        <Lista
-          titulo="Documentos reconhecidos"
-          itens={d.documentosReconhecidos}
-          vazio="Nenhum recebido."
-          tone="ok"
-        />
+        {/* Pedido do dono (2026-08-04): cada documento reconhecido é um LINK
+            para baixar o arquivo ORIGINAL (mesmo proxy do "ver documento" —
+            âncora crua leva o prefixo /admin explícito). API do build anterior
+            (sem os ids) cai na lista simples de antes. */}
+        {d.documentosParaDownload !== undefined && d.documentosParaDownload.length > 0 ? (
+          <div className="dossie-block">
+            <div className="dossie-block-title">Documentos reconhecidos</div>
+            <ul className="dossie-list ok">
+              {d.documentosParaDownload.map((doc) => (
+                <li key={doc.id}>
+                  <a
+                    href={`/admin/api/documento/${encodeURIComponent(doc.id)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Baixar o arquivo original"
+                  >
+                    {doc.rotulo} ⬇
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <Lista
+            titulo="Documentos reconhecidos"
+            itens={d.documentosReconhecidos}
+            vazio="Nenhum recebido."
+            tone="ok"
+          />
+        )}
         <Lista
           titulo="Documentos pendentes"
           itens={d.documentosPendentes}

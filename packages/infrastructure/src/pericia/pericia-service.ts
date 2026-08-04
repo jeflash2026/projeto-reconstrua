@@ -10,6 +10,7 @@ import {
   agruparContratosEmAcoes,
   agruparPorBanco,
   contratosDaJanela,
+  contratosSelecionadosDoGuia,
   contratosMigrados,
   contratosParaPedidoAdministrativo,
   indiciosDeEstrategias,
@@ -248,9 +249,14 @@ export class PericiaService {
         tetoJurosMensal: this.deps.tetoJurosMensal ?? null,
       }),
       totalContratos: janela.length,
-      // Decreto: o potencial olha o BENEFÍCIO INTEIRO (todos os contratos do
-      // documento), não só a janela de 5 anos.
-      potencial: potencialDeRecuperacao(extraido.contratos, this.deps.clock.now()),
+      // Guia v2 (decreto 2026-08-04): o potencial conta SÓ os contratos
+      // SELECIONADOS pelo guia de processos (ativos 1=1; não-ativos em trios
+      // 3=1 por banco+ano, teto 15 por banco, maiores primeiro) — "são esses
+      // mesmos contratos que devem aparecer no dossiê… e potencial financeiro".
+      potencial: potencialDeRecuperacao(
+        contratosSelecionadosDoGuia(extraido.contratos, this.deps.clock.now()),
+        this.deps.clock.now(),
+      ),
     };
   }
 
@@ -273,7 +279,11 @@ export class PericiaService {
     for (const chatId of chats) {
       const extraido = await this.extrairHiscon(chatId).catch(() => null);
       if (extraido === null || extraido.contratos.length === 0) continue;
-      const potencial = potencialDeRecuperacao(extraido.contratos, this.deps.clock.now());
+      // Guia v2 (decreto 2026-08-04): o potencial financeiro conta SÓ os
+      // contratos SELECIONADOS pelo guia de processos — em toda a cadeia
+      // (Financeiro, Centro de Comando, sócios, mesa do humanizado).
+      const selecionados = contratosSelecionadosDoGuia(extraido.contratos, this.deps.clock.now());
+      const potencial = potencialDeRecuperacao(selecionados, this.deps.clock.now());
       total += potencial.total;
       porCliente.push({
         chatId,

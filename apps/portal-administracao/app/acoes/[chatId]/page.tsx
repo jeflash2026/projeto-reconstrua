@@ -37,6 +37,8 @@ interface DossieAcoes {
     resumo: {
       totalAcoes: number;
       totalContratos: number;
+      contratosSelecionados?: number;
+      contratosForaDaSelecao?: number;
       porCategoria: Record<'ATIVOS' | 'EXCLUIDOS' | 'RMC' | 'RCC', number>;
     };
   };
@@ -44,7 +46,7 @@ interface DossieAcoes {
 
 const ROTULO: Record<AcaoDossie['categoria'], string> = {
   ATIVOS: 'Contratos Ativos',
-  EXCLUIDOS: 'Contratos Excluídos (prescrição · 5 anos)',
+  EXCLUIDOS: 'Não-ativos (lote 3 = 1)',
   RMC: 'RMC — Reserva de Margem Consignável',
   RCC: 'RCC — Reserva de Cartão Consignado',
 };
@@ -134,36 +136,43 @@ const AcoesPrintPage = async ({
       ) : (
         <>
           <h1 className="a-titulo">
-            {d.nomeCliente ?? 'Cliente'} — {d.agrupamento.resumo.totalAcoes} ação(ões) propostas
+            {d.nomeCliente ?? 'Cliente'} — {d.agrupamento.resumo.totalContratos} contrato(s) ·{' '}
+            {d.agrupamento.resumo.totalAcoes} processo(s)
           </h1>
           <p className="a-sub">
-            WhatsApp <span className="a-mono">{d.chatId.split('@')[0]}</span> · gerado em {hoje} ·{' '}
-            {d.agrupamento.resumo.totalContratos} contrato(s) na janela de 5 anos
+            WhatsApp <span className="a-mono">{d.chatId.split('@')[0]}</span> · gerado em {hoje}
+            {d.agrupamento.resumo.contratosSelecionados !== undefined
+              ? ` · ${String(d.agrupamento.resumo.contratosSelecionados)} contrato(s) selecionados` +
+                (d.agrupamento.resumo.contratosForaDaSelecao
+                  ? ` · ${String(d.agrupamento.resumo.contratosForaDaSelecao)} fora da seleção (sobra de trio/teto/sem ano)`
+                  : '')
+              : ''}
           </p>
 
           <div className="a-resumo">
             {(['ATIVOS', 'EXCLUIDOS', 'RMC', 'RCC'] as const).map((cat) =>
               d.agrupamento.resumo.porCategoria[cat] > 0 ? (
                 <span key={cat} className="a-chip">
-                  {ROTULO[cat]}: {d.agrupamento.resumo.porCategoria[cat]} ação(ões)
+                  {ROTULO[cat]}: {d.agrupamento.resumo.porCategoria[cat]} processo(s)
                 </span>
               ) : null,
             )}
           </div>
 
           <div className="a-guia">
-            <strong>O guia aplicado:</strong> contratos ATIVOS = 1 ação cada (exceção: mesmo banco
-            averbado no mesmo dia, ou 1 dia de diferença, agrupa em uma única ação); contratos
-            EXCLUÍDOS agrupam por mesmo ano + mesmo banco (bancos diferentes nunca se misturam); RMC
-            e RCC sempre em ações separadas. Contratos sem data/ano legível não são agrupados — a
-            ressalva sai escrita na regra da ação.
+            <strong>O guia aplicado (v2 — modelo comercial):</strong> contratos ATIVOS na janela de
+            5 anos = 1 processo cada; NÃO-ATIVOS (excluído/inativo/suspenso/migrado) formam lotes de
+            3 contratos do MESMO banco + MESMO ano = 1 processo, com teto de 15 processos por banco,
+            sempre dos maiores valores para os menores (a sobra que não fecha trio fica fora); RMC e
+            RCC sempre em processos separados. São ESTES contratos selecionados que seguem para o
+            perito e que compõem o potencial financeiro.
           </div>
 
           {d.agrupamento.acoes.map((a) => (
             <div className="a-acao" key={a.numero}>
               <div className="a-acao-topo">
                 <strong>
-                  Ação {a.numero} · {ROTULO[a.categoria]}
+                  Processo {a.numero} · {ROTULO[a.categoria]}
                 </strong>
                 <span>{a.banco}</span>
               </div>

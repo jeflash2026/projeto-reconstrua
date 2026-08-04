@@ -57,6 +57,7 @@ interface DossieAcoes {
     resumo: {
       totalAcoes: number;
       totalContratos: number;
+      contratosSelecionados?: number;
       porCategoria: Record<'ATIVOS' | 'EXCLUIDOS' | 'RMC' | 'RCC', number>;
     };
   };
@@ -64,7 +65,7 @@ interface DossieAcoes {
 
 const ROTULO_CATEGORIA: Record<AcaoDossie['categoria'], string> = {
   ATIVOS: 'Contratos Ativos',
-  EXCLUIDOS: 'Contratos Excluídos (prescrição · 5 anos)',
+  EXCLUIDOS: 'Não-ativos (lote 3 = 1)',
   RMC: 'RMC — Reserva de Margem Consignável',
   RCC: 'RCC — Reserva de Cartão Consignado',
 };
@@ -148,14 +149,15 @@ const ClienteDestinadoPage = async ({
       {acoes !== null && acoes.agrupamento.acoes.length > 0 ? (
         <div className="card" style={{ marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 4 }}>
-            Dossiê de Ações — {acoes.agrupamento.resumo.totalAcoes} ação(ões) propostas
+            Dossiê de Processos — {acoes.agrupamento.resumo.totalContratos} contrato(s) ·{' '}
+            {acoes.agrupamento.resumo.totalAcoes} processo(s)
           </h2>
           <p className="page-sub" style={{ marginTop: 0 }}>
-            Como a AHRI classificou e agrupou os {acoes.agrupamento.resumo.totalContratos}{' '}
-            contrato(s) da janela de 5 anos, seguindo o guia do escritório: contratos ATIVOS = 1
-            ação cada (exceção: mesmo banco averbado no mesmo dia, ou 1 dia de diferença, vira uma
-            única ação); contratos EXCLUÍDOS agrupam por mesmo ano + mesmo banco (bancos diferentes
-            nunca se misturam); RMC e RCC sempre em ações separadas.
+            Como a AHRI classificou os contratos da janela de 5 anos, pelo guia do escritório:
+            contratos ATIVOS = 1 processo cada; NÃO-ATIVOS formam lotes de 3 contratos do mesmo
+            banco + mesmo ano = 1 processo (teto de 15 processos por banco, sempre dos maiores
+            valores para os menores; a sobra que não fecha trio fica fora); RMC e RCC sempre em
+            processos separados. São estes contratos que compõem o estudo e o potencial.
           </p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
             {(['ATIVOS', 'EXCLUIDOS', 'RMC', 'RCC'] as const).map((cat) =>
@@ -182,7 +184,7 @@ const ClienteDestinadoPage = async ({
                 }}
               >
                 <strong>
-                  Ação {a.numero} · {ROTULO_CATEGORIA[a.categoria]}
+                  Processo {a.numero} · {ROTULO_CATEGORIA[a.categoria]}
                 </strong>
                 <span className="badge">{a.banco}</span>
               </div>

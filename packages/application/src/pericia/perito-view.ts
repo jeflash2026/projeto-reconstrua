@@ -18,6 +18,7 @@ import { memoCurto, type MemoCurto } from '../production/memo-curto.js';
 import type { ClientesList, ClienteResumo } from '../clientes/clientes-list.js';
 import { parseHiscon, type HisconParse } from './hiscon.js';
 import { parseHisconDetalhado, type HisconExtraido } from './hiscon-parser.js';
+import { contratosSelecionadosDoGuia } from './acoes.js';
 import {
   COLUNAS_CONTRATOS_DETALHADA,
   planilhaDeContratos,
@@ -147,16 +148,27 @@ export class PeritoView {
     };
   }
 
+  /** Decreto 2026-08-04 (guia v2): a planilha do perito carrega SÓ os
+   *  contratos SELECIONADOS pelo guia (ativos 1=1; não-ativos em trios do
+   *  mesmo banco+ano, teto 15 por banco, maiores primeiro) — "são esses
+   *  mesmos contratos que devem chegar até a central do perito". */
+  private selecaoDoGuia(det: HisconExtraido, ref: Date): HisconExtraido {
+    return { ...det, contratos: contratosSelecionadosDoGuia(det.contratos, ref) };
+  }
+
   /** Planilha de UM cliente (CSV hoje; XLSX = trocar o exporter). */
   async planilha(clienteId: string, now?: Date): Promise<PlanilhaGerada | null> {
     const c = await this.contratos(clienteId, now);
     if (c === null) return null;
     // A planilha vinha VAZIA em produção: o HISCON real é em BLOCOS (o parser
     // heurístico por linha não o reconhece). Detalhado achou contratos ⇒ é a
-    // fonte, no formato do documento original (por banco, todos os campos).
+    // fonte, no formato do documento original (por banco, todos os campos) —
+    // já FILTRADA pela seleção do guia (decreto 2026-08-04).
+    const ref = now ?? new Date();
+    const selecionado = this.selecaoDoGuia(c.detalhado, ref);
     const plan =
-      c.detalhado.contratos.length > 0
-        ? planilhaDeContratosDetalhada(`Contratos — ${c.quem}`, c.detalhado, now ?? new Date())
+      selecionado.contratos.length > 0
+        ? planilhaDeContratosDetalhada(`Contratos — ${c.quem}`, selecionado, ref)
         : planilhaDeContratos(`Contratos — ${c.quem}`, c.parse);
     return {
       clienteId: c.clienteId,
@@ -202,8 +214,10 @@ export class PeritoView {
         )
           continue;
         const c = await this.contratosDoResumo(cliente, now);
-        if (c.detalhado.contratos.length === 0) continue;
-        const plan = planilhaDeContratosDetalhada(`Contratos — ${c.quem}`, c.detalhado, ref);
+        // Guia v2 (2026-08-04): o lote também sai FILTRADO pela seleção.
+        const selecionado = this.selecaoDoGuia(c.detalhado, ref);
+        if (selecionado.contratos.length === 0) continue;
+        const plan = planilhaDeContratosDetalhada(`Contratos — ${c.quem}`, selecionado, ref);
         out.push({
           clienteId: c.clienteId,
           quem: c.quem,
@@ -231,8 +245,10 @@ export class PeritoView {
       const cpf = (await this.deps.cpfDe?.(cliente.chatId).catch(() => null)) ?? null;
       if (this.deps.cpfDe !== undefined && cpf === null) continue;
       const c = await this.contratosDoResumo(cliente, now);
-      if (c.detalhado.contratos.length === 0) continue;
-      const plan = planilhaDeContratosDetalhada(cliente.quem, c.detalhado, ref);
+      // Guia v2 (2026-08-04): a planilha geral também sai FILTRADA pela seleção.
+      const selecionado = this.selecaoDoGuia(c.detalhado, ref);
+      if (selecionado.contratos.length === 0) continue;
+      const plan = planilhaDeContratosDetalhada(cliente.quem, selecionado, ref);
       for (const linha of plan.linhas)
         linhas.push([cliente.quem, cpf !== null ? formatarCpf(cpf) : 'NÃO INFORMADO', ...linha]);
     }

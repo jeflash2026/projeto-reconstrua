@@ -151,12 +151,12 @@ export function indicadoresExecutivos(input: IndicadoresInputs): readonly Indica
     },
     {
       id: 'acoes-previstas',
-      rotulo: 'Ações previstas',
+      rotulo: 'Processos disponíveis',
       valor: input.acoesPrevistas === null ? '—' : String(input.acoesPrevistas),
       explicacao:
-        'Soma das ações pelo guia de agrupamento — ativos 1=1 (mesmo banco e mesmo dia agrupam), excluídos por ano e banco, RMC/RCC separados',
+        'Soma pelo guia v2 — ativos 1=1; não-ativos em lotes de 3 do mesmo banco e ano (teto 15 por banco); RMC/RCC separados',
       tom: 'positivo',
-      fonte: 'read-model:pericia.somaAcoes (guia 2026-08-04)',
+      fonte: 'read-model:pericia.somaAcoes (guia v2 2026-08-04)',
       href: '/pericias',
     },
     {

@@ -1,47 +1,61 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// CLASSIFICAÇÃO E AGRUPAMENTO DE CONTRATOS EM AÇÕES (decreto do dono,
-// 2026-08-04) — o guia de referência que padroniza como cada contrato vira
-// ação judicial ANTES da distribuição aos advogados:
+// CLASSIFICAÇÃO DE CONTRATOS EM PROCESSOS (decreto do dono, 2026-08-04 —
+// versão 2, modelo comercial: advogados parceiros adquirem cada PROCESSO
+// disponível; a AHRI precisa contar exatamente como o negócio conta):
 //
-//   • CONTRATOS ATIVOS ..... regra geral 1 contrato = 1 ação; EXCEÇÃO: mesmo
-//                            banco + mesmo dia (ou 1 dia de diferença) ⇒ uma
-//                            única ação (estratégia processual);
-//   • CONTRATOS EXCLUÍDOS .. (prescrição · janela de 5 anos) agrupa por mesmo
-//                            ANO + mesmo BANCO; bancos diferentes SEMPRE
-//                            separados, mesmo no mesmo ano;
-//   • RMC ................... sempre em ação separada;
-//   • RCC ................... sempre em ação separada.
+//   • CONTRATOS ATIVOS (janela de 5 anos) . cada 1 contrato = 1 PROCESSO;
+//   • NÃO-ATIVOS (excluído/inativo/suspenso/migrado, janela de 5 anos)
+//     ..................................... cada 3 contratos do MESMO BANCO +
+//                                           MESMO ANO valem 1 processo; a
+//                                           sobra (1 ou 2) fica FORA; TETO de
+//                                           15 processos POR BANCO na divisão;
+//                                           seleção SEMPRE dos maiores valores
+//                                           para os menores;
+//   • RMC / RCC ........................... sempre separados: 1 = 1 processo.
 //
-// PURO e determinístico: recebe os contratos parseados do HISCON e devolve as
-// ações propostas com a REGRA APLICADA escrita em linguagem clara — é o texto
-// que o advogado lê no dossiê. Nada é inventado: contrato sem data/ano legível
-// não é agrupado (vira ação própria, com a ressalva declarada — Lei 9).
+// A MESMA seleção vale em toda a cadeia: dossiê jurídico, planilha do perito e
+// potencial financeiro — só os contratos SELECIONADOS contam. O painel mostra
+// os DOIS números: contratos totais do cliente E processos (ex.: Maria, 20
+// contratos do mesmo banco/ano ⇒ 20 contratos · 6 processos).
+//
+// PURO e determinístico; a regra de cada processo sai escrita em linguagem
+// clara (o texto que o advogado lê). Nada é inventado: contrato sem ano
+// legível não entra em trio (declarado — Lei 9).
 // ─────────────────────────────────────────────────────────────────────────────
 import { contratosDaJanela, type ContratoHiscon } from './hiscon-parser.js';
 
 export type CategoriaAcao = 'ATIVOS' | 'EXCLUIDOS' | 'RMC' | 'RCC';
 
+/** Teto de processos POR BANCO vindos da divisão 3=1 dos não-ativos. */
+export const TETO_LOTES_POR_BANCO = 15;
+
 export const ROTULO_CATEGORIA: Readonly<Record<CategoriaAcao, string>> = {
   ATIVOS: 'Contratos Ativos',
-  EXCLUIDOS: 'Contratos Excluídos (prescrição · 5 anos)',
+  EXCLUIDOS: 'Não-ativos (lote de 3 = 1 processo)',
   RMC: 'RMC — Reserva de Margem Consignável',
   RCC: 'RCC — Reserva de Cartão Consignado',
 };
 
 export interface AcaoProposta {
-  /** Numeração sequencial da ação no dossiê (1..N). */
+  /** Numeração sequencial do processo no dossiê (1..N). */
   readonly numero: number;
   readonly categoria: CategoriaAcao;
-  /** Banco da ação, legível ("329 - BANCO X"); nunca misto (regra do dono). */
+  /** Banco do processo, legível ("329 - BANCO X"); nunca misto. */
   readonly banco: string;
   readonly contratos: readonly ContratoHiscon[];
-  /** A regra do guia que formou ESTA ação, em linguagem clara. */
+  /** A regra do guia que formou ESTE processo, em linguagem clara. */
   readonly regra: string;
 }
 
 export interface ResumoAcoes {
+  /** PROCESSOS disponíveis (a unidade do modelo comercial). */
   readonly totalAcoes: number;
+  /** TODOS os contratos do cliente na janela de 5 anos (a soma REAL). */
   readonly totalContratos: number;
+  /** Contratos que ENTRARAM em processos (seleção do guia). */
+  readonly contratosSelecionados: number;
+  /** Não-ativos fora da seleção (sobra de trio, teto do banco ou sem ano). */
+  readonly contratosForaDaSelecao: number;
   readonly porCategoria: Readonly<Record<CategoriaAcao, number>>;
 }
 
@@ -54,7 +68,7 @@ export interface AgrupamentoDeAcoes {
 
 /** Categoria do contrato: modalidade manda (RMC/RCC); empréstimo se divide por
  *  SITUAÇÃO — "ATIVO" (palavra inteira; "INATIVO" NÃO conta) vs. o resto
- *  (excluído/encerrado/suspenso), que cai na régua da prescrição. */
+ *  (excluído/inativo/suspenso/encerrado), que cai na régua do lote 3=1. */
 export function categoriaDoContrato(c: ContratoHiscon): CategoriaAcao {
   if (c.modalidade === 'RMC') return 'RMC';
   if (c.modalidade === 'RCC') return 'RCC';
@@ -62,7 +76,7 @@ export function categoriaDoContrato(c: ContratoHiscon): CategoriaAcao {
   return /(^|[^A-Z])ATIVO/.test(s) ? 'ATIVOS' : 'EXCLUIDOS';
 }
 
-/** Banco legível da ação — o agrupamento NUNCA mistura bancos. */
+/** Banco legível do processo — a seleção NUNCA mistura bancos. */
 function bancoDe(c: ContratoHiscon): string {
   if (c.bancoCodigo !== null && c.bancoNome !== null) return `${c.bancoCodigo} - ${c.bancoNome}`;
   return c.bancoNome ?? c.bancoCodigo ?? 'Banco não identificado';
@@ -73,15 +87,8 @@ function chaveBanco(c: ContratoHiscon): string {
   return c.bancoCodigo ?? c.bancoNome ?? '?';
 }
 
-/** O DIA do contrato (época em dias UTC) — data de inclusão; sem ela, o
- *  primeiro desconto. null = sem data legível (não agrupa; declara). */
-function diaDoContrato(c: ContratoHiscon): number | null {
-  const d = c.dataInclusao ?? c.dataPrimeiroDesconto;
-  return d === null ? null : Math.floor(d.getTime() / 86_400_000);
-}
-
 /** O ANO do contrato — inclusão; sem ela, a competência de início (MM/AAAA);
- *  por fim o primeiro desconto. null = sem ano legível. */
+ *  por fim o primeiro desconto. null = sem ano legível (não entra em trio). */
 function anoDoContrato(c: ContratoHiscon): number | null {
   if (c.dataInclusao !== null) return c.dataInclusao.getUTCFullYear();
   const m = /(\d{4})/.exec(c.competenciaInicio ?? '');
@@ -89,35 +96,13 @@ function anoDoContrato(c: ContratoHiscon): number | null {
   return c.dataPrimeiroDesconto?.getUTCFullYear() ?? null;
 }
 
-function dataBr(c: ContratoHiscon): string {
-  const d = c.dataInclusao ?? c.dataPrimeiroDesconto;
-  return d !== null ? d.toISOString().slice(0, 10).split('-').reverse().join('/') : 'sem data';
+/** O VALOR do contrato para ordenar "dos maiores para os menores" — o
+ *  emprestado; sem ele, a parcela; sem nada, zero (vai para o fim da fila). */
+function valorDe(c: ContratoHiscon): number {
+  return c.valorEmprestado ?? c.valorParcela ?? 0;
 }
 
-/** Agrupa os ATIVOS de UM banco: ordena pelo dia e ENCADEIA contratos com
- *  diferença de até 1 dia (mesmo dia ou dia seguinte) — a exceção do guia.
- *  Sem data legível, o contrato NÃO agrupa (ação própria, com a ressalva). */
-function agruparAtivosDoBanco(
-  contratos: readonly ContratoHiscon[],
-): readonly (readonly ContratoHiscon[])[] {
-  const comData = contratos
-    .filter((c) => diaDoContrato(c) !== null)
-    .sort((a, b) => (diaDoContrato(a) ?? 0) - (diaDoContrato(b) ?? 0));
-  const semData = contratos.filter((c) => diaDoContrato(c) === null);
-  const grupos: ContratoHiscon[][] = [];
-  for (const c of comData) {
-    const ultimo = grupos[grupos.length - 1];
-    const diaAnterior = ultimo ? (diaDoContrato(ultimo[ultimo.length - 1]!) ?? 0) : null;
-    const dia = diaDoContrato(c) ?? 0;
-    if (ultimo !== undefined && diaAnterior !== null && dia - diaAnterior <= 1) ultimo.push(c);
-    else grupos.push([c]);
-  }
-  return [...grupos, ...semData.map((c) => [c])];
-}
-
-/** O GUIA aplicado: contratos do HISCON (janela de 5 anos) → ações propostas.
- *  Determinístico; a ordem de saída é estável (Ativos → Excluídos → RMC → RCC,
- *  banco em ordem alfabética, data crescente). */
+/** A SELEÇÃO do guia aplicada aos contratos do HISCON (janela de 5 anos). */
 export function agruparContratosEmAcoes(
   contratos: readonly ContratoHiscon[],
   hoje: Date,
@@ -135,66 +120,66 @@ export function agruparContratosEmAcoes(
 
   const acoes: Omit<AcaoProposta, 'numero'>[] = [];
 
-  // ── CONTRATOS ATIVOS: 1=1; exceção mesmo banco + mesmo dia (±1) ────────────
-  const ativosPorBanco = new Map<string, ContratoHiscon[]>();
-  for (const c of porCategoria.ATIVOS) {
-    const k = chaveBanco(c);
-    ativosPorBanco.set(k, [...(ativosPorBanco.get(k) ?? []), c]);
-  }
-  for (const [, doBanco] of [...ativosPorBanco.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    for (const grupo of agruparAtivosDoBanco(doBanco)) {
-      const primeiro = grupo[0]!;
-      const regra =
-        grupo.length > 1
-          ? `Exceção do guia: ${String(grupo.length)} contratos do MESMO banco averbados no ` +
-            `mesmo dia (ou 1 dia de diferença) — agrupados em UMA ação (estratégia processual).`
-          : diaDoContrato(primeiro) === null
-            ? 'Regra geral: 1 contrato = 1 ação. (Sem data legível no HISCON — não agrupável.)'
-            : 'Regra geral dos ativos: 1 contrato = 1 ação (processo separado).';
-      acoes.push({ categoria: 'ATIVOS', banco: bancoDe(primeiro), contratos: grupo, regra });
-    }
-  }
-
-  // ── CONTRATOS EXCLUÍDOS: mesmo ANO + mesmo BANCO; bancos nunca se misturam ─
-  const excluidosPorAnoBanco = new Map<string, ContratoHiscon[]>();
-  const excluidosSemAno: ContratoHiscon[] = [];
-  for (const c of porCategoria.EXCLUIDOS) {
-    const ano = anoDoContrato(c);
-    if (ano === null) {
-      excluidosSemAno.push(c);
-      continue;
-    }
-    const k = `${chaveBanco(c)}|${String(ano)}`;
-    excluidosPorAnoBanco.set(k, [...(excluidosPorAnoBanco.get(k) ?? []), c]);
-  }
-  for (const [k, grupo] of [...excluidosPorAnoBanco.entries()].sort(([a], [b]) =>
-    a.localeCompare(b),
-  )) {
-    const ano = k.split('|')[1] ?? '?';
-    const regra =
-      grupo.length > 1
-        ? `Excluídos: ${String(grupo.length)} contratos do MESMO banco no MESMO ano (${ano}) — ` +
-          'agrupados em UMA ação. (Bancos diferentes seguem sempre separados.)'
-        : `Excluídos: único contrato deste banco no ano ${ano} — ação própria. ` +
-          '(Agruparia com outros do mesmo banco e mesmo ano, se houvesse.)';
-    acoes.push({ categoria: 'EXCLUIDOS', banco: bancoDe(grupo[0]!), contratos: grupo, regra });
-  }
-  for (const c of excluidosSemAno) {
+  // ── ATIVOS: cada 1 contrato = 1 processo (a unidade do modelo comercial) ───
+  const ativosOrdenados = [...porCategoria.ATIVOS].sort(
+    (a, b) => chaveBanco(a).localeCompare(chaveBanco(b)) || valorDe(b) - valorDe(a),
+  );
+  for (const c of ativosOrdenados) {
     acoes.push({
-      categoria: 'EXCLUIDOS',
+      categoria: 'ATIVOS',
       banco: bancoDe(c),
       contratos: [c],
-      regra: 'Excluídos: sem ano legível no HISCON — não agrupável; ação própria (declarado).',
+      regra: 'Contrato ATIVO: 1 contrato = 1 processo.',
     });
   }
 
-  // ── RMC e RCC: SEMPRE separados ────────────────────────────────────────────
+  // ── NÃO-ATIVOS: trios do MESMO banco + MESMO ano = 1 processo; teto de 15
+  //    processos POR BANCO; sempre dos MAIORES valores para os menores. ───────
+  const naoAtivosPorBanco = new Map<string, ContratoHiscon[]>();
+  for (const c of porCategoria.EXCLUIDOS) {
+    const k = chaveBanco(c);
+    naoAtivosPorBanco.set(k, [...(naoAtivosPorBanco.get(k) ?? []), c]);
+  }
+  for (const [, doBanco] of [...naoAtivosPorBanco.entries()].sort(([a], [b]) =>
+    a.localeCompare(b),
+  )) {
+    // Agrupa por ANO dentro do banco; sem ano legível não entra em trio.
+    const porAno = new Map<number, ContratoHiscon[]>();
+    for (const c of doBanco) {
+      const ano = anoDoContrato(c);
+      if (ano === null) continue;
+      porAno.set(ano, [...(porAno.get(ano) ?? []), c]);
+    }
+    // Monta TODOS os trios possíveis (por ano, maiores valores primeiro)…
+    const trios: { ano: number; contratos: ContratoHiscon[]; valor: number }[] = [];
+    for (const [ano, doAno] of porAno) {
+      const ordenados = [...doAno].sort((a, b) => valorDe(b) - valorDe(a));
+      for (let i = 0; i + 3 <= ordenados.length; i += 3) {
+        const trio = ordenados.slice(i, i + 3);
+        trios.push({ ano, contratos: trio, valor: trio.reduce((s, c) => s + valorDe(c), 0) });
+      }
+    }
+    // …e aplica o TETO do banco: ficam os 15 trios de MAIOR valor.
+    const escolhidos = trios.sort((a, b) => b.valor - a.valor).slice(0, TETO_LOTES_POR_BANCO);
+    for (const t of escolhidos.sort((a, b) => a.ano - b.ano || b.valor - a.valor)) {
+      acoes.push({
+        categoria: 'EXCLUIDOS',
+        banco: bancoDe(t.contratos[0]!),
+        contratos: t.contratos,
+        regra:
+          `Não-ativos: 3 contratos do MESMO banco no MESMO ano (${String(t.ano)}) = 1 processo ` +
+          '(seleção dos maiores valores; teto de 15 processos por banco).',
+      });
+    }
+  }
+
+  // ── RMC e RCC: SEMPRE separados — 1 = 1 processo ───────────────────────────
   for (const c of porCategoria.RMC) {
     acoes.push({
       categoria: 'RMC',
       banco: bancoDe(c),
       contratos: [c],
-      regra: 'RMC (Reserva de Margem Consignável): sempre em ação separada.',
+      regra: 'RMC (Reserva de Margem Consignável): sempre em processo separado.',
     });
   }
   for (const c of porCategoria.RCC) {
@@ -202,11 +187,12 @@ export function agruparContratosEmAcoes(
       categoria: 'RCC',
       banco: bancoDe(c),
       contratos: [c],
-      regra: 'RCC (Reserva de Cartão Consignado): sempre em ação separada.',
+      regra: 'RCC (Reserva de Cartão Consignado): sempre em processo separado.',
     });
   }
 
   const numeradas: AcaoProposta[] = acoes.map((a, i) => ({ ...a, numero: i + 1 }));
+  const selecionados = numeradas.reduce((s, a) => s + a.contratos.length, 0);
   const contagem = (cat: CategoriaAcao): number =>
     numeradas.filter((a) => a.categoria === cat).length;
   return {
@@ -214,6 +200,8 @@ export function agruparContratosEmAcoes(
     resumo: {
       totalAcoes: numeradas.length,
       totalContratos: janela.length,
+      contratosSelecionados: selecionados,
+      contratosForaDaSelecao: janela.length - selecionados,
       porCategoria: {
         ATIVOS: contagem('ATIVOS'),
         EXCLUIDOS: contagem('EXCLUIDOS'),
@@ -224,19 +212,13 @@ export function agruparContratosEmAcoes(
   };
 }
 
-/** Linha-resumo de um contrato para o dossiê do advogado (legível). */
-export function linhaDoContrato(c: ContratoHiscon): string {
-  const partes = [
-    `Contrato ${c.contrato}`,
-    c.situacao !== null ? c.situacao : null,
-    dataBr(c),
-    c.valorEmprestado !== null
-      ? `R$ ${c.valorEmprestado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-      : null,
-    c.valorParcela !== null
-      ? `parcela R$ ${c.valorParcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-      : null,
-    c.migrado ? 'MIGRADO' : null,
-  ];
-  return partes.filter((p): p is string => p !== null).join(' · ');
+/** A SELEÇÃO crua (união dos contratos que entraram em processos) — a MESMA
+ *  régua da planilha do perito e do potencial financeiro (decreto 2026-08-04:
+ *  "são esses mesmos contratos que devem chegar até a central do perito…
+ *  e potencial financeiro"). */
+export function contratosSelecionadosDoGuia(
+  contratos: readonly ContratoHiscon[],
+  hoje: Date,
+): readonly ContratoHiscon[] {
+  return agruparContratosEmAcoes(contratos, hoje).acoes.flatMap((a) => a.contratos);
 }

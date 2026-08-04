@@ -27,18 +27,12 @@ function dataBr(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-// Emojis por CODE POINT — o fonte fica 100% ASCII neste trecho. Com os
-// caracteres literais, o minificador do build os escapava ("\uD83D...") e o
-// texto chegava ao WhatsApp corrompido (caso real MARLENE, 2026-08-04).
-const E_DOC = String.fromCodePoint(0x1f4c4); // pagina de documento
-const E_ASSINA = String.fromCodePoint(0x270d, 0xfe0f); // mao escrevendo
-const E_CASA = String.fromCodePoint(0x1f3e0); // casa
-const E_BALANCA = String.fromCodePoint(0x2696, 0xfe0f); // balanca da justica
-
 /** A mensagem de ORIENTAÇÃO FINAL, pronta no WhatsApp da equipe (texto ditado
  *  pelo dono em 2026-08-04). A CONSULTORA envia esta mensagem, anexa a
  *  procuração em seguida e aguarda a devolução — por isso o pedido vem inteiro
- *  de uma vez. Assinada por quem está atendendo (o nome vem da sessão). */
+ *  de uma vez. Decreto do dono (após o caso MARLENE): SEM emojis e SEM
+ *  asteriscos — o pipeline de build corrompia os símbolos no WhatsApp; a
+ *  mensagem é texto puro, limpa e profissional, apresentada pela consultora. */
 function mensagemDaEquipe(c: ClienteHumanizado, assinatura: string): string {
   const bruto = c.nome.split(/\s+/)[0] ?? c.nome;
   // O cadastro guarda o nome em CAIXA ALTA ("MARLENE") — a saudação sai humana.
@@ -46,13 +40,13 @@ function mensagemDaEquipe(c: ClienteHumanizado, assinatura: string): string {
   return [
     `Olá, ${primeiro}!`,
     '',
-    'Agradecemos por confiar no *Projeto Reconstrua*.',
+    `Aqui é a ${assinatura}, consultora do Projeto Reconstrua. Agradecemos por confiar no nosso trabalho.`,
     '',
     'Para darmos continuidade ao seu atendimento, pedimos que envie o quanto antes:',
     '',
-    `${E_DOC} *RG* — frente e verso`,
-    `${E_ASSINA} *Procuração* devidamente assinada`,
-    `${E_CASA} *Comprovante de endereço*`,
+    '1. RG (frente e verso)',
+    '2. Procuração devidamente assinada',
+    '3. Comprovante de endereço',
     '',
     'Assim que recebermos a documentação completa, nossa equipe fará a conferência e, ' +
       'estando tudo correto, dará prosseguimento ao protocolo do processo.',
@@ -60,7 +54,7 @@ function mensagemDaEquipe(c: ClienteHumanizado, assinatura: string): string {
     'Quanto antes você enviar, mais rápido conseguiremos avançar com o seu caso.',
     '',
     'Atenciosamente,',
-    `${assinatura} — Consultora do Projeto Reconstrua ${E_BALANCA}`,
+    `${assinatura} — Consultora do Projeto Reconstrua`,
   ].join('\n');
 }
 

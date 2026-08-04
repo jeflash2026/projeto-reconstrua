@@ -10,7 +10,11 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { ReactElement } from 'react';
 import { getJson, type ClienteHumanizado } from '../lib/api';
-import { operadorDaSessao, HUMANIZADO_SESSION_COOKIE } from '../lib/session';
+import {
+  operadorDaSessao,
+  HUMANIZADO_SESSION_COOKIE,
+  HUMANIZADO_NOME_COOKIE,
+} from '../lib/session';
 import { SairButton } from '../components/sair-button';
 import DocsFase2 from '../components/docs-fase2';
 import AguardandoToggle from '../components/aguardando-toggle';
@@ -23,16 +27,35 @@ function dataBr(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-/** A mensagem de ORIENTAÇÃO FINAL, pronta no WhatsApp da equipe. */
-function linkWhatsApp(c: ClienteHumanizado): string {
+/** A mensagem de ORIENTAÇÃO FINAL, pronta no WhatsApp da equipe (texto ditado
+ *  pelo dono em 2026-08-04). A CONSULTORA envia esta mensagem, anexa a
+ *  procuração em seguida e aguarda a devolução — por isso o pedido vem inteiro
+ *  de uma vez. Assinada por quem está atendendo (o nome vem da sessão). */
+function mensagemDaEquipe(c: ClienteHumanizado, assinatura: string): string {
   const primeiro = c.nome.split(/\s+/)[0] ?? c.nome;
-  const texto =
-    `Olá, ${primeiro}! Aqui é da equipe do *Projeto Reconstrua*. Recebemos a sua confirmação — ` +
-    'agora vamos concluir o seu cadastro para o advogado te representar. Preciso que você me ' +
-    'envie por aqui: 1) a *procuração assinada* (vou te enviar o documento), 2) o *RG (frente e ' +
-    'verso)* ou CNH, e 3) um *comprovante de endereço*. Pode mandar as fotos por aqui mesmo. ' +
-    'Qualquer dúvida, estou à disposição!';
-  return `https://wa.me/${c.telefone}?text=${encodeURIComponent(texto)}`;
+  return [
+    `Olá, ${primeiro}!`,
+    '',
+    'Agradecemos por confiar no *Projeto Reconstrua*.',
+    '',
+    'Para darmos continuidade ao seu atendimento, pedimos que envie o quanto antes:',
+    '',
+    '📄 *RG* — frente e verso',
+    '✍️ *Procuração* devidamente assinada',
+    '🏠 *Comprovante de endereço*',
+    '',
+    'Assim que recebermos a documentação completa, nossa equipe fará a conferência e, ' +
+      'estando tudo correto, dará prosseguimento ao protocolo do processo.',
+    '',
+    'Quanto antes você enviar, mais rápido conseguiremos avançar com o seu caso.',
+    '',
+    'Atenciosamente,',
+    `${assinatura} — Consultora do Projeto Reconstrua ⚖️`,
+  ].join('\n');
+}
+
+function linkWhatsApp(c: ClienteHumanizado, assinatura: string): string {
+  return `https://wa.me/${c.telefone}?text=${encodeURIComponent(mensagemDaEquipe(c, assinatura))}`;
 }
 
 /** Agrupa por UF (ordem alfabética; 'SEM UF' por último). */
@@ -106,7 +129,13 @@ const TamanhoDoCaso = ({ c }: { c: ClienteHumanizado }): ReactElement => (
   </div>
 );
 
-const CartaoCliente = ({ c }: { c: ClienteHumanizado }): ReactElement => (
+const CartaoCliente = ({
+  c,
+  assinatura,
+}: {
+  c: ClienteHumanizado;
+  assinatura: string;
+}): ReactElement => (
   <div className="card" style={{ marginBottom: 12 }}>
     <div
       style={{
@@ -127,7 +156,12 @@ const CartaoCliente = ({ c }: { c: ClienteHumanizado }): ReactElement => (
           confirmou em {dataBr(c.confirmadoEm)}
         </div>
       </div>
-      <a className="btn primary" href={linkWhatsApp(c)} target="_blank" rel="noreferrer">
+      <a
+        className="btn primary"
+        href={linkWhatsApp(c, assinatura)}
+        target="_blank"
+        rel="noreferrer"
+      >
         📲 Chamar no WhatsApp (mensagem pronta)
       </a>
     </div>
@@ -151,6 +185,10 @@ const MesaPage = async ({
 }): Promise<ReactElement> => {
   const cookie = cookies().get(HUMANIZADO_SESSION_COOKIE)?.value ?? '';
   if (operadorDaSessao(SEGREDO_SESSAO, cookie) === null) redirect('/login');
+  // Quem assina a mensagem: o PRIMEIRO NOME de quem está atendendo. Sessão
+  // antiga (antes deste campo) assina como a equipe — nunca fica sem assinatura.
+  const nomeOperador = cookies().get(HUMANIZADO_NOME_COOKIE)?.value ?? '';
+  const assinatura = nomeOperador.trim().split(/\s+/)[0] || 'Equipe Reconstrua';
 
   const data = await getJson<{ clientes: ClienteHumanizado[] }>(
     '/admin/humanizado/clientes',
@@ -198,7 +236,7 @@ const MesaPage = async ({
             </div>
           ) : ativo !== null ? (
             // Com um estado escolhido, a lista é direta (sem repetir o título).
-            pendentes.map((c) => <CartaoCliente key={c.chatId} c={c} />)
+            pendentes.map((c) => <CartaoCliente key={c.chatId} c={c} assinatura={assinatura} />)
           ) : (
             porEstado(pendentes).map(([uf, lista]) => (
               <section key={uf}>
@@ -206,7 +244,7 @@ const MesaPage = async ({
                   {uf} <span className="badge">{lista.length}</span>
                 </div>
                 {lista.map((c) => (
-                  <CartaoCliente key={c.chatId} c={c} />
+                  <CartaoCliente key={c.chatId} c={c} assinatura={assinatura} />
                 ))}
               </section>
             ))

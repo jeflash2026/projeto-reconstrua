@@ -7,7 +7,7 @@
 // destinado baixa tudo no portal dele.
 // ─────────────────────────────────────────────────────────────────────────────
 import { cookies } from 'next/headers';
-import { cookieDeSessao, HUMANIZADO_SESSION_COOKIE } from './session';
+import { cookieDeSessao, HUMANIZADO_SESSION_COOKIE, HUMANIZADO_NOME_COOKIE } from './session';
 import { postJson, getJson, API_BASE, authHeaders, type DocEquipe } from './api';
 
 const SEGREDO_SESSAO = process.env['ADMIN_API_TOKEN'] ?? '';
@@ -26,13 +26,16 @@ export async function loginHumanizado(login: string, senha: string): Promise<Log
     { login: login.trim(), senha },
   );
   if (r === null || !r.ok) return { ok: false, error: 'credenciais inválidas' };
-  cookies().set(HUMANIZADO_SESSION_COOKIE, cookieDeSessao(SEGREDO_SESSAO, r.operadorId), {
+  const opcoes = {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'lax' as const,
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: 60 * 60 * 12,
-  });
+  };
+  cookies().set(HUMANIZADO_SESSION_COOKIE, cookieDeSessao(SEGREDO_SESSAO, r.operadorId), opcoes);
+  // Quem está atendendo ASSINA a mensagem pronta do WhatsApp (2026-08-04).
+  cookies().set(HUMANIZADO_NOME_COOKIE, r.nome, opcoes);
   return { ok: true };
 }
 
@@ -51,6 +54,7 @@ export async function definirSenhaHumanizado(token: string, senha: string): Prom
 // eslint-disable-next-line @typescript-eslint/require-await -- 'use server' exige async
 export async function logoutHumanizado(): Promise<void> {
   cookies().delete(HUMANIZADO_SESSION_COOKIE);
+  cookies().delete(HUMANIZADO_NOME_COOKIE);
 }
 
 // ── DOCS DA FASE 2 (o MESMO docs-equipe do Admin) ─────────────────────────────

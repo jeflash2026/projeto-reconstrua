@@ -8,6 +8,11 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const HUMANIZADO_SESSION_COOKIE = 'reconstrua_humanizado';
 export const HUMANIZADO_SESSION_MESSAGE = 'reconstrua-humanizado-session-v1';
+/** O NOME de quem está atendendo (2026-08-04) — a mensagem pronta do WhatsApp
+ *  é assinada por quem a envia. Gravado no login (o próprio Auth já devolve o
+ *  nome); ausente ⇒ a assinatura cai no nome da equipe. Não é credencial: só
+ *  identifica quem escreve, e a sessão continua valendo pelo cookie assinado. */
+export const HUMANIZADO_NOME_COOKIE = 'reconstrua_humanizado_nome';
 
 export function assinaturaDeSessao(secret: string, operadorId: string): string {
   return createHmac('sha256', secret)

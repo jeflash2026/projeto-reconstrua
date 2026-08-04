@@ -379,6 +379,59 @@ button {
   }
 }
 
+/* ── CORES DOS CARTÕES (2026-08-04): o estado de relance ───────────────────────
+   vermelho = falta contato · âmbar = documentação enviada, aguardando devolução
+   verde = completa · cinza = descartado */
+.card.a-chamar {
+  border-left: 5px solid var(--vermelho);
+}
+
+.card.enviado {
+  background: #fff9ec;
+  border-color: #ecd9a0;
+  border-left: 5px solid #d99a00;
+}
+
+.card.concluida {
+  background: #f2faf4;
+  border-color: #bfe3cb;
+  border-left: 5px solid var(--ok);
+}
+
+.legenda-cores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--texto-dim);
+}
+
+.legenda-cores .ponto {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: baseline;
+}
+
+.legenda-cores .vermelho {
+  background: var(--vermelho);
+}
+
+.legenda-cores .ambar {
+  background: #d99a00;
+}
+
+.legenda-cores .verde {
+  background: var(--ok);
+}
+
+.legenda-cores .cinza {
+  background: #9aa7b4;
+}
+
 /* ── DESCARTE (2026-08-04): botão discreto e cartão apagado ────────────────── */
 .btn.descartar {
   color: #8a4a4a;
@@ -393,6 +446,7 @@ button {
 .card.descartado {
   opacity: 0.75;
   background: #fafbfc;
+  border-left: 5px solid #9aa7b4;
 }
 
 /* Cabeçalho de ESTADO (organização da mesa por UF) */

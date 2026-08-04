@@ -221,7 +221,10 @@ const CartaoCliente = ({
   c: ClienteHumanizado;
   assinatura: string;
 }): ReactElement => (
-  <div className="card">
+  // COR DO CARTÃO (pedido do dono, 2026-08-04): o ESTADO de relance —
+  // vermelho = ainda falta entrar em contato; âmbar = documentação enviada,
+  // aguardando a devolução assinada. (Verde = completa; cinza = descartado.)
+  <div className={`card ${c.aguardandoAssinatura ? 'enviado' : 'a-chamar'}`}>
     <div
       style={{
         display: 'flex',
@@ -335,6 +338,23 @@ const MesaPage = async ({
           <ResumoDaMesa todos={todos} />
           <FiltroEstados contagens={gruposDeTodos} ativo={ativo} total={todos.length} />
           <BuscaCliente q={q} uf={ativo} />
+
+          {/* LEGENDA DAS CORES (pedido do dono, 2026-08-04): o estado de cada
+              cartão de relance — sem precisar ler os selos um a um. */}
+          <div className="legenda-cores">
+            <span>
+              <i className="ponto vermelho" /> falta entrar em contato
+            </span>
+            <span>
+              <i className="ponto ambar" /> documentação enviada — aguardando devolução
+            </span>
+            <span>
+              <i className="ponto verde" /> documentação completa
+            </span>
+            <span>
+              <i className="ponto cinza" /> descartado
+            </span>
+          </div>
           {q !== '' ? (
             <p className="page-sub">
               Resultado da busca por &quot;{q}&quot;: {pendentes.length + completos.length}{' '}
@@ -396,7 +416,7 @@ const MesaPage = async ({
                 </div>
                 <div className="grade-cartoes">
                   {lista.map((c) => (
-                    <div className="card" key={c.chatId}>
+                    <div className="card concluida" key={c.chatId}>
                       <strong>{c.nome}</strong>{' '}
                       <span className="mono" style={{ fontSize: 12 }}>
                         {c.telefone}

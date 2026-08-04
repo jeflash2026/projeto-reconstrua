@@ -58,6 +58,10 @@ export function buildAdvogadoServer(
       planilhaPorChat(
         chatId: string,
       ): Promise<{ nomeArquivo: string; mime: string; conteudo: string } | null>;
+      /** Decreto 2026-08-04: o DOSSIÊ DE AÇÕES — o guia de classificação e
+       *  agrupamento aplicado ao HISCON do cliente, com a regra de cada ação
+       *  em linguagem clara. Opcional (montagens antigas não o têm). */
+      acoesPorChat?(chatId: string): Promise<object | null>;
     };
     /** Decreto 2026-07-30: docs da fase 2 humana (procuração/RG/comprovante). */
     readonly docsEquipe?: {
@@ -543,6 +547,24 @@ export function buildAdvogadoServer(
     const dossie = await opts.estudo.dossiePorChat(r.chatId);
     if (dossie === null) return reply.code(404).send({ error: 'estudo indisponível' });
     return dossie;
+  });
+
+  // Decreto 2026-08-04: o DOSSIÊ DE AÇÕES — como a AHRI classificou e agrupou
+  // os contratos em ações judiciais (o guia do dono aplicado, regra a regra).
+  app.get('/advogado/processos/:missionId/acoes', async (request, reply) => {
+    if (!opts.estudo?.acoesPorChat)
+      return reply.code(503).send({ error: 'dossiê de ações indisponível nesta montagem' });
+    const { missionId } = request.params as { missionId: string };
+    const r = await chatDaMissaoAtribuida(request, missionId);
+    if ('erro' in r) {
+      if (r.erro === 'auth') return reply.code(401).send({ error: 'advogado não identificado' });
+      if (r.erro === 'atribuicao')
+        return reply.code(403).send({ error: 'processo não atribuído a você' });
+      return reply.code(404).send({ error: 'conversa do processo não encontrada' });
+    }
+    const acoes = await opts.estudo.acoesPorChat(r.chatId);
+    if (acoes === null) return reply.code(404).send({ error: 'HISCON ainda não legível' });
+    return acoes;
   });
 
   app.get('/advogado/processos/:missionId/planilha', async (request, reply) => {

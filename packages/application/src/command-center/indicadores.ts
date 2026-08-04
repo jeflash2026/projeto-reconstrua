@@ -34,6 +34,10 @@ export interface IndicadoresInputs {
   readonly aguardandoDocumentos: number;
   readonly documentosProcessados: number;
   readonly valorRecuperavel: number | null; // R$
+  /** Decreto 2026-08-04: SOMA das ações previstas pelo guia de agrupamento
+   *  (ativos 1=1 c/ exceção mesmo banco ±1 dia; excluídos por ano+banco;
+   *  RMC/RCC sempre separados). null = fonte indisponível. */
+  readonly acoesPrevistas: number | null;
   // ── Funil (decreto 2026-08-03) ─────────────────────────────────────────────
   /** CPF + HISCON legível entregues. */
   readonly fase1Completa: number;
@@ -139,6 +143,16 @@ export function indicadoresExecutivos(input: IndicadoresInputs): readonly Indica
       tom: 'neutro',
       fonte: 'read-model:clientes.status EM_PROCESSO',
       href: '/missoes',
+    },
+    {
+      id: 'acoes-previstas',
+      rotulo: 'Ações previstas',
+      valor: input.acoesPrevistas === null ? '—' : String(input.acoesPrevistas),
+      explicacao:
+        'Soma das ações pelo guia de agrupamento — ativos 1=1 (mesmo banco e mesmo dia agrupam), excluídos por ano e banco, RMC/RCC separados',
+      tom: 'positivo',
+      fonte: 'read-model:pericia.somaAcoes (guia 2026-08-04)',
+      href: '/pericias',
     },
     {
       id: 'total-contratos',

@@ -102,6 +102,14 @@ export function buildAdminServer(
           readonly contratosSemValor: number;
         }>;
       }>;
+      /** Decreto 2026-08-04: a SOMA das ações previstas pelo guia de
+       *  agrupamento (card do Centro de Comando). */
+      somaAcoes?(): Promise<{
+        totalAcoes: number;
+        totalContratos: number;
+        clientes: number;
+        porCategoria: Readonly<Record<'ATIVOS' | 'EXCLUIDOS' | 'RMC' | 'RCC', number>>;
+      }>;
     };
     /** Medidor de Custo (2026-07-21): registros de gasto de IA (conversa +
      *  leitura de documentos) para o painel "Custos de IA". */
@@ -513,6 +521,11 @@ export function buildAdminServer(
       confirmados: 0,
       prontosParaPerito: 0,
     };
+    // Decreto 2026-08-04: a SOMA das ações previstas pelo guia de agrupamento
+    // (ativos 1=1 c/ exceção; excluídos ano+banco; RMC/RCC separados).
+    const acoesCC = opts.pericia?.somaAcoes
+      ? await opts.pericia.somaAcoes().catch(() => null)
+      : null;
     const indicadores = indicadoresExecutivos({
       clientesAtivos: listaCC !== null ? listaCC.length : (metrics?.clientCount ?? 0),
       novosClientesHoje,
@@ -529,6 +542,7 @@ export function buildAdminServer(
         potencialCC !== null && potencialCC.porCliente.length > 0
           ? potencialCC.total
           : (metrics?.financialUnderAdministration ?? null),
+      acoesPrevistas: acoesCC?.totalAcoes ?? null,
       ...funil,
     });
 

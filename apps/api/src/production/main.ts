@@ -173,6 +173,8 @@ async function main(): Promise<void> {
           ? { nomeArquivo: gerada.nomeArquivo, mime: gerada.mime, conteudo: gerada.conteudo }
           : null;
       },
+      // Decreto 2026-08-04: o dossiê de AÇÕES (o guia de agrupamento aplicado).
+      acoesPorChat: (chatId) => prod.pericia.acoesDe(chatId),
     },
     docsEquipe: {
       listar: (chatId) => prod.docsEquipe.listar(chatId),

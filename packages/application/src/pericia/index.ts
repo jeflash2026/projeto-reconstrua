@@ -11,3 +11,6 @@ export * from './hiscon-parser.js';
 // Decreto 2026-07-21 (Financeiro): potencial de recuperação = o JÁ descontado
 // até hoje, por contrato do HISCON (parcelas decorridas × valor da parcela).
 export * from './potencial-recuperacao.js';
+// Decreto 2026-08-04: o GUIA de classificação e agrupamento de contratos em
+// AÇÕES (ativos 1=1 com exceção; excluídos por ano+banco; RMC/RCC separados).
+export * from './acoes.js';

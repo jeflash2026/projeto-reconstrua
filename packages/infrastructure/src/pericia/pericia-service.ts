@@ -7,6 +7,7 @@
 // listados prontos para essa decisão — sem pedido administrativo).
 // ─────────────────────────────────────────────────────────────────────────────
 import {
+  agruparContratosEmAcoes,
   agruparPorBanco,
   contratosDaJanela,
   contratosMigrados,
@@ -21,6 +22,8 @@ import {
   type ContratoHiscon,
   type HisconExtraido,
   type IndicioDeEstrategia,
+  type AgrupamentoDeAcoes,
+  type CategoriaAcao,
   type MigracaoDeContrato,
   type PotencialDeRecuperacao,
 } from '@reconstrua/application';
@@ -91,6 +94,15 @@ export interface MigradosDoCliente {
   readonly potencialMigrados: number;
 }
 
+/** Decreto 2026-08-04: a SOMA das ações previstas pelo guia de agrupamento —
+ *  o card do Centro de Comando (todas as carteiras com HISCON legível). */
+export interface SomaAcoes {
+  readonly totalAcoes: number;
+  readonly totalContratos: number;
+  readonly clientes: number;
+  readonly porCategoria: Readonly<Record<CategoriaAcao, number>>;
+}
+
 export interface PericiaServiceDeps {
   readonly json: JsonStore;
   readonly reader: DocumentReaderService;
@@ -107,12 +119,15 @@ export interface PericiaServiceDeps {
 export class PericiaService {
   constructor(private readonly deps: PericiaServiceDeps) {
     this.potencialMemo = memoCurto(() => this.varrerPotencial(), this.deps.cachePotencialMs ?? 0);
+    this.acoesMemo = memoCurto(() => this.varrerAcoes(), this.deps.cachePotencialMs ?? 0);
   }
 
   private readonly potencialMemo: MemoCurto<{
     total: number;
     porCliente: readonly PotencialDoCliente[];
   }>;
+
+  private readonly acoesMemo: MemoCurto<SomaAcoes>;
 
   /** documentId → rótulo HUMANO ("RG (frente)", "Comprovante de endereço",
    *  "HISCON") a partir da contabilidade documental — para o Dossiê Jurídico e
@@ -270,6 +285,54 @@ export class PericiaService {
     }
     porCliente.sort((a, b) => b.valor - a.valor);
     return { total, porCliente };
+  }
+
+  /** Decreto 2026-08-04: o DOSSIÊ DE AÇÕES de um cliente — o guia de
+   *  classificação/agrupamento aplicado ao HISCON dele, com a regra de cada
+   *  ação escrita em linguagem clara (o advogado lê e entende o que a AHRI
+   *  fez). null = HISCON ainda não legível. */
+  async acoesDe(chatId: string): Promise<{
+    chatId: string;
+    nomeCliente: string | null;
+    agrupamento: AgrupamentoDeAcoes;
+  } | null> {
+    const extraido = await this.extrairHiscon(chatId).catch(() => null);
+    if (extraido === null || extraido.contratos.length === 0) return null;
+    return {
+      chatId,
+      nomeCliente: await this.nomeDoCliente(chatId),
+      agrupamento: agruparContratosEmAcoes(extraido.contratos, this.deps.clock.now()),
+    };
+  }
+
+  /** A SOMA TOTAL das ações previstas (card do Centro de Comando) — varre os
+   *  HISCONs de todos os chats; cacheada como o potencial (mesma validade). */
+  async somaAcoes(): Promise<SomaAcoes> {
+    return this.acoesMemo();
+  }
+
+  private async varrerAcoes(): Promise<SomaAcoes> {
+    const chats = await this.deps.json.keys(NS_ONBOARDING);
+    let totalAcoes = 0;
+    let totalContratos = 0;
+    let clientes = 0;
+    const porCategoria: Record<CategoriaAcao, number> = {
+      ATIVOS: 0,
+      EXCLUIDOS: 0,
+      RMC: 0,
+      RCC: 0,
+    };
+    for (const chatId of chats) {
+      const extraido = await this.extrairHiscon(chatId).catch(() => null);
+      if (extraido === null || extraido.contratos.length === 0) continue;
+      const r = agruparContratosEmAcoes(extraido.contratos, this.deps.clock.now());
+      clientes += 1;
+      totalAcoes += r.resumo.totalAcoes;
+      totalContratos += r.resumo.totalContratos;
+      for (const cat of ['ATIVOS', 'EXCLUIDOS', 'RMC', 'RCC'] as const)
+        porCategoria[cat] += r.resumo.porCategoria[cat];
+    }
+    return { totalAcoes, totalContratos, clientes, porCategoria };
   }
 
   /** ABA "Contratos Migrados": todos os clientes com HISCON, só os migrados,

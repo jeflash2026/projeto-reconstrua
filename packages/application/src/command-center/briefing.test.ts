@@ -138,6 +138,8 @@ describe('13A · indicadores executivos (o FUNIL real — decreto 2026-08-03)', 
     aguardandoDocumentos: 4,
     documentosProcessados: 130,
     valorRecuperavel: 250000,
+    // Decreto 2026-08-04: a soma das ações pelo guia de agrupamento.
+    acoesPrevistas: 210,
     fase1Completa: 30,
     semParecer: 5,
     aguardandoConfirmacao: 9,
@@ -153,6 +155,7 @@ describe('13A · indicadores executivos (o FUNIL real — decreto 2026-08-03)', 
     expect(byId['aguardando-confirmacao']?.valor).toBe('9');
     expect(byId['confirmados']?.valor).toBe('16');
     expect(byId['prontos-perito']?.valor).toBe('7');
+    expect(byId['acoes-previstas']?.valor).toBe('210');
     expect(byId['total-contratos']?.valor).toBe('87');
     expect(byId['valor-recuperavel']?.valor).toContain('R$');
     // Todo indicador EXPLICA o que é (a fonte técnica vive só no tooltip).

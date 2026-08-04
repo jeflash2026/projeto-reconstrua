@@ -30,6 +30,55 @@ interface DocEquipe {
   em: string;
 }
 
+// ── DOSSIÊ DE AÇÕES (decreto 2026-08-04): o guia de classificação e
+//    agrupamento aplicado — cada ação com a REGRA que a formou, legível. ──────
+interface ContratoDaAcao {
+  contrato: string;
+  situacao: string | null;
+  dataInclusao: string | null;
+  dataPrimeiroDesconto: string | null;
+  valorEmprestado: number | null;
+  valorParcela: number | null;
+  migrado: boolean;
+}
+
+interface AcaoDossie {
+  numero: number;
+  categoria: 'ATIVOS' | 'EXCLUIDOS' | 'RMC' | 'RCC';
+  banco: string;
+  contratos: ContratoDaAcao[];
+  regra: string;
+}
+
+interface DossieAcoes {
+  nomeCliente: string | null;
+  agrupamento: {
+    acoes: AcaoDossie[];
+    resumo: {
+      totalAcoes: number;
+      totalContratos: number;
+      porCategoria: Record<'ATIVOS' | 'EXCLUIDOS' | 'RMC' | 'RCC', number>;
+    };
+  };
+}
+
+const ROTULO_CATEGORIA: Record<AcaoDossie['categoria'], string> = {
+  ATIVOS: 'Contratos Ativos',
+  EXCLUIDOS: 'Contratos Excluídos (prescrição · 5 anos)',
+  RMC: 'RMC — Reserva de Margem Consignável',
+  RCC: 'RCC — Reserva de Cartão Consignado',
+};
+
+function moeda(v: number | null): string {
+  return v === null
+    ? '—'
+    : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+}
+
+function dataCurtaBr(iso: string | null): string {
+  return iso === null ? '—' : new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+}
+
 /** Rótulo humano do documento (a referência de imagem é uma URL gigante). */
 function rotulo(d: Doc): string {
   const ref = d.contentReference ?? '';
@@ -59,10 +108,11 @@ const ClienteDestinadoPage = async ({
   params: { missionId: string };
   searchParams: { nome?: string };
 }): Promise<ReactElement> => {
-  const [data, estudo, equipe] = await Promise.all([
+  const [data, estudo, equipe, acoes] = await Promise.all([
     getJson<ProcessDetail>(`/advogado/processos/${params.missionId}`),
     getJson<Estudo>(`/advogado/processos/${params.missionId}/estudo`),
     getJson<{ docs: DocEquipe[] }>(`/advogado/processos/${params.missionId}/docs-equipe`),
+    getJson<DossieAcoes>(`/advogado/processos/${params.missionId}/acoes`),
   ]);
   const nome = (searchParams.nome ?? '').trim() || estudo?.quem || 'Cliente';
   if (!data) {
@@ -90,6 +140,86 @@ const ClienteDestinadoPage = async ({
         {estudo?.cpf ? `CPF ${formatarCpfBr(estudo.cpf)} · ` : ''}
         Dossiê dos contratos na janela de 5 anos, planilha em Excel e todos os documentos do caso.
       </p>
+
+      {/* ── DOSSIÊ DE AÇÕES (decreto 2026-08-04) — o guia de classificação e
+          agrupamento que a AHRI aplicou, com a regra de cada ação explicada:
+          ativos 1=1 (mesmo banco + mesmo dia agrupam), excluídos por ano e
+          banco, RMC/RCC sempre separados. ─────────────────────────────────── */}
+      {acoes !== null && acoes.agrupamento.acoes.length > 0 ? (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 4 }}>
+            Dossiê de Ações — {acoes.agrupamento.resumo.totalAcoes} ação(ões) propostas
+          </h2>
+          <p className="page-sub" style={{ marginTop: 0 }}>
+            Como a AHRI classificou e agrupou os {acoes.agrupamento.resumo.totalContratos}{' '}
+            contrato(s) da janela de 5 anos, seguindo o guia do escritório: contratos ATIVOS = 1
+            ação cada (exceção: mesmo banco averbado no mesmo dia, ou 1 dia de diferença, vira uma
+            única ação); contratos EXCLUÍDOS agrupam por mesmo ano + mesmo banco (bancos diferentes
+            nunca se misturam); RMC e RCC sempre em ações separadas.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            {(['ATIVOS', 'EXCLUIDOS', 'RMC', 'RCC'] as const).map((cat) =>
+              acoes.agrupamento.resumo.porCategoria[cat] > 0 ? (
+                <span key={cat} className="badge">
+                  {ROTULO_CATEGORIA[cat]}:{' '}
+                  <strong>{acoes.agrupamento.resumo.porCategoria[cat]}</strong>
+                </span>
+              ) : null,
+            )}
+          </div>
+          {acoes.agrupamento.acoes.map((a) => (
+            <div
+              key={a.numero}
+              className="card"
+              style={{ marginBottom: 10, background: 'var(--bg-elev, rgba(0,0,0,0.03))' }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                }}
+              >
+                <strong>
+                  Ação {a.numero} · {ROTULO_CATEGORIA[a.categoria]}
+                </strong>
+                <span className="badge">{a.banco}</span>
+              </div>
+              <div style={{ fontSize: 13, margin: '4px 0 8px', color: 'var(--text-dim, #667)' }}>
+                {a.regra}
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Contrato</th>
+                      <th>Situação</th>
+                      <th>Data</th>
+                      <th>Valor emprestado</th>
+                      <th>Parcela</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {a.contratos.map((c) => (
+                      <tr key={c.contrato}>
+                        <td className="mono">{c.contrato}</td>
+                        <td>
+                          {c.situacao ?? '—'}
+                          {c.migrado ? ' · MIGRADO' : ''}
+                        </td>
+                        <td>{dataCurtaBr(c.dataInclusao ?? c.dataPrimeiroDesconto)}</td>
+                        <td>{moeda(c.valorEmprestado)}</td>
+                        <td>{moeda(c.valorParcela)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {/* ── DOSSIÊ JURÍDICO — os contratos organizados (mesma leitura do perito) ── */}
       <div className="card" style={{ marginBottom: 16 }}>

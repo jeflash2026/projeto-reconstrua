@@ -10,7 +10,7 @@ const DocumentsPage = async (): Promise<ReactElement> => {
   const data = await getJson<DocumentsData>('/admin/documents');
   return (
     <>
-      <AutoRefresh seconds={8} />
+      <AutoRefresh seconds={15} />
       <h1 className="page-title">Documentos</h1>
       <p className="page-sub">
         Reconhecimento é ato de domínio (R3); pendências vêm da memória viva.

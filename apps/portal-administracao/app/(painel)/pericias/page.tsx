@@ -34,7 +34,7 @@ const PericiasPage = async (): Promise<ReactElement> => {
 
   return (
     <>
-      <AutoRefresh seconds={8} />
+      <AutoRefresh seconds={15} />
       <h1 className="page-title">Perícias</h1>
       <p className="page-sub">
         A fila de trabalho do perito: organizar o HISCON, exportar contratos e confirmar os pedidos

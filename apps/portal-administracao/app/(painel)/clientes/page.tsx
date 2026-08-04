@@ -131,7 +131,7 @@ const ClientsPage = async ({
 
   return (
     <>
-      <AutoRefresh seconds={8} />
+      <AutoRefresh seconds={15} />
       <h1 className="page-title">Clientes</h1>
       <p className="page-sub">
         A jornada de cada cliente, separada por fase. Status derivado em tempo real.

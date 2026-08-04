@@ -25,7 +25,7 @@ const MissionPage = async ({ params }: { params: { id: string } }): Promise<Reac
   const count = (type: string): number => data.timeline.filter((e) => e.streamType === type).length;
   return (
     <>
-      <AutoRefresh seconds={5} />
+      <AutoRefresh seconds={15} />
       <h1 className="page-title mono">{shortId(data.missionId, 16)}</h1>
       <p className="page-sub">
         Cliente:{' '}

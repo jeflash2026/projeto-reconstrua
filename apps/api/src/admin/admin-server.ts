@@ -13,6 +13,7 @@ import {
   CATALOGO_CONSIGNADO_INSS,
   ESTRATEGIAS_CONSIGNADO_INSS,
   agregarConhecimento,
+  memoCurto,
   aprenderDaConversa,
   computeOperationalMetrics,
   gerarBriefing,
@@ -453,7 +454,14 @@ export function buildAdminServer(
   //    indicadores de negócio. Ambos DERIVADOS dos Read Models pela camada de
   //    aplicação (command-center); a API só monta as entradas e serve. A interface
   //    apenas renderiza. Nada é recalculado fora dos Read Models.
-  app.get('/admin/command-center', async () => {
+  //
+  // PERFORMANCE (2026-08-04): a montagem varre TODAS as memórias e computa os
+  // indicadores — e a tela se atualiza sozinha (às vezes em várias abas ao
+  // mesmo tempo). Cache de resposta de 10s com VOO ÚNICO: quem chega junto
+  // espera a MESMA conta; qualquer ação do painel invalida (hook abaixo).
+  const commandCenterMemo = memoCurto(() => montarCommandCenter(), 10_000);
+  app.get('/admin/command-center', () => commandCenterMemo());
+  async function montarCommandCenter(): Promise<unknown> {
     await op.projector.refresh();
     const now = new Date();
     const metrics = await op.metricsStore.load();
@@ -560,7 +568,7 @@ export function buildAdminServer(
     });
 
     return { briefing, indicadores };
-  });
+  }
 
   // ── Regra 3 (permanente): uma ação operacional NUNCA recria lógica — reutiliza o
   // comando canônico. Helper ÚNICO do bloco execute(use case) → outcome → drain,
@@ -634,12 +642,47 @@ export function buildAdminServer(
   // Qualquer AÇÃO no painel (POST/PUT/DELETE) invalida o cache — o clique do
   // Admin (vender, modalidade, perícia, upload…) reflete na lista na hora; o
   // cache só serve leituras repetidas entre ações.
+  // PERFORMANCE (2026-08-04): cache POR CLIENTE das duas rotas mais pesadas do
+  // cadastro (detalhe + dossiê) — o auto-refresh da página as martela a cada
+  // poucos segundos e cada chamada refazia memória + conversa + perícia.
+  // Voo único por chave; falha nunca é guardada; ação do painel limpa tudo.
+  function cachePorChave<T>(ttlMs: number): {
+    por(chave: string, calc: () => Promise<T>): Promise<T>;
+    limpar(): void;
+  } {
+    const guardados = new Map<string, { em: number; voo: Promise<T> }>();
+    return {
+      async por(chave, calc): Promise<T> {
+        const g = guardados.get(chave);
+        if (g !== undefined && Date.now() - g.em < ttlMs) return g.voo;
+        const voo = calc();
+        guardados.set(chave, { em: Date.now(), voo });
+        try {
+          return await voo;
+        } catch (e) {
+          guardados.delete(chave);
+          throw e;
+        }
+      },
+      limpar(): void {
+        guardados.clear();
+      },
+    };
+  }
+  const cacheCliente = cachePorChave<unknown>(5_000);
+  const cacheDossie = cachePorChave<unknown>(15_000);
+
   app.addHook('preHandler', (request, _reply, done) => {
     if (request.method !== 'GET' && request.url.startsWith('/admin/')) {
       invalidarCacheJornada();
       // A mesa do Atendimento Humanizado também é derivada em cache curto: o
       // anexo de um documento ou a marcação da secretária refletem na hora.
       opts.humanizado?.invalidar?.();
+      // Os caches de resposta (2026-08-04) caem juntos — o clique do Admin
+      // aparece na hora; o cache só serve leituras repetidas entre ações.
+      commandCenterMemo.invalidar();
+      cacheCliente.limpar();
+      cacheDossie.limpar();
     }
     done();
   });
@@ -1312,10 +1355,17 @@ export function buildAdminServer(
   }
 
   app.get('/admin/clients/:chatId', async (request, reply) => {
-    await op.projector.refresh();
     const { chatId } = request.params as { chatId: string };
+    // PERFORMANCE (2026-08-04): a página do cliente se atualiza sozinha e
+    // refazia tudo a cada batida — cache curto por chat (5s, voo único).
+    const corpo = await cacheCliente.por(chatId, () => detalheDoCliente(chatId));
+    if (corpo === null) return reply.code(404).send({ error: 'cliente não encontrado' });
+    return corpo;
+  });
+  async function detalheDoCliente(chatId: string): Promise<unknown> {
+    await op.projector.refresh();
     const memory = await op.memoryStore.load(chatId);
-    if (!memory) return reply.code(404).send({ error: 'cliente não encontrado' });
+    if (!memory) return null;
     const relationship = await op.relationship.context(chatId);
     const conversation = await op.conversationStore.recent(chatId, 100);
     const missionIds = op.projector.missionsOf(chatId);
@@ -1335,7 +1385,7 @@ export function buildAdminServer(
       canal,
       missions,
     };
-  });
+  }
 
   // ── DOSSIÊ JURÍDICO (GO-LIVE 13A · seção 4) — o parecer inicial da AHRI para um
   //    cliente. Montado pela camada de aplicação (montarDossie) a partir dos Read
@@ -1780,20 +1830,27 @@ export function buildAdminServer(
   });
 
   app.get('/admin/clients/:chatId/dossie', async (request, reply) => {
-    await op.projector.refresh();
     const { chatId } = request.params as { chatId: string };
-    const dossie = await dossieDoCliente(chatId);
-    if (!dossie) return reply.code(404).send({ error: 'cliente não encontrado' });
-    // Pedido do dono (2026-08-04): os "Documentos reconhecidos" saem com o ID —
-    // a tela vira LINK de download do arquivo ORIGINAL (o mesmo proxy do
-    // "ver documento": /admin/documents/:id/content).
-    const memoria = await op.memoryStore.load(chatId);
-    const rotulos = await rotulosDe(chatId);
-    const documentosParaDownload = (memoria?.documentsSent ?? []).map((d) => ({
-      id: d.ref,
-      rotulo: rotulos[d.ref] ?? d.label,
-    }));
-    return { ...dossie, documentosParaDownload };
+    // PERFORMANCE (2026-08-04): o dossiê é a rota mais cara do cadastro
+    // (memória + 200 mensagens + perícia) e era refeito a cada auto-refresh —
+    // cache curto por chat (15s, voo único; ação do painel limpa).
+    const corpo = await cacheDossie.por(chatId, async () => {
+      await op.projector.refresh();
+      const dossie = await dossieDoCliente(chatId);
+      if (!dossie) return null;
+      // Pedido do dono (2026-08-04): os "Documentos reconhecidos" saem com o
+      // ID — a tela vira LINK de download do arquivo ORIGINAL (o mesmo proxy
+      // do "ver documento": /admin/documents/:id/content).
+      const memoria = await op.memoryStore.load(chatId);
+      const rotulos = await rotulosDe(chatId);
+      const documentosParaDownload = (memoria?.documentsSent ?? []).map((d) => ({
+        id: d.ref,
+        rotulo: rotulos[d.ref] ?? d.label,
+      }));
+      return { ...dossie, documentosParaDownload };
+    });
+    if (corpo === null) return reply.code(404).send({ error: 'cliente não encontrado' });
+    return corpo;
   });
 
   // ── TIMELINE COGNITIVA (GO-LIVE 13A · seção 5) — a HISTÓRIA do caso, derivada

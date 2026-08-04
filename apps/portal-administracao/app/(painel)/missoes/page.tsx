@@ -9,7 +9,7 @@ const MissionsPage = async (): Promise<ReactElement> => {
   const missions = await getJson<MissionRow[]>('/admin/missions');
   return (
     <>
-      <AutoRefresh seconds={8} />
+      <AutoRefresh seconds={15} />
       <h1 className="page-title">Missões</h1>
       <p className="page-sub">
         Cada missão com sua história completa no Event Store, projetada aqui.

@@ -50,7 +50,7 @@ const ClientPage = async ({ params }: { params: { chatId: string } }): Promise<R
   const linkWhatsApp = `https://wa.me/${telefoneCliente}?text=${encodeURIComponent(mensagemFase2)}`;
   return (
     <>
-      <AutoRefresh seconds={5} />
+      <AutoRefresh seconds={15} />
       <h1 className="page-title">{relationship.knownName ?? 'Cliente'}</h1>
       <p className="page-sub mono">{chatId}</p>
       <p className="page-sub" style={{ marginTop: -6 }}>

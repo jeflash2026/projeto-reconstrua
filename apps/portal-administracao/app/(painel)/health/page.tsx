@@ -8,7 +8,7 @@ const HealthPage = async (): Promise<ReactElement> => {
   const data = await getJson<HealthData>('/admin/health');
   return (
     <>
-      <AutoRefresh seconds={5} />
+      <AutoRefresh seconds={15} />
       <h1 className="page-title">Health</h1>
       <p className="page-sub">
         Estado geral:{' '}

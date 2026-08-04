@@ -53,7 +53,7 @@ const ClientesHojePage = async (): Promise<ReactElement> => {
 
   return (
     <>
-      <AutoRefresh seconds={8} />
+      <AutoRefresh seconds={15} />
       <h1 className="page-title">Clientes Hoje</h1>
       <p className="page-sub">
         Quem a AHRI atendeu hoje ({dataLegivel}) — sem misturar com a base histórica. O contato mais

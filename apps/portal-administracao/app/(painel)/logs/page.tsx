@@ -14,7 +14,7 @@ const LogsPage = async ({
   const data = await getJson<LogsData>(`/admin/logs?q=${encodeURIComponent(q)}`);
   return (
     <>
-      <AutoRefresh seconds={8} />
+      <AutoRefresh seconds={15} />
       <h1 className="page-title">Logs</h1>
       <p className="page-sub">Tudo auditável: eventos de domínio e observações de runtime.</p>
 

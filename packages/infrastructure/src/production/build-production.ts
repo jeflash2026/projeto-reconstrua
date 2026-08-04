@@ -323,6 +323,9 @@ export interface AssembledProduction {
   /** Decreto 2026-08-03: o retrato do FUNIL (Visão Executiva) — fase 1,
    *  parecer, confirmação, mesa do humanizado e prontos para o perito. */
   readonly funilResumo: () => Promise<FunilResumo>;
+  /** Decreto 2026-08-04: o VALOR POTENCIAL CONFIRMADO — só clientes com a
+   *  documentação completa (procuração assinada + RG + comprovante) na mesa. */
+  readonly potencialConfirmado: () => Promise<{ total: number; clientes: number }>;
   /** Onda 3 (2026-07-31): o PARECER EM LOTE do Admin — pendentes da base
    *  legada + envio unitário com claim (fato antes da mensagem). */
   readonly parecerLote: {
@@ -675,6 +678,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     credenciais: socioCredenciais,
     secret: env['ADMIN_ACCESS_SECRET'] ?? '',
   });
+  // Decreto 2026-08-04: a base CONFIRMADA do rateio (clientes com procuração
+  // assinada + RG + comprovante entregues) depende da MESA do humanizado, que
+  // é montada mais adiante nesta composição — o ponteiro é ligado lá. Até a
+  // ligação (só durante a montagem, nunca em request), devolve zero declarado.
+  let baseConfirmadaRef: () => Promise<{ total: number; clientes: number }> = () =>
+    Promise.resolve({ total: 0, clientes: 0 });
   const socios = new SociosService({
     socios: socioStore,
     credenciais: socioCredenciais,
@@ -683,6 +692,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       const p = await pericia.potencialDeTodos().catch(() => null);
       return { total: p?.total ?? 0, clientes: p?.porCliente.length ?? 0 };
     },
+    baseConfirmada: () => baseConfirmadaRef(),
   });
 
   const mediaCapture = new MediaCaptureRuntime({
@@ -2043,6 +2053,20 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
   };
 
+  // Decreto 2026-08-04: o VALOR POTENCIAL CONFIRMADO — soma do potencial só
+  // dos clientes 100% completos na mesa (procuração ASSINADA + RG +
+  // comprovante), fora os descartados. Alimenta o card do Centro de Comando e
+  // o painel do sócio (a mesa já vem com o potencial por cliente e é cacheada).
+  const potencialConfirmado = async (): Promise<{ total: number; clientes: number }> => {
+    const mesa = await mesaHumanizada().catch(() => []);
+    const completos = mesa.filter((c) => c.completo && !c.descartado);
+    return {
+      total: completos.reduce((s, c) => s + c.potencial, 0),
+      clientes: completos.length,
+    };
+  };
+  baseConfirmadaRef = potencialConfirmado; // liga o rateio do sócio (declarado acima)
+
   // Decreto 2026-08-03 (pedido do dono): o FUNIL para a Visão Executiva —
   // fase 1 → parecer → confirmação → humanizado → perito. Cache de 60s: o
   // Centro de Comando atualiza a cada 15s e esta contagem varre os HISCONs.
@@ -2136,6 +2160,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     humanizadoAuth,
     humanizado,
     funilResumo,
+    potencialConfirmado,
     parecerLote,
     pericia,
     releitura,

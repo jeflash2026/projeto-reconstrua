@@ -38,6 +38,11 @@ export interface IndicadoresInputs {
    *  (ativos 1=1 c/ exceção mesmo banco ±1 dia; excluídos por ano+banco;
    *  RMC/RCC sempre separados). null = fonte indisponível. */
   readonly acoesPrevistas: number | null;
+  /** Decreto 2026-08-04: o potencial CONFIRMADO — só clientes com a
+   *  documentação COMPLETA (procuração assinada + RG + comprovante) entregue
+   *  na mesa do Atendimento Humanizado. null = fonte indisponível. */
+  readonly valorConfirmado: number | null;
+  readonly clientesConfirmados: number | null;
   // ── Funil (decreto 2026-08-03) ─────────────────────────────────────────────
   /** CPF + HISCON legível entregues. */
   readonly fase1Completa: number;
@@ -189,6 +194,18 @@ export function indicadoresExecutivos(input: IndicadoresInputs): readonly Indica
       tom: 'positivo',
       fonte: 'read-model:financeiro (potencialDeTodos)',
       href: '/financeiro',
+    },
+    {
+      id: 'valor-confirmado',
+      rotulo: 'Potencial confirmado',
+      valor: money(input.valorConfirmado),
+      explicacao:
+        input.clientesConfirmados !== null && input.clientesConfirmados > 0
+          ? `Só quem entregou TUDO — procuração assinada, RG e comprovante (${String(input.clientesConfirmados)} cliente(s))`
+          : 'Só quem entregou TUDO — procuração assinada, RG e comprovante',
+      tom: 'positivo',
+      fonte: 'read-model:humanizado (completos × potencial)',
+      href: '/pericias',
     },
   ];
 }

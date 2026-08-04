@@ -24,6 +24,10 @@ export interface SociosServiceDeps {
   readonly socios: SocioStore;
   readonly credenciais: CredenciaisStore;
   readonly base: BaseDoRateio;
+  /** Decreto 2026-08-04 — a base CONFIRMADA: só clientes com a documentação
+   *  completa (procuração ASSINADA + RG + comprovante) na mesa do Atendimento
+   *  Humanizado. Ausente ⇒ o painel não exibe o bloco (nada é inventado). */
+  readonly baseConfirmada?: BaseDoRateio;
   readonly clock: Clock;
 }
 
@@ -85,6 +89,11 @@ export class SociosService {
     const socio = await this.deps.socios.byCpf(cpf);
     if (socio === null || !socio.ativo) return null;
     const { total, clientes } = await this.deps.base();
-    return montarPainelDoSocio(socio, total, clientes);
+    // Decreto 2026-08-04: a base CONFIRMADA acompanha o painel — falha na
+    // leitura não derruba a visão (o bloco simplesmente não aparece).
+    const confirmado = this.deps.baseConfirmada
+      ? await this.deps.baseConfirmada().catch(() => null)
+      : null;
+    return montarPainelDoSocio(socio, total, clientes, confirmado);
   }
 }

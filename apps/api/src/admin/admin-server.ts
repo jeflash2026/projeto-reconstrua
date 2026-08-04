@@ -201,6 +201,9 @@ export function buildAdminServer(
        *  curto; qualquer AÇÃO do painel descarta o guardado. */
       invalidar?(): void;
     };
+    /** Decreto 2026-08-04: o VALOR POTENCIAL CONFIRMADO — só clientes com a
+     *  documentação completa (procuração assinada + RG + comprovante). */
+    readonly potencialConfirmado?: () => Promise<{ total: number; clientes: number }>;
     /** Decreto 2026-08-03: o retrato do FUNIL para a Visão Executiva. */
     readonly funilResumo?: () => Promise<{
       fase1Completa: number;
@@ -529,6 +532,11 @@ export function buildAdminServer(
     const acoesCC = opts.pericia?.somaAcoes
       ? await opts.pericia.somaAcoes().catch(() => null)
       : null;
+    // Decreto 2026-08-04: o potencial CONFIRMADO — só quem entregou tudo
+    // (procuração assinada + RG + comprovante) na mesa do humanizado.
+    const confirmadoCC = opts.potencialConfirmado
+      ? await opts.potencialConfirmado().catch(() => null)
+      : null;
     const indicadores = indicadoresExecutivos({
       clientesAtivos: listaCC !== null ? listaCC.length : (metrics?.clientCount ?? 0),
       novosClientesHoje,
@@ -546,6 +554,8 @@ export function buildAdminServer(
           ? potencialCC.total
           : (metrics?.financialUnderAdministration ?? null),
       acoesPrevistas: acoesCC?.totalAcoes ?? null,
+      valorConfirmado: confirmadoCC?.total ?? null,
+      clientesConfirmados: confirmadoCC?.clientes ?? null,
       ...funil,
     });
 

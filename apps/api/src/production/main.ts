@@ -105,6 +105,8 @@ async function main(): Promise<void> {
     parecerLote: prod.parecerLote,
     // Decreto 2026-08-03: o funil real na Visão Executiva do Centro de Comando.
     funilResumo: prod.funilResumo,
+    // Decreto 2026-08-04: o potencial CONFIRMADO (docs completos na mesa).
+    potencialConfirmado: prod.potencialConfirmado,
     // Custos de IA: gasto por cliente (conversa + leitura de documentos).
     custos: prod.custos,
     // Reaquecimento de leads frios — autorizado pelo admin, lead a lead.

@@ -32,6 +32,12 @@ export interface PainelSocio {
   readonly rateioReferencia: readonly FatiaRateio[];
   /** Quantos clientes com HISCON legível compõem a base (contexto do número). */
   readonly clientes: number;
+  /** Decreto 2026-08-04 — a base CONFIRMADA: só clientes com a documentação
+   *  COMPLETA (procuração ASSINADA + RG + comprovante) entregue na mesa do
+   *  Atendimento Humanizado. null = montagem sem a mesa (nunca inventado). */
+  readonly potencialConfirmado: number | null;
+  readonly meuValorConfirmado: number | null;
+  readonly clientesConfirmados: number | null;
 }
 
 /** Monta a visão do sócio: seu valor + o rateio de referência sobre o potencial total. */
@@ -39,6 +45,7 @@ export function montarPainelDoSocio(
   socio: Socio,
   potencialTotal: number,
   clientes: number,
+  confirmado?: { readonly total: number; readonly clientes: number } | null,
 ): PainelSocio {
   return {
     cpf: formatarCpf(socio.cpf),
@@ -47,6 +54,10 @@ export function montarPainelDoSocio(
     percentual: percentualLegivel(socio.percentualBps),
     potencialTotal,
     meuValor: rateioDoSocio(potencialTotal, socio.percentualBps),
+    potencialConfirmado: confirmado?.total ?? null,
+    meuValorConfirmado:
+      confirmado != null ? rateioDoSocio(confirmado.total, socio.percentualBps) : null,
+    clientesConfirmados: confirmado?.clientes ?? null,
     rateioReferencia: [
       {
         rotulo: 'Cliente',

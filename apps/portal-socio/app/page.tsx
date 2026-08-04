@@ -62,6 +62,33 @@ const PainelSocio = async (): Promise<ReactElement> => {
             </div>
           </div>
 
+          {/* Decreto 2026-08-04: o POTENCIAL CONFIRMADO — a fatia da carteira
+              que já entregou TUDO (procuração assinada + RG + comprovante) e
+              está liberada para o pedido administrativo. */}
+          {painel.potencialConfirmado != null ? (
+            <div className="card" style={{ marginBottom: 16, borderLeft: '4px solid #1b7f3b' }}>
+              <h3 style={{ marginTop: 0 }}>Potencial confirmado — documentação completa</h3>
+              <p className="page-sub" style={{ marginTop: 0 }}>
+                A parte da carteira com procuração ASSINADA, RG e comprovante já entregues — os
+                casos prontos para o pedido administrativo.
+              </p>
+              <div className="grid stats">
+                <div className="card stat">
+                  <div className="value">{formatMoney(painel.meuValorConfirmado ?? 0)}</div>
+                  <div className="label">A sua parte confirmada ({painel.percentual})</div>
+                </div>
+                <div className="card stat">
+                  <div className="value">{formatMoney(painel.potencialConfirmado)}</div>
+                  <div className="label">Potencial confirmado total (100%)</div>
+                </div>
+                <div className="card stat">
+                  <div className="value">{painel.clientesConfirmados ?? 0}</div>
+                  <div className="label">Clientes com documentação completa</div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="card">
             <h3>Como o resultado é dividido</h3>
             <p className="page-sub" style={{ marginTop: 0 }}>

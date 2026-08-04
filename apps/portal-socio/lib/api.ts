@@ -52,6 +52,12 @@ export interface PainelSocioView {
   meuValor: number;
   rateioReferencia: FatiaRateio[];
   clientes: number;
+  /** Decreto 2026-08-04 — a base CONFIRMADA: só clientes com a documentação
+   *  completa (procuração assinada + RG + comprovante). Opcionais: API do
+   *  build anterior não os envia; null = fonte indisponível. */
+  potencialConfirmado?: number | null;
+  meuValorConfirmado?: number | null;
+  clientesConfirmados?: number | null;
 }
 
 export function formatMoney(value: number): string {

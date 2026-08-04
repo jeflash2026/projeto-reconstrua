@@ -18,6 +18,7 @@ import {
 import { SairButton } from '../components/sair-button';
 import DocsFase2 from '../components/docs-fase2';
 import AguardandoToggle from '../components/aguardando-toggle';
+import DescartarButton from '../components/descartar-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,13 +115,15 @@ const Badge = ({ ok, rotulo }: { ok: boolean; rotulo: string }): ReactElement =>
  *  documentação e quantos concluíram. Sobre a base TODA (o filtro de UF não
  *  esconde o total do trabalho). */
 const ResumoDaMesa = ({ todos }: { todos: readonly ClienteHumanizado[] }): ReactElement => {
-  const completos = todos.filter((c) => c.completo).length;
-  const enviados = todos.filter((c) => !c.completo && c.aguardandoAssinatura).length;
-  const aChamar = todos.length - completos - enviados;
+  const ativos = todos.filter((c) => c.descartado !== true);
+  const descartados = todos.length - ativos.length;
+  const completos = ativos.filter((c) => c.completo).length;
+  const enviados = ativos.filter((c) => !c.completo && c.aguardandoAssinatura).length;
+  const aChamar = ativos.length - completos - enviados;
   const itens: readonly { rotulo: string; valor: number; classe: string; dica: string }[] = [
     {
       rotulo: 'Confirmados na mesa',
-      valor: todos.length,
+      valor: ativos.length,
       classe: '',
       dica: 'Todos os clientes que confirmaram o interesse após o dossiê',
     },
@@ -141,6 +144,12 @@ const ResumoDaMesa = ({ todos }: { todos: readonly ClienteHumanizado[] }): React
       valor: completos,
       classe: 'ok',
       dica: 'Os 3 documentos recebidos — seguiram para o perito',
+    },
+    {
+      rotulo: 'Descartados',
+      valor: descartados,
+      classe: 'descartado',
+      dica: 'Sem interesse ou sem documentação — voltam se o cliente confirmar de novo',
     },
   ];
   return (
@@ -255,6 +264,9 @@ const CartaoCliente = ({
       />
     </div>
     <DocsFase2 chatId={c.chatId} />
+    <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--borda)' }}>
+      <DescartarButton chatId={c.chatId} descartado={false} />
+    </div>
   </div>
 );
 
@@ -295,8 +307,11 @@ const MesaPage = async ({
             c.nome.toLowerCase().includes(qMin) ||
             (qDigitos !== '' && c.telefone.includes(qDigitos)),
         );
-  const pendentes = clientes?.filter((c) => !c.completo) ?? [];
-  const completos = clientes?.filter((c) => c.completo) ?? [];
+  // Descartados FICAM FORA das filas de trabalho — seção própria no rodapé.
+  const ativas = clientes?.filter((c) => c.descartado !== true) ?? [];
+  const pendentes = ativas.filter((c) => !c.completo);
+  const completos = ativas.filter((c) => c.completo);
+  const descartados = clientes?.filter((c) => c.descartado === true) ?? [];
 
   return (
     <div style={{ maxWidth: 1500, margin: '0 auto', padding: '24px 20px 48px' }}>
@@ -404,6 +419,38 @@ const MesaPage = async ({
               </section>
             ))
           )}
+
+          {/* DESCARTADOS (2026-08-04): fora da fila de trabalho, mas nunca
+              perdidos — a reativação manual (ou um SIM novo do cliente no
+              WhatsApp) devolve o caso à mesa e o atendimento recomeça. */}
+          {descartados.length > 0 ? (
+            <>
+              <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
+                🗑 Descartados <span className="badge">{descartados.length}</span>
+                {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
+              </h2>
+              <p className="page-sub">
+                Sem interesse ou sem documentação. Se o cliente voltar a confirmar no WhatsApp, ele
+                retorna sozinho para a sua fila — ou reative manualmente aqui.
+              </p>
+              <div className="grade-cartoes">
+                {descartados.map((c) => (
+                  <div className="card descartado" key={c.chatId}>
+                    <strong>{c.nome}</strong>{' '}
+                    <span className="mono" style={{ fontSize: 12 }}>
+                      {c.telefone}
+                    </span>{' '}
+                    <span className="badge">{c.uf}</span>
+                    <div style={{ fontSize: 12, color: 'var(--texto-dim)', margin: '4px 0 8px' }}>
+                      descartado em{' '}
+                      {c.descartadoEm != null ? dataBr(c.descartadoEm) : 'data não registrada'}
+                    </div>
+                    <DescartarButton chatId={c.chatId} descartado />
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
         </>
       )}
     </div>

@@ -352,9 +352,16 @@ export interface AssembledProduction {
         /** QUANDO a secretária marcou "enviei a documentação" (ISO) — o
          *  registro sempre existiu no fato; agora a mesa exibe (2026-08-04). */
         aguardandoDesde: string | null;
+        /** DESCARTE (2026-08-04): cliente sem interesse/sem documentação sai
+         *  da fila. VOLTA sozinho se CONFIRMAR o interesse de novo depois do
+         *  descarte (confirmadoEm > descartadoEm) — ou pela reativação manual. */
+        descartado: boolean;
+        descartadoEm: string | null;
       }[]
     >;
     marcarAguardando(chatId: string, valor: boolean): Promise<void>;
+    /** Descarta (valor=true) ou REATIVA (valor=false) um cliente da mesa. */
+    marcarDescarte(chatId: string, valor: boolean): Promise<void>;
     /** PERFORMANCE (2026-08-04): descarta a mesa em cache — qualquer ação do
      *  painel (anexo, marcação, confirmação) chama para o dado ser fresco. */
     invalidar(): void;
@@ -1224,6 +1231,20 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // Decreto 2026-07-24: MAPA DE CLIENTES — distribuição por estado (DDD) + cidades.
   const mapaClientes = new MapaClientesService({ json });
 
+  // O SIM depois de um instante: um inbound de texto afirmativo (a MESMA régua
+  // determinística do consentimento — interpretarInteresse). Compartilhado pelo
+  // nascimento (confirmação do parecer) e pela RETOMADA pós-descarte da mesa.
+  const disseSimApos = async (chatId: string, desde: Date): Promise<boolean> => {
+    const entradas = await conversationStore.recent(chatId, 60);
+    return entradas.some(
+      (e) =>
+        e.kind === 'inbound' &&
+        e.text !== null &&
+        new Date(e.at).getTime() > desde.getTime() &&
+        interpretarInteresse(e.text) === 'sim',
+    );
+  };
+
   // ── PORTAL DO CLIENTE · PC-R3: o NASCIMENTO (varredura sem clique humano) ─────
   // Brain decide (RO-CADASTRO-CONCLUIDO); fato liberacao-portal ANTES da mensagem
   // (envio único, Lei 8); entrega pelo pipeline canônico com cadência humana.
@@ -1240,18 +1261,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       const contratos = d.porBanco.reduce((s, b) => s + b.contratos.length, 0);
       return { contratos, indicios: d.indicios.length };
     },
-    // O SIM depois do parecer: um inbound de texto afirmativo (a MESMA régua
-    // determinística do consentimento — interpretarInteresse).
-    confirmouApos: async (chatId, desde) => {
-      const entradas = await conversationStore.recent(chatId, 60);
-      return entradas.some(
-        (e) =>
-          e.kind === 'inbound' &&
-          e.text !== null &&
-          new Date(e.at).getTime() > desde.getTime() &&
-          interpretarInteresse(e.text) === 'sim',
-      );
-    },
+    // O SIM depois do parecer confirma o interesse (régua única).
+    confirmouApos: disseSimApos,
     comunicador: new BrainNascimentoComunicador({
       brain: brainAssembly.brain,
       memory: convMemory,
@@ -1905,6 +1916,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         completo: boolean;
         aguardandoAssinatura: boolean;
         aguardandoDesde: string | null;
+        descartado: boolean;
+        descartadoEm: string | null;
       }[]
     > => {
       // Onda 3 (adendo do dono): a mesa exige o INTERESSE CONFIRMADO após o
@@ -1915,6 +1928,15 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         (await parecerStore.listarConfirmados()).map((p) => [p.clienteId, p]),
       );
       if (confirmados.size === 0) return [];
+      // DESCARTES (2026-08-04): uma leitura do namespace inteiro. O descarte
+      // só vale se for POSTERIOR à confirmação — um SIM novo do cliente
+      // (confirmadoEm mais recente) o traz de volta à mesa sozinho.
+      const descartes = new Map(
+        ((await json.list('humanizado-descarte').catch(() => [])) as readonly unknown[])
+          .map((raw) => raw as { chatId?: string; em?: string })
+          .filter((d) => typeof d.chatId === 'string' && typeof d.em === 'string')
+          .map((d) => [d.chatId as string, d.em as string]),
+      );
       const lista = (await clientes.list()).filter(
         (c) => c.clienteId !== c.chatId && confirmados.has(c.clienteId),
       );
@@ -1949,13 +1971,28 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           em?: string;
         } | null;
         const pot = potenciais.get(c.chatId);
+        const confirmadoEm = new Date(fato.confirmadoEm).toISOString();
+        const descarteEm = descartes.get(c.chatId) ?? null;
+        let descartado = descarteEm !== null;
+        // RETOMADA (pedido do dono, 2026-08-04): se o cliente demonstrou
+        // interesse DE NOVO — um SIM inbound DEPOIS do descarte — o cadastro
+        // reabre sozinho e ele volta à fila da secretária. O registro do
+        // descarte é removido (o fato deixou de valer). Só checa descartados,
+        // então o custo é proporcional aos poucos casos descartados.
+        if (descartado && descarteEm !== null) {
+          const retomou = await disseSimApos(c.chatId, new Date(descarteEm)).catch(() => false);
+          if (retomou) {
+            await json.del('humanizado-descarte', c.chatId).catch(() => {});
+            descartado = false;
+          }
+        }
         out.push({
           clienteId: c.clienteId,
           chatId: c.chatId,
           nome: c.quem,
           telefone: c.chatId.split('@')[0]?.replace(/\D/g, '') ?? '',
           uf,
-          confirmadoEm: new Date(fato.confirmadoEm).toISOString(),
+          confirmadoEm,
           // O tamanho do caso: contratos/indícios do parecer (o que a AHRI
           // disse ao cliente) e o potencial já descontado (perícia).
           contratos: fato.contratos,
@@ -1965,6 +2002,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           completo: docs.procuracao && docs.rg && docs.comprovante,
           aguardandoAssinatura: status?.aguardando === true,
           aguardandoDesde: status?.aguardando === true ? (status.em ?? null) : null,
+          descartado,
+          descartadoEm: descartado ? descarteEm : null,
         });
       }
       return out.sort((a, b) => b.confirmadoEm.localeCompare(a.confirmadoEm));
@@ -1983,6 +2022,20 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         em: clock.now().toISOString(),
       });
       mesaHumanizada.invalidar(); // o clique aparece na hora, sem esperar o TTL
+    },
+    // DESCARTE (2026-08-04): sem interesse ou sem documentação, a secretária
+    // tira o cliente da fila. Nada é apagado — o fato fica registrado e a
+    // reativação (manual ou por um SIM novo do cliente) o traz de volta.
+    marcarDescarte: async (chatId: string, valor: boolean): Promise<void> => {
+      if (valor) {
+        await json.put('humanizado-descarte', chatId, {
+          chatId,
+          em: clock.now().toISOString(),
+        });
+      } else {
+        await json.del('humanizado-descarte', chatId);
+      }
+      mesaHumanizada.invalidar();
     },
     /** Descarta a mesa guardada — chamado por QUALQUER ação do painel. */
     invalidar: (): void => {
@@ -2008,7 +2061,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       else confirmados += 1;
     }
     const prontosParaPerito = (await humanizado.clientes().catch(() => [])).filter(
-      (m) => m.completo,
+      (m) => m.completo && !m.descartado,
     ).length;
     const dados: FunilResumo = {
       fase1Completa: fase1.length,

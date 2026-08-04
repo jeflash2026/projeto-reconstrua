@@ -87,6 +87,17 @@ export async function marcarAguardando(chatId: string, valor: boolean): Promise<
   return { ok: r?.ok === true };
 }
 
+/** DESCARTE (2026-08-04): sem interesse ou sem documentação, o cliente sai da
+ *  fila (valor=true); valor=false reativa. Um SIM novo do cliente no WhatsApp
+ *  também o traz de volta sozinho — nada é perdido. */
+export async function descartarCliente(chatId: string, valor: boolean): Promise<{ ok: boolean }> {
+  const r = await postJson<{ ok: boolean }>(
+    `/admin/humanizado/clientes/${encodeURIComponent(chatId)}/descartar`,
+    { valor },
+  );
+  return { ok: r?.ok === true };
+}
+
 export async function removerDoc(chatId: string, id: string): Promise<{ ok: boolean }> {
   try {
     const res = await fetch(

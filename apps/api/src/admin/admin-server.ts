@@ -177,9 +177,15 @@ export function buildAdminServer(
           completo: boolean;
           aguardandoAssinatura: boolean;
           aguardandoDesde: string | null;
+          /** Descarte da secretária (2026-08-04) — fora da fila até um SIM
+           *  novo do cliente ou a reativação manual. */
+          descartado?: boolean;
+          descartadoEm?: string | null;
         }[]
       >;
       marcarAguardando(chatId: string, valor: boolean): Promise<void>;
+      /** Descarta (true) ou reativa (false) um cliente da mesa. */
+      marcarDescarte?(chatId: string, valor: boolean): Promise<void>;
       /** PERFORMANCE (2026-08-04): a mesa é cara de derivar e fica em cache
        *  curto; qualquer AÇÃO do painel descarta o guardado. */
       invalidar?(): void;
@@ -688,16 +694,18 @@ export function buildAdminServer(
   // só sai com o ciclo COMPLETO — fase 1 (CPF+HISCON) + interesse CONFIRMADO
   // após o dossiê + os 3 documentos anexados pelo Atendimento Humanizado.
   // Sem a mesa montada (opts.humanizado ausente), a trava não se aplica.
+  // Cliente DESCARTADO pela secretária (2026-08-04) não conta como apto —
+  // mesmo com docs completos, o caso está fora da fila até ser reativado.
   async function clientesAptosParaPedido(): Promise<Set<string> | null> {
     if (!opts.humanizado) return null;
     const mesa = await opts.humanizado.clientes();
-    return new Set(mesa.filter((c) => c.completo).map((c) => c.clienteId));
+    return new Set(mesa.filter((c) => c.completo && c.descartado !== true).map((c) => c.clienteId));
   }
   /** Os mesmos aptos, indexados por chatId (o fluxo de perícia usa o chat). */
   async function chatsAptosParaPedido(): Promise<Set<string> | null> {
     if (!opts.humanizado) return null;
     const mesa = await opts.humanizado.clientes();
-    return new Set(mesa.filter((c) => c.completo).map((c) => c.chatId));
+    return new Set(mesa.filter((c) => c.completo && c.descartado !== true).map((c) => c.chatId));
   }
 
   // TODOS os clientes com HISCON legível (Decreto 2026-07-23) — o perito trabalha
@@ -1485,6 +1493,17 @@ export function buildAdminServer(
     const body = (request.body ?? {}) as { valor?: boolean };
     await opts.humanizado.marcarAguardando(chatId, body.valor === true);
     return { ok: true, aguardando: body.valor === true };
+  });
+
+  // DESCARTE (2026-08-04): sem interesse ou sem documentação, o cliente sai da
+  // fila da secretária. valor=false reativa; um SIM novo do cliente também.
+  app.post('/admin/humanizado/clientes/:chatId/descartar', async (request, reply) => {
+    if (!opts.humanizado?.marcarDescarte)
+      return reply.code(503).send({ error: 'descarte indisponível nesta montagem' });
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { valor?: boolean };
+    await opts.humanizado.marcarDescarte(chatId, body.valor === true);
+    return { ok: true, descartado: body.valor === true };
   });
 
   // ── PARECER EM LOTE (Onda 3) — a base LEGADA (cadastro do fluxo antigo)

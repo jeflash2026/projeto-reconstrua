@@ -316,6 +316,11 @@ button {
   border-left-color: var(--ok);
 }
 
+.stat-card.descartado {
+  border-left-color: #9aa7b4;
+  opacity: 0.85;
+}
+
 .stat-valor {
   font-size: 1.7rem;
   font-weight: 800;
@@ -372,6 +377,22 @@ button {
   .grade-cartoes {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── DESCARTE (2026-08-04): botão discreto e cartão apagado ────────────────── */
+.btn.descartar {
+  color: #8a4a4a;
+  border-color: #e2c4c4;
+}
+
+.btn.descartar:hover {
+  color: var(--vermelho);
+  border-color: var(--vermelho);
+}
+
+.card.descartado {
+  opacity: 0.75;
+  background: #fafbfc;
 }
 
 /* Cabeçalho de ESTADO (organização da mesa por UF) */

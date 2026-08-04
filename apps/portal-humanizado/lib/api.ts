@@ -58,6 +58,10 @@ export interface ClienteHumanizado {
   aguardandoAssinatura: boolean;
   /** QUANDO a secretária marcou "enviei a documentação" (ISO) — null se não marcou. */
   aguardandoDesde: string | null;
+  /** DESCARTE (2026-08-04): fora da fila até um SIM novo do cliente ou a
+   *  reativação manual. Opcionais: a API do build anterior não os envia. */
+  descartado?: boolean;
+  descartadoEm?: string | null;
 }
 
 export interface DocEquipe {

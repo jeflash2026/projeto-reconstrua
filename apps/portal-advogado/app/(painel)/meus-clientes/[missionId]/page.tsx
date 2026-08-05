@@ -182,6 +182,7 @@ const ClienteDestinadoPage = async ({
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
+                  alignItems: 'center',
                   flexWrap: 'wrap',
                   gap: 6,
                 }}
@@ -189,7 +190,22 @@ const ClienteDestinadoPage = async ({
                 <strong>
                   Processo {a.numero} · {ROTULO_CATEGORIA[a.categoria]}
                 </strong>
-                <span className="badge">{a.banco}</span>
+                {/* BANCO EM DESTAQUE (pedido do dono, 2026-08-05): o réu do
+                    processo salta aos olhos — chip dourado, não um selo miúdo. */}
+                <span
+                  style={{
+                    background: 'var(--accent, #d4a437)',
+                    color: '#1b1b20',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    letterSpacing: '0.02em',
+                    padding: '4px 14px',
+                    borderRadius: 8,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  🏦 {a.banco}
+                </span>
               </div>
               <div style={{ fontSize: 13, margin: '4px 0 8px', color: 'var(--text-dim, #667)' }}>
                 {a.regra}

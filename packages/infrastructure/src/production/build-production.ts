@@ -1450,6 +1450,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // assinada), que nasce ADIANTE na composição — ref tardio, ligado lá.
   let poolProcuracaoRef: (advogadoId: string | null) => Promise<readonly ClienteElegivel[]> = () =>
     Promise.resolve([]);
+  // Os FATOS do modelo comercial para o dossiê do narrador (procuração
+  // assinada + processos por UF + carteiras) — ligados adiante, após a mesa.
+  let resumoComercialRef: () => Promise<Record<string, unknown>> = () => Promise.resolve({});
   const jarvisCompletion = llm.completion;
   const jarvis = new JarvisRuntime({
     json,
@@ -1512,6 +1515,16 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       try {
         d['periciasEmAndamento10Dias'] = (await periciaFluxo.emAndamento()).length;
         d['periciasConcluidasProntasAdvogado'] = (await periciaFluxo.concluidas()).length;
+      } catch {
+        /* idem */
+      }
+      // GUIA V2 (decreto 2026-08-04): os fatos do MODELO COMERCIAL — clientes
+      // com PROCURAÇÃO ASSINADA (mesa do humanizado) com os PROCESSOS contados
+      // pela régua oficial, por UF e por advogado marcado, + as carteiras de
+      // créditos. Sem isto o narrador respondia com contratos CRUS da fase 1
+      // (caso real: "200 contratos ≈ 4-5 clientes" usando média de 49/cliente).
+      try {
+        Object.assign(d, await resumoComercialRef());
       } catch {
         /* idem */
       }
@@ -2140,6 +2153,68 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       });
     }
     return out;
+  };
+
+  // Os FATOS do modelo comercial no DOSSIÊ do narrador (decreto 2026-08-04):
+  // a resposta a "quantos clientes preciso para 200 contratos da doutora X?"
+  // sai da régua CERTA — processos do guia v2, clientes com procuração
+  // ASSINADA (mesa completos), por UF e por advogado, mais as carteiras.
+  resumoComercialRef = async (): Promise<Record<string, unknown>> => {
+    const mesa = await humanizado.clientes();
+    const completos = mesa.filter((c) => c.completo && !c.descartado);
+    const advs = await staffStore.byRole('advogado');
+    const nomeAdv = new Map(advs.map((a) => [a.id, a.name]));
+    const porUf: Record<string, { clientes: number; processos: number; contratos: number }> = {};
+    const clientesLista: {
+      nome: string;
+      uf: string;
+      processos: number;
+      contratos: number;
+      advogadoMarcado: string | null;
+    }[] = [];
+    for (const c of completos) {
+      const acoes = await pericia.acoesDe(c.chatId).catch(() => null);
+      const processos = acoes?.agrupamento.resumo.totalAcoes ?? 0;
+      const contratos = acoes?.agrupamento.resumo.totalContratos ?? c.contratos;
+      const uf = c.uf || 'SEM UF';
+      porUf[uf] = {
+        clientes: (porUf[uf]?.clientes ?? 0) + 1,
+        processos: (porUf[uf]?.processos ?? 0) + processos,
+        contratos: (porUf[uf]?.contratos ?? 0) + contratos,
+      };
+      clientesLista.push({
+        nome: c.nome,
+        uf,
+        processos,
+        contratos,
+        advogadoMarcado: c.advogadoId !== null ? (nomeAdv.get(c.advogadoId) ?? null) : null,
+      });
+    }
+    const carteiras = [];
+    for (const a of advs.filter((x) => x.active)) {
+      const s = await creditosAdvogado.saldo(a.id);
+      if (s.comprados > 0 || s.abatidos > 0)
+        carteiras.push({
+          advogado: a.name,
+          contratosComprados: s.comprados,
+          processosAbatidos: s.abatidos,
+          saldo: s.saldo,
+        });
+    }
+    return {
+      // A RÉGUA OFICIAL escrita para o narrador citar (nunca inventar outra):
+      reguaDoNegocio:
+        'PROCESSO = a unidade vendida ao advogado parceiro (R$ 100/un). Contrato ATIVO na janela de 5 anos: 1 = 1 processo. Não-ativos: 3 do mesmo banco+ano = 1 processo (teto 15/banco). Só clientes com PROCURAÇÃO ASSINADA (documentação completa no humanizado) contam para pacotes e abatimentos.',
+      procuracaoAssinada: {
+        clientes: completos.length,
+        processosTotais: clientesLista.reduce((s, c) => s + c.processos, 0),
+        contratosTotais: clientesLista.reduce((s, c) => s + c.contratos, 0),
+        porUf,
+        // Nominal (a mesa é pequena — só completos), maiores primeiro.
+        lista: clientesLista.sort((a, b) => b.processos - a.processos).slice(0, 40),
+      },
+      carteirasAdvogados: carteiras,
+    };
   };
 
   // Decreto 2026-08-03 (pedido do dono): o FUNIL para a Visão Executiva —

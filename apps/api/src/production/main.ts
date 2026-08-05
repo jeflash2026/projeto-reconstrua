@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { assembleProduction, ProductionGoLive } from '@reconstrua/infrastructure';
 import { SystemClock, UuidV4Generator } from '@reconstrua/infrastructure';
-import { planilhaDeContratosDetalhada } from '@reconstrua/application';
+import { memoCurto, planilhaDeContratosDetalhada } from '@reconstrua/application';
 import { buildProductionServer } from './production-server.js';
 import { buildAdminServer } from '../admin/admin-server.js';
 import { buildAdvogadoServer } from '../advogado/advogado-server.js';
@@ -149,10 +149,19 @@ async function main(): Promise<void> {
   });
   // Decreto 2026-07-30: o cliente destinado chega ao advogado com o ESTUDO —
   // dossiê de contratos da janela + a MESMA planilha (CSV Excel-BR) do perito.
+  // PERFORMANCE (2026-08-05, caso Gracielle "não abre"): a página do cliente
+  // dispara estudo+ações em PARALELO e cada um resolvia o cliente varrendo a
+  // LISTA COMPLETA sem cache. Memória curta com requentar: a lista vencida sai
+  // na hora e a varredura nova corre por trás.
+  const listaClientesMemo = memoCurto(
+    async () => (await prod.adminView.clientes?.list()) ?? [],
+    60_000,
+    { requentar: true },
+  );
   const clienteDoChat = async (
     chatId: string,
   ): Promise<{ clienteId: string; quem: string } | null> => {
-    const lista = (await prod.adminView.clientes?.list()) ?? [];
+    const lista = await listaClientesMemo();
     const c = lista.find((x) => x.chatId === chatId);
     return c ? { clienteId: c.clienteId, quem: c.quem } : null;
   };

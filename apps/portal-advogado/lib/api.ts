@@ -20,7 +20,7 @@ export function advogadoId(): string | null {
   return value.trim() === '' ? null : value;
 }
 
-export async function getJson<T>(path: string): Promise<T | null> {
+export async function getJson<T>(path: string, timeoutMs?: number): Promise<T | null> {
   const id = advogadoId();
   const headers: Record<string, string> = {};
   if (ADVOGADO_TOKEN) headers['authorization'] = `Bearer ${ADVOGADO_TOKEN}`;
@@ -29,6 +29,10 @@ export async function getJson<T>(path: string): Promise<T | null> {
     const res = await fetch(`${API_BASE}${path}`, {
       cache: 'no-store',
       headers,
+      // Blindagem (caso Gracielle, 2026-08-05): uma leitura pesada na API não
+      // pode deixar a página do advogado carregando para SEMPRE — expira e a
+      // seção mostra "indisponível" em vez de nada abrir.
+      ...(timeoutMs !== undefined ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     });
     if (!res.ok) return null;
     return (await res.json()) as T;

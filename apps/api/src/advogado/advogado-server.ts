@@ -565,6 +565,28 @@ export function buildAdvogadoServer(
   //    a planilha em Excel (CSV Excel-BR, contrato EXATO como no HISCON) e os
   //    documentos da fase 2 colhidos pelo time (procuração/RG/comprovante).
   //    Tudo ISOLADO por atribuição: só o advogado da missão enxerga. ──────────
+  // PERFORMANCE (2026-08-05, caso Gracielle "não abre"): a página do cliente
+  // dispara 3 leituras em PARALELO e cada uma refazia o refresh COMPLETO do
+  // projetor só para mapear missionId→chatId. Mapa em memória curta (30s);
+  // missão que não está no mapa (atribuição recém-feita) força UM refresh.
+  let mapaMissoes: { em: number; mapa: Map<string, string> } | null = null;
+  async function chatDaMissao(missionId: string): Promise<string | null> {
+    const valido = mapaMissoes !== null && Date.now() - mapaMissoes.em < 30_000;
+    if (!valido || !mapaMissoes?.mapa.has(missionId)) {
+      await op.projector.refresh();
+      mapaMissoes = {
+        em: Date.now(),
+        mapa: new Map(
+          op.projector
+            .missions()
+            .filter((m) => m.chatId !== null)
+            .map((m) => [m.missionId, m.chatId as string]),
+        ),
+      };
+    }
+    return mapaMissoes.mapa.get(missionId) ?? null;
+  }
+
   async function chatDaMissaoAtribuida(
     request: FastifyRequest,
     missionId: string,
@@ -573,8 +595,7 @@ export function buildAdvogadoServer(
     if (!advogadoId) return { erro: 'auth' };
     const assignments = await op.work.myMissions(advogadoId);
     if (!assignments.some((a) => a.missionId === missionId)) return { erro: 'atribuicao' };
-    await op.projector.refresh();
-    const chatId = op.projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null;
+    const chatId = await chatDaMissao(missionId);
     if (chatId === null) return { erro: 'conversa' };
     return { chatId };
   }

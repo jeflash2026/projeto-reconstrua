@@ -109,11 +109,14 @@ const ClienteDestinadoPage = async ({
   params: { missionId: string };
   searchParams: { nome?: string };
 }): Promise<ReactElement> => {
+  // Timeouts (caso Gracielle, 2026-08-05): estudo e ações parseiam o HISCON —
+  // folga de 45s no pior caso frio; o resto é leve. A página SEMPRE abre; a
+  // seção que expirar mostra "indisponível" e volta no refresh.
   const [data, estudo, equipe, acoes] = await Promise.all([
-    getJson<ProcessDetail>(`/advogado/processos/${params.missionId}`),
-    getJson<Estudo>(`/advogado/processos/${params.missionId}/estudo`),
-    getJson<{ docs: DocEquipe[] }>(`/advogado/processos/${params.missionId}/docs-equipe`),
-    getJson<DossieAcoes>(`/advogado/processos/${params.missionId}/acoes`),
+    getJson<ProcessDetail>(`/advogado/processos/${params.missionId}`, 20000),
+    getJson<Estudo>(`/advogado/processos/${params.missionId}/estudo`, 45000),
+    getJson<{ docs: DocEquipe[] }>(`/advogado/processos/${params.missionId}/docs-equipe`, 20000),
+    getJson<DossieAcoes>(`/advogado/processos/${params.missionId}/acoes`, 45000),
   ]);
   const nome = (searchParams.nome ?? '').trim() || estudo?.quem || 'Cliente';
   if (!data) {

@@ -2204,7 +2204,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     return {
       // A RÉGUA OFICIAL escrita para o narrador citar (nunca inventar outra):
       reguaDoNegocio:
-        'PROCESSO = a unidade vendida ao advogado parceiro (R$ 100/un). Contrato ATIVO na janela de 5 anos: 1 = 1 processo. Não-ativos: 3 do mesmo banco+ano = 1 processo (teto 15/banco). Só clientes com PROCURAÇÃO ASSINADA (documentação completa no humanizado) contam para pacotes e abatimentos.',
+        'A UNIDADE COMERCIAL vendida ao advogado parceiro (R$ 100/un) é chamada de CONTRATO ou PROCESSO — são SINÔNIMOS no negócio. Quando o fundador diz "a advogada comprou 200 contratos", são 200 unidades comerciais. A conversão a partir do HISCON: contrato ATIVO na janela de 5 anos = 1 unidade; não-ativos = 3 do mesmo banco+ano viram 1 unidade (teto de 15 por banco). NUNCA compare a compra com as LINHAS CRUAS do HISCON (ex.: 55 linhas do Helio = 19 unidades). Só clientes com PROCURAÇÃO ASSINADA (documentação completa no humanizado) contam para pacotes. O ABATE da carteira só acontece no ENCAMINHAMENTO do cliente ao advogado (marcar o responsável no humanizado NÃO abate — só define a quem o cliente pertence). O saldo REAL está em carteirasAdvogados; se a compra não estiver lá registrada, diga que ela ainda não foi registrada na carteira.',
       procuracaoAssinada: {
         clientes: completos.length,
         processosTotais: clientesLista.reduce((s, c) => s + c.processos, 0),

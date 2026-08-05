@@ -196,6 +196,29 @@ export class PeritoView {
     };
   }
 
+  /** A planilha ESTRUTURADA (colunas + linhas, já com o CPF e as linhas em
+   *  branco entre bancos) — o pacote do perito gera o Excel REAL (.xlsx) a
+   *  partir daqui, com largura de coluna calculada (pedido do dono,
+   *  2026-08-05: o CSV abria espremido — "1,5E+09" no contrato). */
+  async planilhaEstruturada(
+    clienteId: string,
+    now?: Date,
+  ): Promise<{ clienteId: string; quem: string; planilha: Planilha } | null> {
+    const c = await this.contratos(clienteId, now);
+    if (c === null) return null;
+    const ref = now ?? new Date();
+    const selecionado = this.selecaoDoGuia(c.detalhado, ref);
+    const plan =
+      selecionado.contratos.length > 0
+        ? planilhaDeContratosDetalhada(`Contratos — ${c.quem}`, selecionado, ref)
+        : planilhaDeContratos(`Contratos — ${c.quem}`, c.parse);
+    return {
+      clienteId: c.clienteId,
+      quem: c.quem,
+      planilha: this.comSeparadoresDeBanco(await this.comCpf(plan, c.chatId), 1),
+    };
+  }
+
   /** Lote: TODA a fila do perito, um arquivo POR CLIENTE (nunca misturado).
    *  Decreto 2026-07-27: mesma régua da fila — só a fase 1 completa (CPF). */
   async planilhasDaFila(now?: Date): Promise<readonly PlanilhaGerada[]> {

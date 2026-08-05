@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
 import { zipStore, nomeArquivoSeguro } from '../util/zip.js';
+import { xlsxDePlanilha } from '../util/xlsx.js';
 import {
   CATALOGO_CONSIGNADO_INSS,
   ESTRATEGIAS_CONSIGNADO_INSS,
@@ -784,13 +785,18 @@ export function buildAdminServer(
   app.get('/admin/jornada/pericia/:clienteId/pacote', async (request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
     const { clienteId } = request.params as { clienteId: string };
-    const gerada = await op.perito.planilha(clienteId);
+    const gerada = await op.perito.planilhaEstruturada(clienteId);
     if (gerada === null) return reply.code(404).send({ error: 'cliente não encontrado' });
     // Pedido do dono (2026-08-05): o pacote e a planilha levam o NOME do
-    // cliente — o perito acha o zip de cada pessoa pelo nome, não por um id.
+    // cliente — e a planilha é EXCEL REAL (.xlsx) com largura de coluna
+    // calculada (o CSV abria espremido: "1,5E+09" no contrato, "####" nas
+    // datas), contrato como TEXTO e cabeçalho em negrito congelado.
     const nomeCliente = nomeArquivoSeguro(gerada.quem, `cliente-${gerada.clienteId.slice(0, 8)}`);
     const arquivos: { name: string; content: string | Buffer }[] = [
-      { name: `Contratos - ${nomeCliente}.csv`, content: gerada.conteudo },
+      {
+        name: `Contratos - ${nomeCliente}.xlsx`,
+        content: xlsxDePlanilha('Contratos', gerada.planilha.colunas, gerada.planilha.linhas),
+      },
     ];
     const cliente = (await op.clientes?.list())?.find(
       (c) => c.clienteId === clienteId || c.chatId === clienteId,

@@ -124,10 +124,23 @@ const DocsFase2 = ({ chatId }: { chatId: string }): ReactElement => {
           {docs.map((d) => (
             <li key={d.id} style={{ margin: '3px 0' }}>
               <strong>{d.rotulo}</strong> — <span className="mono">{d.nome}</span>{' '}
+              {/* Pedido do dono (2026-08-04): PRÉ-VISUALIZAR o anexo — a
+                  secretária confere se enviou o arquivo certo. Abre em nova
+                  aba (foto/PDF inline); âncora crua leva o basePath explícito
+                  (lição do 'ver documento'). */}
+              <a
+                className="btn"
+                style={{ fontSize: 11, padding: '1px 8px', marginLeft: 6 }}
+                href={`/humanizado/api/doc/${encodeURIComponent(chatId)}/${encodeURIComponent(d.id)}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                ver
+              </a>{' '}
               <button
                 type="button"
                 className="btn"
-                style={{ fontSize: 11, padding: '1px 8px', marginLeft: 6 }}
+                style={{ fontSize: 11, padding: '1px 8px', marginLeft: 4 }}
                 disabled={busy}
                 onClick={() => {
                   void remover(d.id);

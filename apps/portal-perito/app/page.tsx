@@ -76,12 +76,14 @@ function cpfBr(cpf: string | null): string {
 
 const CentralPerito = async (): Promise<ReactElement> => {
   // As duas leituras são INDEPENDENTES: vão JUNTAS (uma esperava a outra e a
-  // tela abria na soma dos dois tempos).
+  // tela abria na soma dos dois tempos). Timeout de 45s: a varredura FRIA
+  // (pós-restart da api) passava dos 20s e a Central abria ZERADA — caso real
+  // 2026-08-05; a api agora aquece os caches no boot, e este teto é a folga.
   const [lista, fluxo] = await Promise.all([
-    getJson<{ clientes: ClienteComHiscon[] }>('/admin/jornada/pericia/todos-com-hiscon', 20000),
+    getJson<{ clientes: ClienteComHiscon[] }>('/admin/jornada/pericia/todos-com-hiscon', 45000),
     getJson<{ emAndamento: PericiaEmFluxo[]; concluidas: PericiaEmFluxo[] }>(
       '/admin/jornada/pericia/em-fluxo',
-      20000,
+      45000,
     ),
   ]);
   const comHiscon = lista?.clientes ?? [];

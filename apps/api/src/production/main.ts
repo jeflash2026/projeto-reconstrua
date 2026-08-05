@@ -248,6 +248,30 @@ async function main(): Promise<void> {
     encerrarComGraca('SIGINT');
   });
 
+  // AQUECIMENTO DOS CACHES (caso real 2026-08-05: após um restart da api, a
+  // Central do Perito abria ZERADA — a varredura fria de "todos com HISCON"
+  // passava dos 20s de timeout do portal e a página desistia). Depois do
+  // boot, as varreduras caras são pré-computadas UMA vez em segundo plano;
+  // best-effort: falha de aquecimento nunca afeta a produção.
+  void (async () => {
+    try {
+      await prod.adminView.perito?.todosComHiscon();
+    } catch {
+      /* aquecimento é cortesia */
+    }
+    try {
+      await prod.pericia.potencialDeTodos();
+    } catch {
+      /* idem */
+    }
+    try {
+      await prod.humanizado.clientes();
+    } catch {
+      /* idem */
+    }
+    process.stdout.write('[reconstrua] caches aquecidos (perito/potencial/mesa).\n');
+  })();
+
   // DECRETO 2026-07-30 (ban da Meta por "spam"): o loop temporal NÃO fala mais
   // com cliente nenhum por INICIATIVA própria. Saíram do ar: ingress.tick
   // (follow-ups agendados + lembretes de SLA + retomada + CPF das 09:00 — o

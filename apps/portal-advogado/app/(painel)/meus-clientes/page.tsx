@@ -1,7 +1,6 @@
 // MEUS CLIENTES (decreto 2026-07-29) — os clientes que o Administrador destinou
 // a este advogado, POR NOME. Clicar no nome abre todos os documentos recebidos
 // pelo WhatsApp, prontos para download (isolamento por atribuição no servidor).
-import Link from 'next/link';
 import type { CSSProperties, ReactElement } from 'react';
 import AutoRefresh from '../../../components/auto-refresh';
 import { getJson, type MeuCliente, type PericiaDoCliente } from '../../../lib/api';
@@ -125,12 +124,18 @@ const MeusClientesPage = async ({
               {clientes.map((c) => (
                 <tr key={c.missionId}>
                   <td>
-                    <Link
-                      href={`/meus-clientes/${encodeURIComponent(c.missionId)}?nome=${encodeURIComponent(c.nome)}`}
+                    {/* NAVEGAÇÃO COMPLETA (caso Gracielle/Jessé, 2026-08-05):
+                        o <Link> do Next ficava MUDO nesta página pesada (o
+                        clique parecia morto; "abrir em nova aba" funcionava).
+                        O <a> comum faz o navegador navegar de verdade — com o
+                        carregando visível — igual à nova aba, na mesma aba.
+                        Href com o basePath explícito (/advogado). */}
+                    <a
+                      href={`/advogado/meus-clientes/${encodeURIComponent(c.missionId)}?nome=${encodeURIComponent(c.nome)}`}
                       style={{ color: 'var(--accent)', fontWeight: 600 }}
                     >
                       {c.nome}
-                    </Link>
+                    </a>
                   </td>
                   <td>
                     <SeloPedido p={c.pericia} />

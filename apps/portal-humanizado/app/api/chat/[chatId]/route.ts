@@ -44,6 +44,9 @@ interface AcaoChat {
   base64?: string;
   mensagemId?: string;
   tipo?: string;
+  /** Template: qual modelo e as variáveis do corpo ({{1}} = nome do cliente). */
+  template?: string;
+  variaveis?: string[];
 }
 
 export async function POST(
@@ -60,7 +63,10 @@ export async function POST(
       path: `${chat}/documento`,
       payload: { nome: body.nome, base64: body.base64, autor },
     },
-    template: { path: `${chat}/template`, payload: { autor } },
+    template: {
+      path: `${chat}/template`,
+      payload: { nome: body.template, variaveis: body.variaveis, autor },
+    },
     confirmar: {
       path: `${chat}/confirmar`,
       payload: { mensagemId: body.mensagemId, tipo: body.tipo },

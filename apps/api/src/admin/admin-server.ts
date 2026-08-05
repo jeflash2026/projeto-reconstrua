@@ -241,6 +241,7 @@ export function buildAdminServer(
         chatId: string,
         nome: string,
         autor: string,
+        variaveis?: readonly string[],
       ): Promise<{ ok: true } | { ok: false; error: string }>;
       confirmarDocumento(
         chatId: string,
@@ -1876,11 +1877,17 @@ export function buildAdminServer(
   app.post('/admin/humanizado/chat/:chatId/template', async (request, reply) => {
     if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
     const { chatId } = request.params as { chatId: string };
-    const body = (request.body ?? {}) as { nome?: string; autor?: string };
+    const body = (request.body ?? {}) as { nome?: string; autor?: string; variaveis?: unknown };
+    // {{1}}, {{2}}… do corpo — só texto curto (ex.: o primeiro nome do cliente).
+    const variaveis = (Array.isArray(body.variaveis) ? body.variaveis : [])
+      .filter((v): v is string => typeof v === 'string' && v.trim() !== '')
+      .map((v) => v.trim().slice(0, 120))
+      .slice(0, 3);
     const r = await opts.chatHumanizado.enviarTemplate(
       chatId,
       body.nome ?? 'contato_equipe',
       body.autor ?? 'Equipe',
+      variaveis,
     );
     if (!r.ok) return reply.code(422).send(r);
     return r;

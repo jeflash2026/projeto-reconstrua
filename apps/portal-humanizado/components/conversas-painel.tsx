@@ -329,7 +329,11 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
                 </a>
               </div>
               {/* key = chatId: trocar de cliente REMONTA o chat (zera o estado). */}
-              <ChatConversa key={selecionado} chatId={selecionado} />
+              <ChatConversa
+                key={selecionado}
+                chatId={selecionado}
+                nomeCliente={clienteSelecionado?.nome ?? null}
+              />
             </>
           )}
         </section>

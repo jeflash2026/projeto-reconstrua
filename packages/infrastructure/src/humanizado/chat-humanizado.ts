@@ -83,7 +83,12 @@ export interface EnvioHumanizado {
     anexo: { readonly fileName: string; readonly mimeType: string; readonly base64: string },
     caption: string,
   ): Promise<void>;
-  sendTemplate(chatId: string, nome: string, idioma?: string): Promise<boolean>;
+  sendTemplate(
+    chatId: string,
+    nome: string,
+    idioma?: string,
+    variaveis?: readonly string[],
+  ): Promise<boolean>;
 }
 
 export interface ChatHumanizadoDeps {
@@ -243,18 +248,25 @@ export class ChatHumanizadoService {
     return { ok: true };
   }
 
-  /** Template aprovado (1º contato fora da janela de 24h). */
-  async enviarTemplate(chatId: string, nome: string, autor: string): Promise<Resultado> {
+  /** Template aprovado (1º contato/retomada fora da janela de 24h).
+   *  `variaveis` preenche os {{1}}, {{2}}… do corpo — ex.: o primeiro nome do
+   *  cliente, que a plataforma já conhece. */
+  async enviarTemplate(
+    chatId: string,
+    nome: string,
+    autor: string,
+    variaveis: readonly string[] = [],
+  ): Promise<Resultado> {
     if (this.deps.envio === null) return { ok: false, error: SEM_CANAL };
-    const ok = await this.deps.envio.sendTemplate(chatId, nome, 'pt_BR');
+    const ok = await this.deps.envio.sendTemplate(chatId, nome, 'pt_BR', variaveis);
     if (!ok)
       return {
         ok: false,
-        error: `a Meta recusou o template "${nome}" — confira se ele está APROVADO no Gerenciador`,
+        error: `a Meta recusou o template "${nome}" — confira se ele está APROVADO no Gerenciador (e se o corpo tem a variável {{1}})`,
       };
     await this.anotarSaida(chatId, {
       tipo: 'template',
-      texto: `[template ${nome} enviado]`,
+      texto: `[template ${nome} enviado${variaveis.length > 0 ? ` para ${variaveis[0] ?? ''}` : ''}]`,
       nomeArquivo: null,
       mime: null,
       sha256: null,

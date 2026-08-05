@@ -49,7 +49,7 @@ const ChatPage = async ({ params }: { params: { chatId: string } }): Promise<Rea
         Conversa pelo número oficial da equipe — 100% humana (a AHRI não responde aqui). Anexo que o
         cliente devolver pode ser salvo no perfil com um clique em &quot;Confirmar&quot;.
       </p>
-      <ChatConversa chatId={chatId} />
+      <ChatConversa chatId={chatId} nomeCliente={cliente?.nome ?? null} />
     </div>
   );
 };

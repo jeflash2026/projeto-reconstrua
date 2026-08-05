@@ -23,7 +23,21 @@ function horaBr(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-export default function ChatConversa({ chatId }: { chatId: string }): ReactElement {
+/** Primeiro nome com capitalização humana ("MARLENE" → "Marlene"). */
+function primeiroNomeDe(nome: string | null): string {
+  const bruto = (nome ?? '').trim().split(/\s+/)[0] ?? '';
+  if (bruto === '') return 'Cliente';
+  return bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
+}
+
+export default function ChatConversa({
+  chatId,
+  nomeCliente = null,
+}: {
+  chatId: string;
+  /** Nome do cliente (da mesa) — preenche o {{1}} dos templates. */
+  nomeCliente?: string | null;
+}): ReactElement {
   const [mensagens, setMensagens] = useState<MensagemChat[] | null>(null);
   const [texto, setTexto] = useState('');
   const [erro, setErro] = useState<string | null>(null);
@@ -213,19 +227,47 @@ export default function ChatConversa({ chatId }: { chatId: string }): ReactEleme
               }}
             />
           </label>
+          {/* TEMPLATES (2026-08-05): fora da janela de 24h a Meta só aceita
+              modelo aprovado. Dois botões: apresentação (1º contato) e
+              retomada (cliente que ficou de enviar documento e sumiu). O
+              {{1}} do corpo é preenchido com o primeiro nome do cliente. */}
           <button
             type="button"
             className="btn"
             disabled={ocupado}
-            title="Fora da janela de 24h a Meta só aceita o template aprovado — use este botão para iniciar a conversa"
+            title="1º contato: apresentação da Layara com o pedido dos documentos (template aprovado)"
             onClick={() => {
-              if (window.confirm('Enviar o template de contato da equipe para este cliente?'))
-                void acao({ acao: 'template' }).then((ok) => {
-                  if (ok) setAviso('Template enviado — aguarde o cliente responder.');
+              const primeiro = primeiroNomeDe(nomeCliente);
+              if (window.confirm(`Enviar a APRESENTAÇÃO da equipe para ${primeiro}?`))
+                void acao({
+                  acao: 'template',
+                  template: 'contato_equipe',
+                  variaveis: [primeiro],
+                }).then((ok) => {
+                  if (ok) setAviso('Apresentação enviada — aguarde o cliente responder.');
                 });
             }}
           >
-            Iniciar pelo template (24h)
+            Template: apresentação
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={ocupado}
+            title="Retomada após 24h: lembrete da documentação pendente (template aprovado)"
+            onClick={() => {
+              const primeiro = primeiroNomeDe(nomeCliente);
+              if (window.confirm(`Enviar a COBRANÇA da documentação para ${primeiro}?`))
+                void acao({
+                  acao: 'template',
+                  template: 'retomada_documentos',
+                  variaveis: [primeiro],
+                }).then((ok) => {
+                  if (ok) setAviso('Lembrete da documentação enviado.');
+                });
+            }}
+          >
+            Template: cobrar documentação
           </button>
         </div>
       </div>

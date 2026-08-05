@@ -202,15 +202,35 @@ export class MetaCloudGateway implements ConversationGateway {
   }
 
   /** TEMPLATE aprovado (decreto 2026-08-05, canal humanizado): a ÚNICA forma de
-   *  iniciar conversa fora da janela de 24h. Devolve se a Meta ACEITOU — o
-   *  chamador mostra o erro à secretária em vez de fingir que enviou. */
-  async sendTemplate(chatId: string, nome: string, idioma = 'pt_BR'): Promise<boolean> {
+   *  iniciar conversa fora da janela de 24h. `variaveis` preenche os {{1}},
+   *  {{2}}… do corpo (ex.: o primeiro nome do cliente). Devolve se a Meta
+   *  ACEITOU — o chamador mostra o erro à secretária em vez de fingir que
+   *  enviou. */
+  async sendTemplate(
+    chatId: string,
+    nome: string,
+    idioma = 'pt_BR',
+    variaveis: readonly string[] = [],
+  ): Promise<boolean> {
     const response = await this.http.postJson(this.messagesUrl(), this.headers(), {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
       to: toNumber(chatId),
       type: 'template',
-      template: { name: nome, language: { code: idioma } },
+      template: {
+        name: nome,
+        language: { code: idioma },
+        ...(variaveis.length > 0
+          ? {
+              components: [
+                {
+                  type: 'body',
+                  parameters: variaveis.map((texto) => ({ type: 'text', text: texto })),
+                },
+              ],
+            }
+          : {}),
+      },
     });
     if (response.status >= 400) {
       this.falha('sendTemplate', response.body);

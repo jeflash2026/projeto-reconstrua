@@ -1700,3 +1700,129 @@ details[open] > .lab-explica-body,
 .chat-input input:focus {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+
+/* ── CENTRAL DO PERITO v2 (2026-08-05) — resumo do dia, grade e prazos ────── */
+.pc-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+
+.pc-stat {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--text-dim);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+
+.pc-stat.baixar {
+  border-left-color: var(--accent);
+}
+
+.pc-stat.andamento {
+  border-left-color: var(--warn);
+}
+
+.pc-stat.pronta {
+  border-left-color: var(--ok);
+}
+
+.pc-stat .valor {
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.pc-stat.baixar .valor {
+  color: var(--accent);
+}
+
+.pc-stat.andamento .valor {
+  color: var(--warn);
+}
+
+.pc-stat.pronta .valor {
+  color: var(--ok);
+}
+
+.pc-stat .rotulo {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pc-stat .dica {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.pc-busca {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+
+.pc-busca input[type='text'] {
+  flex: 1 1 260px;
+  max-width: 420px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.pc-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 560px) {
+  .pc-grade {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Prazo dos 10 dias em cores: folga → atenção → crítico/vencido */
+.pc-prazo {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+}
+
+.pc-prazo.folga {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.pc-prazo.atencao {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.pc-prazo.critico {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.pc-card-pericia {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--warn);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.pc-card-pericia.vencida {
+  border-left-color: var(--ok);
+}

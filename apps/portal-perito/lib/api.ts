@@ -63,6 +63,9 @@ export interface ClienteComHiscon {
   /** Decreto 2026-07-27: o CPF vem junto — necessário para protocolar o pedido
    *  administrativo nos bancos (a fila só traz quem já o informou). */
   cpf?: string | null;
+  /** Central v2 (2026-08-05): os PROCESSOS do guia — o que o perito protocola
+   *  de fato (ativos 1=1; não-ativos 3=1 por banco/ano). null = indisponível. */
+  processos?: number | null;
 }
 
 /** Cliente EM PERÍCIA (Decreto 2026-07-24) — 10 dias correndo, com credenciais/resposta. */

@@ -905,7 +905,23 @@ export function buildAdminServer(
     // HISCON). Onda 3: e o ciclo completo (confirmação + docs do humanizado).
     const aptos = await clientesAptosParaPedido();
     const todos = (await op.perito.todosComHiscon()).filter((c) => c.temCpf);
-    return { clientes: aptos === null ? todos : todos.filter((c) => aptos.has(c.clienteId)) };
+    const fila = aptos === null ? todos : todos.filter((c) => aptos.has(c.clienteId));
+    // Central v2 (2026-08-05): a fila é PEQUENA (só aptos) — cada linha ganha
+    // os PROCESSOS do guia (a régua do que o perito efetivamente protocola).
+    const clientes = [];
+    for (const c of fila) {
+      let processos: number | null = null;
+      try {
+        const a = (await opts.pericia?.acoesDe?.(c.chatId)) as {
+          agrupamento?: { resumo?: { totalAcoes?: number } };
+        } | null;
+        processos = a?.agrupamento?.resumo?.totalAcoes ?? null;
+      } catch {
+        /* sem processos não segura a fila */
+      }
+      clientes.push({ ...c, processos });
+    }
+    return { clientes };
   });
 
   // ── CARTEIRA DE CRÉDITOS DO ADVOGADO PARCEIRO (decreto 2026-08-04) ─────────

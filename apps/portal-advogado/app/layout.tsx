@@ -3,8 +3,9 @@ import type { ReactElement, ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AHRIOS — Advogado',
-  description: 'Portal do Advogado AHRIOS — trabalho jurídico sobre processos atribuídos.',
+  title: 'Projeto Reconstrua — Portal do Advogado',
+  description:
+    'Portal do Advogado do Projeto Reconstrua — trabalho jurídico sobre processos atribuídos. Operado pela AHRI TECNOLOGIA.',
 };
 
 // Portal operacional: nunca pré-renderizar no build (sem API no build Docker).

@@ -30,6 +30,29 @@ const LoginPage = (): ReactElement => {
   return (
     <div style={{ maxWidth: 420, margin: '10vh auto', padding: '0 16px' }}>
       <div className="card">
+        {/* Marca (2026-08-05): a porta de entrada já apresenta o projeto. */}
+        <div style={{ textAlign: 'center', marginBottom: 8 }}>
+          <img
+            src="/advogado/logo-ahri.png"
+            alt="Projeto Reconstrua"
+            style={{ width: 96, height: 96, objectFit: 'contain' }}
+          />
+          <div style={{ fontWeight: 700, letterSpacing: '0.04em' }}>
+            Projeto <span style={{ color: 'var(--accent)' }}>Reconstrua</span>
+          </div>
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--text-dim)',
+              marginTop: 2,
+            }}
+          >
+            Operado pela AHRI TECNOLOGIA
+          </div>
+        </div>
         <h1 className="page-title">Identifique-se</h1>
         <p className="page-sub">
           Entre com o seu CPF e a sua senha. Ainda não tem senha? Use o link de convite que o

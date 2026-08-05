@@ -35,8 +35,15 @@ const PainelLayout = ({ children }: { children: ReactNode }): ReactElement => {
   return (
     <div className="shell">
       <aside className="sidebar">
+        {/* MARCA (pedido do dono, 2026-08-05): a logo R do projeto + o nome
+            comercial; a operação tecnológica assina embaixo. O src carrega o
+            basePath explícito (assets de public/ vivem sob /advogado). */}
         <div className="brand">
-          AHRIOS <span>ADVOGADO</span>
+          <img src="/advogado/logo-ahri.png" alt="Projeto Reconstrua" className="brand-logo" />
+          <div className="brand-nome">
+            Projeto <span>Reconstrua</span>
+          </div>
+          <div className="brand-operacao">Operado pela AHRI TECNOLOGIA</div>
         </div>
         <Nav />
         <ThemeToggle />

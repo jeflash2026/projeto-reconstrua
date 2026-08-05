@@ -47,6 +47,7 @@ interface Linha {
   chatId: string;
   nome: string;
   telefone: string;
+  uf: string;
   previa: string;
   ultimaEm: string | null;
   naoLidas: number;
@@ -59,6 +60,9 @@ interface Linha {
 export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[] }): ReactElement {
   const [conversas, setConversas] = useState<ResumoChat[]>([]);
   const [filtro, setFiltro] = useState<Filtro>('todas');
+  // Filtro por ESTADO (pedido do dono, 2026-08-05): a secretária escolhe a UF
+  // e a lista mostra só as conversas daquele estado — igual à mesa.
+  const [uf, setUf] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [selecionado, setSelecionado] = useState<string | null>(null);
 
@@ -103,6 +107,7 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
         chatId: cv.chatId,
         nome: cliente?.nome ?? cv.chatId.split('@')[0] ?? cv.chatId,
         telefone: cv.chatId.split('@')[0] ?? cv.chatId,
+        uf: cliente?.uf || 'SEM UF',
         previa: cv.previa,
         ultimaEm: cv.ultimaEm,
         naoLidas: cv.naoLidas,
@@ -121,6 +126,7 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
         chatId: c.chatId,
         nome: c.nome,
         telefone: c.chatId.split('@')[0] ?? c.chatId,
+        uf: c.uf || 'SEM UF',
         previa: 'sem conversa no sistema ainda — inicie pelo template',
         ultimaEm: null,
         naoLidas: 0,
@@ -142,11 +148,30 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
     [linhas],
   );
 
+  // Contagem por UF (sobre a lista já filtrada pelos PAINÉIS — os chips mostram
+  // o tamanho de cada fila dentro do recorte escolhido).
+  const porUf = useMemo(() => {
+    const base =
+      filtro === 'aguardando'
+        ? linhas.filter((l) => l.aguardandoResposta)
+        : filtro === 'nao-lidas'
+          ? linhas.filter((l) => l.naoLidas > 0)
+          : filtro === 'cobranca'
+            ? linhas.filter((l) => l.emCobranca)
+            : linhas;
+    const contagens = new Map<string, number>();
+    for (const l of base) contagens.set(l.uf, (contagens.get(l.uf) ?? 0) + 1);
+    return [...contagens.entries()].sort(([a], [b]) =>
+      a === 'SEM UF' ? 1 : b === 'SEM UF' ? -1 : a.localeCompare(b),
+    );
+  }, [linhas, filtro]);
+
   const filtradas = useMemo(() => {
     let base = linhas;
     if (filtro === 'aguardando') base = base.filter((l) => l.aguardandoResposta);
     if (filtro === 'nao-lidas') base = base.filter((l) => l.naoLidas > 0);
     if (filtro === 'cobranca') base = base.filter((l) => l.emCobranca);
+    if (uf !== null) base = base.filter((l) => l.uf === uf);
     const q = busca.trim().toLowerCase();
     const qDig = busca.replace(/\D/g, '');
     if (q !== '')
@@ -154,7 +179,7 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
         (l) => l.nome.toLowerCase().includes(q) || (qDig !== '' && l.telefone.includes(qDig)),
       );
     return base;
-  }, [linhas, filtro, busca]);
+  }, [linhas, filtro, uf, busca]);
 
   const clienteSelecionado = selecionado !== null ? (porChat.get(selecionado) ?? null) : null;
 
@@ -204,6 +229,28 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
           </button>
         </div>
       ) : null}
+
+      {/* ── FILTRO POR ESTADO (pedido do dono): a mesma régua da mesa — a
+          secretária escolhe a UF e a lista mostra só aquele estado ─────────── */}
+      <div className="filtro-uf">
+        <button
+          type="button"
+          className={`chip-uf${uf === null ? ' ativo' : ''}`}
+          onClick={() => setUf(null)}
+        >
+          Todos <span className="chip-num">{porUf.reduce((s, [, n]) => s + n, 0)}</span>
+        </button>
+        {porUf.map(([sigla, quantos]) => (
+          <button
+            key={sigla}
+            type="button"
+            className={`chip-uf${uf === sigla ? ' ativo' : ''}`}
+            onClick={() => setUf(uf === sigla ? null : sigla)}
+          >
+            {sigla} <span className="chip-num">{quantos}</span>
+          </button>
+        ))}
+      </div>
 
       {/* ── DOIS PAINÉIS: lista à esquerda, conversa à direita ─────────────── */}
       <div className="cv-janela">

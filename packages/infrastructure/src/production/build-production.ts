@@ -2078,6 +2078,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       return out.sort((a, b) => b.confirmadoEm.localeCompare(a.confirmadoEm));
     },
     15_000,
+    // REQUENTAR (2026-08-05): a mesa vencida é servida na hora enquanto a
+    // varredura nova corre por trás — a secretária nunca espera; as ações do
+    // painel continuam invalidando (dado fresco após cada clique).
+    { requentar: true },
   );
 
   const humanizado = {

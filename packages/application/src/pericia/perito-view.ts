@@ -317,7 +317,9 @@ export class PeritoView {
     if (now !== undefined) return this.varrerComHiscon(now);
     const ttl = this.deps.cacheListaMs ?? 0;
     if (ttl <= 0) return this.varrerComHiscon();
-    this.listaMemo ??= memoCurto(() => this.varrerComHiscon(), ttl);
+    // REQUENTAR (2026-08-05): a lista vencida é servida na hora; a varredura
+    // nova corre por trás — a Central do Perito abre sem esperar a base toda.
+    this.listaMemo ??= memoCurto(() => this.varrerComHiscon(), ttl, { requentar: true });
     return this.listaMemo();
   }
 

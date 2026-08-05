@@ -74,6 +74,52 @@ describe('memoCurto', () => {
     expect(await memo()).toBe(2);
   });
 
+  it('REQUENTAR: vencido o TTL, serve o valor VELHO na hora e recomputa por trás', async () => {
+    vi.useFakeTimers();
+    let vezes = 0;
+    let liberar = (): void => {};
+    const memo = memoCurto(
+      async () => {
+        vezes += 1;
+        if (vezes > 1)
+          await new Promise<void>((resolve) => {
+            liberar = resolve; // a recomputação é LENTA — como a varredura real
+          });
+        return vezes;
+      },
+      1000,
+      { requentar: true },
+    );
+
+    expect(await memo()).toBe(1);
+    vi.advanceTimersByTime(1001); // TTL vencido
+    expect(await memo()).toBe(1); // o requentado sai NA HORA (não espera a conta)
+    liberar(); // a conta de fundo termina…
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await memo()).toBe(2); // …e a próxima chamada já vê o fresco
+    expect(vezes).toBe(2);
+  });
+
+  it('REQUENTAR: falha da recomputação de fundo não derruba ninguém (fica o velho)', async () => {
+    vi.useFakeTimers();
+    let vezes = 0;
+    const memo = memoCurto(
+      () => {
+        vezes += 1;
+        return vezes === 1 ? Promise.resolve('ok') : Promise.reject(new Error('banco fora'));
+      },
+      1000,
+      { requentar: true },
+    );
+
+    expect(await memo()).toBe('ok');
+    vi.advanceTimersByTime(1001);
+    expect(await memo()).toBe('ok'); // dispara a de fundo (que falha) sem vazar erro
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await memo()).toBe('ok'); // segue servindo o velho até uma conta dar certo
+    expect(vezes).toBeGreaterThanOrEqual(2);
+  });
+
   it('ttl 0 = SEM cache (comportamento determinístico dos testes)', async () => {
     let vezes = 0;
     const memo = memoCurto(() => {

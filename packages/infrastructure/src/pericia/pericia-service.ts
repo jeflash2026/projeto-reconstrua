@@ -119,8 +119,15 @@ export interface PericiaServiceDeps {
 
 export class PericiaService {
   constructor(private readonly deps: PericiaServiceDeps) {
-    this.potencialMemo = memoCurto(() => this.varrerPotencial(), this.deps.cachePotencialMs ?? 0);
-    this.acoesMemo = memoCurto(() => this.varrerAcoes(), this.deps.cachePotencialMs ?? 0);
+    // REQUENTAR (2026-08-05): o potencial vencido sai na hora; a varredura
+    // nova corre em segundo plano (as páginas nunca esperam a conta pesada).
+    const requentar = { requentar: true };
+    this.potencialMemo = memoCurto(
+      () => this.varrerPotencial(),
+      this.deps.cachePotencialMs ?? 0,
+      requentar,
+    );
+    this.acoesMemo = memoCurto(() => this.varrerAcoes(), this.deps.cachePotencialMs ?? 0, requentar);
   }
 
   private readonly potencialMemo: MemoCurto<{

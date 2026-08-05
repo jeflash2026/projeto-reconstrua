@@ -21,26 +21,44 @@ export interface MemoCurto<T> {
 }
 
 /** Envelopa uma leitura CARA. ttlMs <= 0 desliga o cache (o padrão dos testes,
- *  que exigem recomputo determinístico), mantendo o voo único desligado também. */
-export function memoCurto<T>(calcular: () => Promise<T>, ttlMs: number): MemoCurto<T> {
+ *  que exigem recomputo determinístico), mantendo o voo único desligado também.
+ *
+ *  `requentar` (2026-08-05, caso real: o Centro de Comando ficava no spinner
+ *  porque a conta demorava MAIS que o TTL — o cache vencia antes de servir):
+ *  com o valor VENCIDO em mãos, ele é servido NA HORA e a recomputação corre
+ *  em segundo plano — a página nunca espera a varredura; o dado envelhece no
+ *  máximo um ciclo a mais. */
+export function memoCurto<T>(
+  calcular: () => Promise<T>,
+  ttlMs: number,
+  opcoes?: { readonly requentar?: boolean },
+): MemoCurto<T> {
   let guardado: { em: number; valor: T } | null = null;
   let emVoo: Promise<T> | null = null;
 
-  const executar = async (): Promise<T> => {
-    if (ttlMs <= 0) return calcular();
-    if (guardado !== null && Date.now() - guardado.em < ttlMs) return guardado.valor;
-    // Já existe uma varredura correndo: espera A MESMA (nunca dispara outra).
+  // Dispara UMA recomputação (voo único). Falha NÃO é guardada: o erro chega
+  // a quem esperava e a próxima chamada tenta de novo.
+  const disparar = (): Promise<T> => {
     if (emVoo !== null) return emVoo;
     const voo = calcular().then((valor) => {
       guardado = { em: Date.now(), valor };
       return valor;
     });
-    // Falha NÃO é guardada: o erro chega a todos os que esperavam e a próxima
-    // chamada tenta de novo (nada de cachear indisponibilidade).
     emVoo = voo.finally(() => {
       emVoo = null;
     });
     return emVoo;
+  };
+
+  const executar = async (): Promise<T> => {
+    if (ttlMs <= 0) return calcular();
+    if (guardado !== null && Date.now() - guardado.em < ttlMs) return guardado.valor;
+    if (opcoes?.requentar === true && guardado !== null) {
+      void disparar().catch(() => undefined); // atualiza por trás; erro não vaza
+      return guardado.valor; // o requentado sai NA HORA
+    }
+    // Já existe uma varredura correndo: espera A MESMA (nunca dispara outra).
+    return disparar();
   };
 
   return Object.assign(executar, {

@@ -485,9 +485,12 @@ export function buildAdminServer(
   //
   // PERFORMANCE (2026-08-04): a montagem varre TODAS as memórias e computa os
   // indicadores — e a tela se atualiza sozinha (às vezes em várias abas ao
-  // mesmo tempo). Cache de resposta de 10s com VOO ÚNICO: quem chega junto
-  // espera a MESMA conta; qualquer ação do painel invalida (hook abaixo).
-  const commandCenterMemo = memoCurto(() => montarCommandCenter(), 10_000);
+  // mesmo tempo). Cache de resposta com VOO ÚNICO; qualquer ação do painel
+  // invalida (hook abaixo). REQUENTAR (2026-08-05): a conta demorava MAIS que
+  // o TTL — o cache vencia antes de servir e toda navegação pegava a varredura
+  // fria (o spinner do dono). Agora o valor vencido sai NA HORA e a conta nova
+  // corre em segundo plano.
+  const commandCenterMemo = memoCurto(() => montarCommandCenter(), 30_000, { requentar: true });
   app.get('/admin/command-center', () => commandCenterMemo());
   async function montarCommandCenter(): Promise<unknown> {
     await op.projector.refresh();

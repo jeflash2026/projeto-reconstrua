@@ -183,6 +183,24 @@ async function main(): Promise<void> {
     // Decreto 2026-08-04: o encaminhamento abate os processos do cliente na
     // carteira do advogado parceiro (best-effort, idempotente por cliente).
     aoAtribuir: prod.abaterPorAtribuicao,
+    // Decreto 2026-08-04 (noite): documentação completa LIBERA para o advogado
+    // já; os 10 dias da perícia viram contagem informativa no card.
+    completosHumanizado: async () =>
+      (await prod.humanizado.clientes())
+        .filter((c) => c.completo && !c.descartado)
+        .map((c) => ({ clienteId: c.clienteId, chatId: c.chatId, nome: c.nome })),
+    periciaDoChat: async (chatId) => {
+      const p = (await prod.periciaFluxo.listar()).find((x) => x.chatId === chatId);
+      return p !== undefined
+        ? {
+            iniciadaEm: p.iniciadaEm,
+            prazoEm: p.prazoEm,
+            diasRestantes: p.diasRestantes,
+            horasRestantes: p.horasRestantes,
+            expirado: p.expirado,
+          }
+        : null;
+    },
     docsEquipe: {
       listar: (chatId) => prod.docsEquipe.listar(chatId),
       baixar: (chatId, id) => prod.docsEquipe.baixar(chatId, id),

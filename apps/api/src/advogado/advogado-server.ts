@@ -66,6 +66,21 @@ export function buildAdvogadoServer(
     /** Decreto 2026-08-04: gancho pós-atribuição — ABATE os processos do
      *  cliente na carteira do advogado parceiro (best-effort). */
     readonly aoAtribuir?: (missionId: string, advogadoId: string) => Promise<void>;
+    /** Decreto 2026-08-04 (noite): documentação 100% COMPLETA no humanizado
+     *  (procuração assinada) LIBERA para o advogado JÁ — a lista dos completos
+     *  entra nos Prontos sem esperar os 10 dias do perito. */
+    readonly completosHumanizado?: () => Promise<
+      readonly { clienteId: string; chatId: string; nome: string }[]
+    >;
+    /** A perícia do cliente (10 dias) — vira CONTAGEM INFORMATIVA no card:
+     *  pedido feito dia X, faltam Nd Nh, expirado = luz verde. */
+    readonly periciaDoChat?: (chatId: string) => Promise<{
+      iniciadaEm: string;
+      prazoEm: string;
+      diasRestantes: number;
+      horasRestantes: number;
+      expirado: boolean;
+    } | null>;
     /** Decreto 2026-07-30: docs da fase 2 humana (procuração/RG/comprovante). */
     readonly docsEquipe?: {
       listar(chatId: string): Promise<readonly unknown[]>;
@@ -217,14 +232,37 @@ export function buildAdvogadoServer(
   });
 
   // ── Decreto Tráfego Pago — CLIENTES PRONTOS P/ ADVOGADO (painel do admin) ────
-  // Prontos = prazo administrativo em curso/vencido (AGUARDANDO_10_DIAS /
-  // AGUARDANDO_SOCIO) e AINDA sem advogado atribuído.
+  // Decreto 2026-08-04 (noite): a DOCUMENTAÇÃO 100% COMPLETA (procuração
+  // assinada no humanizado) LIBERA o cliente para o advogado JÁ — os 10 dias
+  // do pedido administrativo viram CONTAGEM INFORMATIVA no card (pedido feito
+  // dia X → faltam Nd Nh → expirado = luz verde), nunca mais uma trava.
   app.get('/advogado-admin/clientes-prontos', async (_request, reply) => {
     if (!op.clientes)
       return reply.code(503).send({ error: 'lista de clientes indisponível nesta montagem' });
     const lista = await op.clientes.list(new Date());
     const prontos = [];
+    const vistos = new Set<string>();
+    const comPericia = async (chatId: string): Promise<unknown> =>
+      (await opts.periciaDoChat?.(chatId).catch(() => null)) ?? null;
+    // 1) DOCUMENTAÇÃO COMPLETA no humanizado — a porta NOVA (liberação já).
+    for (const m of (await opts.completosHumanizado?.().catch(() => [])) ?? []) {
+      const c = lista.find((x) => x.clienteId === m.clienteId);
+      if (c === undefined || c.missionId === null) continue;
+      if ((await op.work.assignedTo(c.missionId)) !== null) continue;
+      vistos.add(c.clienteId);
+      prontos.push({
+        clienteId: c.clienteId,
+        chatId: c.chatId,
+        missionId: c.missionId,
+        nome: m.nome || (await nomeDoClientePorChat(c.chatId)),
+        status: 'DOC_COMPLETA',
+        pedidosConfirmadosEm: c.pedidosConfirmadosEm,
+        pericia: await comPericia(c.chatId),
+      });
+    }
+    // 2) A porta ANTIGA (status da jornada) continua — sem duplicar.
     for (const c of lista) {
+      if (vistos.has(c.clienteId)) continue;
       if (c.status !== 'AGUARDANDO_10_DIAS' && c.status !== 'AGUARDANDO_SOCIO') continue;
       if (c.missionId === null) continue;
       if ((await op.work.assignedTo(c.missionId)) !== null) continue; // já tem advogado
@@ -235,6 +273,7 @@ export function buildAdvogadoServer(
         nome: await nomeDoClientePorChat(c.chatId),
         status: c.status,
         pedidosConfirmadosEm: c.pedidosConfirmadosEm,
+        pericia: await comPericia(c.chatId),
       });
     }
     const advogados = (await op.staff.list('advogado'))

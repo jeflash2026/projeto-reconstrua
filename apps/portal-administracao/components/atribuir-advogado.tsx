@@ -65,11 +65,34 @@ const AtribuirAdvogado = ({
                 </div>
               </td>
               <td>
+                {/* Decreto 2026-08-04 (noite): a documentação completa LIBERA
+                    já; os 10 dias são só INFORMATIVOS — pedido feito dia X →
+                    contagem regressiva → luz verde ao expirar. */}
                 <span className="badge accent">
-                  {c.status === 'AGUARDANDO_10_DIAS'
-                    ? 'prazo de 10 dias em curso'
-                    : 'aguardando sócio'}
+                  {c.status === 'DOC_COMPLETA'
+                    ? '✅ documentação completa — liberado'
+                    : c.status === 'AGUARDANDO_10_DIAS'
+                      ? 'prazo de 10 dias em curso'
+                      : 'aguardando sócio'}
                 </span>
+                <div style={{ fontSize: 12, marginTop: 4, opacity: 0.85 }}>
+                  {c.pericia == null ? (
+                    <span>pedido administrativo ainda não feito pelo perito</span>
+                  ) : c.pericia.expirado ? (
+                    <span style={{ color: '#39d98a', fontWeight: 600 }}>
+                      🟢 pedido feito em{' '}
+                      {new Date(c.pericia.iniciadaEm).toLocaleDateString('pt-BR')} — prazo de 10
+                      dias EXPIRADO, luz verde para o advogado assumir
+                    </span>
+                  ) : (
+                    <span>
+                      ⏳ pedido feito em{' '}
+                      {new Date(c.pericia.iniciadaEm).toLocaleDateString('pt-BR')} — faltam{' '}
+                      {Math.floor(c.pericia.horasRestantes / 24)}d {c.pericia.horasRestantes % 24}h
+                      para o prazo de 10 dias expirar
+                    </span>
+                  )}
+                </div>
               </td>
               <td>
                 <select

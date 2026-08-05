@@ -539,6 +539,16 @@ export interface ClientePronto {
   nome: string;
   status: string;
   pedidosConfirmadosEm: string | null;
+  /** Decreto 2026-08-04 (noite): os 10 dias viram CONTAGEM INFORMATIVA —
+   *  pedido feito dia X, faltam Nd Nh, expirado = luz verde. null = o perito
+   *  ainda não fez o pedido administrativo (não trava a atribuição). */
+  pericia?: {
+    iniciadaEm: string;
+    prazoEm: string;
+    diasRestantes: number;
+    horasRestantes: number;
+    expirado: boolean;
+  } | null;
 }
 
 export async function listarClientesProntos(): Promise<{

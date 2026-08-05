@@ -15,6 +15,8 @@ const TIPOS: ReadonlyArray<{ valor: string; rotulo: string }> = [
   { valor: 'procuracao', rotulo: 'Procuração assinada' },
   { valor: 'rg', rotulo: 'RG' },
   { valor: 'comprovante', rotulo: 'Comprovante de endereço' },
+  // Decreto 2026-08-05: 4º documento obrigatório da fase 2.
+  { valor: 'extrato_credito', rotulo: 'Extrato de crédito do INSS (3 meses)' },
   { valor: 'outro', rotulo: 'Outro documento' },
 ];
 

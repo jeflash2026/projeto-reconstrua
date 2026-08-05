@@ -1,5 +1,5 @@
 'use client';
-// DOCS DA FASE 2 (Onda 2, 2026-07-31) — o anexo dos 3 documentos pelo
+// DOCS DA FASE 2 (Onda 2, 2026-07-31) — o anexo dos 4 documentos pelo
 // Atendimento Humanizado: procuração assinada, RG (frente e verso) e
 // comprovante de endereço. Mesmo docs-equipe do Admin; o advogado destinado
 // baixa tudo no portal dele. PDF/JPG/PNG até 20 MB.
@@ -18,6 +18,8 @@ const TIPOS = [
   { valor: 'procuracao', rotulo: 'Procuração assinada' },
   { valor: 'rg', rotulo: 'RG (frente ou verso)' },
   { valor: 'comprovante', rotulo: 'Comprovante de endereço' },
+  // Decreto 2026-08-05: 4º documento obrigatório da fase 2.
+  { valor: 'extrato_credito', rotulo: 'Extrato de crédito do INSS (3 meses)' },
   { valor: 'outro', rotulo: 'Outro documento' },
 ];
 
@@ -68,7 +70,7 @@ const DocsFase2 = ({ chatId }: { chatId: string }): ReactElement => {
       }
       setArquivo(null);
       setDocs(await listarDocs(chatId));
-      // Atualiza a página: os selos ficam verdes e, com os 3 documentos, o
+      // Atualiza a página: os selos ficam verdes e, com os 4 documentos, o
       // cliente sai da fila de pendentes e segue para o perito.
       router.refresh();
     } catch {

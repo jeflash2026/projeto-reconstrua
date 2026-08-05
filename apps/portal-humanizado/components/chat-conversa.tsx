@@ -17,6 +17,8 @@ const ROTULOS: Record<string, string> = {
   procuracao: 'Procuração assinada',
   rg: 'RG',
   comprovante: 'Comprovante de endereço',
+  // Decreto 2026-08-05: 4º documento obrigatório da fase 2.
+  extrato_credito: 'Extrato INSS (3 meses)',
 };
 
 function horaBr(iso: string): string {
@@ -164,17 +166,19 @@ export default function ChatConversa({
                       </span>
                     ) : (
                       <span className="chat-confirmar">
-                        {(['procuracao', 'rg', 'comprovante'] as const).map((tipo) => (
-                          <button
-                            key={tipo}
-                            type="button"
-                            className="btn mini"
-                            disabled={ocupado}
-                            onClick={() => void confirmar(m, tipo)}
-                          >
-                            Confirmar: {ROTULOS[tipo]}
-                          </button>
-                        ))}
+                        {(['procuracao', 'rg', 'comprovante', 'extrato_credito'] as const).map(
+                          (tipo) => (
+                            <button
+                              key={tipo}
+                              type="button"
+                              className="btn mini"
+                              disabled={ocupado}
+                              onClick={() => void confirmar(m, tipo)}
+                            >
+                              Confirmar: {ROTULOS[tipo]}
+                            </button>
+                          ),
+                        )}
                       </span>
                     )
                   ) : null}
@@ -202,7 +206,7 @@ export default function ChatConversa({
         <div className="chat-cta">
           <div className="chat-cta-texto">
             <strong>Mensagem pronta:</strong> apresentação da Layara com o pedido dos documentos
-            (RG, procuração assinada e comprovante), personalizada para{' '}
+            (RG, procuração assinada, comprovante e extrato de crédito do INSS), personalizada para{' '}
             <strong>{primeiroNomeDe(nomeCliente)}</strong>.
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

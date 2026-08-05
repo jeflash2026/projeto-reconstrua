@@ -3,7 +3,8 @@
 // ESTADO (pedido do dono):
 //  • botão do WhatsApp HUMANIZADO com a orientação pronta;
 //  • marcação "enviei a documentação — aguardando devolução assinada";
-//  • anexo dos 3 documentos da fase 2 (procuração, RG f/v, comprovante);
+//  • anexo dos 4 documentos da fase 2 (procuração, RG f/v, comprovante e
+//    extrato de crédito do INSS dos últimos 3 meses — decreto 2026-08-05);
 //  • completos ⇒ 100% prontos para o perito protocolar o pedido administrativo.
 import { cookies } from 'next/headers';
 import Link from 'next/link';
@@ -110,7 +111,7 @@ const ResumoDaMesa = ({ todos }: { todos: readonly ClienteHumanizado[] }): React
       rotulo: 'Concluídos',
       valor: completos,
       classe: 'ok',
-      dica: 'Os 3 documentos recebidos — seguiram para o perito',
+      dica: 'Os 4 documentos recebidos — seguiram para o perito',
     },
     {
       rotulo: 'Descartados',
@@ -227,6 +228,8 @@ const CartaoCliente = ({
       <Badge ok={c.docs.procuracao} rotulo="Procuração" />
       <Badge ok={c.docs.rg} rotulo="RG" />
       <Badge ok={c.docs.comprovante} rotulo="Comprovante" />
+      {/* Decreto 2026-08-05: 4º documento obrigatório da fase 2. */}
+      <Badge ok={c.docs.extratoCredito === true} rotulo="Extrato INSS (3m)" />
     </div>
     <div style={{ marginTop: 8 }}>
       <AguardandoToggle
@@ -303,8 +306,8 @@ const MesaPage = async ({
       <p className="page-sub">
         Clientes que CONFIRMARAM o interesse, organizados por estado. Chame pelo WhatsApp da equipe,
         marque &quot;aguardando devolução&quot; quando enviar a documentação, e anexe a procuração,
-        o RG (frente e verso) e o comprovante — com os 3, o cliente fica 100% pronto para o pedido
-        administrativo.
+        o RG (frente e verso), o comprovante e o extrato de crédito do INSS (últimos 3 meses) — com
+        os 4, o cliente fica 100% pronto para o pedido administrativo.
       </p>
 
       {clientes === null || todos === null ? (
@@ -430,7 +433,7 @@ const MesaPage = async ({
                         {c.telefone}
                       </span>{' '}
                       <span className="badge">{c.uf}</span>
-                      {/* Pedido do dono (2026-08-03): com os 3 documentos, o
+                      {/* Pedido do dono (2026-08-03): com os 4 documentos, o
                           cartão anuncia a conclusão e o caso segue ao perito. */}
                       <div className="concluido">
                         ✅ <strong>Documentação completa recebida</strong> — este cliente saiu da
@@ -440,6 +443,7 @@ const MesaPage = async ({
                         <Badge ok rotulo="Procuração" />
                         <Badge ok rotulo="RG" />
                         <Badge ok rotulo="Comprovante" />
+                        <Badge ok rotulo="Extrato INSS (3m)" />
                       </div>
                       <TamanhoDoCaso c={c} />
                       {/* Guia v2: o pacote do Jarvis usa OS COMPLETOS — a

@@ -53,7 +53,7 @@ export interface ClienteHumanizado {
   contratos: number;
   indicios: number;
   potencial: number;
-  docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
+  docs: { procuracao: boolean; rg: boolean; comprovante: boolean; extratoCredito?: boolean };
   completo: boolean;
   aguardandoAssinatura: boolean;
   /** QUANDO a secretária marcou "enviei a documentação" (ISO) — null se não marcou. */

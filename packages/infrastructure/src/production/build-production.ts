@@ -360,7 +360,7 @@ export interface AssembledProduction {
         contratos: number;
         indicios: number;
         potencial: number;
-        docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
+        docs: { procuracao: boolean; rg: boolean; comprovante: boolean; extratoCredito?: boolean };
         completo: boolean;
         aguardandoAssinatura: boolean;
         /** QUANDO a secretária marcou "enviei a documentação" (ISO) — o
@@ -2018,7 +2018,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         contratos: number;
         indicios: number;
         potencial: number;
-        docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
+        docs: { procuracao: boolean; rg: boolean; comprovante: boolean; extratoCredito?: boolean };
         completo: boolean;
         aguardandoAssinatura: boolean;
         aguardandoDesde: string | null;
@@ -2073,6 +2073,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           procuracao: tem('procuracao'),
           rg: tem('rg'),
           comprovante: tem('comprovante'),
+          // Decreto 2026-08-05: o 4º documento obrigatório da fase 2.
+          extratoCredito: tem('extrato_credito'),
         };
         // UF (organização da mesa): o estado coletado na jornada; sem ele, o DDD.
         const uf =
@@ -2114,7 +2116,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           indicios: fato.indicios,
           potencial: pot?.valor ?? 0,
           docs,
-          completo: docs.procuracao && docs.rg && docs.comprovante,
+          // Decreto 2026-08-05: completo agora exige os 4 (extrato incluído).
+          completo: docs.procuracao && docs.rg && docs.comprovante && docs.extratoCredito,
           aguardandoAssinatura: status?.aguardando === true,
           aguardandoDesde: status?.aguardando === true ? (status.em ?? null) : null,
           descartado,

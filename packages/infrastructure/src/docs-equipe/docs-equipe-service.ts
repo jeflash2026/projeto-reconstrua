@@ -16,12 +16,15 @@ import type { MediaStorePort } from '../media/media-store-port.js';
 const NS = 'docs-equipe';
 const MAX_BYTES = 20 * 1024 * 1024;
 
-export type TipoDocEquipe = 'procuracao' | 'rg' | 'comprovante' | 'outro';
+export type TipoDocEquipe = 'procuracao' | 'rg' | 'comprovante' | 'extrato_credito' | 'outro';
 
 export const ROTULO_DOC_EQUIPE: Readonly<Record<TipoDocEquipe, string>> = {
   procuracao: 'Procuração assinada',
   rg: 'RG',
   comprovante: 'Comprovante de endereço',
+  // Decreto 2026-08-05: 4º documento OBRIGATÓRIO da fase 2 — prova os
+  // descontos recentes direto na fonte do benefício.
+  extrato_credito: 'Extrato de crédito do INSS (últimos 3 meses)',
   outro: 'Outro documento',
 };
 

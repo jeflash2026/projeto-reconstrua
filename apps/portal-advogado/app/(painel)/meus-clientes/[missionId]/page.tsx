@@ -295,7 +295,7 @@ const ClienteDestinadoPage = async ({
       {/* ── DOCUMENTOS DO CASO — colhidos pelo time (fase 2) ───────────────────── */}
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 8 }}>
-          Documentos do caso (procuração, RG, comprovante)
+          Documentos do caso (procuração, RG, comprovante, extrato INSS)
         </h2>
         {docsEquipe.length === 0 ? (
           <div className="empty">

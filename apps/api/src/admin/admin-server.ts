@@ -186,7 +186,12 @@ export function buildAdminServer(
           contratos: number;
           indicios: number;
           potencial: number;
-          docs: { procuracao: boolean; rg: boolean; comprovante: boolean };
+          docs: {
+            procuracao: boolean;
+            rg: boolean;
+            comprovante: boolean;
+            extratoCredito?: boolean;
+          };
           completo: boolean;
           aguardandoAssinatura: boolean;
           aguardandoDesde: string | null;
@@ -246,7 +251,7 @@ export function buildAdminServer(
       confirmarDocumento(
         chatId: string,
         mensagemId: string,
-        tipo: 'procuracao' | 'rg' | 'comprovante' | 'outro',
+        tipo: 'procuracao' | 'rg' | 'comprovante' | 'extrato_credito' | 'outro',
       ): Promise<{ ok: true } | { ok: false; error: string }>;
       baixarAnexo(
         chatId: string,
@@ -1897,10 +1902,12 @@ export function buildAdminServer(
     if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
     const { chatId } = request.params as { chatId: string };
     const body = (request.body ?? {}) as { mensagemId?: string; tipo?: string };
-    const tipos = ['procuracao', 'rg', 'comprovante', 'outro'] as const;
+    const tipos = ['procuracao', 'rg', 'comprovante', 'extrato_credito', 'outro'] as const;
     const tipo = tipos.find((t) => t === body.tipo);
     if (typeof body.mensagemId !== 'string' || tipo === undefined)
-      return reply.code(400).send({ error: 'mensagemId e tipo (procuracao/rg/comprovante/outro)' });
+      return reply
+        .code(400)
+        .send({ error: 'mensagemId e tipo (procuracao/rg/comprovante/extrato_credito/outro)' });
     const r = await opts.chatHumanizado.confirmarDocumento(chatId, body.mensagemId, tipo);
     if (!r.ok) return reply.code(422).send(r);
     return r;

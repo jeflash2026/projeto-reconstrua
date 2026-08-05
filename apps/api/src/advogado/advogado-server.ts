@@ -85,6 +85,27 @@ export function buildAdvogadoServer(
       respostaBanco?: { texto: string; registradaEm: string } | null;
     } | null>;
     /** Decreto 2026-07-30: docs da fase 2 humana (procuração/RG/comprovante). */
+    /** CARTEIRA DE CRÉDITOS (decreto 2026-08-05): o advogado parceiro vê a
+     *  PRÓPRIA carteira — contratos comprados, abatidos pelos encaminhamentos
+     *  e o saldo, com o extrato como prestação de contas. */
+    readonly creditosAdvogado?: {
+      saldo(advogadoId: string): Promise<{
+        advogadoId: string;
+        comprados: number;
+        abatidos: number;
+        saldo: number;
+        clientesAbatidos: number;
+      }>;
+      extrato(advogadoId: string): Promise<
+        readonly {
+          em: string;
+          tipo: 'compra' | 'abate';
+          quantidade: number;
+          clienteId?: string;
+          nome?: string;
+        }[]
+      >;
+    };
     readonly docsEquipe?: {
       listar(chatId: string): Promise<readonly unknown[]>;
       baixar(
@@ -807,6 +828,19 @@ export function buildAdvogadoServer(
       return reply.header('content-type', content.mime).send(Buffer.from(content.bytes));
     },
   );
+
+  // ── MINHA CARTEIRA (decreto 2026-08-05) — contratos comprados × abatidos ──
+  app.get('/advogado/carteira', async (request, reply) => {
+    if (!opts.creditosAdvogado)
+      return reply.code(503).send({ error: 'carteira indisponível nesta montagem' });
+    const advogadoId = await advogadoOf(request);
+    if (!advogadoId) return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
+    const [saldo, extrato] = await Promise.all([
+      opts.creditosAdvogado.saldo(advogadoId),
+      opts.creditosAdvogado.extrato(advogadoId),
+    ]);
+    return { saldo, extrato: extrato.slice(0, 30) };
+  });
 
   app.get('/advogado/perfil', async (request, reply) => {
     const advogadoId = await advogadoOf(request);

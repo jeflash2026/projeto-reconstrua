@@ -78,3 +78,27 @@ export interface DocEquipe {
   nome: string;
   em: string;
 }
+
+/** Resumo de uma conversa do canal da equipe (caixa de entrada da mesa). */
+export interface ResumoChat {
+  chatId: string;
+  total: number;
+  ultimaEm: string | null;
+  previa: string;
+  naoLidas: number;
+}
+
+/** CHAT DO CANAL DA EQUIPE (decreto 2026-08-05) — a conversa 100% humana do
+ *  número (41) na Meta; a AHRI nunca responde nele. */
+export interface MensagemChat {
+  id: string;
+  direcao: 'entrada' | 'saida';
+  tipo: 'texto' | 'documento' | 'imagem' | 'audio' | 'template';
+  texto: string | null;
+  nomeArquivo: string | null;
+  mime: string | null;
+  sha256: string | null;
+  autor: string | null;
+  confirmadoComo: string | null;
+  em: string;
+}

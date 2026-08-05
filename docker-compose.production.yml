@@ -76,6 +76,10 @@ services:
       META_WHATSAPP_TOKEN: ${META_WHATSAPP_TOKEN:-}
       META_PHONE_NUMBER_ID: ${META_PHONE_NUMBER_ID:-}
       META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
+      # Canal HUMANIZADO (decreto 2026-08-05): o SEGUNDO número do mesmo app —
+      # o (41) da equipe. Mesmo token; só o phone_number_id muda. Sem a env o
+      # chat do portal fica com envio desligado (recebimento nunca quebra).
+      META_PHONE_NUMBER_ID_HUMANIZADO: ${META_PHONE_NUMBER_ID_HUMANIZADO:-}
       # PC-R3 — Portal do Cliente: assinatura do link mágico (fail-closed se vazio)
       # e a POLÍTICA única de estimativa (D1) usada na mensagem e no Portal.
       CLIENTE_PORTAL_SECRET: ${CLIENTE_PORTAL_SECRET:-}

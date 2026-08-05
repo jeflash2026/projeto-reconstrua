@@ -212,6 +212,7 @@ import { JarvisRuntime } from '../administration/jarvis-runtime.js';
 import { WebchatGatewayRouter, ehChatWeb } from '../webchat/webchat-gateway-router.js';
 import { WebchatRuntime } from '../webchat/webchat-runtime.js';
 import { DocsEquipeService } from '../docs-equipe/docs-equipe-service.js';
+import { ChatHumanizadoService } from '../humanizado/chat-humanizado.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
 import { CreditosAdvogadoService } from '../advogado/creditos-advogado.js';
@@ -299,6 +300,10 @@ export interface AssembledProduction {
   /** Decreto 2026-07-30: docs da FASE 2 humana (procuração/RG/comprovante)
    *  anexados pelo time no Painel Admin — mesmo media store do WhatsApp. */
   readonly docsEquipe: DocsEquipeService;
+  /** Decreto 2026-08-05: o CHAT do canal da EQUIPE (número 41 na Meta) — 100%
+   *  humano; a AHRI nunca responde nele. Sempre montado; sem a env
+   *  META_PHONE_NUMBER_ID_HUMANIZADO o envio devolve erro legível. */
+  readonly chatHumanizado: ChatHumanizadoService;
   /** Decreto Dossiê Pericial: visão do PERITO (HISCON→contratos/migrados/indícios). */
   readonly pericia: PericiaService;
   /** Decreto 2026-07-27: relatório V2 × leitura atual (só leitura, nada grava). */
@@ -927,6 +932,25 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           clock,
           (mensagem) => {
             observability.error('meta', 'gateway', clock.now(), mensagem);
+          },
+        )
+      : null;
+  // CANAL DA EQUIPE (decreto 2026-08-05): o SEGUNDO número do mesmo app Meta —
+  // o (41) do atendimento humanizado. Mesmo token, phone_number_id próprio.
+  // Este gateway NUNCA entra no roteador da AHRI: só o chat humano usa.
+  const metaPhoneHumanizado = env['META_PHONE_NUMBER_ID_HUMANIZADO'] ?? '';
+  const gatewayHumanizado =
+    metaToken !== '' && metaPhoneHumanizado !== ''
+      ? new MetaCloudGateway(
+          new FetchMetaHttp(),
+          {
+            token: metaToken,
+            phoneNumberId: metaPhoneHumanizado,
+            graphVersion: env['META_GRAPH_VERSION'],
+          },
+          clock,
+          (mensagem) => {
+            observability.error('meta', 'gateway-humanizado', clock.now(), mensagem);
           },
         )
       : null;
@@ -1926,6 +1950,21 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // ── CANAL OFICIAL META (decreto 2026-07-31): o webhook da Cloud API entra
   //    pela MESMA entrada única; mídia baixada pelo Graph vai ao MESMO media
   //    store. Montado só quando META_WHATSAPP_TOKEN + META_PHONE_NUMBER_ID. ──
+  // DOCS DA EQUIPE nasce ANTES do canal Meta: o chat humanizado confirma
+  // anexos direto no perfil do cliente (mesma porta do upload manual).
+  const docsEquipe = new DocsEquipeService({ json, media: mediaStore, clock });
+  // CHAT DO CANAL DA EQUIPE (decreto 2026-08-05): conversa 100% humana do
+  // número (41) — a AHRI nunca responde; a secretária atende pelo portal.
+  const chatHumanizado = new ChatHumanizadoService({
+    json,
+    media: mediaStore,
+    clock,
+    envio: gatewayHumanizado,
+    docsEquipe,
+    aoFalhar: (mensagem) => {
+      observability.error('humanizado', 'chat', clock.now(), mensagem);
+    },
+  });
   const metaCanal =
     metaGateway === null
       ? null
@@ -1938,6 +1977,15 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
           aoFalhar: (mensagem) => {
             observability.error('meta', 'webhook', clock.now(), mensagem);
           },
+          // Mensagem recebida no NÚMERO DA EQUIPE vai à conversa humana — o
+          // roteamento é pelo phone_number_id do webhook (mesmo app, 2 números).
+          humanizado:
+            metaPhoneHumanizado === ''
+              ? null
+              : {
+                  phoneNumberId: metaPhoneHumanizado,
+                  registrar: (entrada) => chatHumanizado.registrarEntrada(entrada),
+                },
         });
 
   // Decreto 2026-07-31: o canal do ÚLTIMO contato do chat, para a aba Conversa
@@ -1947,9 +1995,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     return (await canais.canalDe(chatId)) ?? 'evolution';
   };
 
-  // ── DOCS DA EQUIPE (decreto 2026-07-30): fase 2 humana — procuração/RG/
-  //    comprovante anexados pelo time ao cliente concluso da fase 1 ─────────
-  const docsEquipe = new DocsEquipeService({ json, media: mediaStore, clock });
+  // (DOCS DA EQUIPE nasce mais acima, junto do canal Meta — o chat humanizado
+  //  confirma anexos direto no perfil do cliente.)
 
   // ── ATENDIMENTO HUMANIZADO (Onda 2, decreto 2026-07-31): a mesa da
   //    secretária — SÓ os clientes que CONFIRMARAM o parecer (cadastro gerado),
@@ -2328,6 +2375,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     canalDoChat,
     drenarTurnos: (timeoutMs) => plainIngress.aguardarTurnosEmVoo(timeoutMs),
     docsEquipe,
+    chatHumanizado,
     humanizadoAuth,
     humanizado,
     funilResumo,

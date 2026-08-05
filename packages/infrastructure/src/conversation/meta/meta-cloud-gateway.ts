@@ -201,6 +201,24 @@ export class MetaCloudGateway implements ConversationGateway {
     if (response.status >= 400) this.falha('sendDocument', response.body);
   }
 
+  /** TEMPLATE aprovado (decreto 2026-08-05, canal humanizado): a ÚNICA forma de
+   *  iniciar conversa fora da janela de 24h. Devolve se a Meta ACEITOU — o
+   *  chamador mostra o erro à secretária em vez de fingir que enviou. */
+  async sendTemplate(chatId: string, nome: string, idioma = 'pt_BR'): Promise<boolean> {
+    const response = await this.http.postJson(this.messagesUrl(), this.headers(), {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: toNumber(chatId),
+      type: 'template',
+      template: { name: nome, language: { code: idioma } },
+    });
+    if (response.status >= 400) {
+      this.falha('sendTemplate', response.body);
+      return false;
+    }
+    return true;
+  }
+
   /** A API oficial não tem presença livre ("digitando…" avulso) — no-op seguro. */
   setPresence(_chatId: string, _state: PresenceState): Promise<void> {
     return Promise.resolve();

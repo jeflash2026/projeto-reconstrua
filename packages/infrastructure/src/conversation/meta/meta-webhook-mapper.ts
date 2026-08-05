@@ -23,6 +23,10 @@ export interface MetaInbound {
   readonly envelope: InboundEnvelope;
   /** Media ID do Graph quando a mensagem carrega mídia (baixar via gateway). */
   readonly mediaId: string | null;
+  /** value.metadata.phone_number_id — QUAL número recebeu (decreto 2026-08-05:
+   *  o mesmo app tem o número da AHRI e o número da EQUIPE; o runtime roteia
+   *  por este id — o canal humanizado NUNCA chega à AHRI). */
+  readonly phoneNumberId: string | null;
 }
 
 function timestampToDate(raw: unknown): Date {
@@ -55,7 +59,7 @@ function envelopeBase(
   };
 }
 
-function mapMessage(message: Record<string, unknown>): MetaInbound | null {
+function mapMessage(message: Record<string, unknown>): Omit<MetaInbound, 'phoneNumberId'> | null {
   const id = asString(message['id']);
   const from = asString(message['from']);
   if (id === null || from === null) return null;
@@ -189,11 +193,13 @@ export function mapMetaWebhook(payload: unknown): readonly MetaInbound[] {
       const change = asRecord(changeRaw);
       if (!change || asString(change['field']) !== 'messages') continue;
       const value = asRecord(change['value']);
+      // O número que RECEBEU (roteamento AHRI × equipe) vem no metadata.
+      const phoneNumberId = asString(dig(value, ['metadata', 'phone_number_id']));
       for (const messageRaw of value ? (asArray(value['messages']) ?? []) : []) {
         const message = asRecord(messageRaw);
         if (!message) continue;
         const mapped = mapMessage(message);
-        if (mapped !== null) resultado.push(mapped);
+        if (mapped !== null) resultado.push({ ...mapped, phoneNumberId });
       }
     }
   }

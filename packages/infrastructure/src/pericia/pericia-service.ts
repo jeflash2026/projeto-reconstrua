@@ -127,7 +127,11 @@ export class PericiaService {
       this.deps.cachePotencialMs ?? 0,
       requentar,
     );
-    this.acoesMemo = memoCurto(() => this.varrerAcoes(), this.deps.cachePotencialMs ?? 0, requentar);
+    this.acoesMemo = memoCurto(
+      () => this.varrerAcoes(),
+      this.deps.cachePotencialMs ?? 0,
+      requentar,
+    );
   }
 
   private readonly potencialMemo: MemoCurto<{

@@ -461,3 +461,163 @@ button {
   border-bottom: 2px solid var(--vermelho);
   padding-bottom: 4px;
 }
+
+/* ── CHAT DO CANAL DA EQUIPE (2026-08-05): a conversa 100% humana ─────────── */
+.chat-caixa {
+  margin-top: 12px;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-mensagens {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: #f6f4ef;
+}
+
+.chat-balao {
+  max-width: 78%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 1px 1px rgb(0 0 0 / 8%);
+}
+
+.chat-balao.entrada {
+  align-self: flex-start;
+  background: #fff;
+  border-bottom-left-radius: 4px;
+}
+
+.chat-balao.saida {
+  align-self: flex-end;
+  background: #dcf3d0;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-texto {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--texto-dim);
+  text-align: right;
+}
+
+.chat-anexo {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.chat-confirmar {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.btn.mini {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.chat-selo {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.chat-aviso {
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #ebf6e8;
+  color: #2f6627;
+  font-size: 13px;
+}
+
+.chat-envio {
+  padding: 10px 12px;
+  border-top: 1px solid var(--borda);
+  background: #fff;
+}
+
+.chat-envio textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.chat-botoes {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Caixa de entrada na mesa: respostas do cliente aguardando a secretária */
+.chat-inbox {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid #e4c96b;
+  border-left: 5px solid #d99a00;
+  border-radius: 10px;
+  background: #fff9e8;
+}
+
+.chat-inbox-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chat-inbox-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  background: #fff;
+  border: 1px solid var(--borda);
+}
+
+.chat-inbox-item:hover {
+  border-color: #d99a00;
+}
+
+.chat-inbox-nome {
+  font-weight: 600;
+  min-width: 140px;
+}
+
+.chat-inbox-previa {
+  flex: 1;
+  font-size: 13px;
+  color: var(--texto-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

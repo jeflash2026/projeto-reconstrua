@@ -101,6 +101,9 @@ async function main(): Promise<void> {
     // Onda 2 (2026-07-31): o Atendimento Humanizado (secretária, papel operador).
     humanizadoAuth: prod.humanizadoAuth,
     humanizado: prod.humanizado,
+    // Decreto 2026-08-05: o CHAT do canal da equipe (número 41 na Meta) —
+    // conversa 100% humana no portal; a AHRI nunca responde nele.
+    chatHumanizado: prod.chatHumanizado,
     // Onda 3 (2026-07-31): o parecer em LOTE para a base legada (ato do Admin).
     parecerLote: prod.parecerLote,
     // Decreto 2026-08-03: o funil real na Visão Executiva do Centro de Comando.

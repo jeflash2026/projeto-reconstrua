@@ -207,6 +207,49 @@ export function buildAdminServer(
        *  curto; qualquer AÇÃO do painel descarta o guardado. */
       invalidar?(): void;
     };
+    /** Decreto 2026-08-05: o CHAT do canal da EQUIPE (número 41 na Meta) —
+     *  conversa 100% humana da secretária; a AHRI nunca responde nele. */
+    readonly chatHumanizado?: {
+      resumo(): Promise<
+        readonly {
+          chatId: string;
+          total: number;
+          ultimaEm: string | null;
+          previa: string;
+          naoLidas: number;
+        }[]
+      >;
+      listar(chatId: string): Promise<{
+        chatId: string;
+        mensagens: readonly unknown[];
+        lidoEm: string | null;
+      }>;
+      marcarLido(chatId: string): Promise<void>;
+      enviarTexto(
+        chatId: string,
+        texto: string,
+        autor: string,
+      ): Promise<{ ok: true } | { ok: false; error: string }>;
+      enviarDocumento(
+        chatId: string,
+        anexo: { nome: string; base64: string },
+        autor: string,
+      ): Promise<{ ok: true } | { ok: false; error: string }>;
+      enviarTemplate(
+        chatId: string,
+        nome: string,
+        autor: string,
+      ): Promise<{ ok: true } | { ok: false; error: string }>;
+      confirmarDocumento(
+        chatId: string,
+        mensagemId: string,
+        tipo: 'procuracao' | 'rg' | 'comprovante' | 'outro',
+      ): Promise<{ ok: true } | { ok: false; error: string }>;
+      baixarAnexo(
+        chatId: string,
+        mensagemId: string,
+      ): Promise<{ nome: string; mime: string; bytes: Uint8Array } | null>;
+    };
     /** Decreto 2026-08-04: o VALOR POTENCIAL CONFIRMADO — só clientes com a
      *  documentação completa (procuração assinada + RG + comprovante). */
     readonly potencialConfirmado?: () => Promise<{ total: number; clientes: number }>;
@@ -1777,6 +1820,92 @@ export function buildAdminServer(
     const body = (request.body ?? {}) as { valor?: boolean };
     await opts.humanizado.marcarDescarte(chatId, body.valor === true);
     return { ok: true, descartado: body.valor === true };
+  });
+
+  // ── CHAT DO CANAL DA EQUIPE (decreto 2026-08-05) — o número (41) na Meta:
+  //    conversa 100% HUMANA da secretária pelo portal; a AHRI nunca responde.
+  //    Envio de texto/documento livre na janela de 24h; fora dela, template. ──
+  const chatIndisponivel = { error: 'chat da equipe indisponível nesta montagem' };
+
+  app.get('/admin/humanizado/chat', async (_request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    return { conversas: await opts.chatHumanizado.resumo() };
+  });
+
+  app.get('/admin/humanizado/chat/:chatId', async (request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    return await opts.chatHumanizado.listar(chatId);
+  });
+
+  app.post('/admin/humanizado/chat/:chatId/lido', async (request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    await opts.chatHumanizado.marcarLido(chatId);
+    return { ok: true };
+  });
+
+  app.post('/admin/humanizado/chat/:chatId/texto', async (request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { texto?: string; autor?: string };
+    if (typeof body.texto !== 'string' || body.texto.trim() === '')
+      return reply.code(400).send({ error: 'texto obrigatório' });
+    const r = await opts.chatHumanizado.enviarTexto(chatId, body.texto, body.autor ?? 'Equipe');
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.post('/admin/humanizado/chat/:chatId/documento', async (request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { nome?: string; base64?: string; autor?: string };
+    if (typeof body.base64 !== 'string' || body.base64 === '')
+      return reply.code(400).send({ error: 'arquivo obrigatório' });
+    const r = await opts.chatHumanizado.enviarDocumento(
+      chatId,
+      { nome: body.nome ?? 'documento.pdf', base64: body.base64 },
+      body.autor ?? 'Equipe',
+    );
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.post('/admin/humanizado/chat/:chatId/template', async (request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { nome?: string; autor?: string };
+    const r = await opts.chatHumanizado.enviarTemplate(
+      chatId,
+      body.nome ?? 'contato_equipe',
+      body.autor ?? 'Equipe',
+    );
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.post('/admin/humanizado/chat/:chatId/confirmar', async (request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { mensagemId?: string; tipo?: string };
+    const tipos = ['procuracao', 'rg', 'comprovante', 'outro'] as const;
+    const tipo = tipos.find((t) => t === body.tipo);
+    if (typeof body.mensagemId !== 'string' || tipo === undefined)
+      return reply.code(400).send({ error: 'mensagemId e tipo (procuracao/rg/comprovante/outro)' });
+    const r = await opts.chatHumanizado.confirmarDocumento(chatId, body.mensagemId, tipo);
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.get('/admin/humanizado/chat/:chatId/anexo/:mensagemId', async (request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId, mensagemId } = request.params as { chatId: string; mensagemId: string };
+    const anexo = await opts.chatHumanizado.baixarAnexo(chatId, mensagemId);
+    if (anexo === null) return reply.code(404).send({ error: 'anexo não encontrado' });
+    return reply
+      .header('content-type', anexo.mime)
+      .header('content-disposition', `inline; filename="${nomeArquivoSeguro(anexo.nome, 'anexo')}"`)
+      .send(Buffer.from(anexo.bytes));
   });
 
   // ── PARECER EM LOTE (Onda 3) — a base LEGADA (cadastro do fluxo antigo)

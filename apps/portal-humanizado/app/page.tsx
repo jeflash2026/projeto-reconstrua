@@ -9,7 +9,7 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { ReactElement } from 'react';
-import { getJson, type AdvogadoOpcao, type ClienteHumanizado } from '../lib/api';
+import { getJson, type AdvogadoOpcao, type ClienteHumanizado, type ResumoChat } from '../lib/api';
 import {
   operadorDaSessao,
   HUMANIZADO_SESSION_COOKIE,
@@ -247,14 +247,21 @@ const CartaoCliente = ({
           confirmou em {dataBr(c.confirmadoEm)}
         </div>
       </div>
-      <a
-        className="btn primary"
-        href={linkWhatsApp(c, assinatura)}
-        target="_blank"
-        rel="noreferrer"
-      >
-        📲 Chamar no WhatsApp (mensagem pronta)
-      </a>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <a
+          className="btn primary"
+          href={linkWhatsApp(c, assinatura)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          📲 Chamar no WhatsApp (mensagem pronta)
+        </a>
+        {/* CANAL DA EQUIPE (2026-08-05): a conversa oficial DENTRO do portal —
+            enviar procuração, receber devolução e confirmar com um clique. */}
+        <Link className="btn" href={`/chat/${encodeURIComponent(c.chatId)}`}>
+          💬 Conversa no sistema
+        </Link>
+      </div>
     </div>
     <TamanhoDoCaso c={c} />
     <div style={{ marginTop: 8 }}>
@@ -295,9 +302,12 @@ const MesaPage = async ({
   const nomeOperador = cookies().get(HUMANIZADO_NOME_COOKIE)?.value ?? '';
   const assinatura = nomeOperador.trim().split(/\s+/)[0] || 'Layara';
 
-  const [data, advs] = await Promise.all([
+  const [data, advs, chats] = await Promise.all([
     getJson<{ clientes: ClienteHumanizado[] }>('/admin/humanizado/clientes', 20000),
     getJson<{ advogados: AdvogadoOpcao[] }>('/admin/humanizado/advogados', 10000),
+    // Canal da equipe (2026-08-05): a caixa de entrada — conversas com resposta
+    // do cliente esperando a secretária.
+    getJson<{ conversas: ResumoChat[] }>('/admin/humanizado/chat', 10000),
   ]);
   const advogados = advs?.advogados ?? [];
   const todos = data?.clientes ?? null;
@@ -343,6 +353,35 @@ const MesaPage = async ({
       ) : (
         <>
           <ResumoDaMesa todos={todos} />
+          {/* CAIXA DE ENTRADA do canal da equipe (2026-08-05): quem respondeu
+              no número oficial espera a secretária — inclusive número que não
+              está na mesa (cliente que escreveu direto). */}
+          {(chats?.conversas ?? []).some((cv) => cv.naoLidas > 0) ? (
+            <div className="chat-inbox">
+              <strong>💬 Respostas no WhatsApp da equipe aguardando você:</strong>
+              <div className="chat-inbox-lista">
+                {(chats?.conversas ?? [])
+                  .filter((cv) => cv.naoLidas > 0)
+                  .slice(0, 12)
+                  .map((cv) => {
+                    const cliente = todos.find((c) => c.chatId === cv.chatId) ?? null;
+                    return (
+                      <Link
+                        key={cv.chatId}
+                        className="chat-inbox-item"
+                        href={`/chat/${encodeURIComponent(cv.chatId)}`}
+                      >
+                        <span className="chat-inbox-nome">
+                          {cliente?.nome ?? cv.chatId.split('@')[0] ?? cv.chatId}
+                        </span>
+                        <span className="chat-inbox-previa">{cv.previa}</span>
+                        <span className="badge warn">{cv.naoLidas} nova(s)</span>
+                      </Link>
+                    );
+                  })}
+              </div>
+            </div>
+          ) : null}
           <FiltroEstados contagens={gruposDeTodos} ativo={ativo} total={todos.length} />
           <BuscaCliente q={q} uf={ativo} />
 
@@ -454,6 +493,11 @@ const MesaPage = async ({
                         advogados={advogados}
                       />
                       <DocsFase2 chatId={c.chatId} />
+                      <div style={{ marginTop: 8 }}>
+                        <Link className="btn" href={`/chat/${encodeURIComponent(c.chatId)}`}>
+                          💬 Conversa no sistema
+                        </Link>
+                      </div>
                     </div>
                   ))}
                 </div>

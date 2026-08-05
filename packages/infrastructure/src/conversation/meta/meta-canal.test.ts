@@ -221,6 +221,72 @@ describe('MetaCanalRuntime', () => {
     expect(await h.media.has(sha)).toBe(true);
   });
 
+  it('número da EQUIPE (phone_number_id do humanizado): registra na conversa humana e NUNCA chama a AHRI', async () => {
+    const json = new InMemoryJsonStore();
+    const canais = new CanalDoChatStore(json);
+    const media = new InMemoryMediaStore();
+    const references = new JsonMediaReferenceStore(json);
+    const recebidos: InboundEnvelope[] = [];
+    const registrados: { chatId: string; texto: string | null }[] = [];
+    const { http } = fakeHttp();
+    const runtime = new MetaCanalRuntime({
+      gateway: gatewayCom(http),
+      canais,
+      ingress: () => ({
+        receive: (envelope: InboundEnvelope) => {
+          recebidos.push(envelope);
+          return Promise.resolve();
+        },
+      }),
+      media,
+      references,
+      humanizado: {
+        phoneNumberId: '222',
+        registrar: (entrada) => {
+          registrados.push({ chatId: entrada.chatId, texto: entrada.texto });
+          return Promise.resolve();
+        },
+      },
+    });
+    const comMetadata = (phoneNumberId: string, from: string, texto: string): unknown => ({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                metadata: { phone_number_id: phoneNumberId },
+                messages: [
+                  {
+                    from,
+                    id: `wamid.${texto}`,
+                    timestamp: '1753900000',
+                    type: 'text',
+                    text: { body: texto },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    runtime.processar(comMetadata('222', '5541999998888', 'devolvo a procuracao'));
+    runtime.processar(comMetadata('111', '5511988887777', 'oi ahri'));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    // Equipe: só a conversa humana; AHRI: só a entrada única.
+    expect(registrados).toEqual([
+      { chatId: '5541999998888@s.whatsapp.net', texto: 'devolvo a procuracao' },
+    ]);
+    expect(recebidos.map((e) => e.text)).toEqual(['oi ahri']);
+    // O canal-do-chat NÃO muda pelo número da equipe (a conversa da AHRI com
+    // esse cliente continua saindo por onde sempre saiu).
+    expect(await canais.canalDe('5541999998888@s.whatsapp.net')).toBe(null);
+    expect(await canais.canalDe('5511988887777@s.whatsapp.net')).toBe('meta');
+  });
+
   it('chegouPelaEvolution devolve o canal ao interno (last-write-wins)', async () => {
     const h = runtimeHarness();
     h.runtime.processar(webhookTexto('oi'));

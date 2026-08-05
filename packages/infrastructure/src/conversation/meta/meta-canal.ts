@@ -66,6 +66,21 @@ export interface MetaCanalDeps {
   readonly media: MediaStorePort;
   readonly references: MediaReferenceStore;
   readonly aoFalhar?: (mensagem: string) => void;
+  /** CANAL HUMANIZADO (decreto 2026-08-05): o segundo número do MESMO app é da
+   *  EQUIPE — mensagem recebida nele vai à conversa humana do portal e NUNCA à
+   *  AHRI (nem registra canal: o canal-do-chat é só da conversa da AHRI). */
+  readonly humanizado?: {
+    readonly phoneNumberId: string;
+    registrar(entrada: {
+      readonly messageId: string;
+      readonly chatId: string;
+      readonly texto: string | null;
+      readonly tipo: 'texto' | 'documento' | 'imagem' | 'audio';
+      readonly nomeArquivo: string | null;
+      readonly midia: { readonly sha256: string; readonly mime: string } | null;
+      readonly em: Date;
+    }): Promise<void>;
+  } | null;
 }
 
 export class MetaCanalRuntime {
@@ -79,10 +94,17 @@ export class MetaCanalRuntime {
 
   /** Processa um POST do webhook oficial. ACK imediato: tudo é destacado. */
   processar(payload: unknown): void {
+    const humanizado = this.deps.humanizado ?? null;
     for (const inbound of mapMetaWebhook(payload)) {
-      void this.turno(inbound.envelope, inbound.mediaId).catch((error: unknown) => {
+      // Número da EQUIPE ⇒ conversa humana do portal; a AHRI nunca vê.
+      const doHumanizado =
+        humanizado !== null && inbound.phoneNumberId === humanizado.phoneNumberId;
+      const turno = doHumanizado
+        ? this.turnoHumanizado(inbound.envelope, inbound.mediaId)
+        : this.turno(inbound.envelope, inbound.mediaId);
+      void turno.catch((error: unknown) => {
         this.deps.aoFalhar?.(
-          `meta turno falhou chat=${inbound.envelope.chatId}: ${
+          `meta turno${doHumanizado ? ' humanizado' : ''} falhou chat=${inbound.envelope.chatId}: ${
             error instanceof Error ? error.message : 'falha'
           }`,
         );
@@ -97,27 +119,57 @@ export class MetaCanalRuntime {
     await this.deps.ingress().receive(envelope);
   }
 
+  /** CANAL DA EQUIPE (2026-08-05): registra na conversa humana — SEM ingress
+   *  (a AHRI nunca responde aqui) e SEM canal-do-chat (a conversa da AHRI com
+   *  esse cliente continua saindo pelo canal onde ela sempre falou). */
+  private async turnoHumanizado(envelope: InboundEnvelope, mediaId: string | null): Promise<void> {
+    const humanizado = this.deps.humanizado;
+    if (!humanizado) return;
+    const midia = mediaId !== null ? await this.capturarMidia(envelope, mediaId) : null;
+    const tipo =
+      envelope.kind === 'image'
+        ? 'imagem'
+        : envelope.kind === 'audio'
+          ? 'audio'
+          : envelope.kind === 'pdf' || envelope.kind === 'document'
+            ? 'documento'
+            : 'texto';
+    await humanizado.registrar({
+      messageId: envelope.messageId,
+      chatId: envelope.chatId,
+      texto: envelope.text,
+      tipo,
+      nomeArquivo: envelope.fileName,
+      midia,
+      em: envelope.timestamp,
+    });
+  }
+
   /** Best-effort: mídia inválida NÃO cala a mensagem — o turno segue (o texto/
    *  classificação por fileName flui; a transcrição fica pendente, como na
-   *  captura Evolution quando o base64 não vem). */
-  private async capturarMidia(envelope: InboundEnvelope, mediaId: string): Promise<void> {
+   *  captura Evolution quando o base64 não vem). Devolve o blob guardado
+   *  (sha256+mime) para quem precisa referenciá-lo (canal humanizado). */
+  private async capturarMidia(
+    envelope: InboundEnvelope,
+    mediaId: string,
+  ): Promise<{ readonly sha256: string; readonly mime: string } | null> {
     try {
       const baixada = await this.deps.gateway.baixarMidia(mediaId);
-      if (baixada === null) return;
+      if (baixada === null) return null;
       const mime = envelope.mediaMimeType ?? baixada.mime;
       if (!MIMES_PERMITIDOS.includes(mime)) {
         this.deps.aoFalhar?.(`meta midia mime nao permitido: ${mime}`);
-        return;
+        return null;
       }
       const bytes = baixada.bytes;
       if (bytes.length > MAX_MEDIA_BYTES) {
         this.deps.aoFalhar?.(`meta midia excede 20 MB: ${String(bytes.length)} bytes`);
-        return;
+        return null;
       }
       const magic = MAGIC[mime];
       if (magic !== undefined && !magic.every((b, i) => bytes[i] === b)) {
         this.deps.aoFalhar?.(`meta midia magic bytes nao conferem para ${mime}`);
-        return;
+        return null;
       }
       const sha256 = createHash('sha256').update(bytes).digest('hex');
       // Referência ANTES do turno (claim): vínculo documento↔blob nasce certo.
@@ -130,10 +182,12 @@ export class MetaCanalRuntime {
       if (!(await this.deps.media.has(sha256))) {
         await this.deps.media.put({ sha256, mime, size: bytes.length, bytes });
       }
+      return { sha256, mime };
     } catch (error) {
       this.deps.aoFalhar?.(
         `meta captura de midia falhou: ${error instanceof Error ? error.message : 'falha'}`,
       );
+      return null;
     }
   }
 }

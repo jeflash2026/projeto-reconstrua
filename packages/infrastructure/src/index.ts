@@ -44,3 +44,5 @@ export * from './socios/index.js';
 export * from './pericia-fluxo/index.js';
 export * from './mapa-clientes/index.js';
 export * from './pericia-digital/index.js';
+// Decreto 2026-08-05: chat 100% humano do canal da equipe (Meta, número 41).
+export * from './humanizado/index.js';

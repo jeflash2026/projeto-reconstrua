@@ -180,8 +180,8 @@ const CentralPerito = async (): Promise<ReactElement> => {
               </div>
               <CredenciaisView p={p} />
               <RespostaView p={p} />
-              <a className="btn" href={`/perito/api/planilha/${encodeURIComponent(p.clienteId)}`}>
-                Rebaixar planilha
+              <a className="btn" href={`/perito/api/pacote/${encodeURIComponent(p.clienteId)}`}>
+                Rebaixar pacote (planilha + documentos)
               </a>
             </div>
           ))

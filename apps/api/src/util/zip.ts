@@ -23,10 +23,11 @@ function crc32(buf: Buffer): number {
 
 export interface ArquivoZip {
   readonly name: string;
-  readonly content: string;
+  /** Texto (CSV) ou BINÁRIO (PDF/fotos — pacote do perito, 2026-08-04). */
+  readonly content: string | Buffer;
 }
 
-/** Empacota arquivos de texto num Buffer .zip (STORE). Ordem preservada. */
+/** Empacota arquivos (texto ou binário) num Buffer .zip (STORE). Ordem preservada. */
 export function zipStore(arquivos: readonly ArquivoZip[]): Buffer {
   const locais: Buffer[] = [];
   const centrais: Buffer[] = [];
@@ -34,7 +35,7 @@ export function zipStore(arquivos: readonly ArquivoZip[]): Buffer {
 
   for (const a of arquivos) {
     const nome = Buffer.from(a.name, 'utf8');
-    const dados = Buffer.from(a.content, 'utf8');
+    const dados = typeof a.content === 'string' ? Buffer.from(a.content, 'utf8') : a.content;
     const crc = crc32(dados);
 
     const local = Buffer.alloc(30);

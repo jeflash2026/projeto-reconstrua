@@ -23,7 +23,10 @@ function baixar(url: string): void {
   a.remove();
 }
 
-/** Unitário: baixa a planilha do cliente e inicia a perícia (10 dias). */
+/** Unitário: baixa o PACOTE COMPLETO do cliente (planilha do guia v2 + os
+ *  documentos do pedido administrativo — procuração assinada, RG, comprovante
+ *  e os originais) e inicia a perícia (10 dias). Decreto 2026-08-04: o CSV
+ *  descia sozinho e o perito ficava sem os documentos para protocolar. */
 export function BaixarEIniciar({ c }: { c: ClienteComHiscon }): ReactElement {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -31,13 +34,13 @@ export function BaixarEIniciar({ c }: { c: ClienteComHiscon }): ReactElement {
     if (busy) return;
     setBusy(true);
     await iniciarPericia(c.chatId, c.clienteId, c.quem);
-    baixar(`/perito/api/planilha/${encodeURIComponent(c.clienteId)}`);
+    baixar(`/perito/api/pacote/${encodeURIComponent(c.clienteId)}`);
     router.refresh();
     setBusy(false);
   };
   return (
     <button className="btn primary" disabled={busy} onClick={() => void acao()}>
-      {busy ? 'Baixando…' : 'Baixar e iniciar perícia'}
+      {busy ? 'Baixando…' : 'Baixar pacote (planilha + documentos) e iniciar'}
     </button>
   );
 }

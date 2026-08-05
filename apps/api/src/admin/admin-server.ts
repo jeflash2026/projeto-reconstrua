@@ -776,6 +776,80 @@ export function buildAdminServer(
       .send(gerada.conteudo);
   });
 
+  // PACOTE DO PERITO (decreto 2026-08-04): o download do estudo desce COMPLETO
+  // num ZIP — a planilha (guia v2, contratos selecionados) + os DOCUMENTOS do
+  // pedido administrativo: procuração assinada/RG/comprovante (anexos da
+  // equipe) e os originais do cliente (HISCON etc.). Caso real: o CSV descia
+  // sozinho e o perito ficava sem os documentos para protocolar.
+  app.get('/admin/jornada/pericia/:clienteId/pacote', async (request, reply) => {
+    if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
+    const { clienteId } = request.params as { clienteId: string };
+    const gerada = await op.perito.planilha(clienteId);
+    if (gerada === null) return reply.code(404).send({ error: 'cliente não encontrado' });
+    const arquivos: { name: string; content: string | Buffer }[] = [
+      { name: gerada.nomeArquivo, content: gerada.conteudo },
+    ];
+    const cliente = (await op.clientes?.list())?.find(
+      (c) => c.clienteId === clienteId || c.chatId === clienteId,
+    );
+    const chatId = cliente?.chatId ?? null;
+    if (chatId !== null) {
+      // 1) Docs da FASE 2 (procuração assinada, RG, comprovante) — equipe.
+      if (opts.docsEquipe) {
+        const docs = (await opts.docsEquipe.listar(chatId).catch(() => [])) as readonly {
+          id: string;
+          rotulo?: string;
+          nome?: string;
+        }[];
+        for (const d of docs) {
+          const baixado = await opts.docsEquipe.baixar(chatId, d.id).catch(() => null);
+          if (baixado === null) continue;
+          const nome = nomeArquivoSeguro(
+            `${d.rotulo ?? d.nome ?? 'documento'} - ${baixado.nome}`,
+            `doc-${d.id.slice(0, 8)}`,
+          );
+          arquivos.push({ name: `documentos/${nome}`, content: Buffer.from(baixado.bytes) });
+        }
+      }
+      // 2) Documentos ORIGINAIS do cliente (HISCON em PDF, fotos) — memória.
+      try {
+        const memoria = await op.memoryStore.load(chatId);
+        const rotulos = await rotulosDe(chatId);
+        for (const d of memoria?.documentsSent ?? []) {
+          const content = op.documentContent
+            ? await op.documentContent.byDocumentId(d.ref).catch(() => null)
+            : null;
+          if (content === null) continue;
+          const ext =
+            content.mime === 'application/pdf'
+              ? 'pdf'
+              : content.mime === 'image/png'
+                ? 'png'
+                : content.mime.startsWith('image/')
+                  ? 'jpg'
+                  : 'bin';
+          const nome = nomeArquivoSeguro(
+            `${rotulos[d.ref] ?? d.label} (${d.ref.slice(0, 8)})`,
+            `original-${d.ref.slice(0, 8)}`,
+          );
+          arquivos.push({
+            name: `documentos/${nome}.${ext}`,
+            content: Buffer.from(content.bytes),
+          });
+        }
+      } catch {
+        /* originais indisponíveis não seguram a planilha — o zip desce assim mesmo */
+      }
+    }
+    return reply
+      .header('content-type', 'application/zip')
+      .header(
+        'content-disposition',
+        `attachment; filename="pacote-${gerada.clienteId.replace(/"/g, '')}.zip"`,
+      )
+      .send(zipStore(arquivos));
+  });
+
   // Lote: um arquivo POR CLIENTE (JSON com os conteúdos; a tela dispara os downloads).
   app.get('/admin/jornada/pericia/planilhas', async (_request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });

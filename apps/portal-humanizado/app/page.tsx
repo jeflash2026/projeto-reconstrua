@@ -339,7 +339,13 @@ const MesaPage = async ({
     <div style={{ maxWidth: 1500, margin: '0 auto', padding: '24px 20px 48px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="page-title">Atendimento Humanizado</h1>
-        <SairButton />
+        <div style={{ display: 'flex', gap: 8 }}>
+          {/* Painel Conversas (2026-08-05): a janela estilo WhatsApp da equipe */}
+          <Link className="btn primary" href="/conversas">
+            💬 Conversas
+          </Link>
+          <SairButton />
+        </div>
       </div>
       <p className="page-sub">
         Clientes que CONFIRMARAM o interesse, organizados por estado. Chame pelo WhatsApp da equipe,
@@ -358,7 +364,10 @@ const MesaPage = async ({
               está na mesa (cliente que escreveu direto). */}
           {(chats?.conversas ?? []).some((cv) => cv.naoLidas > 0) ? (
             <div className="chat-inbox">
-              <strong>💬 Respostas no WhatsApp da equipe aguardando você:</strong>
+              <strong>💬 Respostas no WhatsApp da equipe aguardando você:</strong>{' '}
+              <Link href="/conversas" style={{ fontSize: 13 }}>
+                ver todas as conversas →
+              </Link>
               <div className="chat-inbox-lista">
                 {(chats?.conversas ?? [])
                   .filter((cv) => cv.naoLidas > 0)

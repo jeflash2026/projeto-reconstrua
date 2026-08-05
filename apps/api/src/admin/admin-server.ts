@@ -217,6 +217,8 @@ export function buildAdminServer(
           ultimaEm: string | null;
           previa: string;
           naoLidas: number;
+          ultimaDirecao: 'entrada' | 'saida' | null;
+          ultimaEntradaEm: string | null;
         }[]
       >;
       listar(chatId: string): Promise<{

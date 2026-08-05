@@ -56,6 +56,12 @@ export interface ResumoConversaHumanizada {
   readonly previa: string;
   /** Mensagens de ENTRADA depois do último "marcar lido" da secretária. */
   readonly naoLidas: number;
+  /** Quem falou por ÚLTIMO — 'entrada' = o cliente espera a equipe (painel
+   *  "aguardando sua resposta" do dono, 2026-08-05). */
+  readonly ultimaDirecao: 'entrada' | 'saida' | null;
+  /** Última mensagem DO CLIENTE (ISO) — mede o silêncio dele (painel
+   *  "procuração enviada sem retorno"). */
+  readonly ultimaEntradaEm: string | null;
 }
 
 /** Entrada vinda do webhook (já mapeada pelo MetaCanalRuntime). */
@@ -147,6 +153,7 @@ export class ChatHumanizadoService {
         const ultima = c.mensagens[c.mensagens.length - 1] ?? null;
         const lidoEm = c.lidoEm ?? '';
         const naoLidas = c.mensagens.filter((m) => m.direcao === 'entrada' && m.em > lidoEm).length;
+        const ultimaEntrada = [...c.mensagens].reverse().find((m) => m.direcao === 'entrada');
         return {
           chatId: c.chatId,
           total: c.mensagens.length,
@@ -156,6 +163,8 @@ export class ChatHumanizadoService {
               ? ''
               : (ultima.texto ?? ultima.nomeArquivo ?? `[${ultima.tipo}]`).slice(0, 80),
           naoLidas,
+          ultimaDirecao: ultima?.direcao ?? null,
+          ultimaEntradaEm: ultimaEntrada?.em ?? null,
         };
       })
       .sort((a, b) => (b.ultimaEm ?? '').localeCompare(a.ultimaEm ?? ''));

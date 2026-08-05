@@ -136,9 +136,17 @@ describe('ChatHumanizadoService', () => {
       midia: null,
       em: new Date('2026-08-05T14:00:00Z'),
     });
-    expect((await chat.resumo())[0]?.naoLidas).toBe(1);
+    const antes = (await chat.resumo())[0];
+    expect(antes?.naoLidas).toBe(1);
+    // Painéis inteligentes (2026-08-05): quem falou por último + silêncio do cliente.
+    expect(antes?.ultimaDirecao).toBe('entrada');
+    expect(antes?.ultimaEntradaEm).toBe('2026-08-05T14:00:00.000Z');
     await chat.marcarLido(CHAT);
     expect((await chat.resumo())[0]?.naoLidas).toBe(0);
+    await chat.enviarTexto(CHAT, 'respondido', 'Layara');
+    const depois = (await chat.resumo())[0];
+    expect(depois?.ultimaDirecao).toBe('saida');
+    expect(depois?.ultimaEntradaEm).toBe('2026-08-05T14:00:00.000Z');
   });
 
   it('sem gateway configurado, enviar devolve erro legível (nunca lança)', async () => {

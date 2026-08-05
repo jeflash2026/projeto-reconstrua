@@ -86,6 +86,10 @@ export interface ResumoChat {
   ultimaEm: string | null;
   previa: string;
   naoLidas: number;
+  /** Quem falou por último — 'entrada' = o cliente espera a equipe. */
+  ultimaDirecao?: 'entrada' | 'saida' | null;
+  /** Última mensagem DO CLIENTE (ISO) — mede o silêncio dele. */
+  ultimaEntradaEm?: string | null;
 }
 
 /** CHAT DO CANAL DA EQUIPE (decreto 2026-08-05) — a conversa 100% humana do

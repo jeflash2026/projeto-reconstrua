@@ -10,11 +10,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { ReactElement } from 'react';
 import { getJson, type AdvogadoOpcao, type ClienteHumanizado, type ResumoChat } from '../lib/api';
-import {
-  operadorDaSessao,
-  HUMANIZADO_SESSION_COOKIE,
-  HUMANIZADO_NOME_COOKIE,
-} from '../lib/session';
+import { operadorDaSessao, HUMANIZADO_SESSION_COOKIE } from '../lib/session';
 import { SairButton } from '../components/sair-button';
 import DocsFase2 from '../components/docs-fase2';
 import AguardandoToggle from '../components/aguardando-toggle';
@@ -29,40 +25,10 @@ function dataBr(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-/** A mensagem de ORIENTAÇÃO FINAL, pronta no WhatsApp da equipe (texto ditado
- *  pelo dono em 2026-08-04). A CONSULTORA envia esta mensagem, anexa a
- *  procuração em seguida e aguarda a devolução — por isso o pedido vem inteiro
- *  de uma vez. Decreto do dono (após o caso MARLENE): SEM emojis e SEM
- *  asteriscos — o pipeline de build corrompia os símbolos no WhatsApp; a
- *  mensagem é texto puro, limpa e profissional, apresentada pela consultora. */
-function mensagemDaEquipe(c: ClienteHumanizado, assinatura: string): string {
-  const bruto = c.nome.split(/\s+/)[0] ?? c.nome;
-  // O cadastro guarda o nome em CAIXA ALTA ("MARLENE") — a saudação sai humana.
-  const primeiro = bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
-  return [
-    `Olá, ${primeiro}!`,
-    '',
-    `Aqui é a ${assinatura}, consultora do Projeto Reconstrua. Agradecemos por confiar no nosso trabalho.`,
-    '',
-    'Para darmos continuidade ao seu atendimento, pedimos que envie o quanto antes:',
-    '',
-    '1. RG (frente e verso)',
-    '2. Procuração devidamente assinada',
-    '3. Comprovante de endereço',
-    '',
-    'Assim que recebermos a documentação completa, nossa equipe fará a conferência e, ' +
-      'estando tudo correto, dará prosseguimento ao protocolo do processo.',
-    '',
-    'Quanto antes você enviar, mais rápido conseguiremos avançar com o seu caso.',
-    '',
-    'Atenciosamente,',
-    `${assinatura} — Consultora do Projeto Reconstrua`,
-  ].join('\n');
-}
-
-function linkWhatsApp(c: ClienteHumanizado, assinatura: string): string {
-  return `https://wa.me/${c.telefone}?text=${encodeURIComponent(mensagemDaEquipe(c, assinatura))}`;
-}
+// A "mensagem pronta" (decreto 2026-08-05): o número da equipe agora vive na
+// Meta Cloud API — o wa.me do aplicativo antigo MORREU. O botão vermelho leva
+// à conversa DO SISTEMA com a apresentação da Layara pronta para disparar em
+// um clique (template contato_equipe, com o nome do cliente preenchido).
 
 /** Agrupa por UF (ordem alfabética; 'SEM UF' por último). */
 function porEstado(
@@ -217,11 +183,9 @@ const TamanhoDoCaso = ({ c }: { c: ClienteHumanizado }): ReactElement => (
 
 const CartaoCliente = ({
   c,
-  assinatura,
   advogados,
 }: {
   c: ClienteHumanizado;
-  assinatura: string;
   advogados: AdvogadoOpcao[];
 }): ReactElement => (
   // COR DO CARTÃO (pedido do dono, 2026-08-04): o ESTADO de relance —
@@ -248,16 +212,11 @@ const CartaoCliente = ({
         </div>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <a
-          className="btn primary"
-          href={linkWhatsApp(c, assinatura)}
-          target="_blank"
-          rel="noreferrer"
-        >
+        {/* Abre a conversa DO SISTEMA com a apresentação da Layara pronta
+            para disparar (template com o nome do cliente preenchido). */}
+        <Link className="btn primary" href={`/chat/${encodeURIComponent(c.chatId)}?apresentacao=1`}>
           📲 Chamar no WhatsApp (mensagem pronta)
-        </a>
-        {/* CANAL DA EQUIPE (2026-08-05): a conversa oficial DENTRO do portal —
-            enviar procuração, receber devolução e confirmar com um clique. */}
+        </Link>
         <Link className="btn" href={`/chat/${encodeURIComponent(c.chatId)}`}>
           💬 Conversa no sistema
         </Link>
@@ -295,12 +254,6 @@ const MesaPage = async ({
 }): Promise<ReactElement> => {
   const cookie = cookies().get(HUMANIZADO_SESSION_COOKIE)?.value ?? '';
   if (operadorDaSessao(SEGREDO_SESSAO, cookie) === null) redirect('/login');
-  // Quem assina a mensagem: o PRIMEIRO NOME de quem está atendendo. Sessão
-  // antiga (sem o nome guardado) assina como a Layara — pedido do dono
-  // 2026-08-04: a mensagem SEMPRE se apresenta como a consultora, nunca
-  // genérica ("Equipe Reconstrua — Consultora" saiu errado no caso real).
-  const nomeOperador = cookies().get(HUMANIZADO_NOME_COOKIE)?.value ?? '';
-  const assinatura = nomeOperador.trim().split(/\s+/)[0] || 'Layara';
 
   const [data, advs, chats] = await Promise.all([
     getJson<{ clientes: ClienteHumanizado[] }>('/admin/humanizado/clientes', 20000),
@@ -433,7 +386,7 @@ const MesaPage = async ({
             // Com estado escolhido (ou busca), a lista é direta em GRADE.
             <div className="grade-cartoes">
               {pendentes.map((c) => (
-                <CartaoCliente key={c.chatId} c={c} assinatura={assinatura} advogados={advogados} />
+                <CartaoCliente key={c.chatId} c={c} advogados={advogados} />
               ))}
             </div>
           ) : (
@@ -444,12 +397,7 @@ const MesaPage = async ({
                 </div>
                 <div className="grade-cartoes">
                   {lista.map((c) => (
-                    <CartaoCliente
-                      key={c.chatId}
-                      c={c}
-                      assinatura={assinatura}
-                      advogados={advogados}
-                    />
+                    <CartaoCliente key={c.chatId} c={c} advogados={advogados} />
                   ))}
                 </div>
               </section>

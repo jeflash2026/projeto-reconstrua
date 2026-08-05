@@ -16,7 +16,13 @@ export const dynamic = 'force-dynamic';
 
 const SEGREDO_SESSAO = process.env['ADMIN_API_TOKEN'] ?? '';
 
-const ChatPage = async ({ params }: { params: { chatId: string } }): Promise<ReactElement> => {
+const ChatPage = async ({
+  params,
+  searchParams,
+}: {
+  params: { chatId: string };
+  searchParams: { apresentacao?: string };
+}): Promise<ReactElement> => {
   const cookie = cookies().get(HUMANIZADO_SESSION_COOKIE)?.value ?? '';
   if (operadorDaSessao(SEGREDO_SESSAO, cookie) === null) redirect('/login');
 
@@ -49,7 +55,13 @@ const ChatPage = async ({ params }: { params: { chatId: string } }): Promise<Rea
         Conversa pelo número oficial da equipe — 100% humana (a AHRI não responde aqui). Anexo que o
         cliente devolver pode ser salvo no perfil com um clique em &quot;Confirmar&quot;.
       </p>
-      <ChatConversa chatId={chatId} nomeCliente={cliente?.nome ?? null} />
+      <ChatConversa
+        chatId={chatId}
+        nomeCliente={cliente?.nome ?? null}
+        // Botão da mesa "mensagem pronta": chega com a apresentação da Layara
+        // armada — um clique dispara o template com o nome do cliente.
+        sugerirApresentacao={searchParams.apresentacao === '1'}
+      />
     </div>
   );
 };

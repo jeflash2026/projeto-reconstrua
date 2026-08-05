@@ -33,11 +33,16 @@ function primeiroNomeDe(nome: string | null): string {
 export default function ChatConversa({
   chatId,
   nomeCliente = null,
+  sugerirApresentacao = false,
 }: {
   chatId: string;
   /** Nome do cliente (da mesa) — preenche o {{1}} dos templates. */
   nomeCliente?: string | null;
+  /** Botão "mensagem pronta" da mesa: chega com a APRESENTAÇÃO armada —
+   *  um clique dispara o template contato_equipe com o nome do cliente. */
+  sugerirApresentacao?: boolean;
 }): ReactElement {
+  const [apresentacaoArmada, setApresentacaoArmada] = useState(sugerirApresentacao);
   const [mensagens, setMensagens] = useState<MensagemChat[] | null>(null);
   const [texto, setTexto] = useState('');
   const [erro, setErro] = useState<string | null>(null);
@@ -190,6 +195,47 @@ export default function ChatConversa({
 
       {erro !== null ? <div className="error-box">{erro}</div> : null}
       {aviso !== null ? <div className="chat-aviso">{aviso}</div> : null}
+
+      {/* MENSAGEM PRONTA (botão vermelho da mesa): a apresentação da Layara
+          armada — um clique dispara o template com o nome do cliente. */}
+      {apresentacaoArmada ? (
+        <div className="chat-cta">
+          <div className="chat-cta-texto">
+            <strong>Mensagem pronta:</strong> apresentação da Layara com o pedido dos documentos
+            (RG, procuração assinada e comprovante), personalizada para{' '}
+            <strong>{primeiroNomeDe(nomeCliente)}</strong>.
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={ocupado}
+              onClick={() => {
+                void acao({
+                  acao: 'template',
+                  template: 'contato_equipe',
+                  variaveis: [primeiroNomeDe(nomeCliente)],
+                }).then((ok) => {
+                  if (ok) {
+                    setApresentacaoArmada(false);
+                    setAviso('Apresentação enviada — aguarde o cliente responder.');
+                  }
+                });
+              }}
+            >
+              Enviar agora para {primeiroNomeDe(nomeCliente)}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={ocupado}
+              onClick={() => setApresentacaoArmada(false)}
+            >
+              Agora não
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="chat-envio">
         <textarea

@@ -786,8 +786,11 @@ export function buildAdminServer(
     const { clienteId } = request.params as { clienteId: string };
     const gerada = await op.perito.planilha(clienteId);
     if (gerada === null) return reply.code(404).send({ error: 'cliente não encontrado' });
+    // Pedido do dono (2026-08-05): o pacote e a planilha levam o NOME do
+    // cliente — o perito acha o zip de cada pessoa pelo nome, não por um id.
+    const nomeCliente = nomeArquivoSeguro(gerada.quem, `cliente-${gerada.clienteId.slice(0, 8)}`);
     const arquivos: { name: string; content: string | Buffer }[] = [
-      { name: gerada.nomeArquivo, content: gerada.conteudo },
+      { name: `Contratos - ${nomeCliente}.csv`, content: gerada.conteudo },
     ];
     const cliente = (await op.clientes?.list())?.find(
       (c) => c.clienteId === clienteId || c.chatId === clienteId,
@@ -845,7 +848,15 @@ export function buildAdminServer(
       .header('content-type', 'application/zip')
       .header(
         'content-disposition',
-        `attachment; filename="pacote-${gerada.clienteId.replace(/"/g, '')}.zip"`,
+        // filename ASCII de fallback + filename* UTF-8 (o navegador moderno usa
+        // o segundo — acentos do nome preservados; o antigo cai no primeiro).
+        `attachment; filename="${nomeCliente
+          .normalize('NFD')
+          .replace(/[̀-ͯ]/g, '')
+          .replace(
+            /[^\x20-\x7e]/g,
+            '_',
+          )}.zip"; filename*=UTF-8''${encodeURIComponent(nomeCliente)}.zip`,
       )
       .send(zipStore(arquivos));
   });

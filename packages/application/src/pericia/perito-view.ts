@@ -156,6 +156,20 @@ export class PeritoView {
     return { ...det, contratos: contratosSelecionadosDoGuia(det.contratos, ref) };
   }
 
+  /** LINHA EM BRANCO entre BANCOS (pedido do dono, 2026-08-05): o CSV chega
+   *  ao perito com cada bloco de banco separado — leitura limpa no Excel. */
+  private comSeparadoresDeBanco(plan: Planilha, colunaBanco: number): Planilha {
+    const linhas: ReadonlyArray<string | number | null>[] = [];
+    let anterior: string | null = null;
+    for (const l of plan.linhas) {
+      const banco = String(l[colunaBanco] ?? '');
+      if (anterior !== null && banco !== anterior) linhas.push(plan.colunas.map(() => null));
+      anterior = banco;
+      linhas.push(l);
+    }
+    return { ...plan, linhas };
+  }
+
   /** Planilha de UM cliente (CSV hoje; XLSX = trocar o exporter). */
   async planilha(clienteId: string, now?: Date): Promise<PlanilhaGerada | null> {
     const c = await this.contratos(clienteId, now);
@@ -175,7 +189,10 @@ export class PeritoView {
       quem: c.quem,
       nomeArquivo: `contratos-${c.clienteId}.${this.deps.exporter.extensao}`,
       mime: this.deps.exporter.mime,
-      conteudo: this.deps.exporter.gerar(await this.comCpf(plan, c.chatId)),
+      // Coluna 1 = Banco (a 0 é o CPF) — linha em branco entre os blocos.
+      conteudo: this.deps.exporter.gerar(
+        this.comSeparadoresDeBanco(await this.comCpf(plan, c.chatId), 1),
+      ),
     };
   }
 
@@ -223,7 +240,9 @@ export class PeritoView {
           quem: c.quem,
           nomeArquivo: `contratos-${c.clienteId}.${this.deps.exporter.extensao}`,
           mime: this.deps.exporter.mime,
-          conteudo: this.deps.exporter.gerar(await this.comCpf(plan, c.chatId)),
+          conteudo: this.deps.exporter.gerar(
+            this.comSeparadoresDeBanco(await this.comCpf(plan, c.chatId), 1),
+          ),
         });
       } catch {
         /* cliente com documento problemático não interrompe o lote inteiro */

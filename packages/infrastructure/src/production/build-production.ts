@@ -1828,7 +1828,24 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     component('workflow', ['dispatcher', 'scheduler'], () => Promise.resolve()),
     component('llm', [], () => Promise.resolve()),
     component('gateway', [], async () => {
-      await gateway.setPresence('00000000-boot-probe', 'available');
+      try {
+        await gateway.setPresence('00000000-boot-probe', 'available');
+      } catch (e) {
+        // Decreto 2026-08-05: o canal OFICIAL é o META — a Evolution virou
+        // legado paralelo. Com o Meta configurado, a Evolution fora do ar NÃO
+        // derruba a plataforma (caso real: GO-LIVE BLOQUEADO às 02:07 por
+        // "gateway :: fetch failed" com o Meta perfeitamente saudável). A
+        // falha vira LOG; sem o Meta configurado, a sonda segue vital.
+        const metaConfigurado =
+          (env['META_WHATSAPP_TOKEN'] ?? '') !== '' && (env['META_PHONE_NUMBER_ID'] ?? '') !== '';
+        if (!metaConfigurado) throw e;
+        observability.error(
+          'boot',
+          'gateway-evolution',
+          clock.now(),
+          `Evolution indisponível no boot — plataforma segue pelo canal Meta (oficial). ${e instanceof Error ? e.message : ''}`,
+        );
+      }
     }),
     component('conversation', ['brain', 'memory', 'gateway'], () => Promise.resolve()),
     component('portals', ['memory'], () => Promise.resolve()),

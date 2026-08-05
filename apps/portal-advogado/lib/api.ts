@@ -125,6 +125,17 @@ export interface ProcessDetail {
   juridical: JuridicalEntry[];
 }
 
+/** PEDIDO ADMINISTRATIVO (2026-08-05): o relógio dos 10 dias — começa quando o
+ *  perito baixa o pacote; resposta do banco ou prazo vencido encerram a espera. */
+export interface PericiaDoCliente {
+  iniciadaEm: string;
+  prazoEm: string;
+  diasRestantes: number;
+  horasRestantes: number;
+  expirado: boolean;
+  respostaBanco?: { texto: string; registradaEm: string } | null;
+}
+
 /** MEUS CLIENTES (decreto 2026-07-29) — cliente destinado pelo Administrador. */
 export interface MeuCliente {
   missionId: string;
@@ -132,6 +143,8 @@ export interface MeuCliente {
   nome: string;
   atribuidoEm: string;
   documentos: number;
+  /** null/ausente = o perito ainda não baixou o pacote (perícia não iniciada). */
+  pericia?: PericiaDoCliente | null;
 }
 
 export interface Perfil {

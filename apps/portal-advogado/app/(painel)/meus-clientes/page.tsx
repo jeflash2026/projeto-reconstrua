@@ -2,10 +2,66 @@
 // a este advogado, POR NOME. Clicar no nome abre todos os documentos recebidos
 // pelo WhatsApp, prontos para download (isolamento por atribuição no servidor).
 import Link from 'next/link';
-import type { ReactElement } from 'react';
+import type { CSSProperties, ReactElement } from 'react';
 import AutoRefresh from '../../../components/auto-refresh';
-import { getJson, type MeuCliente } from '../../../lib/api';
+import { getJson, type MeuCliente, type PericiaDoCliente } from '../../../lib/api';
 import { formatDate } from '../../../lib/format';
+
+/** PEDIDO ADMINISTRATIVO (pedido do dono, 2026-08-05) — o status na frente do
+ *  nome, atualizado pela CONDIÇÃO:
+ *   • perito ainda não baixou o pacote → aguardando perícia;
+ *   • baixou → contagem regressiva dos 10 dias (verde/âmbar/vermelho);
+ *   • banco respondeu OU prazo venceu → concluído (luz verde p/ ajuizar). */
+const SeloPedido = ({ p }: { p: PericiaDoCliente | null | undefined }): ReactElement => {
+  const base: CSSProperties = {
+    display: 'inline-block',
+    padding: '2px 10px',
+    borderRadius: 10,
+    fontSize: 12,
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  };
+  if (p == null)
+    return (
+      <span style={{ ...base, background: 'rgba(150,160,170,.15)', color: 'var(--text-dim)' }}>
+        aguardando perícia
+      </span>
+    );
+  if (p.respostaBanco != null)
+    return (
+      <span
+        style={{ ...base, background: 'rgba(60,170,90,.18)', color: '#3fae5f' }}
+        title={`Resposta em ${formatDate(p.respostaBanco.registradaEm)}: ${p.respostaBanco.texto}`}
+      >
+        ✅ banco respondeu — pronto p/ ajuizar
+      </span>
+    );
+  if (p.expirado)
+    return (
+      <span
+        style={{ ...base, background: 'rgba(60,170,90,.18)', color: '#3fae5f' }}
+        title={`Pedido feito em ${formatDate(p.iniciadaEm)} — 10 dias vencidos sem resposta`}
+      >
+        🟢 prazo vencido — pronto p/ ajuizar
+      </span>
+    );
+  const dias = Math.floor(p.horasRestantes / 24);
+  const horas = p.horasRestantes % 24;
+  const cor =
+    dias > 5
+      ? { background: 'rgba(60,170,90,.18)', color: '#3fae5f' }
+      : dias >= 2
+        ? { background: 'rgba(217,154,0,.18)', color: '#d99a00' }
+        : { background: 'rgba(200,60,60,.18)', color: '#d05050' };
+  return (
+    <span
+      style={{ ...base, ...cor }}
+      title={`Pedido feito em ${formatDate(p.iniciadaEm)} — prazo até ${formatDate(p.prazoEm)}`}
+    >
+      ⏳ {dias}d {horas}h restantes
+    </span>
+  );
+};
 
 const MeusClientesPage = async ({
   searchParams,
@@ -59,6 +115,7 @@ const MeusClientesPage = async ({
             <thead>
               <tr>
                 <th>Cliente</th>
+                <th>Pedido administrativo</th>
                 <th>WhatsApp</th>
                 <th>Documentos</th>
                 <th>Destinado em</th>
@@ -74,6 +131,9 @@ const MeusClientesPage = async ({
                     >
                       {c.nome}
                     </Link>
+                  </td>
+                  <td>
+                    <SeloPedido p={c.pericia} />
                   </td>
                   <td className="mono" style={{ fontSize: 12 }}>
                     {c.chatId ?? '—'}

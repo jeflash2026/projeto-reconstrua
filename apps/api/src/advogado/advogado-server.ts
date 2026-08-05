@@ -80,6 +80,9 @@ export function buildAdvogadoServer(
       diasRestantes: number;
       horasRestantes: number;
       expirado: boolean;
+      /** 2026-08-05: resposta do banco registrada pelo perito — encerra a
+       *  espera antes do prazo (o status atualiza pela condição). */
+      respostaBanco?: { texto: string; registradaEm: string } | null;
     } | null>;
     /** Decreto 2026-07-30: docs da fase 2 humana (procuração/RG/comprovante). */
     readonly docsEquipe?: {
@@ -553,6 +556,13 @@ export function buildAdvogadoServer(
           nome: chatId !== null ? await nomeDoClientePorChat(chatId) : 'Cliente sem conversa',
           atribuidoEm: a.assignedAt,
           documentos: docs.filter((d) => d.missionId === a.missionId).length,
+          // PEDIDO ADMINISTRATIVO (2026-08-05): o relógio dos 10 dias na frente
+          // do nome — começa quando o perito BAIXA o pacote; a resposta do
+          // banco ou o prazo vencido atualizam o status pela condição.
+          pericia:
+            chatId !== null
+              ? ((await opts.periciaDoChat?.(chatId).catch(() => null)) ?? null)
+              : null,
         };
       }),
     );

@@ -210,6 +210,11 @@ async function main(): Promise<void> {
             diasRestantes: p.diasRestantes,
             horasRestantes: p.horasRestantes,
             expirado: p.expirado,
+            // 2026-08-05: a RESPOSTA do banco encerra a espera antes do prazo —
+            // o status do advogado atualiza pela condição, não só pelo relógio.
+            respostaBanco: p.respostaBanco
+              ? { texto: p.respostaBanco.texto, registradaEm: p.respostaBanco.registradaEm }
+              : null,
           }
         : null;
     },

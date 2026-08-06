@@ -38,10 +38,12 @@ export async function GET(
 }
 
 interface AcaoChat {
-  acao?: 'texto' | 'documento' | 'template' | 'confirmar' | 'lido';
+  acao?: 'texto' | 'documento' | 'audio' | 'template' | 'confirmar' | 'lido';
   texto?: string;
   nome?: string;
   base64?: string;
+  /** Áudio: o mime real da gravação (o gravador do portal produz audio/ogg). */
+  mime?: string;
   mensagemId?: string;
   tipo?: string;
   /** Template: qual modelo e as variáveis do corpo ({{1}} = nome do cliente). */
@@ -62,6 +64,10 @@ export async function POST(
     documento: {
       path: `${chat}/documento`,
       payload: { nome: body.nome, base64: body.base64, autor },
+    },
+    audio: {
+      path: `${chat}/audio`,
+      payload: { base64: body.base64, mime: body.mime, autor },
     },
     template: {
       path: `${chat}/template`,

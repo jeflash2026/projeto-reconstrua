@@ -29,6 +29,15 @@ export type CanalDeAtendimento = 'meta' | 'evolution';
 
 const NS_CANAL = 'canal-do-chat';
 const MIMES_PERMITIDOS: readonly string[] = ['application/pdf', 'image/jpeg', 'image/png'];
+/** ÁUDIO (decreto 2026-08-06): permitido SÓ no canal humanizado — a secretária
+ *  ouve a voz do cliente no chat. A Meta manda 'audio/ogg; codecs=opus' etc. */
+const MIMES_AUDIO: readonly string[] = [
+  'audio/ogg',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/aac',
+  'audio/amr',
+];
 const MAX_MEDIA_BYTES = 20 * 1024 * 1024; // 20 MB — a MESMA régua da captura
 const MAGIC: Readonly<Record<string, readonly number[]>> = {
   'application/pdf': [0x25, 0x50, 0x44, 0x46],
@@ -125,7 +134,9 @@ export class MetaCanalRuntime {
   private async turnoHumanizado(envelope: InboundEnvelope, mediaId: string | null): Promise<void> {
     const humanizado = this.deps.humanizado;
     if (!humanizado) return;
-    const midia = mediaId !== null ? await this.capturarMidia(envelope, mediaId) : null;
+    // Canal da equipe aceita também ÁUDIO (a voz do cliente toca no chat).
+    const midia =
+      mediaId !== null ? await this.capturarMidia(envelope, mediaId, MIMES_AUDIO) : null;
     const tipo =
       envelope.kind === 'image'
         ? 'imagem'
@@ -152,12 +163,15 @@ export class MetaCanalRuntime {
   private async capturarMidia(
     envelope: InboundEnvelope,
     mediaId: string,
+    mimesExtras: readonly string[] = [],
   ): Promise<{ readonly sha256: string; readonly mime: string } | null> {
     try {
       const baixada = await this.deps.gateway.baixarMidia(mediaId);
       if (baixada === null) return null;
-      const mime = envelope.mediaMimeType ?? baixada.mime;
-      if (!MIMES_PERMITIDOS.includes(mime)) {
+      // A Meta anexa parâmetros ('audio/ogg; codecs=opus') — a régua compara
+      // só o tipo-base, e é ele que fica gravado (content-type limpo).
+      const mime = (envelope.mediaMimeType ?? baixada.mime).split(';')[0]?.trim() ?? '';
+      if (!MIMES_PERMITIDOS.includes(mime) && !mimesExtras.includes(mime)) {
         this.deps.aoFalhar?.(`meta midia mime nao permitido: ${mime}`);
         return null;
       }

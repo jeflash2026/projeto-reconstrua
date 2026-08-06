@@ -45,6 +45,10 @@ export default function ChatConversa({
   sugerirApresentacao?: boolean;
 }): ReactElement {
   const [apresentacaoArmada, setApresentacaoArmada] = useState(sugerirApresentacao);
+  // ÁUDIO (decreto 2026-08-06): gravação em OGG/Opus — o ÚNICO formato de voz
+  // que a Meta aceita (o MediaRecorder nativo grava WEBM, recusado por ela).
+  const [gravando, setGravando] = useState(false);
+  const gravadorRef = useRef<{ stop(): Promise<void> } | null>(null);
   const [mensagens, setMensagens] = useState<MensagemChat[] | null>(null);
   const [texto, setTexto] = useState('');
   const [erro, setErro] = useState<string | null>(null);
@@ -133,6 +137,46 @@ export default function ChatConversa({
     if (ok) setAviso(`Anexo salvo no perfil do cliente como ${ROTULOS[tipo] ?? tipo}.`);
   }
 
+  /** Um clique GRAVA, o segundo PARA e envia. O encoder (OGG/Opus) roda num
+   *  worker servido pelo próprio portal — nada sai do navegador até o envio. */
+  async function alternarGravacao(): Promise<void> {
+    if (gravando) {
+      setGravando(false);
+      await gravadorRef.current?.stop().catch(() => undefined);
+      return;
+    }
+    setErro(null);
+    setAviso(null);
+    try {
+      const { default: Recorder } = await import('opus-recorder');
+      const gravador = new Recorder({
+        encoderPath: '/humanizado/encoderWorker.min.js',
+        encoderApplication: 2048, // VOIP — otimizado para voz
+        numberOfChannels: 1,
+        streamPages: false,
+      });
+      gravador.ondataavailable = (dados) => {
+        gravadorRef.current = null;
+        gravador.close();
+        const blob = new Blob([dados], { type: 'audio/ogg' });
+        const leitor = new FileReader();
+        leitor.onload = () => {
+          const base64 = typeof leitor.result === 'string' ? leitor.result : '';
+          if (base64 === '') return;
+          void acao({ acao: 'audio', base64, mime: 'audio/ogg' }).then((ok) => {
+            if (ok) setAviso('Áudio enviado ao cliente.');
+          });
+        };
+        leitor.readAsDataURL(blob);
+      };
+      await gravador.start();
+      gravadorRef.current = gravador;
+      setGravando(true);
+    } catch {
+      setErro('não consegui acessar o microfone — verifique a permissão do navegador');
+    }
+  }
+
   return (
     <div className="chat-caixa">
       <div className="chat-mensagens">
@@ -149,7 +193,17 @@ export default function ChatConversa({
               {m.texto !== null && m.texto !== '' ? (
                 <div className="chat-texto">{m.texto}</div>
               ) : null}
-              {m.sha256 !== null ? (
+              {/* ÁUDIO: toca direto no chat (entrada e saída). */}
+              {m.sha256 !== null && m.tipo === 'audio' ? (
+                <div className="chat-anexo">
+                  <audio
+                    controls
+                    preload="none"
+                    src={`${base}/anexo/${encodeURIComponent(m.id)}`}
+                    style={{ maxWidth: '100%', height: 36 }}
+                  />
+                </div>
+              ) : m.sha256 !== null ? (
                 <div className="chat-anexo">
                   📎{' '}
                   <a
@@ -263,6 +317,15 @@ export default function ChatConversa({
             onClick={() => void enviarTexto()}
           >
             Enviar
+          </button>
+          <button
+            type="button"
+            className={`btn${gravando ? ' primary' : ''}`}
+            disabled={ocupado && !gravando}
+            title="Um clique grava, o segundo para e envia a mensagem de voz"
+            onClick={() => void alternarGravacao()}
+          >
+            {gravando ? '⏹ Parar e enviar' : '🎤 Gravar áudio'}
           </button>
           <label className="btn">
             📎 Anexar PDF/foto

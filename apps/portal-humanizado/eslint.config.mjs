@@ -4,7 +4,7 @@ import rootConfig from '../../eslint.config.mjs';
 
 export default [
   {
-    ignores: ['.next/**', 'next-env.d.ts', 'next.config.mjs', 'eslint.config.mjs'],
+    ignores: ['.next/**', 'next-env.d.ts', 'next.config.mjs', 'eslint.config.mjs', 'public/**'],
   },
   ...rootConfig,
 ];

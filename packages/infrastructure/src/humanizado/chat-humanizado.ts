@@ -89,6 +89,11 @@ export interface EnvioHumanizado {
     idioma?: string,
     variaveis?: readonly string[],
   ): Promise<boolean>;
+  /** ÁUDIO (decreto 2026-08-06): mensagem de voz da secretária ao cliente. */
+  sendAudio(
+    chatId: string,
+    anexo: { readonly mimeType: string; readonly base64: string },
+  ): Promise<boolean>;
 }
 
 export interface ChatHumanizadoDeps {
@@ -243,6 +248,57 @@ export class ChatHumanizadoService {
       nomeArquivo: nome,
       mime: guardado.mime,
       sha256: guardado.sha256,
+      autor,
+    });
+    return { ok: true };
+  }
+
+  /** ÁUDIO da secretária → cliente (decreto 2026-08-06). O blob fica no media
+   *  store — a própria conversa toca o que foi enviado. A Meta só aceita
+   *  OGG/Opus, AAC, MP4, MPEG ou AMR — o gravador do portal produz OGG/Opus. */
+  async enviarAudio(
+    chatId: string,
+    anexo: { readonly mime: string; readonly base64: string },
+    autor: string,
+  ): Promise<Resultado> {
+    if (this.deps.envio === null) return { ok: false, error: SEM_CANAL };
+    const mime = anexo.mime.split(';')[0]?.trim() ?? '';
+    if (!mime.startsWith('audio/'))
+      return { ok: false, error: 'formato de áudio não reconhecido — grave novamente' };
+    let bytes: Buffer;
+    try {
+      const clean = anexo.base64.includes(',')
+        ? anexo.base64.slice(anexo.base64.indexOf(',') + 1)
+        : anexo.base64;
+      bytes = Buffer.from(clean, 'base64');
+    } catch {
+      return { ok: false, error: 'áudio inválido — grave novamente' };
+    }
+    if (bytes.length === 0) return { ok: false, error: 'áudio vazio — grave novamente' };
+    if (bytes.length > 16 * 1024 * 1024)
+      return { ok: false, error: 'áudio acima de 16 MB — grave um trecho menor' };
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    if (!(await this.deps.media.has(sha256))) {
+      await this.deps.media.put({
+        sha256,
+        mime,
+        size: bytes.length,
+        bytes: new Uint8Array(bytes),
+      });
+    }
+    const ok = await this.deps.envio.sendAudio(chatId, { mimeType: mime, base64: anexo.base64 });
+    if (!ok)
+      return {
+        ok: false,
+        error:
+          'a Meta recusou o áudio — se o cliente está há mais de 24h sem escrever, inicie pelo template',
+      };
+    await this.anotarSaida(chatId, {
+      tipo: 'audio',
+      texto: null,
+      nomeArquivo: 'audio.ogg',
+      mime,
+      sha256,
       autor,
     });
     return { ok: true };

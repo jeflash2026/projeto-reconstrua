@@ -35,6 +35,7 @@ function montar(aceita = true): {
     },
     sendDocument: () => Promise.resolve(),
     sendTemplate: () => Promise.resolve(aceita),
+    sendAudio: () => Promise.resolve(aceita),
   };
   const chat = new ChatHumanizadoService({ json, media, clock, envio, docsEquipe: docs });
   return { chat, docs, media, enviados };

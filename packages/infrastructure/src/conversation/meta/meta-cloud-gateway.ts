@@ -239,6 +239,41 @@ export class MetaCloudGateway implements ConversationGateway {
     return true;
   }
 
+  /** ÁUDIO (decreto 2026-08-06, chat humanizado): upload + mensagem de voz.
+   *  A Meta só aceita OGG/Opus (mono), AAC, MP4, MPEG ou AMR. */
+  async sendAudio(
+    chatId: string,
+    anexo: { readonly mimeType: string; readonly base64: string },
+  ): Promise<boolean> {
+    const clean = anexo.base64.includes(',')
+      ? anexo.base64.slice(anexo.base64.indexOf(',') + 1)
+      : anexo.base64;
+    const bytes = new Uint8Array(Buffer.from(clean, 'base64'));
+    const upload = await this.http.postForm(
+      `${this.base()}/${this.config.phoneNumberId}/media`,
+      this.headers(),
+      { fieldName: 'file', fileName: 'audio.ogg', mime: anexo.mimeType, bytes },
+      { messaging_product: 'whatsapp', type: anexo.mimeType },
+    );
+    const mediaId = asString(dig(upload.body, ['id']));
+    if (upload.status >= 400 || mediaId === null) {
+      this.falha('audio upload', upload.body);
+      return false;
+    }
+    const response = await this.http.postJson(this.messagesUrl(), this.headers(), {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: toNumber(chatId),
+      type: 'audio',
+      audio: { id: mediaId },
+    });
+    if (response.status >= 400) {
+      this.falha('sendAudio', response.body);
+      return false;
+    }
+    return true;
+  }
+
   /** A API oficial não tem presença livre ("digitando…" avulso) — no-op seguro. */
   setPresence(_chatId: string, _state: PresenceState): Promise<void> {
     return Promise.resolve();

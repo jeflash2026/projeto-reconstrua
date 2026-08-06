@@ -248,6 +248,11 @@ export function buildAdminServer(
         autor: string,
         variaveis?: readonly string[],
       ): Promise<{ ok: true } | { ok: false; error: string }>;
+      enviarAudio(
+        chatId: string,
+        anexo: { mime: string; base64: string },
+        autor: string,
+      ): Promise<{ ok: true } | { ok: false; error: string }>;
       confirmarDocumento(
         chatId: string,
         mensagemId: string,
@@ -1891,6 +1896,22 @@ export function buildAdminServer(
     const r = await opts.chatHumanizado.enviarDocumento(
       chatId,
       { nome: body.nome ?? 'documento.pdf', base64: body.base64 },
+      body.autor ?? 'Equipe',
+    );
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  // ÁUDIO (decreto 2026-08-06): mensagem de voz da secretária pelo chat.
+  app.post('/admin/humanizado/chat/:chatId/audio', async (request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { base64?: string; mime?: string; autor?: string };
+    if (typeof body.base64 !== 'string' || body.base64 === '')
+      return reply.code(400).send({ error: 'áudio obrigatório' });
+    const r = await opts.chatHumanizado.enviarAudio(
+      chatId,
+      { mime: body.mime ?? 'audio/ogg', base64: body.base64 },
       body.autor ?? 'Equipe',
     );
     if (!r.ok) return reply.code(422).send(r);

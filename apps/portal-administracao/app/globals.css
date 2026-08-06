@@ -121,7 +121,7 @@ a {
   gap: 12px;
 }
 .grid.stats {
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
 }
 .grid.two {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -140,8 +140,12 @@ a {
   color: var(--text-dim);
 }
 .stat .value {
-  font-size: 26px;
+  /* 2026-08-06: valores de MILHOES estouravam o card com fonte fixa — o
+     tamanho cede e o texto quebra dentro do card, nunca por cima do vizinho. */
+  font-size: clamp(17px, 1.35vw + 8px, 24px);
   font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 .stat .label {
   color: var(--text-dim);
@@ -1664,6 +1668,20 @@ details[open] > .lab-explica-body,
   }
   .dossie-meta {
     font-size: 10px;
+  }
+  /* iOS (2026-08-06): campo com fonte < 16px faz o Safari dar ZOOM sozinho ao
+     tocar — 16px mata o zoom; botões ganham alvo de toque confortável. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  button,
+  .btn {
+    min-height: 38px;
+  }
+  .table-wrap {
+    -webkit-overflow-scrolling: touch;
   }
 }
 

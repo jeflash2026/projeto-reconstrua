@@ -232,6 +232,7 @@ export function buildAdminServer(
         lidoEm: string | null;
       }>;
       marcarLido(chatId: string): Promise<void>;
+      excluirConversa(chatId: string): Promise<void>;
       enviarTexto(
         chatId: string,
         texto: string,
@@ -1873,6 +1874,15 @@ export function buildAdminServer(
     if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
     const { chatId } = request.params as { chatId: string };
     await opts.chatHumanizado.marcarLido(chatId);
+    return { ok: true };
+  });
+
+  // EXCLUIR conversa (2026-08-06): remove o registro do painel; documentos
+  // confirmados no perfil e blobs permanecem.
+  app.post('/admin/humanizado/chat/:chatId/excluir', async (request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    await opts.chatHumanizado.excluirConversa(chatId);
     return { ok: true };
   });
 

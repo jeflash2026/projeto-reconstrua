@@ -38,7 +38,7 @@ export async function GET(
 }
 
 interface AcaoChat {
-  acao?: 'texto' | 'documento' | 'audio' | 'template' | 'confirmar' | 'lido';
+  acao?: 'texto' | 'documento' | 'audio' | 'template' | 'confirmar' | 'lido' | 'excluir';
   texto?: string;
   nome?: string;
   base64?: string;
@@ -78,6 +78,7 @@ export async function POST(
       payload: { mensagemId: body.mensagemId, tipo: body.tipo },
     },
     lido: { path: `${chat}/lido`, payload: {} },
+    excluir: { path: `${chat}/excluir`, payload: {} },
   };
   const rota = rotas[body.acao ?? ''];
   if (rota === undefined) return Response.json({ error: 'ação desconhecida' }, { status: 400 });

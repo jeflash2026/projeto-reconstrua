@@ -197,6 +197,25 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
 
   const clienteSelecionado = selecionado !== null ? (porChat.get(selecionado) ?? null) : null;
 
+  /** EXCLUIR conversa (2026-08-06, com confirmação) — para limpar conversas
+   *  que não são de cliente (ex.: o aviso automático da própria Meta na
+   *  configuração do número). Documentos confirmados no perfil permanecem. */
+  async function excluirConversa(): Promise<void> {
+    if (selecionado === null) return;
+    const nome = clienteSelecionado?.nome ?? selecionado.split('@')[0] ?? selecionado;
+    const confirmado = window.confirm(
+      `Excluir a conversa com ${nome}?\n\nO histórico deste chat some do painel (documentos já confirmados no perfil do cliente permanecem). Se o número escrever de novo, uma conversa nova começa do zero.`,
+    );
+    if (!confirmado) return;
+    await fetch(`/humanizado/api/chat/${encodeURIComponent(selecionado)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ acao: 'excluir' }),
+    }).catch(() => undefined);
+    setSelecionado(null);
+    await carregar();
+  }
+
   const paineis: readonly { chave: Filtro; valor: number; rotulo: string; dica: string }[] = [
     {
       chave: 'aguardando',
@@ -335,12 +354,22 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
                     </span>
                   ) : null}
                 </div>
-                <a
-                  className="btn mini"
-                  href={`/humanizado/chat/${encodeURIComponent(selecionado)}`}
-                >
-                  abrir em página cheia
-                </a>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <a
+                    className="btn mini"
+                    href={`/humanizado/chat/${encodeURIComponent(selecionado)}`}
+                  >
+                    abrir em página cheia
+                  </a>
+                  <button
+                    type="button"
+                    className="btn mini descartar"
+                    title="Remove esta conversa do painel (com confirmação)"
+                    onClick={() => void excluirConversa()}
+                  >
+                    🗑 excluir conversa
+                  </button>
+                </div>
               </div>
               {/* key = chatId: trocar de cliente REMONTA o chat (zera o estado). */}
               <ChatConversa

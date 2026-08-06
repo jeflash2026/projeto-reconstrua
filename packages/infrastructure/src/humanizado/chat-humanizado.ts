@@ -180,6 +180,15 @@ export class ChatHumanizadoService {
       .sort((a, b) => (b.ultimaEm ?? '').localeCompare(a.ultimaEm ?? ''));
   }
 
+  /** EXCLUIR a conversa (ato do painel, 2026-08-06 — ex.: o aviso automático
+   *  da própria Meta na configuração do número). Remove só o REGISTRO da
+   *  conversa; blobs content-addressed permanecem (nunca apagamos bytes) e
+   *  documentos já confirmados seguem no perfil do cliente. Se o número
+   *  escrever de novo, uma conversa nova nasce do zero. */
+  async excluirConversa(chatId: string): Promise<void> {
+    await this.deps.json.del(NS, chatId);
+  }
+
   /** A secretária abriu a conversa — zera o contador de não lidas. */
   async marcarLido(chatId: string): Promise<void> {
     const atual = await this.conversa(chatId);

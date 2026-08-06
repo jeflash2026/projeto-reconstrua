@@ -2686,6 +2686,70 @@ export function buildAdminServer(
     };
   });
 
+  // ── PAINEL FINANCEIRO (pedido do dono, 2026-08-06) — o FUNIL do dinheiro:
+  //    potencial na mesa coletando assinatura → assinatura coletada →
+  //    encaminhado aos advogados, e o raio-x POR ADVOGADO (clientes, potencial,
+  //    carteira de contratos). Tudo derivado das fontes existentes; cache de
+  //    30s com requentar (compõe mesa + potencial + missões). ────────────────
+  const financeiroMemo = memoCurto(
+    async (): Promise<unknown> => {
+      const mesa = opts.humanizado ? await opts.humanizado.clientes() : [];
+      const ativos = mesa.filter((c) => c.descartado !== true);
+      const emColeta = ativos.filter((c) => !c.completo);
+      const coletados = ativos.filter((c) => c.completo);
+      const soma = (lista: readonly { potencial: number }[]): number =>
+        lista.reduce((s, c) => s + c.potencial, 0);
+
+      const potencialPorChat = new Map(
+        (opts.pericia?.potencialDeTodos
+          ? await opts.pericia.potencialDeTodos().catch(() => null)
+          : null
+        )?.porCliente.map((p) => [p.chatId, p.valor]) ?? [],
+      );
+      await op.projector.refresh();
+      const missoes = op.projector.missions();
+      const advogados = await op.staff.list('advogado');
+      const porAdvogado = [];
+      let encaminhadosTotal = 0;
+      let potencialEncaminhadoTotal = 0;
+      for (const a of advogados.filter((x) => x.active)) {
+        const atribuicoes = op.work ? await op.work.myMissions(a.id) : [];
+        const chats = atribuicoes
+          .map((m) => missoes.find((x) => x.missionId === m.missionId)?.chatId ?? null)
+          .filter((c): c is string => c !== null);
+        const potencialEncaminhado = chats.reduce(
+          (s, cid) => s + (potencialPorChat.get(cid) ?? 0),
+          0,
+        );
+        const marcados = ativos.filter((c) => c.advogadoId === a.id);
+        const carteira = opts.creditosAdvogado ? await opts.creditosAdvogado.saldo(a.id) : null;
+        encaminhadosTotal += chats.length;
+        potencialEncaminhadoTotal += potencialEncaminhado;
+        porAdvogado.push({
+          id: a.id,
+          nome: a.name,
+          clientesEncaminhados: chats.length,
+          potencialEncaminhado,
+          marcadosNaMesa: marcados.length,
+          potencialMarcado: soma(marcados),
+          contratosComprados: carteira?.comprados ?? 0,
+          contratosAbatidos: carteira?.abatidos ?? 0,
+          saldoContratos: carteira?.saldo ?? 0,
+        });
+      }
+      porAdvogado.sort((a, b) => b.potencialEncaminhado - a.potencialEncaminhado);
+      return {
+        emColeta: { clientes: emColeta.length, potencial: soma(emColeta) },
+        assinaturaColetada: { clientes: coletados.length, potencial: soma(coletados) },
+        encaminhado: { clientes: encaminhadosTotal, potencial: potencialEncaminhadoTotal },
+        porAdvogado,
+      };
+    },
+    30_000,
+    { requentar: true },
+  );
+  app.get('/admin/financeiro/painel', () => financeiroMemo());
+
   app.get('/admin/finance', async () => {
     const metrics = await op.metricsStore.load();
     // Decreto 2026-07-21: POTENCIAL DE RECUPERAÇÃO = o JÁ descontado até hoje

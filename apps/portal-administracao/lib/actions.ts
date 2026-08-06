@@ -1196,3 +1196,20 @@ export async function registrarCompraContratos(
   if (r === null) return { ok: false, error: 'API indisponível — tente novamente' };
   return r.ok === true ? { ok: true } : { ok: false, error: r.error ?? 'compra inválida' };
 }
+
+// ── DISPARO EM LOTE DA APRESENTAÇÃO (2026-08-06) — decreto do dono: o lote só
+// sai com a confirmação EXPLÍCITA do Admin; a API aplica a trava de 24h. ──────
+export interface AlvoDisparo {
+  chatId: string;
+  nome: string;
+  telefone: string;
+  uf: string;
+  jaDisparadoHoje: boolean;
+}
+
+export async function dispararApresentacaoHumanizado(): Promise<{
+  enviados: number;
+  falhas: { nome: string; erro: string }[];
+} | null> {
+  return sendJson('POST', '/admin/humanizado/disparo', { confirmar: true });
+}

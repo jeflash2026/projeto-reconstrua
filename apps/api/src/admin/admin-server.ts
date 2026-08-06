@@ -1973,6 +1973,89 @@ export function buildAdminServer(
       .send(Buffer.from(anexo.bytes));
   });
 
+  // ── DISPARO EM LOTE DA APRESENTAÇÃO (2026-08-06) — decreto do dono: nada
+  //    automático; o LOTE só sai com a confirmação EXPLÍCITA do Admin. Alvo:
+  //    documentação enviada + incompleto + o cliente NÃO respondeu no canal
+  //    depois do envio. Trava anti-duplicado: quem recebeu template nas
+  //    últimas 24h fica fora. Ritmo suave (a conta está sob análise). ────────
+  async function alvosDisparoHumanizado(): Promise<
+    readonly {
+      chatId: string;
+      nome: string;
+      telefone: string;
+      uf: string;
+      jaDisparadoHoje: boolean;
+    }[]
+  > {
+    if (!opts.humanizado || !opts.chatHumanizado) return [];
+    const mesa = await opts.humanizado.clientes();
+    const resumo = await opts.chatHumanizado.resumo();
+    const porChat = new Map(resumo.map((r) => [r.chatId, r]));
+    const agora = Date.now();
+    const alvos = [];
+    for (const c of mesa) {
+      if (c.descartado === true || c.completo || !c.aguardandoAssinatura) continue;
+      const cv = porChat.get(c.chatId);
+      const desde = c.aguardandoDesde ?? null;
+      const ultimaEntrada = cv?.ultimaEntradaEm ?? null;
+      const respondeuDepoisDoEnvio =
+        desde !== null
+          ? ultimaEntrada !== null && ultimaEntrada >= desde
+          : ultimaEntrada !== null &&
+            agora - new Date(ultimaEntrada).getTime() <= 2 * 24 * 60 * 60 * 1000;
+      if (respondeuDepoisDoEnvio) continue;
+      const conversa = await opts.chatHumanizado.listar(c.chatId);
+      const jaDisparadoHoje = (
+        conversa.mensagens as readonly { direcao?: string; tipo?: string; em?: string }[]
+      ).some(
+        (m) =>
+          m.direcao === 'saida' &&
+          m.tipo === 'template' &&
+          m.em !== undefined &&
+          agora - new Date(m.em).getTime() < 24 * 60 * 60 * 1000,
+      );
+      alvos.push({
+        chatId: c.chatId,
+        nome: c.nome,
+        telefone: c.telefone,
+        uf: c.uf,
+        jaDisparadoHoje,
+      });
+    }
+    return alvos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  }
+
+  app.get('/admin/humanizado/disparo', async (_request, reply) => {
+    if (!opts.humanizado || !opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    return { alvos: await alvosDisparoHumanizado() };
+  });
+
+  app.post('/admin/humanizado/disparo', async (request, reply) => {
+    if (!opts.humanizado || !opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const body = (request.body ?? {}) as { confirmar?: boolean };
+    if (body.confirmar !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
+    const alvos = (await alvosDisparoHumanizado()).filter((a) => !a.jaDisparadoHoje);
+    let enviados = 0;
+    const falhas: { nome: string; erro: string }[] = [];
+    for (const a of alvos) {
+      const bruto = a.nome.trim().split(/\s+/)[0] ?? '';
+      const primeiro =
+        bruto === '' ? 'Cliente' : bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
+      const r = await opts.chatHumanizado.enviarTemplate(
+        a.chatId,
+        'contato_equipe',
+        'Disparo do dono',
+        [primeiro],
+      );
+      if (r.ok) enviados += 1;
+      else falhas.push({ nome: a.nome, erro: r.error });
+      // Ritmo suave: a conta está sob análise de spam — nada de rajada.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return { enviados, jaDisparados: 0, falhas };
+  });
+
   // ── PARECER EM LOTE (Onda 3) — a base LEGADA (cadastro do fluxo antigo)
   //    nunca recebeu o dossiê+confirmação; o disparo é um CLIQUE do Admin.
   //    O fato do parecer é o claim (envio único — repetir o lote não duplica).

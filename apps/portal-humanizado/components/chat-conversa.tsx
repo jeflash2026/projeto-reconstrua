@@ -10,6 +10,7 @@
 //  • fora da janela de 24h a Meta recusa texto livre — o botão do TEMPLATE
 //    inicia a conversa do jeito aprovado; o erro volta legível.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ReactElement } from 'react';
 import type { MensagemChat } from '../lib/api';
 
@@ -44,6 +45,7 @@ export default function ChatConversa({
    *  um clique dispara o template contato_equipe com o nome do cliente. */
   sugerirApresentacao?: boolean;
 }): ReactElement {
+  const router = useRouter();
   const [apresentacaoArmada, setApresentacaoArmada] = useState(sugerirApresentacao);
   // ÁUDIO (decreto 2026-08-06): gravação em OGG/Opus — o ÚNICO formato de voz
   // que a Meta aceita (o MediaRecorder nativo grava WEBM, recusado por ela).
@@ -154,7 +156,11 @@ export default function ChatConversa({
 
   async function confirmar(m: MensagemChat, tipo: string): Promise<void> {
     const ok = await acao({ acao: 'confirmar', mensagemId: m.id, tipo });
-    if (ok) setAviso(`Anexo salvo no perfil do cliente como ${ROTULOS[tipo] ?? tipo}.`);
+    if (ok) {
+      setAviso(`Anexo salvo no perfil do cliente como ${ROTULOS[tipo] ?? tipo}.`);
+      // O STATUS dos documentos no cabeçalho vem do servidor — atualiza já.
+      router.refresh();
+    }
   }
 
   /** Um clique GRAVA, o segundo PARA e envia. O encoder (OGG/Opus) roda num

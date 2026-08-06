@@ -879,3 +879,35 @@ button.chip-uf {
   font-size: 13px;
   line-height: 1.4;
 }
+
+/* ── STATUS DA DOCUMENTAÇÃO no chat (2026-08-06) ──────────────────────────── */
+.cv-docs {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--borda);
+  background: #fbfaf7;
+}
+
+.docs-status {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 6px 0;
+}
+
+.docs-falta {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a6100;
+}
+
+.cliente-concluido {
+  margin: 6px 0;
+  padding: 10px 14px;
+  border: 1px solid #bfe3c5;
+  border-left: 5px solid var(--ok, #2f9e44);
+  border-radius: 10px;
+  background: #e9f7ec;
+  color: #226633;
+  font-size: 14px;
+}

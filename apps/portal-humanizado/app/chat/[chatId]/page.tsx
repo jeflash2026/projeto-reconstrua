@@ -11,6 +11,7 @@ import { getJson, type ClienteHumanizado } from '../../../lib/api';
 import { operadorDaSessao, HUMANIZADO_SESSION_COOKIE } from '../../../lib/session';
 import { SairButton } from '../../../components/sair-button';
 import ChatConversa from '../../../components/chat-conversa';
+import StatusDocsCliente from '../../../components/status-docs-cliente';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,10 @@ const ChatPage = async ({
         Conversa pelo número oficial da equipe — 100% humana (a AHRI não responde aqui). Anexo que o
         cliente devolver pode ser salvo no perfil com um clique em &quot;Confirmar&quot;.
       </p>
+      {/* STATUS DOS DOCUMENTOS (2026-08-06): o que falta / 100% verde. */}
+      {cliente !== null ? (
+        <StatusDocsCliente docs={cliente.docs} completo={cliente.completo} />
+      ) : null}
       <ChatConversa
         chatId={chatId}
         nomeCliente={cliente?.nome ?? null}

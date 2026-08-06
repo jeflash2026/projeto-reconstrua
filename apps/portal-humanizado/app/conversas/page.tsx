@@ -30,6 +30,7 @@ const ConversasPage = async (): Promise<ReactElement> => {
     aguardandoAssinatura: c.aguardandoAssinatura,
     aguardandoDesde: c.aguardandoDesde ?? null,
     descartado: c.descartado === true,
+    docs: c.docs,
   }));
 
   return (

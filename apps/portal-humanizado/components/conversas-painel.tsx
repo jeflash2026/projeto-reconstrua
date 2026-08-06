@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import type { ResumoChat } from '../lib/api';
 import ChatConversa from './chat-conversa';
+import StatusDocsCliente, { type DocsFlags } from './status-docs-cliente';
 
 /** A fatia da mesa que o painel precisa (vem do server component). */
 export interface ClienteDaMesa {
@@ -22,6 +23,9 @@ export interface ClienteDaMesa {
   aguardandoAssinatura: boolean;
   aguardandoDesde: string | null;
   descartado: boolean;
+  /** Status dos 4 documentos (2026-08-06) — o cabeçalho do chat mostra o que
+   *  falta e o destaque verde do 100% concluído. */
+  docs?: DocsFlags;
 }
 
 type Filtro = 'todas' | 'aguardando' | 'nao-lidas' | 'cobranca';
@@ -371,6 +375,16 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
                   </button>
                 </div>
               </div>
+              {/* STATUS DOS DOCUMENTOS (2026-08-06): o que falta / 100% verde,
+                  direto no cabeçalho — atualiza quando a secretária confirma. */}
+              {clienteSelecionado?.docs !== undefined ? (
+                <div className="cv-docs">
+                  <StatusDocsCliente
+                    docs={clienteSelecionado.docs}
+                    completo={clienteSelecionado.completo}
+                  />
+                </div>
+              ) : null}
               {/* key = chatId: trocar de cliente REMONTA o chat (zera o estado). */}
               <ChatConversa
                 key={selecionado}

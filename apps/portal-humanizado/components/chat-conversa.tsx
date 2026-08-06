@@ -241,6 +241,20 @@ export default function ChatConversa({
               {m.tipo === 'audio' && m.sha256 === null ? (
                 <div className="chat-texto">[áudio recebido — indisponível]</div>
               ) : null}
+              {/* FALHA DE ENTREGA (2026-08-06): a Meta aceitou e falhou depois
+                  (ex.: janela de 24h) — o aviso aparece NA mensagem. */}
+              {m.falha != null ? (
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--vermelho, #a01e1e)',
+                  }}
+                >
+                  ⚠ {m.falha}
+                </div>
+              ) : null}
               <div className="chat-meta">
                 {m.direcao === 'saida' ? `${m.autor ?? 'Equipe'} · ` : ''}
                 {horaBr(m.em)}

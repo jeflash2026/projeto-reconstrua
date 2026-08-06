@@ -40,6 +40,11 @@ export interface MensagemHumanizada {
   readonly autor: string | null;
   /** Tipo docs-equipe quando a secretária confirmou este anexo no perfil. */
   readonly confirmadoComo: TipoDocEquipe | null;
+  /** ID da Meta (wamid) da SAÍDA — correlaciona o status de entrega. */
+  readonly wamid?: string | null;
+  /** FALHA DE ENTREGA (2026-08-06): a Meta aceitou e falhou depois (ex.:
+   *  janela de 24h) — o chat mostra o aviso em vermelho na mensagem. */
+  readonly falha?: string | null;
   readonly em: string;
 }
 
@@ -197,7 +202,7 @@ export class ChatHumanizadoService {
 
   private async anotarSaida(
     chatId: string,
-    parcial: Omit<MensagemHumanizada, 'id' | 'direcao' | 'confirmadoComo' | 'em'>,
+    parcial: Omit<MensagemHumanizada, 'id' | 'direcao' | 'confirmadoComo' | 'em' | 'falha'>,
   ): Promise<void> {
     const atual = await this.conversa(chatId);
     const mensagem: MensagemHumanizada = {
@@ -205,9 +210,24 @@ export class ChatHumanizadoService {
       id: `hs-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       direcao: 'saida',
       confirmadoComo: null,
+      falha: null,
       em: this.deps.clock.now().toISOString(),
     };
     await this.gravar(chatId, { ...atual, mensagens: [...atual.mensagens, mensagem] });
+  }
+
+  /** FALHA DE ENTREGA vinda do status do webhook (ex.: 131047, janela de 24h):
+   *  encontra a saída pelo wamid e grava o motivo — o chat mostra o aviso. */
+  async marcarFalhaEnvio(chatId: string, wamid: string, motivo: string): Promise<void> {
+    const atual = await this.conversa(chatId);
+    if (!atual.mensagens.some((m) => m.wamid === wamid)) {
+      this.deps.aoFalhar?.(`falha de entrega sem mensagem correspondente wamid=${wamid}`);
+      return;
+    }
+    await this.gravar(chatId, {
+      ...atual,
+      mensagens: atual.mensagens.map((m) => (m.wamid === wamid ? { ...m, falha: motivo } : m)),
+    });
   }
 
   /** Texto da secretária → cliente. Falha do Graph (ex.: janela de 24h vencida,
@@ -230,6 +250,9 @@ export class ChatHumanizadoService {
       mime: null,
       sha256: null,
       autor,
+      // O wamid correlaciona o STATUS de entrega — falha assíncrona da Meta
+      // (ex.: janela de 24h) volta e marca ESTA mensagem no chat.
+      wamid: receipt.providerMessageId,
     });
     return { ok: true };
   }

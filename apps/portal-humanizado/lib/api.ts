@@ -104,5 +104,8 @@ export interface MensagemChat {
   sha256: string | null;
   autor: string | null;
   confirmadoComo: string | null;
+  /** FALHA DE ENTREGA (2026-08-06): a Meta aceitou e falhou depois (ex.:
+   *  janela de 24h) — o chat mostra o aviso em vermelho na mensagem. */
+  falha?: string | null;
   em: string;
 }

@@ -179,6 +179,52 @@ function mapMessage(message: Record<string, unknown>): Omit<MetaInbound, 'phoneN
   return null;
 }
 
+/** STATUS de entrega (2026-08-06, caso real: texto fora da janela de 24h é
+ *  ACEITO pela Meta e falha DEPOIS, num callback — sem capturar, a falha fica
+ *  muda e a secretária acha que enviou). */
+export interface MetaStatus {
+  readonly wamid: string;
+  readonly chatId: string;
+  readonly status: string;
+  readonly codigo: number | null;
+  readonly titulo: string | null;
+  readonly phoneNumberId: string | null;
+}
+
+/** Extrai os STATUS (sent/delivered/failed…) de um POST do webhook. */
+export function mapMetaStatuses(payload: unknown): readonly MetaStatus[] {
+  const root = asRecord(payload);
+  if (!root) return [];
+  const resultado: MetaStatus[] = [];
+  for (const entryRaw of asArray(root['entry']) ?? []) {
+    const entry = asRecord(entryRaw);
+    for (const changeRaw of entry ? (asArray(entry['changes']) ?? []) : []) {
+      const change = asRecord(changeRaw);
+      if (!change || asString(change['field']) !== 'messages') continue;
+      const value = asRecord(change['value']);
+      const phoneNumberId = asString(dig(value, ['metadata', 'phone_number_id']));
+      for (const statusRaw of value ? (asArray(value['statuses']) ?? []) : []) {
+        const s = asRecord(statusRaw);
+        if (!s) continue;
+        const wamid = asString(s['id']);
+        const status = asString(s['status']);
+        const destinatario = asString(s['recipient_id']);
+        if (wamid === null || status === null || destinatario === null) continue;
+        const erro = asRecord(asArray(s['errors'])?.[0]);
+        resultado.push({
+          wamid,
+          chatId: `${destinatario.replace(/\D/g, '')}@s.whatsapp.net`,
+          status,
+          codigo: erro ? asNumber(erro['code']) : null,
+          titulo: erro ? (asString(erro['title']) ?? asString(erro['message'])) : null,
+          phoneNumberId,
+        });
+      }
+    }
+  }
+  return resultado;
+}
+
 /**
  * Mapeia um POST do webhook oficial → lista de entradas normalizadas. Um único
  * POST pode carregar VÁRIAS mensagens (e/ou recibos, que são ignorados).

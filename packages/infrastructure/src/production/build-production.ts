@@ -1985,6 +1985,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
               : {
                   phoneNumberId: metaPhoneHumanizado,
                   registrar: (entrada) => chatHumanizado.registrarEntrada(entrada),
+                  // Falha assíncrona de entrega (ex.: janela de 24h) marca a
+                  // mensagem no chat — a secretária vê e usa o template.
+                  marcarFalha: (chatId, wamid, motivo) =>
+                    chatHumanizado.marcarFalhaEnvio(chatId, wamid, motivo),
                 },
         });
 

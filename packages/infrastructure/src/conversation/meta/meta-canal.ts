@@ -23,7 +23,7 @@ import type { JsonStore } from '../../production/json-store.js';
 import type { MediaReferenceStore } from '../../media/media-reference-store.js';
 import type { MediaStorePort } from '../../media/media-store-port.js';
 import type { MetaCloudGateway } from './meta-cloud-gateway.js';
-import { mapMetaWebhook } from './meta-webhook-mapper.js';
+import { mapMetaStatuses, mapMetaWebhook } from './meta-webhook-mapper.js';
 
 export type CanalDeAtendimento = 'meta' | 'evolution';
 
@@ -89,6 +89,9 @@ export interface MetaCanalDeps {
       readonly midia: { readonly sha256: string; readonly mime: string } | null;
       readonly em: Date;
     }): Promise<void>;
+    /** FALHA DE ENTREGA (2026-08-06): a Meta aceita o envio e falha DEPOIS
+     *  (ex.: 131047, janela de 24h) — a mensagem ganha o aviso no chat. */
+    marcarFalha?(chatId: string, wamid: string, motivo: string): Promise<void>;
   } | null;
 }
 
@@ -118,6 +121,21 @@ export class MetaCanalRuntime {
           }`,
         );
       });
+    }
+    // STATUS DE ENTREGA (2026-08-06): falha assíncrona (ex.: 131047 — janela
+    // de 24h) marca a mensagem no chat da equipe; qualquer falha vira log.
+    for (const s of mapMetaStatuses(payload)) {
+      if (s.status !== 'failed') continue;
+      const motivo =
+        s.codigo === 131047
+          ? 'não entregue: o cliente está há mais de 24h sem escrever — inicie pelo template'
+          : `não entregue (${s.titulo ?? `erro ${String(s.codigo ?? '?')}`})`;
+      this.deps.aoFalhar?.(
+        `meta entrega falhou chat=${s.chatId} wamid=${s.wamid}: ${s.titulo ?? ''} code=${String(s.codigo ?? '')}`,
+      );
+      if (humanizado !== null && s.phoneNumberId === humanizado.phoneNumberId) {
+        void humanizado.marcarFalha?.(s.chatId, s.wamid, motivo).catch(() => undefined);
+      }
     }
   }
 

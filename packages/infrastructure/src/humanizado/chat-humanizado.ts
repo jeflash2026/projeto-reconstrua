@@ -116,6 +116,40 @@ type Resultado = { ok: true } | { ok: false; error: string };
 
 const SEM_CANAL = 'canal da equipe não configurado — avise o administrador';
 
+/** O CORPO dos templates aprovados (2026-08-06) — a conversa registra o TEXTO
+ *  REAL que chegou ao cliente, com o nome no lugar do {{1}} (sem nome, a
+ *  saudação sai genérica — a versão sem variável do template). Se o texto for
+ *  editado no Gerenciador da Meta, espelhar aqui. */
+const CORPO_TEMPLATE: Readonly<Record<string, (nome: string | null) => string>> = {
+  contato_equipe: (nome) =>
+    [
+      nome !== null && nome !== '' ? `Olá, ${nome}!` : 'Olá!',
+      'Aqui é a Layara, consultora do Projeto Reconstrua. Agradecemos por confiar no nosso trabalho.',
+      '',
+      'Para darmos continuidade ao seu atendimento, pedimos que envie por aqui:',
+      '',
+      '1. RG (frente e verso)',
+      '2. Procuração devidamente assinada',
+      '3. Comprovante de endereço',
+      '4. Extrato de crédito do INSS dos últimos 3 meses',
+      '',
+      'Assim que recebermos a documentação completa, nossa equipe fará a conferência e, estando tudo correto, dará prosseguimento ao protocolo do processo.',
+      '',
+      'Atenciosamente,',
+      'Layara - Consultora do Projeto Reconstrua',
+    ].join('\n'),
+  retomada_documentos: (nome) =>
+    [
+      nome !== null && nome !== '' ? `Olá, ${nome}!` : 'Olá!',
+      'Aqui é a Layara, do Projeto Reconstrua. Estou passando para lembrar da documentação do seu atendimento: ainda aguardamos o RG (frente e verso), a procuração assinada, o comprovante de endereço e o extrato de crédito do INSS dos últimos 3 meses.',
+      '',
+      'Pode enviar por aqui mesmo, nesta conversa, quando conseguir. Qualquer dúvida, estou à disposição.',
+      '',
+      'Atenciosamente,',
+      'Layara - Consultora do Projeto Reconstrua',
+    ].join('\n'),
+};
+
 export class ChatHumanizadoService {
   constructor(private readonly deps: ChatHumanizadoDeps) {}
 
@@ -346,15 +380,25 @@ export class ChatHumanizadoService {
     variaveis: readonly string[] = [],
   ): Promise<Resultado> {
     if (this.deps.envio === null) return { ok: false, error: SEM_CANAL };
-    const ok = await this.deps.envio.sendTemplate(chatId, nome, 'pt_BR', variaveis);
+    // Tenta COM o nome ({{1}}); se o template aprovado for a versão SEM
+    // variável, a Meta recusa por parâmetro sobrando — reenvia sem variáveis
+    // (2026-08-06: o contato_equipe aprovado nasceu sem o {{1}}).
+    let usadas: readonly string[] = variaveis;
+    let ok = await this.deps.envio.sendTemplate(chatId, nome, 'pt_BR', usadas);
+    if (!ok && usadas.length > 0) {
+      usadas = [];
+      ok = await this.deps.envio.sendTemplate(chatId, nome, 'pt_BR', usadas);
+    }
     if (!ok)
       return {
         ok: false,
-        error: `a Meta recusou o template "${nome}" — confira se ele está APROVADO no Gerenciador (e se o corpo tem a variável {{1}})`,
+        error: `a Meta recusou o template "${nome}" — confira se ele está APROVADO no Gerenciador`,
       };
+    // A conversa registra o TEXTO REAL do template (o que chegou ao cliente).
+    const corpo = CORPO_TEMPLATE[nome];
     await this.anotarSaida(chatId, {
       tipo: 'template',
-      texto: `[template ${nome} enviado${variaveis.length > 0 ? ` para ${variaveis[0] ?? ''}` : ''}]`,
+      texto: corpo !== undefined ? corpo(usadas[0] ?? null) : `[template ${nome} enviado]`,
       nomeArquivo: null,
       mime: null,
       sha256: null,

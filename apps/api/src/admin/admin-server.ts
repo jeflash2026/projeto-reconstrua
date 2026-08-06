@@ -754,8 +754,26 @@ export function buildAdminServer(
   const cacheCliente = cachePorChave<unknown>(5_000);
   const cacheDossie = cachePorChave<unknown>(15_000);
 
+  // PERFORMANCE (2026-08-05, "o humanizado está lento para TUDO"): o chat da
+  // equipe é POST puro (abrir conversa = marcar lido; enviar texto; template)
+  // e o LOGIN da secretária também — e cada POST derrubava TODOS os caches.
+  // O uso normal do chat mantinha o sistema inteiro permanentemente FRIO.
+  // Essas rotas não mudam nenhum dado DERIVADO de cliente — só o CONFIRMAR
+  // (anexa documento ao perfil → muda a mesa) continua invalidando.
+  const posseNaoInvalida = (url: string): boolean => {
+    if (url.startsWith('/admin/humanizado/chat/')) return !url.includes('/confirmar');
+    return (
+      url.startsWith('/admin/humanizado/login') ||
+      url.startsWith('/admin/humanizado/definir-senha') ||
+      url.startsWith('/admin/humanizado/convite')
+    );
+  };
   app.addHook('preHandler', (request, _reply, done) => {
-    if (request.method !== 'GET' && request.url.startsWith('/admin/')) {
+    if (
+      request.method !== 'GET' &&
+      request.url.startsWith('/admin/') &&
+      !posseNaoInvalida(request.url)
+    ) {
       invalidarCacheJornada();
       // A mesa do Atendimento Humanizado também é derivada em cache curto: o
       // anexo de um documento ou a marcação da secretária refletem na hora.

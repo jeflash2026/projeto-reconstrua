@@ -85,8 +85,10 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
 
   const porChat = useMemo(() => new Map(clientes.map((c) => [c.chatId, c])), [clientes]);
 
-  // A LISTA: toda conversa existente + clientes da mesa em COBRANÇA que ainda
-  // nem têm conversa no sistema (o ponto do painel é ir atrás deles).
+  // A LISTA (pedido do dono, 2026-08-06): toda conversa existente + TODOS os
+  // clientes da mesa (menos descartados) — a secretária escolhe QUALQUER um e
+  // conversa; quem ainda não tem conversa no sistema entra com o aviso para
+  // iniciar pelo template. Conversas recentes primeiro; sem conversa, por nome.
   const linhas = useMemo((): Linha[] => {
     const agora = Date.now();
     const vistos = new Set<string>();
@@ -119,9 +121,13 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
     }
     for (const c of clientes) {
       if (vistos.has(c.chatId)) continue;
-      if (!(c.aguardandoAssinatura && !c.completo && !c.descartado)) continue;
+      if (c.descartado) continue;
+      // Em COBRANÇA: documentação enviada, incompleto e 2+ dias sem retorno.
       const desdeMs = c.aguardandoDesde !== null ? new Date(c.aguardandoDesde).getTime() : null;
-      if (desdeMs !== null && agora - desdeMs <= DOIS_DIAS_MS) continue;
+      const emCobranca =
+        c.aguardandoAssinatura &&
+        !c.completo &&
+        (desdeMs === null || agora - desdeMs > DOIS_DIAS_MS);
       out.push({
         chatId: c.chatId,
         nome: c.nome,
@@ -131,12 +137,17 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
         ultimaEm: null,
         naoLidas: 0,
         aguardandoResposta: false,
-        emCobranca: true,
+        emCobranca,
         diasSilencio: diasDeSilencio(null, c.aguardandoDesde),
         temConversa: false,
       });
     }
-    return out.sort((a, b) => (b.ultimaEm ?? '').localeCompare(a.ultimaEm ?? ''));
+    return out.sort((a, b) => {
+      // Conversas vivas primeiro (mais recentes no topo); sem conversa, A→Z.
+      const porRecencia = (b.ultimaEm ?? '').localeCompare(a.ultimaEm ?? '');
+      if (porRecencia !== 0) return porRecencia;
+      return a.nome.localeCompare(b.nome, 'pt-BR');
+    });
   }, [conversas, clientes, porChat]);
 
   const totais = useMemo(

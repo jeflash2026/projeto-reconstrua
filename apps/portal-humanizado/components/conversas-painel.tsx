@@ -97,14 +97,20 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
       vistos.add(cv.chatId);
       const cliente = porChat.get(cv.chatId) ?? null;
       const ultimaEntradaEm = cv.ultimaEntradaEm ?? null;
-      const silencioMs =
-        ultimaEntradaEm !== null ? agora - new Date(ultimaEntradaEm).getTime() : Infinity;
+      // SEM RETORNO (regra do dono, 2026-08-06): a secretária marcou "enviei a
+      // documentação" e o cliente NÃO respondeu DEPOIS do envio — sem esperar
+      // dias. (Marca sem data registrada usa a folga de 2 dias como fallback.)
+      const desde = cliente?.aguardandoDesde ?? null;
+      const naoRespondeuDesdeOEnvio =
+        desde !== null
+          ? ultimaEntradaEm === null || ultimaEntradaEm < desde
+          : ultimaEntradaEm === null || agora - new Date(ultimaEntradaEm).getTime() > DOIS_DIAS_MS;
       const emCobranca =
         cliente !== null &&
         cliente.aguardandoAssinatura &&
         !cliente.completo &&
         !cliente.descartado &&
-        silencioMs > DOIS_DIAS_MS;
+        naoRespondeuDesdeOEnvio;
       out.push({
         chatId: cv.chatId,
         nome: cliente?.nome ?? cv.chatId.split('@')[0] ?? cv.chatId,
@@ -122,12 +128,9 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
     for (const c of clientes) {
       if (vistos.has(c.chatId)) continue;
       if (c.descartado) continue;
-      // Em COBRANÇA: documentação enviada, incompleto e 2+ dias sem retorno.
-      const desdeMs = c.aguardandoDesde !== null ? new Date(c.aguardandoDesde).getTime() : null;
-      const emCobranca =
-        c.aguardandoAssinatura &&
-        !c.completo &&
-        (desdeMs === null || agora - desdeMs > DOIS_DIAS_MS);
+      // Sem conversa no sistema = nunca respondeu por aqui: documentação
+      // enviada + incompleto já é SEM RETORNO (regra do dono, 2026-08-06).
+      const emCobranca = c.aguardandoAssinatura && !c.completo;
       out.push({
         chatId: c.chatId,
         nome: c.nome,
@@ -210,8 +213,8 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
     {
       chave: 'cobranca',
       valor: totais.cobranca,
-      rotulo: 'Procuração enviada sem retorno (2+ dias)',
-      dica: 'Documentação enviada e o cliente sumiu — hora de cobrar',
+      rotulo: 'Documentação enviada sem retorno',
+      dica: 'Você enviou a documentação e o cliente ainda não respondeu — hora de cobrar',
     },
   ];
 

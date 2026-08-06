@@ -9,7 +9,7 @@
 //    upload manual;
 //  • fora da janela de 24h a Meta recusa texto livre — o botão do TEMPLATE
 //    inicia a conversa do jeito aprovado; o erro volta legível.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import type { MensagemChat } from '../lib/api';
 
@@ -88,6 +88,26 @@ export default function ChatConversa({
       totalRef.current = total;
       fimRef.current?.scrollIntoView({ block: 'end' });
     }
+  }, [mensagens]);
+
+  // JANELA DE 24H RETROATIVA (2026-08-06): saída SEM fala do cliente nas 24h
+  // anteriores quase certamente NÃO chegou (a Meta aceita e recusa depois; as
+  // falhas antigas não ficaram registradas). O aviso é derivado do próprio
+  // histórico; template fica de fora (ele atravessa a janela).
+  const comJanela = useMemo(() => {
+    if (mensagens === null) return null;
+    let ultimaEntradaMs: number | null = null;
+    return mensagens.map((m) => {
+      if (m.direcao === 'entrada') {
+        ultimaEntradaMs = new Date(m.em).getTime();
+        return { m, foraDaJanela: false };
+      }
+      const foraDaJanela =
+        m.tipo !== 'template' &&
+        (ultimaEntradaMs === null ||
+          new Date(m.em).getTime() - ultimaEntradaMs > 24 * 60 * 60 * 1000);
+      return { m, foraDaJanela };
+    });
   }, [mensagens]);
 
   async function acao(payload: Record<string, unknown>): Promise<boolean> {
@@ -188,7 +208,7 @@ export default function ChatConversa({
             do template — a Meta só libera texto livre depois que ele responder.
           </div>
         ) : (
-          mensagens.map((m) => (
+          (comJanela ?? []).map(({ m, foraDaJanela }) => (
             <div key={m.id} className={`chat-balao ${m.direcao}`}>
               {m.texto !== null && m.texto !== '' ? (
                 <div className="chat-texto">{m.texto}</div>
@@ -253,6 +273,11 @@ export default function ChatConversa({
                   }}
                 >
                   ⚠ {m.falha}
+                </div>
+              ) : foraDaJanela ? (
+                <div style={{ marginTop: 4, fontSize: 12, fontWeight: 600, color: '#8a6100' }}>
+                  ⚠ provavelmente não entregue — o cliente não tinha escrito nas 24h anteriores
+                  (inicie pelo template)
                 </div>
               ) : null}
               <div className="chat-meta">

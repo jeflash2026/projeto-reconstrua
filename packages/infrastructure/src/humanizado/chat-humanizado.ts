@@ -117,13 +117,13 @@ type Resultado = { ok: true } | { ok: false; error: string };
 const SEM_CANAL = 'canal da equipe não configurado — avise o administrador';
 
 /** O CORPO dos templates aprovados (2026-08-06) — a conversa registra o TEXTO
- *  REAL que chegou ao cliente, com o nome no lugar do {{1}} (sem nome, a
- *  saudação sai genérica — a versão sem variável do template). Se o texto for
- *  editado no Gerenciador da Meta, espelhar aqui. */
-const CORPO_TEMPLATE: Readonly<Record<string, (nome: string | null) => string>> = {
-  contato_equipe: (nome) =>
+ *  REAL que chegou ao cliente, com as variáveis preenchidas ({{1}} = nome;
+ *  {{2}} = lista de documentos pendentes, quando o template tem). Se o texto
+ *  for editado no Gerenciador da Meta, espelhar aqui. */
+const CORPO_TEMPLATE: Readonly<Record<string, (vars: readonly string[]) => string>> = {
+  contato_equipe: ([nome]) =>
     [
-      nome !== null && nome !== '' ? `Olá, ${nome}!` : 'Olá!',
+      nome !== undefined && nome !== '' ? `Olá, ${nome}!` : 'Olá!',
       'Aqui é a Layara, consultora do Projeto Reconstrua. Agradecemos por confiar no nosso trabalho.',
       '',
       'Para darmos continuidade ao seu atendimento, pedimos que envie por aqui:',
@@ -138,12 +138,23 @@ const CORPO_TEMPLATE: Readonly<Record<string, (nome: string | null) => string>> 
       'Atenciosamente,',
       'Layara - Consultora do Projeto Reconstrua',
     ].join('\n'),
-  retomada_documentos: (nome) =>
+  retomada_documentos: ([nome]) =>
     [
-      nome !== null && nome !== '' ? `Olá, ${nome}!` : 'Olá!',
+      nome !== undefined && nome !== '' ? `Olá, ${nome}!` : 'Olá!',
       'Aqui é a Layara, do Projeto Reconstrua. Estou passando para lembrar da documentação do seu atendimento: ainda aguardamos o RG (frente e verso), a procuração assinada, o comprovante de endereço e o extrato de crédito do INSS dos últimos 3 meses.',
       '',
       'Pode enviar por aqui mesmo, nesta conversa, quando conseguir. Qualquer dúvida, estou à disposição.',
+      '',
+      'Atenciosamente,',
+      'Layara - Consultora do Projeto Reconstrua',
+    ].join('\n'),
+  // Cobrança CIRÚRGICA (2026-08-07): {{2}} = só o que FALTA deste cliente.
+  documentos_pendentes: ([nome, lista]) =>
+    [
+      nome !== undefined && nome !== '' ? `Olá, ${nome}!` : 'Olá!',
+      `Aqui é a Layara, do Projeto Reconstrua. Para concluir o seu atendimento, falta apenas: ${lista ?? 'a documentação pendente'}.`,
+      '',
+      'Pode enviar por aqui mesmo, nesta conversa. Qualquer dúvida, estou à disposição.',
       '',
       'Atenciosamente,',
       'Layara - Consultora do Projeto Reconstrua',
@@ -398,7 +409,7 @@ export class ChatHumanizadoService {
     const corpo = CORPO_TEMPLATE[nome];
     await this.anotarSaida(chatId, {
       tipo: 'template',
-      texto: corpo !== undefined ? corpo(usadas[0] ?? null) : `[template ${nome} enviado]`,
+      texto: corpo !== undefined ? corpo(usadas) : `[template ${nome} enviado]`,
       nomeArquivo: null,
       mime: null,
       sha256: null,

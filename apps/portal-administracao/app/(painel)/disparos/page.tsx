@@ -12,6 +12,9 @@ interface AlvoDisparo {
   telefone: string;
   uf: string;
   jaDisparadoHoje: boolean;
+  /** Cobrança cirúrgica (2026-08-07): o que falta e o template escolhido. */
+  faltantes?: string[];
+  template?: 'contato_equipe' | 'documentos_pendentes';
 }
 
 const DisparosPage = async (): Promise<ReactElement> => {
@@ -23,9 +26,10 @@ const DisparosPage = async (): Promise<ReactElement> => {
     <>
       <h1 className="page-title">Disparos</h1>
       <p className="page-sub">
-        O lote da apresentação da Layara (template aprovado) para quem recebeu a documentação e
-        ainda não respondeu no canal da equipe. Nada sai sem a sua confirmação; quem recebeu
-        template nas últimas 24h fica fora sozinho.
+        O lote diário da Layara para quem está com documentação pendente e sem retorno no canal da
+        equipe. O sistema escolhe o template pela FASE de cada cliente: quem não entregou nada
+        recebe a apresentação completa; quem entregou parte recebe a cobrança SÓ do que falta. Nada
+        sai sem a sua confirmação; quem recebeu template nas últimas 24h fica fora sozinho.
       </p>
       {alvos === null ? (
         <div className="error-box">API indisponível.</div>
@@ -49,6 +53,8 @@ const DisparosPage = async (): Promise<ReactElement> => {
                       <th>Cliente</th>
                       <th>WhatsApp</th>
                       <th>UF</th>
+                      <th>O que falta</th>
+                      <th>Mensagem que vai</th>
                       <th>Situação</th>
                     </tr>
                   </thead>
@@ -60,6 +66,16 @@ const DisparosPage = async (): Promise<ReactElement> => {
                           {a.telefone}
                         </td>
                         <td>{a.uf}</td>
+                        <td style={{ fontSize: 12 }}>
+                          {(a.faltantes ?? []).length > 0 ? (a.faltantes ?? []).join(', ') : '—'}
+                        </td>
+                        <td>
+                          {a.template === 'documentos_pendentes' ? (
+                            <span className="badge warn">cobrança do que falta</span>
+                          ) : (
+                            <span className="badge">apresentação completa</span>
+                          )}
+                        </td>
                         <td>
                           {a.jaDisparadoHoje ? (
                             <span className="badge">template nas últimas 24h — fora do lote</span>

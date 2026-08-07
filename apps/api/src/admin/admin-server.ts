@@ -1978,6 +1978,26 @@ export function buildAdminServer(
   //    documentação enviada + incompleto + o cliente NÃO respondeu no canal
   //    depois do envio. Trava anti-duplicado: quem recebeu template nas
   //    últimas 24h fica fora. Ritmo suave (a conta está sob análise). ────────
+  // Rótulos da COBRANÇA CIRÚRGICA (2026-08-07): a lista do que falta vira o
+  // {{2}} do template documentos_pendentes — cada cliente cobra só o que falta.
+  const ROTULO_FALTA: readonly { chave: 'procuracao' | 'rg' | 'comprovante'; rotulo: string }[] = [
+    { chave: 'procuracao', rotulo: 'a procuração assinada' },
+    { chave: 'rg', rotulo: 'o RG (frente e verso)' },
+    { chave: 'comprovante', rotulo: 'o comprovante de endereço' },
+  ];
+  function faltantesDe(docs: {
+    procuracao: boolean;
+    rg: boolean;
+    comprovante: boolean;
+    extratoCredito?: boolean;
+  }): { lista: string[]; entregouAlgum: boolean } {
+    const lista = ROTULO_FALTA.filter((i) => !docs[i.chave]).map((i) => i.rotulo);
+    if (docs.extratoCredito !== true) lista.push('o extrato do INSS dos últimos 3 meses');
+    const entregouAlgum =
+      docs.procuracao || docs.rg || docs.comprovante || docs.extratoCredito === true;
+    return { lista, entregouAlgum };
+  }
+
   async function alvosDisparoHumanizado(): Promise<
     readonly {
       chatId: string;
@@ -1985,6 +2005,9 @@ export function buildAdminServer(
       telefone: string;
       uf: string;
       jaDisparadoHoje: boolean;
+      /** O que falta deste cliente (rótulos humanos) e o template escolhido. */
+      faltantes: string[];
+      template: 'contato_equipe' | 'documentos_pendentes';
     }[]
   > {
     if (!opts.humanizado || !opts.chatHumanizado) return [];
@@ -2014,12 +2037,17 @@ export function buildAdminServer(
           m.em !== undefined &&
           agora - new Date(m.em).getTime() < 24 * 60 * 60 * 1000,
       );
+      // A FASE do cliente decide o template: nada entregue → apresentação
+      // completa; entregou parte → cobrança SÓ do que falta ({{2}}).
+      const { lista, entregouAlgum } = faltantesDe(c.docs);
       alvos.push({
         chatId: c.chatId,
         nome: c.nome,
         telefone: c.telefone,
         uf: c.uf,
         jaDisparadoHoje,
+        faltantes: lista,
+        template: entregouAlgum ? ('documentos_pendentes' as const) : ('contato_equipe' as const),
       });
     }
     return alvos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
@@ -2042,11 +2070,16 @@ export function buildAdminServer(
       const bruto = a.nome.trim().split(/\s+/)[0] ?? '';
       const primeiro =
         bruto === '' ? 'Cliente' : bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
+      // Lista humana do que falta: "a procuração assinada e o RG (frente e verso)".
+      const lista =
+        a.faltantes.length > 1
+          ? `${a.faltantes.slice(0, -1).join(', ')} e ${a.faltantes[a.faltantes.length - 1] ?? ''}`
+          : (a.faltantes[0] ?? 'a documentação pendente');
       const r = await opts.chatHumanizado.enviarTemplate(
         a.chatId,
-        'contato_equipe',
+        a.template,
         'Disparo do dono',
-        [primeiro],
+        a.template === 'documentos_pendentes' ? [primeiro, lista] : [primeiro],
       );
       if (r.ok) enviados += 1;
       else falhas.push({ nome: a.nome, erro: r.error });

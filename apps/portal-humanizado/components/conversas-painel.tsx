@@ -9,8 +9,10 @@
 //    clientes da mesa que nem conversa no sistema têm ainda).
 // Clicar num painel FILTRA a lista para exatamente aqueles casos.
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ReactElement } from 'react';
 import type { ResumoChat } from '../lib/api';
+import { descartarCliente } from '../lib/actions';
 import ChatConversa from './chat-conversa';
 import StatusDocsCliente, { type DocsFlags } from './status-docs-cliente';
 
@@ -59,9 +61,12 @@ interface Linha {
   emCobranca: boolean;
   diasSilencio: number;
   temConversa: boolean;
+  /** Descartado por desinteresse (2026-08-07): vai ao FIM da fila com a tag. */
+  descartado: boolean;
 }
 
 export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[] }): ReactElement {
+  const router = useRouter();
   const [conversas, setConversas] = useState<ResumoChat[]>([]);
   const [filtro, setFiltro] = useState<Filtro>('todas');
   // Filtro por ESTADO (pedido do dono, 2026-08-05): a secretária escolhe a UF
@@ -127,6 +132,7 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
         emCobranca,
         diasSilencio: diasDeSilencio(ultimaEntradaEm, cliente?.aguardandoDesde ?? null),
         temConversa: true,
+        descartado: cliente?.descartado === true,
       });
     }
     for (const c of clientes) {
@@ -147,10 +153,13 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
         emCobranca,
         diasSilencio: diasDeSilencio(null, c.aguardandoDesde),
         temConversa: false,
+        descartado: false,
       });
     }
     return out.sort((a, b) => {
-      // Conversas vivas primeiro (mais recentes no topo); sem conversa, A→Z.
+      // Descartados por desinteresse vão ao FIM da fila (2026-08-07); no
+      // resto, conversas vivas primeiro (recentes no topo); sem conversa, A→Z.
+      if (a.descartado !== b.descartado) return a.descartado ? 1 : -1;
       const porRecencia = (b.ultimaEm ?? '').localeCompare(a.ultimaEm ?? '');
       if (porRecencia !== 0) return porRecencia;
       return a.nome.localeCompare(b.nome, 'pt-BR');
@@ -200,6 +209,20 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
   }, [linhas, filtro, uf, busca]);
 
   const clienteSelecionado = selecionado !== null ? (porChat.get(selecionado) ?? null) : null;
+
+  /** DESCARTAR por DESINTERESSE (2026-08-07, com confirmação) — o mesmo
+   *  descarte da mesa: o cliente sai das filas de trabalho e a conversa vai
+   *  ao FIM da lista com a tag; um SIM novo do cliente (ou a reativação na
+   *  mesa) o traz de volta sozinho. */
+  async function descartarPorDesinteresse(): Promise<void> {
+    if (selecionado === null || clienteSelecionado === null) return;
+    const confirmado = window.confirm(
+      `Descartar ${clienteSelecionado.nome} por desinteresse?\n\nEle sai das filas de trabalho (mesa e disparos) e a conversa vai para o fim da lista com a tag "descartado por desinteresse". Se ele confirmar interesse de novo no WhatsApp, volta sozinho — ou você reativa na mesa.`,
+    );
+    if (!confirmado) return;
+    await descartarCliente(selecionado, true);
+    router.refresh(); // a mesa (prop) recarrega e a tag/ordem aparecem
+  }
 
   /** EXCLUIR conversa (2026-08-06, com confirmação) — para limpar conversas
    *  que não são de cliente (ex.: o aviso automático da própria Meta na
@@ -326,6 +349,9 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
                     {l.naoLidas > 0 ? <span className="cv-badge">{l.naoLidas}</span> : null}
                   </div>
                   <div className="cv-selos">
+                    {l.descartado ? (
+                      <span className="cv-selo nova">descartado por desinteresse</span>
+                    ) : null}
                     {l.aguardandoResposta ? (
                       <span className="cv-selo aguardando">responder</span>
                     ) : null}
@@ -375,6 +401,16 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
                   >
                     abrir em página cheia
                   </a>
+                  {clienteSelecionado !== null && !clienteSelecionado.descartado ? (
+                    <button
+                      type="button"
+                      className="btn mini descartar"
+                      title="Cliente sem interesse: sai das filas e a conversa vai ao fim da lista (com confirmação)"
+                      onClick={() => void descartarPorDesinteresse()}
+                    >
+                      🚫 descartar cliente
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="btn mini descartar"

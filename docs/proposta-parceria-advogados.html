@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Proposta de Parceria — Escritórios de Advocacia · Projeto Reconstrua</title>
+<style>
+  :root {
+    --dourado: #b8860b;
+    --dourado-claro: #d4a437;
+    --vermelho: #a01e1e;
+    --escuro: #1b1b20;
+    --dim: #5a6270;
+    --borda: #e3ddd0;
+    --fundo-suave: #faf8f3;
+    --ok: #2f7a42;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Georgia, 'Times New Roman', serif;
+    color: var(--escuro);
+    background: #fff;
+    line-height: 1.55;
+  }
+  .pagina { max-width: 820px; margin: 0 auto; padding: 36px 48px 64px; }
+  /* ── CAPA ── */
+  .capa { text-align: center; padding: 40px 0 18px; }
+  .capa img { width: 150px; height: 150px; object-fit: contain; }
+  .capa h1 { font-size: 28px; margin: 16px 0 4px; }
+  .capa .sub { font-size: 16px; color: var(--dim); margin: 0; }
+  .capa .marca {
+    display: inline-block; margin-top: 14px; padding: 6px 22px;
+    border: 1px solid var(--dourado); border-radius: 24px;
+    color: var(--dourado); font-size: 13px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .filete { height: 3px; background: linear-gradient(90deg, var(--vermelho), var(--dourado-claro)); border-radius: 2px; margin: 26px 0; }
+  h2 {
+    font-size: 20px; margin: 32px 0 10px; color: var(--vermelho);
+    border-bottom: 2px solid var(--dourado-claro); padding-bottom: 6px;
+  }
+  h3 { font-size: 15.5px; margin: 18px 0 6px; }
+  p, li { font-size: 14.5px; }
+  ul { padding-left: 22px; }
+  .caixa {
+    background: var(--fundo-suave); border: 1px solid var(--borda);
+    border-left: 5px solid var(--dourado-claro); border-radius: 8px;
+    padding: 12px 16px; margin: 12px 0; font-size: 14px;
+  }
+  .caixa.verde { border-left-color: var(--ok); }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 13.5px; }
+  th { text-align: left; background: var(--escuro); color: #f0e6cf; padding: 8px 10px; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+  .num { text-align: right; font-family: 'Courier New', monospace; white-space: nowrap; }
+  .destaque-valor {
+    display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0;
+  }
+  .dv {
+    flex: 1 1 180px; border: 1px solid var(--borda); border-radius: 10px;
+    padding: 12px 14px; background: var(--fundo-suave); text-align: center;
+  }
+  .dv .v { font-size: 21px; font-weight: bold; color: var(--dourado); }
+  .dv.verde .v { color: var(--ok); }
+  .dv .l { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .passos { counter-reset: passo; list-style: none; padding-left: 0; }
+  .passos li {
+    counter-increment: passo; margin: 8px 0; padding-left: 40px; position: relative;
+  }
+  .passos li::before {
+    content: counter(passo);
+    position: absolute; left: 0; top: 1px;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--vermelho); color: #fff; font-weight: bold;
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .rodape {
+    margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--borda);
+    text-align: center; font-size: 12px; color: var(--dim);
+  }
+  .mini { font-size: 12px; color: var(--dim); }
+  @media print {
+    .pagina { padding: 8mm 4mm; max-width: none; }
+    h2 { page-break-after: avoid; }
+    .caixa, table, .capa, .destaque-valor { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="pagina">
+
+  <!-- ═══ CAPA ═══ -->
+  <div class="capa">
+    <img src="logo-ahri.png" alt="Projeto Reconstrua" />
+    <h1>Proposta de Parceria</h1>
+    <p class="sub">Escritórios de Advocacia · Ações revisionais de consignado INSS</p>
+    <span class="marca">Projeto Reconstrua · AHRI Tecnologia</span>
+  </div>
+  <div class="filete"></div>
+
+  <p>
+    O <strong>Projeto Reconstrua</strong> é uma operação de tecnologia jurídica dedicada a um
+    único nicho: <strong>aposentados e pensionistas do INSS com descontos de empréstimos
+    consignados</strong> — um dos maiores volumes de demandas revisionais do país. Nossa
+    plataforma capta, qualifica, documenta e organiza cada caso de ponta a ponta.
+    O advogado parceiro recebe o cliente <strong>pronto para ajuizar</strong>.
+  </p>
+
+  <!-- ═══ 1. O QUE A TECNOLOGIA FAZ ═══ -->
+  <h2>1. O que a nossa tecnologia faz</h2>
+  <ul class="passos">
+    <li><strong>Captação e atendimento por IA (AHRI):</strong> nossa inteligência artificial
+        atende o segurado pelo WhatsApp, colhe o extrato oficial de empréstimos do INSS
+        (HISCON) e o CPF, e conduz todo o funil de qualificação.</li>
+    <li><strong>Leitura automática do HISCON:</strong> o sistema lê o extrato contrato a
+        contrato — banco, situação, datas, valores e parcelas — e calcula o potencial de
+        recuperação de cada cliente (o que ele já pagou de parcelas até hoje).</li>
+    <li><strong>Parecer e confirmação:</strong> o cliente recebe um parecer claro do próprio
+        caso e confirma o interesse antes de qualquer cadastro.</li>
+    <li><strong>Coleta humanizada da documentação:</strong> nossa equipe colhe a
+        <strong>procuração assinada</strong>, o RG (frente e verso), o comprovante de endereço
+        e o extrato de crédito do INSS dos últimos 3 meses — pelo canal oficial do WhatsApp
+        Business (API da Meta), com registro integral das conversas.</li>
+    <li><strong>Perícia própria:</strong> nosso corpo de peritos protocola o pedido
+        administrativo de cópia dos contratos junto aos bancos (prazo de 10 dias) — a resposta
+        do banco, ou a omissão documentada, chega ao advogado como prova constituída.</li>
+    <li><strong>Entrega organizada:</strong> o caso chega ao parceiro com o dossiê de
+        processos montado, planilha Excel dos contratos e todos os documentos para download.</li>
+  </ul>
+
+  <!-- ═══ 2. O QUE O PARCEIRO RECEBE ═══ -->
+  <h2>2. O que o escritório parceiro recebe</h2>
+  <p>Acesso a um <strong>portal exclusivo</strong> (login individual) onde cada cliente destinado
+     chega completo:</p>
+  <ul>
+    <li><strong>Dossiê de Processos</strong> — os contratos do cliente já classificados e
+        agrupados em ações, com a regra de cada processo explicada e o banco réu em destaque;</li>
+    <li><strong>Planilha Excel</strong> com todos os contratos (números exatos do HISCON, valores
+        e parcelas), pronta para a petição;</li>
+    <li><strong>Documentação completa</strong>: procuração assinada, RG, comprovante de endereço,
+        extrato de crédito e o <strong>HISCON original do INSS em PDF</strong> — a prova-mãe;</li>
+    <li><strong>Prova do pedido administrativo</strong>: contador dos 10 dias em tempo real,
+        resposta do banco registrada ou omissão caracterizada — pronto para ajuizar;</li>
+    <li><strong>Peça pericial na réplica</strong>: quando o banco junta os contratos aos autos,
+        nosso corpo de peritos produz a análise técnica que sustenta a tese — um diferencial
+        direto na taxa de êxito;</li>
+    <li><strong>Carteira transparente</strong>: o portal mostra contratos adquiridos, consumidos
+        e saldo, com extrato nominal de cada cliente recebido.</li>
+  </ul>
+
+  <!-- ═══ 3. O MODELO COMERCIAL ═══ -->
+  <h2>3. O modelo comercial</h2>
+  <div class="destaque-valor">
+    <div class="dv"><div class="v">R$ 100</div><div class="l">por contrato adquirido<br/>(a unidade da carteira)</div></div>
+    <div class="dv"><div class="v">R$ 150</div><div class="l">por perícia — somente quando<br/>necessária, na fase de réplica</div></div>
+    <div class="dv verde"><div class="v">70%</div><div class="l">dos honorários + sucumbência<br/>ficam com o ADVOGADO</div></div>
+    <div class="dv"><div class="v">30%</div><div class="l">dos honorários + sucumbência<br/>ficam com o Projeto Reconstrua</div></div>
+  </div>
+  <h3>Como funciona a compra de contratos</h3>
+  <ul>
+    <li>O escritório adquire um pacote de contratos (ex.: R$ 20.000 = 200 contratos) e recebe
+        clientes completos até consumir o saldo;</li>
+    <li><strong>Regra de agrupamento a favor do parceiro:</strong> contratos
+        <em>não-ativos</em> do <strong>mesmo banco e mesmo ano</strong> agrupam
+        <strong>3 por 1</strong> — o escritório paga <strong>1 unidade</strong> e recebe os
+        <strong>3 contratos por extenso</strong> nos autos do mesmo processo. Contratos ativos
+        contam 1 = 1. Ou seja: o volume real de contratos recebidos é frequentemente
+        <strong>maior</strong> do que o número de unidades pagas;</li>
+    <li>O consumo da carteira acontece só no <strong>encaminhamento efetivo</strong> do cliente
+        — nunca por reserva ou promessa; o mesmo cliente jamais consome duas vezes.</li>
+  </ul>
+  <h3>A perícia</h3>
+  <ul>
+    <li><strong>R$ 150 por processo, apenas quando a perícia for necessária</strong> — ela não
+        entra na petição inicial; é utilizada na <strong>réplica</strong>, quando o banco junta
+        os contratos aos autos;</li>
+    <li>Os <strong>honorários periciais (10%)</strong>, cobrados na relação com o cliente,
+        pertencem <strong>exclusivamente à equipe de perícia</strong> — não entram na divisão
+        da parceria;</li>
+    <li>Ter corpo de peritos próprio, com metodologia já rodada, é o que eleva a taxa de êxito
+        das ações da base.</li>
+  </ul>
+  <div class="caixa">
+    <strong>Resumo da divisão de êxito:</strong> honorários contratuais e sucumbência dividem-se
+    <strong>70% para o escritório parceiro e 30% para o Projeto Reconstrua</strong>. Os
+    honorários periciais de 10% são exclusivos da equipe de perícia e ficam fora dessa divisão.
+  </div>
+
+  <!-- ═══ 4. EXEMPLO ILUSTRATIVO ═══ -->
+  <h2>4. Um cliente na prática (exemplo ilustrativo)</h2>
+  <p>
+    Cliente com <strong>20 contratos não-ativos</strong> do mesmo banco e mesmo ano no HISCON:
+  </p>
+  <table>
+    <tr><th>Etapa</th><th>Conta</th><th class="num">Valor</th></tr>
+    <tr><td>Agrupamento (regra 3 por 1)</td><td>20 contratos → 6 processos (18 contratos nos autos)</td><td class="num">—</td></tr>
+    <tr><td>Investimento do escritório</td><td>6 unidades × R$ 100</td><td class="num">R$ 600</td></tr>
+    <tr><td>Perícia (se necessária na réplica)</td><td>6 processos × R$ 150</td><td class="num">R$ 900</td></tr>
+    <tr><td>Potencial por processo*</td><td>restituição + danos morais (referência conservadora)</td><td class="num">R$ 5.000</td></tr>
+    <tr><td>Êxito ilustrativo da carteira</td><td>6 × R$ 5.000</td><td class="num">R$ 30.000</td></tr>
+    <tr><td>Honorários contratuais (ex.: 30%)</td><td>sobre o êxito</td><td class="num">R$ 9.000</td></tr>
+    <tr><td><strong>Parte do escritório (70%)</strong></td><td>+ 70% da sucumbência</td><td class="num"><strong>R$ 6.300+</strong></td></tr>
+    <tr><td>Parte do Projeto Reconstrua (30%)</td><td>+ 30% da sucumbência</td><td class="num">R$ 2.700+</td></tr>
+  </table>
+  <p class="mini">
+    *Valores ilustrativos para demonstração do modelo. Cada caso tem valores próprios conforme os
+    contratos do HISCON; nenhum resultado é prometido — a procedência é matéria de mérito de cada
+    ação.
+  </p>
+  <div class="caixa verde">
+    <strong>A leitura do exemplo:</strong> com R$ 600 investidos, o escritório recebe um cliente
+    com documentação completa, prova administrativa constituída, 18 contratos organizados em 6
+    processos e potencial de honorários várias vezes superior ao investimento — sem gastar um
+    real em captação, triagem ou coleta de documentos.
+  </div>
+
+  <!-- ═══ 5. POR QUE OS DOIS LADOS GANHAM ═══ -->
+  <h2>5. Uma parceria em que os dois lados ganham</h2>
+  <table>
+    <tr><th>O escritório ganha</th><th>O Projeto Reconstrua entrega</th></tr>
+    <tr>
+      <td>Carteira de clientes <strong>pronta e escalável</strong>, sem custo de marketing,
+          captação ou triagem</td>
+      <td>Tecnologia de captação e qualificação operando 24h no WhatsApp</td>
+    </tr>
+    <tr>
+      <td>Casos com <strong>documentação e prova constituída</strong> — protocolo direto</td>
+      <td>Equipe humanizada de coleta + corpo de peritos próprio</td>
+    </tr>
+    <tr>
+      <td>Peça pericial técnica na réplica, elevando a taxa de êxito</td>
+      <td>Portal exclusivo com dossiês, planilhas, prazos e carteira transparente</td>
+    </tr>
+    <tr>
+      <td>Previsibilidade: paga por unidade recebida, com a regra 3 por 1 a favor</td>
+      <td>Acompanhamento contínuo do caso e comunicação com o cliente</td>
+    </tr>
+  </table>
+
+  <!-- ═══ 6. PRÓXIMOS PASSOS ═══ -->
+  <h2>6. Próximos passos</h2>
+  <ul class="passos">
+    <li>Reunião de apresentação da plataforma (demonstração ao vivo do portal do advogado);</li>
+    <li>Definição do pacote inicial de contratos e formalização da parceria;</li>
+    <li>Criação do acesso exclusivo do escritório e destinação dos primeiros clientes.</li>
+  </ul>
+
+  <div class="rodape">
+    Projeto Reconstrua · Operado pela AHRI Tecnologia · www.projetoreconstrua.com.br<br/>
+    Proposta comercial de parceria — documento confidencial, sem valor de promessa de resultado.
+  </div>
+</div>
+</body>
+</html>

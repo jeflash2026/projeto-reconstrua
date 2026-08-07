@@ -2060,10 +2060,14 @@ export function buildAdminServer(
 
   app.post('/admin/humanizado/disparo', async (request, reply) => {
     if (!opts.humanizado || !opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
-    const body = (request.body ?? {}) as { confirmar?: boolean };
+    const body = (request.body ?? {}) as { confirmar?: boolean; uf?: string };
     if (body.confirmar !== true)
       return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
-    const alvos = (await alvosDisparoHumanizado()).filter((a) => !a.jaDisparadoHoje);
+    // Recorte por ESTADO (2026-08-07): o dono pode disparar uma UF por vez.
+    const uf = typeof body.uf === 'string' ? body.uf.trim().toUpperCase() : '';
+    const alvos = (await alvosDisparoHumanizado()).filter(
+      (a) => !a.jaDisparadoHoje && (uf === '' || a.uf === uf),
+    );
     let enviados = 0;
     const falhas: { nome: string; erro: string }[] = [];
     for (const a of alvos) {

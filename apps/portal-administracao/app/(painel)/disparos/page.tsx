@@ -17,9 +17,21 @@ interface AlvoDisparo {
   template?: 'contato_equipe' | 'documentos_pendentes';
 }
 
-const DisparosPage = async (): Promise<ReactElement> => {
+const DisparosPage = async ({
+  searchParams,
+}: {
+  searchParams: { uf?: string };
+}): Promise<ReactElement> => {
   const data = await getJson<{ alvos: AlvoDisparo[] }>('/admin/humanizado/disparo');
-  const alvos = data?.alvos ?? null;
+  const todos = data?.alvos ?? null;
+  // Recorte por ESTADO (2026-08-07): chips de UF — o lote sai só do estado
+  // escolhido; "Todos" dispara a fila inteira.
+  const ufEscolhida = (searchParams.uf ?? '').trim().toUpperCase() || null;
+  const porUf = new Map<string, number>();
+  for (const a of todos ?? []) porUf.set(a.uf || 'SEM UF', (porUf.get(a.uf || 'SEM UF') ?? 0) + 1);
+  const ufValida = ufEscolhida !== null && porUf.has(ufEscolhida);
+  const uf = ufValida ? ufEscolhida : null;
+  const alvos = todos === null ? null : uf === null ? todos : todos.filter((a) => a.uf === uf);
   const elegiveis = alvos?.filter((a) => !a.jaDisparadoHoje) ?? [];
 
   return (
@@ -31,12 +43,29 @@ const DisparosPage = async (): Promise<ReactElement> => {
         recebe a apresentação completa; quem entregou parte recebe a cobrança SÓ do que falta. Nada
         sai sem a sua confirmação; quem recebeu template nas últimas 24h fica fora sozinho.
       </p>
-      {alvos === null ? (
+      {alvos === null || todos === null ? (
         <div className="error-box">API indisponível.</div>
       ) : (
         <>
+          {/* ── FILTRO POR ESTADO: o lote respeita a UF escolhida ─────────── */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            <a className={`badge${uf === null ? ' ok' : ''}`} href="/admin/disparos">
+              Todos ({todos.length})
+            </a>
+            {[...porUf.entries()]
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([sigla, quantos]) => (
+                <a
+                  key={sigla}
+                  className={`badge${uf === sigla ? ' ok' : ''}`}
+                  href={`/admin/disparos?uf=${encodeURIComponent(sigla)}`}
+                >
+                  {sigla} ({quantos})
+                </a>
+              ))}
+          </div>
           <div className="card" style={{ marginBottom: 16 }}>
-            <DispararApresentacao elegiveis={elegiveis.length} />
+            <DispararApresentacao elegiveis={elegiveis.length} uf={uf} />
           </div>
           <div className="card">
             <h3>Fila do disparo ({alvos.length})</h3>

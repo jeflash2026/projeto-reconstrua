@@ -6,7 +6,14 @@ import { useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { dispararApresentacaoHumanizado } from '../lib/actions';
 
-const DispararApresentacao = ({ elegiveis }: { elegiveis: number }): ReactElement => {
+const DispararApresentacao = ({
+  elegiveis,
+  uf = null,
+}: {
+  elegiveis: number;
+  /** Recorte por ESTADO (2026-08-07): null = fila inteira. */
+  uf?: string | null;
+}): ReactElement => {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [resultado, setResultado] = useState<{
@@ -17,14 +24,14 @@ const DispararApresentacao = ({ elegiveis }: { elegiveis: number }): ReactElemen
 
   const disparar = async (): Promise<void> => {
     const confirmado = window.confirm(
-      `Disparar a APRESENTAÇÃO da Layara (template aprovado) para ${String(elegiveis)} cliente(s) com documentação enviada e sem retorno?\n\nCada cliente recebe UMA mensagem; quem já recebeu template nas últimas 24h fica fora automaticamente.`,
+      `Disparar a mensagem da Layara para ${String(elegiveis)} cliente(s)${uf !== null ? ` de ${uf}` : ''} com documentação pendente e sem retorno?\n\nCada cliente recebe UMA mensagem (apresentação ou cobrança do que falta, conforme a fase); quem já recebeu template nas últimas 24h fica fora automaticamente.`,
     );
     if (!confirmado) return;
     setBusy(true);
     setErro(null);
     setResultado(null);
     try {
-      const r = await dispararApresentacaoHumanizado();
+      const r = await dispararApresentacaoHumanizado(uf ?? undefined);
       if (r === null) setErro('falha no disparo — a API não respondeu; confira e tente de novo');
       else {
         setResultado(r);
@@ -45,7 +52,7 @@ const DispararApresentacao = ({ elegiveis }: { elegiveis: number }): ReactElemen
       >
         {busy
           ? 'Disparando… (ritmo suave, aguarde)'
-          : `📣 Disparar apresentação para ${String(elegiveis)} cliente(s)`}
+          : `📣 Disparar para ${String(elegiveis)} cliente(s)${uf !== null ? ` de ${uf}` : ''}`}
       </button>
       {erro !== null ? <div className="error-box">{erro}</div> : null}
       {resultado !== null ? (

@@ -1207,9 +1207,9 @@ export interface AlvoDisparo {
   jaDisparadoHoje: boolean;
 }
 
-export async function dispararApresentacaoHumanizado(): Promise<{
+export async function dispararApresentacaoHumanizado(uf?: string): Promise<{
   enviados: number;
   falhas: { nome: string; erro: string }[];
 } | null> {
-  return sendJson('POST', '/admin/humanizado/disparo', { confirmar: true });
+  return sendJson('POST', '/admin/humanizado/disparo', { confirmar: true, uf });
 }

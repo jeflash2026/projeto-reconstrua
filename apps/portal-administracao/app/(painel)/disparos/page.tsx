@@ -5,6 +5,14 @@
 import type { ReactElement } from 'react';
 import { getJson } from '../../../lib/api';
 import DispararApresentacao from '../../../components/disparar-apresentacao';
+import DispararFase1 from '../../../components/disparar-fase1';
+
+interface AlvoFase1 {
+  chatId: string;
+  nome: string;
+  contratos: number;
+  jaDisparadoHoje: boolean;
+}
 
 interface AlvoDisparo {
   chatId: string;
@@ -22,7 +30,12 @@ const DisparosPage = async ({
 }: {
   searchParams: { uf?: string };
 }): Promise<ReactElement> => {
-  const data = await getJson<{ alvos: AlvoDisparo[] }>('/admin/humanizado/disparo');
+  const [data, fase1Data] = await Promise.all([
+    getJson<{ alvos: AlvoDisparo[] }>('/admin/humanizado/disparo'),
+    getJson<{ alvos: AlvoFase1[] }>('/admin/reaquecimento/fase1'),
+  ]);
+  const fase1 = fase1Data?.alvos ?? null;
+  const fase1Elegiveis = fase1?.filter((a) => !a.jaDisparadoHoje) ?? [];
   const todos = data?.alvos ?? null;
   // Recorte por ESTADO (2026-08-07): chips de UF — o lote sai só do estado
   // escolhido; "Todos" dispara a fila inteira.
@@ -116,6 +129,63 @@ const DisparosPage = async ({
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── REAQUECIMENTO FASE 1 (2026-08-07): lead com HISCON legível que
+          nunca confirmou o interesse — o template da AHRI reabre a conversa e
+          a resposta retoma o funil sozinha, do ponto em que ele parou. ─────── */}
+      <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
+        🔥 Reaquecimento da Fase 1 (AHRI)
+      </h2>
+      <p className="page-sub">
+        Leads com HISCON legível que ainda não confirmaram o interesse. O template
+        `reaquecimento_fase1` sai pelo número oficial da AHRI; quando o lead responde, a AHRI
+        continua o atendimento automaticamente. Trava de 24h contra duplicado.
+      </p>
+      {fase1 === null ? (
+        <div className="error-box">Fila da fase 1 indisponível.</div>
+      ) : (
+        <>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <DispararFase1 elegiveis={fase1Elegiveis.length} />
+          </div>
+          <div className="card">
+            <h3>Fila da fase 1 ({fase1.length})</h3>
+            {fase1.length === 0 ? (
+              <div className="empty">Nenhum lead parado com HISCON legível — funil em dia.</div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Lead</th>
+                      <th>Contratos no HISCON</th>
+                      <th>Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fase1.slice(0, 60).map((a) => (
+                      <tr key={a.chatId}>
+                        <td style={{ fontWeight: 600 }}>{a.nome}</td>
+                        <td>{a.contratos}</td>
+                        <td>
+                          {a.jaDisparadoHoje ? (
+                            <span className="badge">reaquecido nas últimas 24h</span>
+                          ) : (
+                            <span className="badge ok">entra no lote</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {fase1.length > 60 ? (
+                  <p className="page-sub">… e mais {fase1.length - 60} lead(s) na fila.</p>
+                ) : null}
               </div>
             )}
           </div>

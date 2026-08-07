@@ -1213,3 +1213,12 @@ export async function dispararApresentacaoHumanizado(uf?: string): Promise<{
 } | null> {
   return sendJson('POST', '/admin/humanizado/disparo', { confirmar: true, uf });
 }
+
+// ── REAQUECIMENTO FASE 1 (2026-08-07) — template oficial da AHRI, com a
+// confirmação explícita do Admin; a resposta do lead retoma o funil sozinha. ──
+export async function dispararReaquecimentoFase1(): Promise<{
+  enviados: number;
+  falhas: { nome: string; erro: string }[];
+} | null> {
+  return sendJson('POST', '/admin/reaquecimento/fase1', { confirmar: true });
+}

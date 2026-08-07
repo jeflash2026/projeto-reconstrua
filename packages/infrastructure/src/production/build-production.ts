@@ -304,6 +304,14 @@ export interface AssembledProduction {
    *  humano; a AHRI nunca responde nele. Sempre montado; sem a env
    *  META_PHONE_NUMBER_ID_HUMANIZADO o envio devolve erro legível. */
   readonly chatHumanizado: ChatHumanizadoService;
+  /** REAQUECIMENTO FASE 1 (decreto 2026-08-07): envia um TEMPLATE aprovado
+   *  pelo número OFICIAL da AHRI (o 16) — a única forma de reabrir lead frio
+   *  no canal Meta. false = canal não configurado ou Meta recusou. */
+  readonly enviarTemplateOficial: (
+    chatId: string,
+    nome: string,
+    variaveis?: readonly string[],
+  ) => Promise<boolean>;
   /** Decreto Dossiê Pericial: visão do PERITO (HISCON→contratos/migrados/indícios). */
   readonly pericia: PericiaService;
   /** Decreto 2026-07-27: relatório V2 × leitura atual (só leitura, nada grava). */
@@ -2383,6 +2391,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     drenarTurnos: (timeoutMs) => plainIngress.aguardarTurnosEmVoo(timeoutMs),
     docsEquipe,
     chatHumanizado,
+    enviarTemplateOficial: async (chatId, nome, variaveis = []) =>
+      metaGateway !== null ? metaGateway.sendTemplate(chatId, nome, 'pt_BR', variaveis) : false,
     humanizadoAuth,
     humanizado,
     funilResumo,

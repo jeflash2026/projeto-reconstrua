@@ -264,6 +264,14 @@ export function buildAdminServer(
         mensagemId: string,
       ): Promise<{ nome: string; mime: string; bytes: Uint8Array } | null>;
     };
+    /** REAQUECIMENTO FASE 1 (2026-08-07): template aprovado pelo número
+     *  OFICIAL da AHRI — reabre lead frio; a resposta cai na entrada única e
+     *  o funil retoma sozinho de onde parou. */
+    readonly templateOficial?: (
+      chatId: string,
+      nome: string,
+      variaveis?: readonly string[],
+    ) => Promise<boolean>;
     /** Decreto 2026-08-04: o VALOR POTENCIAL CONFIRMADO — só clientes com a
      *  documentação completa (procuração assinada + RG + comprovante). */
     readonly potencialConfirmado?: () => Promise<{ total: number; clientes: number }>;
@@ -2091,6 +2099,77 @@ export function buildAdminServer(
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
     return { enviados, jaDisparados: 0, falhas };
+  });
+
+  // ── REAQUECIMENTO FASE 1 (2026-08-07) — decreto do dono: nada automático;
+  //    o LOTE só sai com a confirmação do Admin. Alvo: lead com HISCON
+  //    LEGÍVEL que ainda NÃO confirmou o interesse (fora da mesa da fase 2).
+  //    O template sai pelo número OFICIAL da AHRI; a resposta do lead cai na
+  //    entrada única e o funil retoma sozinho de onde parou. Trava de 24h em
+  //    memória (o ritual é um clique por dia). ───────────────────────────────
+  const reaquecidoEm = new Map<string, number>();
+  async function alvosReaquecimentoFase1(): Promise<
+    readonly { chatId: string; nome: string; contratos: number; jaDisparadoHoje: boolean }[]
+  > {
+    if (!opts.pericia?.potencialDeTodos || !opts.humanizado) return [];
+    const [potencial, mesa] = await Promise.all([
+      opts.pericia.potencialDeTodos().catch(() => null),
+      opts.humanizado.clientes(),
+    ]);
+    if (potencial === null) return [];
+    const naMesa = new Set(mesa.map((c) => c.chatId));
+    const agora = Date.now();
+    return potencial.porCliente
+      .filter((p) => !naMesa.has(p.chatId) && p.contratos > 0)
+      .map((p) => ({
+        chatId: p.chatId,
+        nome: p.nomeCliente ?? p.chatId.split('@')[0] ?? p.chatId,
+        contratos: p.contratos,
+        jaDisparadoHoje: agora - (reaquecidoEm.get(p.chatId) ?? 0) < 24 * 60 * 60 * 1000,
+      }))
+      .sort((a, b) => b.contratos - a.contratos);
+  }
+
+  app.get('/admin/reaquecimento/fase1', async (_request, reply) => {
+    if (!opts.templateOficial)
+      return reply.code(503).send({ error: 'canal oficial indisponível nesta montagem' });
+    return { alvos: await alvosReaquecimentoFase1() };
+  });
+
+  app.post('/admin/reaquecimento/fase1', async (request, reply) => {
+    if (!opts.templateOficial)
+      return reply.code(503).send({ error: 'canal oficial indisponível nesta montagem' });
+    const body = (request.body ?? {}) as { confirmar?: boolean };
+    if (body.confirmar !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
+    const alvos = (await alvosReaquecimentoFase1()).filter((a) => !a.jaDisparadoHoje);
+    let enviados = 0;
+    const falhas: { nome: string; erro: string }[] = [];
+    for (const a of alvos) {
+      const bruto = a.nome.trim().split(/\s+/)[0] ?? '';
+      const primeiro =
+        bruto === '' || /^\d+$/.test(bruto)
+          ? ''
+          : bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
+      // Tenta com o nome ({{1}}); template sem variável ⇒ reenvia sem.
+      let ok = await opts.templateOficial(
+        a.chatId,
+        'reaquecimento_fase1',
+        primeiro === '' ? [] : [primeiro],
+      );
+      if (!ok && primeiro !== '') ok = await opts.templateOficial(a.chatId, 'reaquecimento_fase1');
+      if (ok) {
+        enviados += 1;
+        reaquecidoEm.set(a.chatId, Date.now());
+      } else
+        falhas.push({
+          nome: a.nome,
+          erro: 'a Meta recusou — confira se o template reaquecimento_fase1 está APROVADO',
+        });
+      // Ritmo suave — a conta está sob análise de spam.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return { enviados, falhas };
   });
 
   // ── PARECER EM LOTE (Onda 3) — a base LEGADA (cadastro do fluxo antigo)

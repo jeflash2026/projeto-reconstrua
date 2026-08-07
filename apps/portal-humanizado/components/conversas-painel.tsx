@@ -290,7 +290,10 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
       </div>
 
       {/* ── DOIS PAINÉIS: lista à esquerda, conversa à direita ─────────────── */}
-      <div className="cv-janela">
+      {/* MODO CELULAR (2026-08-07): igual ao WhatsApp — lista em tela cheia;
+          tocou no cliente, a conversa toma a tela com o "voltar". No desktop,
+          os dois painéis lado a lado como sempre. */}
+      <div className={`cv-janela${selecionado !== null ? ' com-conversa' : ''}`}>
         <aside className="cv-lista">
           <input
             type="text"
@@ -358,7 +361,14 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
                     </span>
                   ) : null}
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn mini cv-voltar"
+                    onClick={() => setSelecionado(null)}
+                  >
+                    ← conversas
+                  </button>
                   <a
                     className="btn mini"
                     href={`/humanizado/chat/${encodeURIComponent(selecionado)}`}

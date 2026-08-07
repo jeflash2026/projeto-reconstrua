@@ -694,9 +694,38 @@ button {
   min-height: 60vh;
 }
 
+/* Botão "← conversas": só existe no celular (volta da conversa para a lista) */
+.cv-voltar {
+  display: none;
+}
+
+/* MODO CELULAR (2026-08-07) — igual ao WhatsApp: UMA tela por vez. Sem
+   conversa aberta, a LISTA toma a tela; com conversa, o CHAT toma a tela e o
+   "← conversas" volta. No desktop os dois painéis seguem lado a lado. */
 @media (max-width: 900px) {
   .cv-janela {
     grid-template-columns: 1fr;
+  }
+  .cv-janela .cv-conversa {
+    display: none;
+  }
+  .cv-janela.com-conversa .cv-lista {
+    display: none;
+  }
+  .cv-janela.com-conversa .cv-conversa {
+    display: flex;
+  }
+  .cv-voltar {
+    display: inline-block;
+  }
+  .cv-itens {
+    max-height: none;
+  }
+  .cv-lista {
+    border-right: none;
+  }
+  .chat-mensagens {
+    max-height: 52vh;
   }
 }
 

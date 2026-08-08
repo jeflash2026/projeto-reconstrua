@@ -2047,6 +2047,23 @@ export function buildAdminServer(
     return r;
   });
 
+  // Gestão de ACESSOS pelo Painel Admin (2026-08-08): listar nunca expõe
+  // credenciais; remover é definitivo (o painel pede confirmação).
+  app.get('/admin/juridico/usuarios', async (_request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    return { usuarios: await opts.juridico.listarUsuarios() };
+  });
+
+  app.post('/admin/juridico/usuarios/remover', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const body = (request.body ?? {}) as { id?: string };
+    if (typeof body.id !== 'string' || body.id === '')
+      return reply.code(400).send({ error: 'id obrigatório' });
+    const r = await opts.juridico.removerUsuario(body.id);
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
   app.get('/admin/juridico/dashboard', async (_request, reply) => {
     if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
     return opts.juridico.dashboard();

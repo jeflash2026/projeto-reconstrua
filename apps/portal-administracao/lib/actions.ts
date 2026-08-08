@@ -1222,3 +1222,25 @@ export async function dispararReaquecimentoFase1(): Promise<{
 } | null> {
   return sendJson('POST', '/admin/reaquecimento/fase1', { confirmar: true });
 }
+
+// ── ACESSOS DO PAINEL JURÍDICO (2026-08-08) — o Admin cria e remove os logins
+// do 2º painel (dono + sócio) sem precisar de terminal. A senha vai direto à
+// API (hash scrypt lá); aqui nada é guardado.
+export async function criarAcessoJuridico(
+  usuario: string,
+  nome: string,
+  senha: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const r = await sendJson<{ ok?: boolean; error?: string }>('POST', '/admin/juridico/usuarios', {
+    usuario,
+    nome,
+    senha,
+  });
+  if (r === null) return { ok: false, error: 'falha na API — confira usuário/senha (mín. 6)' };
+  return { ok: r.ok === true, error: r.error };
+}
+
+export async function removerAcessoJuridico(id: string): Promise<boolean> {
+  const r = await sendJson<{ ok?: boolean }>('POST', '/admin/juridico/usuarios/remover', { id });
+  return r?.ok === true;
+}

@@ -283,6 +283,23 @@ export class JuridicoService {
     return u?.nome ?? null;
   }
 
+  /** Os acessos existentes (para o Painel Admin) — NUNCA expõe hash/salt. */
+  async listarUsuarios(): Promise<
+    readonly { id: string; usuario: string; nome: string; em: string }[]
+  > {
+    const usuarios = (await this.deps.json.list(NS_USUARIOS)) as readonly UsuarioJuridico[];
+    return usuarios
+      .map(({ id: usuarioId, usuario, nome, em }) => ({ id: usuarioId, usuario, nome, em }))
+      .sort((a, b) => a.em.localeCompare(b.em));
+  }
+
+  async removerUsuario(usuarioId: string): Promise<ResultadoJuridico> {
+    const u = (await this.deps.json.get(NS_USUARIOS, usuarioId)) as UsuarioJuridico | null;
+    if (u === null) return { ok: false, error: 'acesso não encontrado' };
+    await this.deps.json.del(NS_USUARIOS, usuarioId);
+    return { ok: true };
+  }
+
   // ── HISTÓRICO global (o feed do dashboard) ─────────────────────────────────
 
   private async registrarHistorico(

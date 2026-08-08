@@ -36,6 +36,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { sep: 'Gestão' },
   { href: '/campanhas', label: 'Campanhas' },
   { href: '/disparos', label: 'Disparos' },
+  { href: '/juridico', label: 'Painel Jurídico' },
   { href: '/socios', label: 'Sócios' },
   { href: '/financeiro', label: 'Financeiro' },
   { href: '/custos-ia', label: 'Custos de IA' },

@@ -249,6 +249,14 @@ export function buildAdminServer(
         autor: string,
         variaveis?: readonly string[],
       ): Promise<{ ok: true } | { ok: false; error: string }>;
+      /** Template com DOCUMENTO no cabeçalho (envio_procuracao): a procuração
+       *  em PDF viaja dentro do template — atravessa a janela de 24h. */
+      enviarTemplateDocumento(
+        chatId: string,
+        nome: string,
+        anexo: { nome: string; base64: string },
+        autor: string,
+      ): Promise<{ ok: true } | { ok: false; error: string }>;
       enviarAudio(
         chatId: string,
         anexo: { mime: string; base64: string },
@@ -1950,6 +1958,30 @@ export function buildAdminServer(
       body.nome ?? 'contato_equipe',
       body.autor ?? 'Equipe',
       variaveis,
+    );
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  // PROCURAÇÃO VIA TEMPLATE (2026-08-08): o envio_procuracao aprovado leva o
+  // PDF no cabeçalho de DOCUMENTO — a única forma de entregar a procuração a
+  // quem está fora da janela de 24h.
+  app.post('/admin/humanizado/chat/:chatId/template-documento', async (request, reply) => {
+    if (!opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as {
+      nome?: string;
+      arquivo?: string;
+      base64?: string;
+      autor?: string;
+    };
+    if (typeof body.base64 !== 'string' || body.base64 === '')
+      return reply.code(400).send({ error: 'arquivo obrigatório' });
+    const r = await opts.chatHumanizado.enviarTemplateDocumento(
+      chatId,
+      body.nome ?? 'envio_procuracao',
+      { nome: body.arquivo ?? 'procuracao.pdf', base64: body.base64 },
+      body.autor ?? 'Equipe',
     );
     if (!r.ok) return reply.code(422).send(r);
     return r;

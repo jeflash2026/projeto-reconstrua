@@ -38,7 +38,15 @@ export async function GET(
 }
 
 interface AcaoChat {
-  acao?: 'texto' | 'documento' | 'audio' | 'template' | 'confirmar' | 'lido' | 'excluir';
+  acao?:
+    | 'texto'
+    | 'documento'
+    | 'audio'
+    | 'template'
+    | 'template_documento'
+    | 'confirmar'
+    | 'lido'
+    | 'excluir';
   texto?: string;
   nome?: string;
   base64?: string;
@@ -72,6 +80,12 @@ export async function POST(
     template: {
       path: `${chat}/template`,
       payload: { nome: body.template, variaveis: body.variaveis, autor },
+    },
+    // Procuração via template (2026-08-08): o PDF viaja no cabeçalho do
+    // modelo aprovado — atravessa a janela de 24h.
+    template_documento: {
+      path: `${chat}/template-documento`,
+      payload: { nome: body.template, arquivo: body.nome, base64: body.base64, autor },
     },
     confirmar: {
       path: `${chat}/confirmar`,

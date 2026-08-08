@@ -154,6 +154,32 @@ export default function ChatConversa({
     leitor.readAsDataURL(file);
   }
 
+  // PROCURAÇÃO VIA TEMPLATE (2026-08-08): o PDF viaja no cabeçalho do modelo
+  // aprovado envio_procuracao — a ÚNICA forma de entregar a procuração a quem
+  // está há mais de 24h sem escrever (o anexo comum é descartado pela Meta).
+  function enviarProcuracaoTemplate(file: File): void {
+    const primeiro = primeiroNomeDe(nomeCliente);
+    if (
+      !window.confirm(
+        `Enviar a PROCURAÇÃO via template para ${primeiro}? O PDF "${file.name}" vai dentro da mensagem aprovada — funciona mesmo com a janela de 24h fechada.`,
+      )
+    )
+      return;
+    const leitor = new FileReader();
+    leitor.onload = () => {
+      const base64 = typeof leitor.result === 'string' ? leitor.result : '';
+      void acao({
+        acao: 'template_documento',
+        template: 'envio_procuracao',
+        nome: file.name,
+        base64,
+      }).then((ok) => {
+        if (ok) setAviso(`Procuração "${file.name}" enviada via template.`);
+      });
+    };
+    leitor.readAsDataURL(file);
+  }
+
   async function confirmar(m: MensagemChat, tipo: string): Promise<void> {
     const ok = await acao({ acao: 'confirmar', mensagemId: m.id, tipo });
     if (ok) {
@@ -408,6 +434,23 @@ export default function ChatConversa({
           >
             Template: apresentação
           </button>
+          <label
+            className="btn"
+            title="Envia a procuração em PDF DENTRO do template aprovado — funciona mesmo com a janela de 24h fechada"
+          >
+            Template: procuração (PDF)
+            <input
+              type="file"
+              accept="application/pdf"
+              style={{ display: 'none' }}
+              disabled={ocupado}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file !== undefined) enviarProcuracaoTemplate(file);
+                e.target.value = '';
+              }}
+            />
+          </label>
           <button
             type="button"
             className="btn"

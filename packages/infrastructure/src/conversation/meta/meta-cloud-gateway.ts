@@ -203,15 +203,46 @@ export class MetaCloudGateway implements ConversationGateway {
 
   /** TEMPLATE aprovado (decreto 2026-08-05, canal humanizado): a ÚNICA forma de
    *  iniciar conversa fora da janela de 24h. `variaveis` preenche os {{1}},
-   *  {{2}}… do corpo (ex.: o primeiro nome do cliente). Devolve se a Meta
-   *  ACEITOU — o chamador mostra o erro à secretária em vez de fingir que
+   *  {{2}}… do corpo (ex.: o primeiro nome do cliente). `documento` preenche o
+   *  cabeçalho de DOCUMENTO do modelo (ex.: envio_procuracao — o PDF da
+   *  procuração viaja DENTRO do template e atravessa a janela). Devolve se a
+   *  Meta ACEITOU — o chamador mostra o erro à secretária em vez de fingir que
    *  enviou. */
   async sendTemplate(
     chatId: string,
     nome: string,
     idioma = 'pt_BR',
     variaveis: readonly string[] = [],
+    documento?: { readonly fileName: string; readonly mimeType: string; readonly base64: string },
   ): Promise<boolean> {
+    const components: unknown[] = [];
+    if (documento !== undefined) {
+      const clean = documento.base64.includes(',')
+        ? documento.base64.slice(documento.base64.indexOf(',') + 1)
+        : documento.base64;
+      const bytes = new Uint8Array(Buffer.from(clean, 'base64'));
+      const upload = await this.http.postForm(
+        `${this.base()}/${this.config.phoneNumberId}/media`,
+        this.headers(),
+        { fieldName: 'file', fileName: documento.fileName, mime: documento.mimeType, bytes },
+        { messaging_product: 'whatsapp', type: documento.mimeType },
+      );
+      const mediaId = asString(dig(upload.body, ['id']));
+      if (upload.status >= 400 || mediaId === null) {
+        this.falha('template media upload', upload.body);
+        return false;
+      }
+      components.push({
+        type: 'header',
+        parameters: [{ type: 'document', document: { id: mediaId, filename: documento.fileName } }],
+      });
+    }
+    if (variaveis.length > 0) {
+      components.push({
+        type: 'body',
+        parameters: variaveis.map((texto) => ({ type: 'text', text: texto })),
+      });
+    }
     const response = await this.http.postJson(this.messagesUrl(), this.headers(), {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
@@ -220,16 +251,7 @@ export class MetaCloudGateway implements ConversationGateway {
       template: {
         name: nome,
         language: { code: idioma },
-        ...(variaveis.length > 0
-          ? {
-              components: [
-                {
-                  type: 'body',
-                  parameters: variaveis.map((texto) => ({ type: 'text', text: texto })),
-                },
-              ],
-            }
-          : {}),
+        ...(components.length > 0 ? { components } : {}),
       },
     });
     if (response.status >= 400) {

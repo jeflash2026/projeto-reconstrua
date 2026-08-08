@@ -93,6 +93,9 @@ export interface EnvioHumanizado {
     nome: string,
     idioma?: string,
     variaveis?: readonly string[],
+    /** Cabeçalho de DOCUMENTO do modelo (ex.: envio_procuracao) — o PDF viaja
+     *  DENTRO do template e atravessa a janela de 24h. */
+    documento?: { readonly fileName: string; readonly mimeType: string; readonly base64: string },
   ): Promise<boolean>;
   /** ÁUDIO (decreto 2026-08-06): mensagem de voz da secretária ao cliente. */
   sendAudio(
@@ -159,6 +162,10 @@ const CORPO_TEMPLATE: Readonly<Record<string, (vars: readonly string[]) => strin
       'Atenciosamente,',
       'Layara - Consultora do Projeto Reconstrua',
     ].join('\n'),
+  // Procuração via template (aprovado 2026-08-08): cabeçalho de DOCUMENTO leva
+  // o PDF; o corpo não tem variáveis (sem saudação — o cliente já foi saudado).
+  envio_procuracao: () =>
+    'Segue em anexo a sua procuração para assinatura. Assine, tire uma foto legível ou digitalize, e devolva por aqui mesmo, nesta conversa. Qualquer dúvida, estou à disposição.',
 };
 
 export class ChatHumanizadoService {
@@ -413,6 +420,49 @@ export class ChatHumanizadoService {
       nomeArquivo: null,
       mime: null,
       sha256: null,
+      autor,
+    });
+    return { ok: true };
+  }
+
+  /** TEMPLATE COM DOCUMENTO no cabeçalho (envio_procuracao, aprovado
+   *  2026-08-08): a ÚNICA forma de entregar a procuração a quem está FORA da
+   *  janela de 24h — o PDF viaja dentro do próprio template. O blob fica no
+   *  media store (a conversa reabre o que foi enviado, como qualquer anexo). */
+  async enviarTemplateDocumento(
+    chatId: string,
+    nome: string,
+    anexo: { readonly nome: string; readonly base64: string },
+    autor: string,
+  ): Promise<Resultado> {
+    if (this.deps.envio === null) return { ok: false, error: SEM_CANAL };
+    // A MESMA régua do docs-equipe (magic bytes + 20 MB) — validada ao guardar.
+    const guardado = await guardarBase64(this.deps.media, anexo.base64);
+    if (!guardado.ok) return guardado;
+    if (guardado.mime !== 'application/pdf')
+      return {
+        ok: false,
+        error: 'o cabeçalho do template só aceita PDF — envie a procuração em PDF',
+      };
+    const nomeArquivo = anexo.nome.replace(/[^\w.\- ()]/g, '').slice(0, 120) || 'procuracao.pdf';
+    const ok = await this.deps.envio.sendTemplate(chatId, nome, 'pt_BR', [], {
+      fileName: nomeArquivo,
+      mimeType: guardado.mime,
+      base64: anexo.base64,
+    });
+    if (!ok)
+      return {
+        ok: false,
+        error: `a Meta recusou o template "${nome}" — confira se ele está APROVADO no Gerenciador`,
+      };
+    // A conversa registra o TEXTO REAL do template + o PDF que foi junto.
+    const corpo = CORPO_TEMPLATE[nome];
+    await this.anotarSaida(chatId, {
+      tipo: 'template',
+      texto: corpo !== undefined ? corpo([]) : `[template ${nome} enviado]`,
+      nomeArquivo,
+      mime: guardado.mime,
+      sha256: guardado.sha256,
       autor,
     });
     return { ok: true };

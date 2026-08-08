@@ -145,6 +145,7 @@ export interface DashboardJuridico {
     dataHora: string;
     novidade: boolean;
   }[];
+  movimentacoesPendentes: number;
   ultimaConsultaDatajud: string | null;
   recentes: (ContratoJuridico & { clienteNome: string })[];
   porBanco: { banco: string; total: number }[];

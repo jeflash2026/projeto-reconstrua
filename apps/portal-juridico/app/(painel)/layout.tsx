@@ -22,6 +22,7 @@ export default function PainelLayout({ children }: { children: ReactNode }): Rea
           </a>
           <nav className="topo-nav">
             <a href="/juridico">Dashboard</a>
+            <a href="/juridico/movimentacoes">Movimentações</a>
             <a href="/juridico/clientes">Clientes</a>
             <a href="/juridico/guias">Guias</a>
             <a href="/juridico/pericias">Perícias</a>

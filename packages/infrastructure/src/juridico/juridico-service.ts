@@ -179,6 +179,10 @@ export interface AndamentoProcesso {
   readonly novidade: boolean;
   readonly consultadoEm: string;
   readonly erro: string | null;
+  /** VISTO do advogado (2026-08-08): dataHora do último movimento que alguém
+   *  já conferiu — movimento mais novo que isto entra na fila de atenção. */
+  readonly vistoAte?: string | null;
+  readonly vistoPor?: string | null;
 }
 
 interface AndamentoDatajud {
@@ -889,6 +893,8 @@ export class JuridicoService {
             novidade: false,
             consultadoEm: this.agora(),
             erro: 'processo não encontrado no DataJud (pode levar dias para indexar)',
+            vistoAte: anterior?.vistoAte ?? null,
+            vistoPor: anterior?.vistoPor ?? null,
           } satisfies AndamentoProcesso);
           continue;
         }
@@ -905,6 +911,8 @@ export class JuridicoService {
           novidade,
           consultadoEm: this.agora(),
           erro: null,
+          vistoAte: anterior?.vistoAte ?? null,
+          vistoPor: anterior?.vistoPor ?? null,
         } satisfies AndamentoProcesso);
       } catch (e) {
         erros += 1;
@@ -936,6 +944,76 @@ export class JuridicoService {
       'DataJud',
     );
     return { ok: true, consultados: numeros.length, encontrados, novidades, erros };
+  }
+
+  // ── FILA DE MOVIMENTAÇÕES (2026-08-08) — processo que se mexeu entra na
+  //    fila; sai quando o advogado dá o VISTO (assinado). Qualquer movimento
+  //    conta — a fila é a caixa de entrada judicial do escritório. ───────────
+
+  async filaMovimentacoes(): Promise<
+    readonly {
+      numero: string;
+      clienteNome: string;
+      classe: string;
+      orgaoJulgador: string;
+      ultimoMovimento: { nome: string; dataHora: string };
+      /** Movimentos AINDA NÃO vistos (mais novos que o último visto). */
+      naoVistos: readonly { nome: string; dataHora: string }[];
+      pendente: boolean;
+      vistoPor: string | null;
+      vistoAte: string | null;
+    }[]
+  > {
+    const [andamentos, contratos, clientes] = await Promise.all([
+      this.listarAndamentos(),
+      this.listarContratos(),
+      this.listarClientes(),
+    ]);
+    const nomePorCliente = new Map(clientes.map((c) => [c.id, c.nome]));
+    const clientesPorProcesso = new Map<string, string>();
+    for (const c of contratos) {
+      if (c.status === 'excluido') continue;
+      const chave = c.processoNumero.replace(/\D/g, '');
+      if (!clientesPorProcesso.has(chave))
+        clientesPorProcesso.set(chave, nomePorCliente.get(c.clienteId) ?? '—');
+    }
+    return andamentos
+      .filter((a) => a.ultimoMovimento !== null)
+      .map((a) => {
+        const vistoAte = a.vistoAte ?? null;
+        const naoVistos = a.movimentos.filter((m) => vistoAte === null || m.dataHora > vistoAte);
+        return {
+          numero: a.numero,
+          clienteNome: clientesPorProcesso.get(a.numero.replace(/\D/g, '')) ?? '—',
+          classe: a.classe,
+          orgaoJulgador: a.orgaoJulgador,
+          ultimoMovimento: a.ultimoMovimento as { nome: string; dataHora: string },
+          naoVistos: naoVistos.slice(0, 8),
+          pendente: naoVistos.length > 0,
+          vistoPor: a.vistoPor ?? null,
+          vistoAte,
+        };
+      })
+      .sort((x, y) => y.ultimoMovimento.dataHora.localeCompare(x.ultimoMovimento.dataHora));
+  }
+
+  /** O advogado CONFERIU o processo: tudo até o último movimento vira visto. */
+  async darVisto(numeroCnj: string, autor: string): Promise<ResultadoJuridico> {
+    const chave = numeroCnj.replace(/\D/g, '');
+    const atual = (await this.deps.json.get(NS_ANDAMENTOS, chave)) as AndamentoProcesso | null;
+    if (atual === null) return { ok: false, error: 'processo sem acompanhamento registrado' };
+    await this.deps.json.put(NS_ANDAMENTOS, chave, {
+      ...atual,
+      vistoAte: atual.ultimoMovimento?.dataHora ?? this.agora(),
+      vistoPor: autor,
+      novidade: false,
+    } satisfies AndamentoProcesso);
+    await this.registrarHistorico(
+      'Visto em movimentação.',
+      `${numeroCnj} — até ${atual.ultimoMovimento?.dataHora.slice(0, 10) ?? 'hoje'}`,
+      autor,
+    );
+    return { ok: true };
   }
 
   // ── DASHBOARD ──────────────────────────────────────────────────────────────
@@ -971,6 +1049,7 @@ export class JuridicoService {
       dataHora: string;
       novidade: boolean;
     }[];
+    movimentacoesPendentes: number;
     ultimaConsultaDatajud: string | null;
     recentes: readonly (ContratoJuridico & { clienteNome: string })[];
     porBanco: readonly { banco: string; total: number }[];
@@ -1056,6 +1135,11 @@ export class JuridicoService {
         .filter((p) => p.situacao === 'agendada' && (p.data ?? '') >= hoje)
         .slice(0, 5),
       alertas: alertas.slice(0, 10),
+      movimentacoesPendentes: andamentos.filter(
+        (a) =>
+          a.ultimoMovimento !== null &&
+          ((a.vistoAte ?? null) === null || a.ultimoMovimento.dataHora > (a.vistoAte ?? '')),
+      ).length,
       ultimaConsultaDatajud: ultimaConsulta,
       recentes: contratos.slice(0, 8).map((c) => ({
         ...c,

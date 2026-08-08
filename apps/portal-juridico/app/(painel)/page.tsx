@@ -101,6 +101,26 @@ export default async function DashboardPage(): Promise<ReactElement> {
 
           {/* ── NÚMEROS QUE IMPORTAM ───────────────────────────────────────── */}
           <div className="cards">
+            <a
+              className="card"
+              href="/juridico/movimentacoes"
+              style={
+                dados.movimentacoesPendentes > 0
+                  ? { borderColor: '#f0dfae', textDecoration: 'none' }
+                  : { textDecoration: 'none' }
+              }
+            >
+              <div className="rotulo">Movimentações s/ visto</div>
+              <div
+                className="valor"
+                style={dados.movimentacoesPendentes > 0 ? { color: 'var(--ambar)' } : undefined}
+              >
+                {dados.movimentacoesPendentes}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', fontWeight: 600 }}>
+                abrir a fila →
+              </div>
+            </a>
             <div className="card">
               <div className="rotulo">Clientes</div>
               <div className="valor">{dados.clientes}</div>

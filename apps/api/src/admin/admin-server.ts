@@ -2215,6 +2215,23 @@ export function buildAdminServer(
     return r;
   });
 
+  // FILA DE MOVIMENTAÇÕES (2026-08-08): processo que se mexeu espera o VISTO
+  // do advogado — qualquer movimento conta; o visto é assinado.
+  app.get('/admin/juridico/movimentacoes', async (_request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    return { fila: await opts.juridico.filaMovimentacoes() };
+  });
+
+  app.post('/admin/juridico/movimentacoes/visto', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const body = (request.body ?? {}) as { numero?: string; autor?: string };
+    if (typeof body.numero !== 'string' || body.numero === '')
+      return reply.code(400).send({ error: 'numero obrigatório' });
+    const r = await opts.juridico.darVisto(body.numero, body.autor ?? 'Equipe');
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
   // CONSULTA AVULSA pelo nº CNJ (2026-08-08): pré-preenche a ficha na tela de
   // novo processo — classe, órgão, assunto, ajuizamento e movimentações.
   app.get('/admin/juridico/consulta-cnj/:numero', async (request, reply) => {

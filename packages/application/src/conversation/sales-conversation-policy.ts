@@ -260,6 +260,11 @@ export function politicaDaMissao(context: ConversationContextView): PoliticaDaMi
       : null;
 
   switch (missao) {
+    // Caso REAL Rosemeire (2026-08-08): o estado do CPF só viajava no reforço
+    // da ANÁLISE — na fase 1 (LEAD/ONBOARDING, onde o CPF é coletado) o LLM
+    // não sabia que ele JÁ constava e o humanizador inventou uma nova cobrança
+    // de CPF. O reforço entra na CONDUTA (o reforço é descartado quando a
+    // conduta substitui a curiosidade — prompt-builder linha do núcleo).
     case 'LEAD':
       return {
         missao,
@@ -267,7 +272,7 @@ export function politicaDaMissao(context: ConversationContextView): PoliticaDaMi
         substituiCuriosidade: true,
         perguntaDireta,
         respostaCanonica,
-        conduta: CONDUTA_LEAD,
+        conduta: CONDUTA_LEAD + reforcoCpf(context),
         reforco: '',
       };
     case 'ONBOARDING_DOCUMENTAL':
@@ -277,7 +282,7 @@ export function politicaDaMissao(context: ConversationContextView): PoliticaDaMi
         substituiCuriosidade: true,
         perguntaDireta,
         respostaCanonica,
-        conduta: condutaOnboarding(context),
+        conduta: condutaOnboarding(context) + reforcoCpf(context),
         reforco: '',
       };
     case 'ANALISE_ADMINISTRATIVA':

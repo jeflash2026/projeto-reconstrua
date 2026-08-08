@@ -73,4 +73,18 @@ describe('rede de segurança da ANÁLISE', () => {
     const semFonte = politicaDaMissao({ ...base, cpfRegistrado: null });
     expect(semFonte.reforco).not.toContain('CPF do cliente');
   });
+
+  // Caso REAL Rosemeire (2026-08-08): na fase 1 o LLM não sabia que o CPF já
+  // constava e inventou uma nova cobrança. O estado do CPF entra na CONDUTA
+  // (o reforço é descartado quando a conduta substitui a curiosidade).
+  it('LEAD e ONBOARDING carregam o estado do CPF na conduta', () => {
+    for (const missao of ['LEAD', 'ONBOARDING_DOCUMENTAL'] as const) {
+      const comCpf = politicaDaMissao({ ...view(missao), cpfRegistrado: true });
+      expect(comCpf.conduta).toContain('NUNCA peça o CPF');
+      const semCpf = politicaDaMissao({ ...view(missao), cpfRegistrado: false });
+      expect(semCpf.conduta).toContain('JAMAIS diga que não pedimos o CPF');
+      const semFonte = politicaDaMissao({ ...view(missao), cpfRegistrado: null });
+      expect(semFonte.conduta).not.toContain('NUNCA peça o CPF');
+    }
+  });
 });

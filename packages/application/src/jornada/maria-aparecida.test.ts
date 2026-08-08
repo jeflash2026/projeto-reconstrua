@@ -83,14 +83,16 @@ describe('roteiros de COLETA saem verbatim (o humanizador derrubava o CPF)', () 
       expect(ehRoteiroDeColeta(m), m.slice(0, 40)).toBe(true);
     }
   });
-  it('acolhimento continua humanizável (consentimento saiu da lista — caso Humberto 2026-07-30)', () => {
+  it('explicação LONGA sem termos de coleta continua humanizável', () => {
     // Caso Humberto: o humanizador reescreveu a explicação do consentimento
     // (derrubou os honorários por êxito) — ela virou roteiro VERBATIM também.
     // Caso Ubirajara (2026-07-31): a RECUSA saiu desta lista — o humanizador
     // emendava uma cobrança de HISCON ao "respeito a sua decisão"; ela agora
     // é VERBATIM (testes próprios no jornada-comercial.test).
-    for (const m of [MENSAGENS_JORNADA.socialCurto, MENSAGENS_JORNADA.adiamentoOkCurto]) {
-      expect(ehRoteiroDeColeta(m), m.slice(0, 40)).toBe(false);
-    }
+    // Caso Rosemeire (2026-08-08): as cortesias CURTAS (socialCurto,
+    // adiamentoOkCurto) também viraram VERBATIM — o humanizador reescreveu o
+    // "Por nada" como uma nova cobrança de CPF (caso-rosemeire.test).
+    expect(ehRoteiroDeColeta(MENSAGENS_JORNADA.localizacao)).toBe(false);
+    expect(ehRoteiroDeColeta(MENSAGENS_JORNADA.seguranca)).toBe(false);
   });
 });

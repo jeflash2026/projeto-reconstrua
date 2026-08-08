@@ -612,6 +612,12 @@ export const PASSO_A_PASSO_HISCON =
 // trocar a pergunta de interesse por uma cobrança de cidade inventada. O
 // roteiro do consentimento ("análise gratuita") passa a sair VERBATIM também.
 export function ehRoteiroDeColeta(roteiro: string): boolean {
+  // Caso REAL Rosemeire (2026-08-08): o "Tá" de quem JÁ dera o CPF ganhou o
+  // socialCurto ("Por nada…") — e o humanizador o REESCREVEU como uma nova
+  // cobrança de CPF ("Ainda preciso do número do seu CPF"). Cortesia curta já
+  // é humana: reescrever não acrescenta nada e o risco de invenção é real.
+  // Roteiro CURTO sai VERBATIM.
+  if (roteiro.trim().length <= 160) return true;
   // Caso Ubirajara (2026-07-31): a RECUSA e o seu agradecimento também saem
   // VERBATIM — o humanizador emendava uma cobrança de HISCON ao "respeito a
   // sua decisão", insistindo com quem acabou de dizer não.

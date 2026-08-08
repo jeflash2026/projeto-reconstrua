@@ -2215,6 +2215,16 @@ export function buildAdminServer(
     return r;
   });
 
+  // CONSULTA AVULSA pelo nº CNJ (2026-08-08): pré-preenche a ficha na tela de
+  // novo processo — classe, órgão, assunto, ajuizamento e movimentações.
+  app.get('/admin/juridico/consulta-cnj/:numero', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const { numero } = request.params as { numero: string };
+    const r = await opts.juridico.consultarProcesso(numero);
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
   app.get('/admin/juridico/guias', async (_request, reply) => {
     if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
     const guias = await opts.juridico.listarGuias();

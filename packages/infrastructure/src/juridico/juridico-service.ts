@@ -827,6 +827,32 @@ export class JuridicoService {
     return (await this.deps.json.list(NS_ANDAMENTOS)) as readonly AndamentoProcesso[];
   }
 
+  /** Consulta AVULSA de um nº CNJ (tela de novo processo): devolve a capa
+   *  pública na hora — classe, órgão, assunto, ajuizamento e movimentações.
+   *  Nada é gravado; o cadastro continua sendo um ato explícito do usuário. */
+  async consultarProcesso(
+    numeroCnj: string,
+  ): Promise<{ ok: true; capa: AndamentoDatajud } | { ok: false; error: string }> {
+    const datajud = this.deps.datajud;
+    if (datajud === undefined)
+      return { ok: false, error: 'DataJud não configurado nesta montagem' };
+    const digitos = numeroCnj.replace(/\D/g, '');
+    if (digitos.length !== 20)
+      return { ok: false, error: 'número CNJ inválido — precisa ter 20 dígitos' };
+    try {
+      const capa = await datajud.consultar(numeroCnj);
+      if (capa === null)
+        return {
+          ok: false,
+          error:
+            'processo não encontrado no DataJud — confira o número (processos novos podem levar dias para indexar)',
+        };
+      return { ok: true, capa };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
   /** Consulta TODOS os processos com contrato não-excluído no DataJud e grava
    *  o retrato de cada um. Ritmo suave (pausa entre consultas — API pública). */
   async atualizarAndamentos(): Promise<

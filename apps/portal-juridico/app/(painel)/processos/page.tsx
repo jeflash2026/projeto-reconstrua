@@ -103,23 +103,73 @@ export default async function ProcessosPage({
                   <span className="selo-status ativo">novidade</span>
                 ) : null}
               </div>
-              {/* ACOMPANHAMENTO AUTOMÁTICO (DataJud/CNJ): classe + última
-                  movimentação — sem digitação manual. */}
+              {/* ACOMPANHAMENTO AUTOMÁTICO (DataJud/CNJ): resumo + linha do
+                  tempo completa das movimentações, expansível. */}
               {andamento !== null && andamento.erro === null ? (
-                <div style={{ fontSize: 13, color: 'var(--ink-dim)', marginBottom: 4 }}>
-                  <strong style={{ color: 'var(--ink)' }}>{andamento.classe || 'Classe —'}</strong>
-                  {andamento.orgaoJulgador !== '' ? ` · ${andamento.orgaoJulgador}` : ''}
-                  {andamento.ultimoMovimento !== null ? (
-                    <>
-                      {' · última mov.: '}
-                      <strong style={{ color: 'var(--ink)' }}>
-                        {andamento.ultimoMovimento.nome}
-                      </strong>{' '}
-                      em {dataBr(andamento.ultimoMovimento.dataHora)}
-                    </>
-                  ) : null}
-                  {` (DataJud, consultado em ${dataBr(andamento.consultadoEm)})`}
-                </div>
+                <details style={{ marginBottom: 6 }}>
+                  <summary
+                    style={{ fontSize: 13, color: 'var(--ink-dim)', cursor: 'pointer' }}
+                    title="Clique para ver a linha do tempo completa do processo"
+                  >
+                    <strong style={{ color: 'var(--ink)' }}>
+                      {andamento.classe || 'Classe —'}
+                    </strong>
+                    {andamento.orgaoJulgador !== '' ? ` · ${andamento.orgaoJulgador}` : ''}
+                    {andamento.ultimoMovimento !== null ? (
+                      <>
+                        {' · última mov.: '}
+                        <strong style={{ color: 'var(--ink)' }}>
+                          {andamento.ultimoMovimento.nome}
+                        </strong>{' '}
+                        em {dataBr(andamento.ultimoMovimento.dataHora)}
+                      </>
+                    ) : null}
+                    {' · ver linha do tempo ▾'}
+                  </summary>
+                  <div
+                    style={{
+                      margin: '8px 0 4px',
+                      padding: '10px 14px',
+                      background: 'var(--bg)',
+                      borderRadius: 10,
+                      fontSize: 13,
+                    }}
+                  >
+                    <div style={{ marginBottom: 8, color: 'var(--ink-dim)' }}>
+                      {andamento.assunto !== '' ? (
+                        <>
+                          Assunto:{' '}
+                          <strong style={{ color: 'var(--ink)' }}>{andamento.assunto}</strong>{' '}
+                          ·{' '}
+                        </>
+                      ) : null}
+                      {andamento.tribunal !== '' ? `${andamento.tribunal} · ` : ''}
+                      {andamento.grau !== '' ? `grau ${andamento.grau} · ` : ''}
+                      {andamento.dataAjuizamento !== ''
+                        ? `ajuizado em ${dataBr(andamento.dataAjuizamento)} · `
+                        : ''}
+                      consultado no DataJud em {dataBr(andamento.consultadoEm)}
+                    </div>
+                    {andamento.movimentos.length === 0 ? (
+                      <div style={{ color: 'var(--ink-dim)' }}>Sem movimentações registradas.</div>
+                    ) : (
+                      andamento.movimentos.map((m, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            padding: '5px 0',
+                            borderBottom:
+                              i < andamento.movimentos.length - 1
+                                ? '1px solid var(--linha)'
+                                : 'none',
+                          }}
+                        >
+                          <strong>{dataBr(m.dataHora)}</strong> — {m.nome}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </details>
               ) : andamento !== null && andamento.erro !== null ? (
                 <div style={{ fontSize: 13, color: 'var(--ambar, #8a6100)', marginBottom: 4 }}>
                   DataJud: {andamento.erro}

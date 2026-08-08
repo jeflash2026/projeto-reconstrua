@@ -27,6 +27,17 @@ const CONTRATO_VAZIO: ContratoForm = {
   observacoes: '',
 };
 
+interface CapaDatajud {
+  classe: string;
+  orgaoJulgador: string;
+  assunto: string;
+  tribunal: string;
+  grau: string;
+  dataAjuizamento: string;
+  ultimoMovimento: { nome: string; dataHora: string } | null;
+  movimentos: { nome: string; dataHora: string }[];
+}
+
 export default function ProcessoForm({
   clientes,
   clienteInicial = '',
@@ -42,6 +53,37 @@ export default function ProcessoForm({
   ]);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  // CADASTRO PELO NÚMERO (2026-08-08): consulta o DataJud e mostra a capa
+  // pública do processo na hora — confirmação de que o CNJ digitado é o certo.
+  const [capa, setCapa] = useState<CapaDatajud | null>(null);
+  const [capaErro, setCapaErro] = useState<string | null>(null);
+  const [consultando, setConsultando] = useState(false);
+
+  async function consultarCnj(): Promise<void> {
+    setCapa(null);
+    setCapaErro(null);
+    if (numero.replace(/\D/g, '').length !== 20) {
+      setCapaErro('digite o número CNJ completo (20 dígitos) antes de consultar');
+      return;
+    }
+    setConsultando(true);
+    try {
+      const res = await fetch(`/juridico/api/j/consulta-cnj/${encodeURIComponent(numero.trim())}`);
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        capa?: CapaDatajud;
+      };
+      if (!res.ok || data.capa === undefined) {
+        setCapaErro(data.error ?? 'falha na consulta');
+        return;
+      }
+      setCapa(data.capa);
+    } catch {
+      setCapaErro('falha de rede — tente de novo');
+    } finally {
+      setConsultando(false);
+    }
+  }
 
   function mudarBanco(i: number, mudanca: Partial<BancoForm>): void {
     setBancos((b) => b.map((banco, j) => (j === i ? { ...banco, ...mudanca } : banco)));
@@ -125,6 +167,40 @@ export default function ProcessoForm({
             </select>
           </label>
         </div>
+        <div style={{ marginTop: 10 }}>
+          <button
+            className="btn"
+            type="button"
+            disabled={consultando}
+            onClick={() => void consultarCnj()}
+          >
+            {consultando ? 'Consultando o CNJ…' : '🔎 Consultar no DataJud'}
+          </button>
+        </div>
+        {capaErro !== null ? <div className="erro-box">{capaErro}</div> : null}
+        {capa !== null ? (
+          <div className="ok-box" style={{ fontWeight: 400 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Processo encontrado no DataJud ✓</div>
+            <div style={{ fontSize: 14 }}>
+              <strong>{capa.classe || 'Classe —'}</strong>
+              {capa.assunto !== '' ? ` · ${capa.assunto}` : ''}
+              {capa.orgaoJulgador !== '' ? ` · ${capa.orgaoJulgador}` : ''}
+              {capa.dataAjuizamento !== ''
+                ? ` · ajuizado em ${new Date(capa.dataAjuizamento).toLocaleDateString('pt-BR')}`
+                : ''}
+            </div>
+            {capa.ultimoMovimento !== null ? (
+              <div style={{ fontSize: 13, marginTop: 4 }}>
+                Última movimentação: <strong>{capa.ultimoMovimento.nome}</strong> em{' '}
+                {new Date(capa.ultimoMovimento.dataHora).toLocaleDateString('pt-BR')}
+              </div>
+            ) : null}
+            <div style={{ fontSize: 12.5, marginTop: 4, opacity: 0.8 }}>
+              O DataJud não informa as partes nem o valor da causa — selecione o cliente e os
+              contratos abaixo. Após cadastrar, o acompanhamento fica automático.
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="secao-form">

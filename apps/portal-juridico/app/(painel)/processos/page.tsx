@@ -1,6 +1,14 @@
-// PROCESSOS — agrupados por cliente + nº CNJ, com os contratos de cada banco.
+// PROCESSOS — agrupados por cliente + nº CNJ, com os contratos de cada banco
+// e o ACOMPANHAMENTO AUTOMÁTICO do DataJud (classe, última movimentação).
 import type { ReactElement } from 'react';
-import { getJson, moeda, type ContratoJuridico } from '../../../lib/api';
+import {
+  getJson,
+  moeda,
+  dataBr,
+  type AndamentoProcesso,
+  type ContratoJuridico,
+} from '../../../lib/api';
+import AtualizarAndamentos from '../../../components/atualizar-andamentos';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +17,13 @@ export default async function ProcessosPage({
 }: {
   searchParams: { q?: string; status?: string };
 }): Promise<ReactElement> {
-  const dados = await getJson<{ contratos: ContratoJuridico[] }>('/admin/juridico/contratos');
+  const [dados, andamentosData] = await Promise.all([
+    getJson<{ contratos: ContratoJuridico[] }>('/admin/juridico/contratos'),
+    getJson<{ andamentos: AndamentoProcesso[] }>('/admin/juridico/andamentos'),
+  ]);
+  const andamentoPorNumero = new Map(
+    (andamentosData?.andamentos ?? []).map((a) => [a.numero.replace(/\D/g, ''), a]),
+  );
   const busca = (searchParams.q ?? '').trim().toLowerCase();
   const filtroStatus = searchParams.status ?? '';
   const todos = dados?.contratos ?? null;
@@ -50,6 +64,7 @@ export default async function ProcessosPage({
         <a className="btn primario" href="/juridico/processos/novo">
           Novo processo
         </a>
+        <AtualizarAndamentos processos={grupos.size} />
         <form
           method="GET"
           action="/juridico/processos"
@@ -75,12 +90,41 @@ export default async function ProcessosPage({
       ) : (
         [...grupos.values()].map((g) => {
           const bancos = new Set(g.itens.map((c) => c.banco));
+          const andamento = andamentoPorNumero.get(g.processo.replace(/\D/g, '')) ?? null;
           return (
             <div className="secao-form" key={`${g.clienteNome}-${g.processo}`}>
               <div style={{ fontWeight: 800 }}>{g.clienteNome}</div>
               <div className="mono" style={{ marginBottom: 4 }}>
-                {g.processo}
+                {g.processo}{' '}
+                {andamento?.emExecucao === true ? (
+                  <span className="selo-status encerrado">⚡ Em execução</span>
+                ) : null}{' '}
+                {andamento?.novidade === true ? (
+                  <span className="selo-status ativo">novidade</span>
+                ) : null}
               </div>
+              {/* ACOMPANHAMENTO AUTOMÁTICO (DataJud/CNJ): classe + última
+                  movimentação — sem digitação manual. */}
+              {andamento !== null && andamento.erro === null ? (
+                <div style={{ fontSize: 13, color: 'var(--ink-dim)', marginBottom: 4 }}>
+                  <strong style={{ color: 'var(--ink)' }}>{andamento.classe || 'Classe —'}</strong>
+                  {andamento.orgaoJulgador !== '' ? ` · ${andamento.orgaoJulgador}` : ''}
+                  {andamento.ultimoMovimento !== null ? (
+                    <>
+                      {' · última mov.: '}
+                      <strong style={{ color: 'var(--ink)' }}>
+                        {andamento.ultimoMovimento.nome}
+                      </strong>{' '}
+                      em {dataBr(andamento.ultimoMovimento.dataHora)}
+                    </>
+                  ) : null}
+                  {` (DataJud, consultado em ${dataBr(andamento.consultadoEm)})`}
+                </div>
+              ) : andamento !== null && andamento.erro !== null ? (
+                <div style={{ fontSize: 13, color: 'var(--ambar, #8a6100)', marginBottom: 4 }}>
+                  DataJud: {andamento.erro}
+                </div>
+              ) : null}
               <div style={{ color: 'var(--ink-dim)', fontSize: 13, marginBottom: 10 }}>
                 {g.itens.length} contrato(s) em {bancos.size} banco(s)
               </div>

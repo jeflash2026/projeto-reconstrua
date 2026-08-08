@@ -214,6 +214,7 @@ import { WebchatRuntime } from '../webchat/webchat-runtime.js';
 import { DocsEquipeService } from '../docs-equipe/docs-equipe-service.js';
 import { ChatHumanizadoService } from '../humanizado/chat-humanizado.js';
 import { JuridicoService } from '../juridico/juridico-service.js';
+import { DatajudClient } from '../juridico/datajud-client.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
 import { CreditosAdvogadoService } from '../advogado/creditos-advogado.js';
@@ -1979,7 +1980,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   });
   // PAINEL JURÍDICO (decreto 2026-08-08): gestão do pós-protocolo — clientes,
   // processos judiciais, guias e perícias do dono + sócio (2º painel).
-  const juridico = new JuridicoService({ json, media: mediaStore, clock });
+  // DataJud (CNJ): acompanhamento automático dos processos pelo nº CNJ — chave
+  // pública do CNJ por padrão; env DATAJUD_API_KEY para trocar.
+  const juridico = new JuridicoService({
+    json,
+    media: mediaStore,
+    clock,
+    datajud: new DatajudClient(env['DATAJUD_API_KEY'] || undefined),
+  });
   const metaCanal =
     metaGateway === null
       ? null

@@ -111,6 +111,23 @@ export interface PericiaJuridica {
   em: string;
 }
 
+/** Acompanhamento automático (DataJud/CNJ) de um processo. */
+export interface AndamentoProcesso {
+  numero: string;
+  tribunal: string;
+  classe: string;
+  orgaoJulgador: string;
+  assunto: string;
+  grau: string;
+  dataAjuizamento: string;
+  ultimoMovimento: { nome: string; dataHora: string } | null;
+  movimentos: { nome: string; dataHora: string }[];
+  emExecucao: boolean;
+  novidade: boolean;
+  consultadoEm: string;
+  erro: string | null;
+}
+
 export interface DashboardJuridico {
   clientes: number;
   contratos: number;

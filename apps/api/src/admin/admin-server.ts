@@ -2184,6 +2184,20 @@ export function buildAdminServer(
       .send(Buffer.from(anexo.bytes));
   });
 
+  // ACOMPANHAMENTO AUTOMÁTICO (DataJud/CNJ, 2026-08-08): somente leitura de
+  // dados públicos — classe, órgão julgador e movimentações por nº CNJ.
+  app.get('/admin/juridico/andamentos', async (_request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    return { andamentos: await opts.juridico.listarAndamentos() };
+  });
+
+  app.post('/admin/juridico/andamentos/atualizar', async (_request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const r = await opts.juridico.atualizarAndamentos();
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
   app.get('/admin/juridico/guias', async (_request, reply) => {
     if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
     const guias = await opts.juridico.listarGuias();

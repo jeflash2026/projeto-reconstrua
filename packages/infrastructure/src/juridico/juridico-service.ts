@@ -155,7 +155,45 @@ export interface JuridicoDeps {
   readonly json: JsonStore;
   readonly media: MediaStorePort;
   readonly clock: Clock;
+  /** DataJud (CNJ) — acompanhamento automático por nº CNJ (2026-08-08).
+   *  Opcional: ausente ⇒ o botão "Atualizar andamentos" devolve erro legível. */
+  readonly datajud?: {
+    consultar(numeroCnj: string): Promise<AndamentoDatajud | null>;
+  };
 }
+
+/** O retrato de UM processo no DataJud (persistido em ns 'juridico-andamentos'). */
+export interface AndamentoProcesso {
+  readonly numero: string;
+  readonly tribunal: string;
+  readonly classe: string;
+  readonly orgaoJulgador: string;
+  readonly assunto: string;
+  readonly grau: string;
+  readonly dataAjuizamento: string;
+  readonly ultimoMovimento: { readonly nome: string; readonly dataHora: string } | null;
+  readonly movimentos: readonly { readonly nome: string; readonly dataHora: string }[];
+  /** A classe indica fase de EXECUÇÃO (cumprimento de sentença)? */
+  readonly emExecucao: boolean;
+  /** O último movimento é MAIS NOVO que o da consulta anterior? */
+  readonly novidade: boolean;
+  readonly consultadoEm: string;
+  readonly erro: string | null;
+}
+
+interface AndamentoDatajud {
+  readonly numero: string;
+  readonly tribunal: string;
+  readonly classe: string;
+  readonly orgaoJulgador: string;
+  readonly assunto: string;
+  readonly grau: string;
+  readonly dataAjuizamento: string;
+  readonly ultimoMovimento: { readonly nome: string; readonly dataHora: string } | null;
+  readonly movimentos: readonly { readonly nome: string; readonly dataHora: string }[];
+}
+
+const NS_ANDAMENTOS = 'juridico-andamentos';
 
 // ── Validação de anexo (como no original: PDF/Word/Excel/imagens/TXT/CSV/ZIP) ─
 const MAGIC: ReadonlyArray<{ mime: string; bytes: readonly number[] }> = [
@@ -762,6 +800,99 @@ export class JuridicoService {
   async listarPericias(): Promise<readonly PericiaJuridica[]> {
     const pericias = (await this.deps.json.list(NS_PERICIAS)) as readonly PericiaJuridica[];
     return [...pericias].sort((a, b) => (a.data ?? '9999').localeCompare(b.data ?? '9999'));
+  }
+
+  // ── ACOMPANHAMENTO AUTOMÁTICO (DataJud/CNJ, 2026-08-08) ───────────────────
+  // Somente LEITURA de dados públicos: classe, órgão julgador e movimentações
+  // de cada processo ativo — o painel para de depender de digitação manual.
+
+  async listarAndamentos(): Promise<readonly AndamentoProcesso[]> {
+    return (await this.deps.json.list(NS_ANDAMENTOS)) as readonly AndamentoProcesso[];
+  }
+
+  /** Consulta TODOS os processos com contrato não-excluído no DataJud e grava
+   *  o retrato de cada um. Ritmo suave (pausa entre consultas — API pública). */
+  async atualizarAndamentos(): Promise<
+    | { ok: true; consultados: number; encontrados: number; novidades: number; erros: number }
+    | { ok: false; error: string }
+  > {
+    const datajud = this.deps.datajud;
+    if (datajud === undefined)
+      return { ok: false, error: 'DataJud não configurado nesta montagem' };
+    const contratos = await this.listarContratos();
+    const numeros = [
+      ...new Set(contratos.filter((c) => c.status !== 'excluido').map((c) => c.processoNumero)),
+    ];
+    let encontrados = 0;
+    let novidades = 0;
+    let erros = 0;
+    for (const numero of numeros) {
+      const chave = numero.replace(/\D/g, '');
+      const anterior = (await this.deps.json.get(NS_ANDAMENTOS, chave)) as AndamentoProcesso | null;
+      try {
+        const retrato = await datajud.consultar(numero);
+        if (retrato === null) {
+          await this.deps.json.put(NS_ANDAMENTOS, chave, {
+            numero,
+            tribunal: '',
+            classe: '',
+            orgaoJulgador: '',
+            assunto: '',
+            grau: '',
+            dataAjuizamento: '',
+            ultimoMovimento: anterior?.ultimoMovimento ?? null,
+            movimentos: anterior?.movimentos ?? [],
+            emExecucao: anterior?.emExecucao ?? false,
+            novidade: false,
+            consultadoEm: this.agora(),
+            erro: 'processo não encontrado no DataJud (pode levar dias para indexar)',
+          } satisfies AndamentoProcesso);
+          continue;
+        }
+        encontrados += 1;
+        const anteriorEm = anterior?.ultimoMovimento?.dataHora ?? null;
+        const novidade =
+          anteriorEm !== null &&
+          retrato.ultimoMovimento !== null &&
+          retrato.ultimoMovimento.dataHora > anteriorEm;
+        if (novidade) novidades += 1;
+        await this.deps.json.put(NS_ANDAMENTOS, chave, {
+          ...retrato,
+          emExecucao: /cumprimento de senten|execu[çc][ãa]o/i.test(retrato.classe),
+          novidade,
+          consultadoEm: this.agora(),
+          erro: null,
+        } satisfies AndamentoProcesso);
+      } catch (e) {
+        erros += 1;
+        await this.deps.json.put(NS_ANDAMENTOS, chave, {
+          ...(anterior ?? {
+            numero,
+            tribunal: '',
+            classe: '',
+            orgaoJulgador: '',
+            assunto: '',
+            grau: '',
+            dataAjuizamento: '',
+            ultimoMovimento: null,
+            movimentos: [],
+            emExecucao: false,
+            novidade: false,
+          }),
+          numero,
+          consultadoEm: this.agora(),
+          erro: e instanceof Error ? e.message : String(e),
+        } satisfies AndamentoProcesso);
+      }
+      // Ritmo suave com a API pública do CNJ.
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    await this.registrarHistorico(
+      'Andamentos atualizados pelo DataJud.',
+      `${String(numeros.length)} processo(s) consultado(s), ${String(novidades)} com novidade`,
+      'DataJud',
+    );
+    return { ok: true, consultados: numeros.length, encontrados, novidades, erros };
   }
 
   // ── DASHBOARD ──────────────────────────────────────────────────────────────

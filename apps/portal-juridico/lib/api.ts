@@ -134,6 +134,18 @@ export interface DashboardJuridico {
   ativos: number;
   encerrados: number;
   excluidos: number;
+  valorAtivos: number;
+  guias: { total: number; valor: number };
+  periciasProximas: PericiaJuridica[];
+  alertas: {
+    tipo: string;
+    clienteNome: string;
+    processo: string;
+    movimento: string;
+    dataHora: string;
+    novidade: boolean;
+  }[];
+  ultimaConsultaDatajud: string | null;
   recentes: (ContratoJuridico & { clienteNome: string })[];
   porBanco: { banco: string; total: number }[];
   historico: { texto: string; detalhe: string; autor: string; em: string }[];

@@ -940,31 +940,123 @@ export class JuridicoService {
 
   // ── DASHBOARD ──────────────────────────────────────────────────────────────
 
+  /** Movimentações que MERECEM alerta no dashboard (com o nome do cliente):
+   *  fase de execução, dinheiro entrando, sentença, constrição e acordo. */
+  private static readonly TIPOS_IMPORTANTES: ReadonlyArray<readonly [RegExp, string]> = [
+    [
+      /alvar[áa]|levantamento|dep[óo]sito judicial|pagamento|\brpv\b|precat[óo]rio|requisi[çc][ãa]o de pequeno valor/i,
+      '💰 Recebimento',
+    ],
+    [/cumprimento de senten|execu[çc][ãa]o/i, '⚡ Execução'],
+    [/tr[âa]nsito em julgado/i, '✅ Trânsito em julgado'],
+    [/senten[çc]a|julgamento|procedente/i, '⚖ Sentença'],
+    [/penhora|bloqueio|arresto|indisponibilidade/i, '🔒 Constrição'],
+    [/acordo|homologa[çc][ãa]o/i, '🤝 Acordo'],
+  ];
+
   async dashboard(): Promise<{
     clientes: number;
     contratos: number;
     ativos: number;
     encerrados: number;
     excluidos: number;
+    valorAtivos: number;
+    guias: { total: number; valor: number };
+    periciasProximas: readonly PericiaJuridica[];
+    alertas: readonly {
+      tipo: string;
+      clienteNome: string;
+      processo: string;
+      movimento: string;
+      dataHora: string;
+      novidade: boolean;
+    }[];
+    ultimaConsultaDatajud: string | null;
     recentes: readonly (ContratoJuridico & { clienteNome: string })[];
     porBanco: readonly { banco: string; total: number }[];
     historico: readonly EventoHistorico[];
   }> {
-    const [clientes, contratos, eventos] = await Promise.all([
+    const [clientes, contratos, eventos, guias, pericias, andamentos] = await Promise.all([
       this.listarClientes(),
       this.listarContratos(),
       this.historico(12),
+      this.listarGuias(),
+      this.listarPericias(),
+      this.listarAndamentos(),
     ]);
     const nomePorCliente = new Map(clientes.map((c) => [c.id, c.nome]));
     const naoExcluidos = contratos.filter((c) => c.status !== 'excluido');
     const porBanco = new Map<string, number>();
     for (const c of naoExcluidos) porBanco.set(c.banco, (porBanco.get(c.banco) ?? 0) + 1);
+
+    // ALERTAS (2026-08-08): movimentação IMPORTANTE nos últimos 60 dias — o
+    // dashboard fala o cliente e a situação (execução, recebimento, sentença…).
+    const clientesPorProcesso = new Map<string, string>();
+    for (const c of naoExcluidos) {
+      const chave = c.processoNumero.replace(/\D/g, '');
+      if (!clientesPorProcesso.has(chave))
+        clientesPorProcesso.set(chave, nomePorCliente.get(c.clienteId) ?? '—');
+    }
+    const corte = new Date(this.deps.clock.now().getTime() - 60 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const alertas: {
+      tipo: string;
+      clienteNome: string;
+      processo: string;
+      movimento: string;
+      dataHora: string;
+      novidade: boolean;
+    }[] = [];
+    for (const a of andamentos) {
+      if (a.erro !== null && a.movimentos.length === 0) continue;
+      const clienteNome = clientesPorProcesso.get(a.numero.replace(/\D/g, '')) ?? '—';
+      // O movimento IMPORTANTE mais recente do processo (um alerta por processo).
+      let melhor: { tipo: string; movimento: string; dataHora: string } | null = null;
+      for (const m of a.movimentos) {
+        if (m.dataHora.slice(0, 10) < corte) continue;
+        const tipo = JuridicoService.TIPOS_IMPORTANTES.find(([re]) => re.test(m.nome))?.[1];
+        if (tipo === undefined) continue;
+        if (melhor === null || m.dataHora > melhor.dataHora)
+          melhor = { tipo, movimento: m.nome, dataHora: m.dataHora };
+      }
+      // Classe de execução também alerta, mesmo sem movimento novo no período.
+      if (melhor === null && a.emExecucao && a.ultimoMovimento !== null) {
+        melhor = {
+          tipo: '⚡ Execução',
+          movimento: `${a.classe} — ${a.ultimoMovimento.nome}`,
+          dataHora: a.ultimoMovimento.dataHora,
+        };
+      }
+      if (melhor !== null)
+        alertas.push({ ...melhor, clienteNome, processo: a.numero, novidade: a.novidade });
+    }
+    alertas.sort((x, y) => y.dataHora.localeCompare(x.dataHora));
+
+    const hoje = this.agora().slice(0, 10);
+    const ultimaConsulta = andamentos.reduce<string | null>(
+      (max, a) => (max === null || a.consultadoEm > max ? a.consultadoEm : max),
+      null,
+    );
     return {
       clientes: clientes.length,
       contratos: naoExcluidos.length,
       ativos: contratos.filter((c) => c.status === 'ativo').length,
       encerrados: contratos.filter((c) => c.status === 'encerrado').length,
       excluidos: contratos.filter((c) => c.status === 'excluido').length,
+      valorAtivos:
+        Math.round(
+          naoExcluidos.reduce((s, c) => s + (c.status === 'ativo' ? (c.valor ?? 0) : 0), 0) * 100,
+        ) / 100,
+      guias: {
+        total: guias.length,
+        valor: Math.round(guias.reduce((s, g) => s + (g.valor ?? 0), 0) * 100) / 100,
+      },
+      periciasProximas: pericias
+        .filter((p) => p.situacao === 'agendada' && (p.data ?? '') >= hoje)
+        .slice(0, 5),
+      alertas: alertas.slice(0, 10),
+      ultimaConsultaDatajud: ultimaConsulta,
       recentes: contratos.slice(0, 8).map((c) => ({
         ...c,
         clienteNome: nomePorCliente.get(c.clienteId) ?? '—',

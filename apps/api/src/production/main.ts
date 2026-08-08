@@ -353,6 +353,22 @@ async function main(): Promise<void> {
       });
     }
   }, 60_000);
+  // ACOMPANHAMENTO VIVO do Painel Jurídico (2026-08-08): consulta o DataJud
+  // (leitura pública, nada de mensagens) para TODOS os processos ativos —
+  // 3 min após o boot e a cada 6 horas. O dashboard mostra novidades e
+  // alertas (execução, recebimento…) sem ninguém clicar em nada.
+  const atualizarAndamentosJuridico = (): void => {
+    void prod.juridico.atualizarAndamentos().catch((error: unknown) => {
+      prod.observability.error(
+        'juridico',
+        'datajud',
+        clock.now(),
+        error instanceof Error ? error.message : 'falha na atualização de andamentos',
+      );
+    });
+  };
+  setTimeout(atualizarAndamentosJuridico, 3 * 60_000);
+  setInterval(atualizarAndamentosJuridico, 6 * 60 * 60_000);
 }
 
 // Executado apenas quando o DONO roda este arquivo (node dist/production/main.js).

@@ -57,18 +57,13 @@ const JornadaAcoes = ({
   };
 
   if (status === 'PRONTO_AGUARDANDO_MODALIDADE') {
+    // Decreto 2026-08-08: o modelo comercial é SOCIEDADE para todos — o botão
+    // "Venda" saiu da jornada (a máquina de venda continua existindo apenas
+    // para casos legados que já estejam em PRONTO_AGUARDANDO_VENDA).
     return (
       <div className="form-row" style={{ margin: 0 }}>
         <button
           className="primary"
-          disabled={busy}
-          onClick={() => {
-            void decidir('VENDA');
-          }}
-        >
-          Venda
-        </button>
-        <button
           disabled={busy}
           onClick={() => {
             void decidir('SOCIEDADE');

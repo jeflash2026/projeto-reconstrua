@@ -247,6 +247,31 @@ services:
       timeout: 5s
       retries: 3
 
+  # Decreto 2026-08-08: PAINEL JURÍDICO — o 2º painel (dono + sócio): clientes,
+  # processos judiciais, guias e perícias do pós-protocolo.
+  # NPM: custom location /juridico → portal-juridico:3800.
+  portal-juridico:
+    build:
+      context: .
+      target: portal-juridico
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:${ADMIN_PORT:-3102}
+      ADMIN_API_TOKEN: ${ADMIN_ACCESS_SECRET:-}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3800/juridico/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   portal-perito:
     build:
       context: .

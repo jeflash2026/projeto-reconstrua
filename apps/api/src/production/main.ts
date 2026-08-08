@@ -104,6 +104,8 @@ async function main(): Promise<void> {
     // Decreto 2026-08-05: o CHAT do canal da equipe (número 41 na Meta) —
     // conversa 100% humana no portal; a AHRI nunca responde nele.
     chatHumanizado: prod.chatHumanizado,
+    // Decreto 2026-08-08: o PAINEL JURÍDICO (2º painel — dono + sócio).
+    juridico: prod.juridico,
     // Reaquecimento FASE 1 (2026-08-07): template pelo número OFICIAL da AHRI.
     templateOficial: prod.enviarTemplateOficial,
     // Onda 3 (2026-07-31): o parecer em LOTE para a base legada (ato do Admin).

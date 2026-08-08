@@ -46,3 +46,5 @@ export * from './mapa-clientes/index.js';
 export * from './pericia-digital/index.js';
 // Decreto 2026-08-05: chat 100% humano do canal da equipe (Meta, número 41).
 export * from './humanizado/index.js';
+// Decreto 2026-08-08: Painel Jurídico — gestão do pós-protocolo (2º painel).
+export * from './juridico/index.js';

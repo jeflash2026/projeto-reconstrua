@@ -48,9 +48,10 @@ COPY apps/portal-cliente ./apps/portal-cliente
 COPY apps/portal-perito ./apps/portal-perito
 COPY apps/portal-socio ./apps/portal-socio
 COPY apps/portal-humanizado ./apps/portal-humanizado
+COPY apps/portal-juridico ./apps/portal-juridico
 COPY apps/landing-web ./apps/landing-web
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente --filter @reconstrua/portal-perito --filter @reconstrua/portal-socio --filter @reconstrua/portal-humanizado --filter @reconstrua/landing-web build
+RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente --filter @reconstrua/portal-perito --filter @reconstrua/portal-socio --filter @reconstrua/portal-humanizado --filter @reconstrua/portal-juridico --filter @reconstrua/landing-web build
 
 FROM portal-build AS portal-admin
 ENV NODE_ENV=production
@@ -78,6 +79,12 @@ FROM portal-build AS portal-humanizado
 ENV NODE_ENV=production
 EXPOSE 3700
 CMD ["pnpm", "--filter", "@reconstrua/portal-humanizado", "start"]
+
+# Decreto 2026-08-08: PAINEL JURÍDICO (basePath /juridico) — dono + sócio.
+FROM portal-build AS portal-juridico
+ENV NODE_ENV=production
+EXPOSE 3800
+CMD ["pnpm", "--filter", "@reconstrua/portal-juridico", "start"]
 
 # Decreto 2026-07-23: Portal do SÓCIO — apartado do Admin (basePath /socios).
 FROM portal-build AS portal-socio

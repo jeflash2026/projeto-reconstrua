@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import type { AssembledAdminOperation } from '@reconstrua/infrastructure';
+import type { AssembledAdminOperation, JuridicoService } from '@reconstrua/infrastructure';
 import { zipStore, nomeArquivoSeguro } from '../util/zip.js';
 import { xlsxDePlanilha } from '../util/xlsx.js';
 import {
@@ -272,6 +272,9 @@ export function buildAdminServer(
         mensagemId: string,
       ): Promise<{ nome: string; mime: string; bytes: Uint8Array } | null>;
     };
+    /** Decreto 2026-08-08: PAINEL JURÍDICO — o 2º painel (dono + sócio):
+     *  clientes, processos judiciais, guias e perícias do pós-protocolo. */
+    readonly juridico?: JuridicoService;
     /** REAQUECIMENTO FASE 1 (2026-08-07): template aprovado pelo número
      *  OFICIAL da AHRI — reabre lead frio; a resposta cai na entrada única e
      *  o funil retoma sozinho de onde parou. */
@@ -784,6 +787,9 @@ export function buildAdminServer(
   // (anexa documento ao perfil → muda a mesa) continua invalidando.
   const posseNaoInvalida = (url: string): boolean => {
     if (url.startsWith('/admin/humanizado/chat/')) return !url.includes('/confirmar');
+    // O Painel Jurídico (2026-08-08) é um mundo próprio (ns juridico-*): seus
+    // POSTs não mudam NENHUM dado derivado da operação — nunca esfriam os caches.
+    if (url.startsWith('/admin/juridico/')) return true;
     return (
       url.startsWith('/admin/humanizado/login') ||
       url.startsWith('/admin/humanizado/definir-senha') ||
@@ -2011,6 +2017,221 @@ export function buildAdminServer(
       .header('content-type', anexo.mime)
       .header('content-disposition', `inline; filename="${nomeArquivoSeguro(anexo.nome, 'anexo')}"`)
       .send(Buffer.from(anexo.bytes));
+  });
+
+  // ── PAINEL JURÍDICO (decreto 2026-08-08) — o 2º painel (dono + sócio):
+  //    clientes com cadastro civil, processos judiciais (CNJ → banco →
+  //    contratos), guias financeiras e agenda de perícias. Espelho do sistema
+  //    "Contratos Advocacia" do dono, com autoria e histórico auditado. ───────
+  const juridicoIndisponivel = { error: 'painel jurídico indisponível nesta montagem' };
+
+  app.post('/admin/juridico/login', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const body = (request.body ?? {}) as { usuario?: string; senha?: string };
+    if (!body.usuario || !body.senha)
+      return reply.code(400).send({ error: 'usuário e senha obrigatórios' });
+    const r = await opts.juridico.login(body.usuario, body.senha);
+    if (!r.ok) return reply.code(401).send({ error: r.error });
+    return { id: r.id, nome: r.nome };
+  });
+
+  app.post('/admin/juridico/usuarios', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const body = (request.body ?? {}) as { usuario?: string; nome?: string; senha?: string };
+    const r = await opts.juridico.criarUsuario(
+      body.usuario ?? '',
+      body.nome ?? '',
+      body.senha ?? '',
+    );
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.get('/admin/juridico/dashboard', async (_request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    return opts.juridico.dashboard();
+  });
+
+  app.get('/admin/juridico/clientes', async (_request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    return { clientes: await opts.juridico.listarClientes() };
+  });
+
+  app.post('/admin/juridico/clientes', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const body = (request.body ?? {}) as { dados?: Record<string, unknown>; autor?: string };
+    const r = await opts.juridico.criarCliente(body.dados ?? {}, body.autor ?? 'Equipe');
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.get('/admin/juridico/clientes/:id', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const { id } = request.params as { id: string };
+    const cliente = await opts.juridico.obterCliente(id);
+    if (cliente === null) return reply.code(404).send({ error: 'cliente não encontrado' });
+    const contratos = (await opts.juridico.listarContratos()).filter((c) => c.clienteId === id);
+    return { cliente, contratos };
+  });
+
+  app.post('/admin/juridico/clientes/:id', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const { id } = request.params as { id: string };
+    const body = (request.body ?? {}) as { dados?: Record<string, unknown>; autor?: string };
+    const r = await opts.juridico.atualizarCliente(id, body.dados ?? {}, body.autor ?? 'Equipe');
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.post('/admin/juridico/clientes/:id/anexo', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const { id } = request.params as { id: string };
+    const body = (request.body ?? {}) as { nome?: string; base64?: string; autor?: string };
+    if (typeof body.base64 !== 'string' || body.base64 === '')
+      return reply.code(400).send({ error: 'arquivo obrigatório' });
+    const r = await opts.juridico.anexarAoCliente(
+      id,
+      body.nome ?? 'anexo',
+      body.base64,
+      body.autor ?? 'Equipe',
+    );
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.get('/admin/juridico/clientes/:id/anexo/:anexoId', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const { id, anexoId } = request.params as { id: string; anexoId: string };
+    const anexo = await opts.juridico.anexoDoCliente(id, anexoId);
+    if (anexo === null) return reply.code(404).send({ error: 'anexo não encontrado' });
+    return reply
+      .header('content-type', anexo.mime)
+      .header('content-disposition', `inline; filename="${nomeArquivoSeguro(anexo.nome, 'anexo')}"`)
+      .send(Buffer.from(anexo.bytes));
+  });
+
+  app.get('/admin/juridico/contratos', async (_request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const [contratos, clientes] = await Promise.all([
+      opts.juridico.listarContratos(),
+      opts.juridico.listarClientes(),
+    ]);
+    const nomes = new Map(clientes.map((c) => [c.id, c.nome]));
+    return {
+      contratos: contratos.map((c) => ({ ...c, clienteNome: nomes.get(c.clienteId) ?? '—' })),
+    };
+  });
+
+  app.post('/admin/juridico/processos', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const body = (request.body ?? {}) as {
+      dados?: Parameters<JuridicoService['criarProcesso']>[0];
+      autor?: string;
+    };
+    if (!body.dados) return reply.code(400).send({ error: 'dados obrigatórios' });
+    const r = await opts.juridico.criarProcesso(body.dados, body.autor ?? 'Equipe');
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.get('/admin/juridico/contratos/:id', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const { id } = request.params as { id: string };
+    const contrato = await opts.juridico.obterContrato(id);
+    if (contrato === null) return reply.code(404).send({ error: 'contrato não encontrado' });
+    const cliente = await opts.juridico.obterCliente(contrato.clienteId);
+    return { contrato, clienteNome: cliente?.nome ?? '—' };
+  });
+
+  app.post('/admin/juridico/contratos/:id', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const { id } = request.params as { id: string };
+    const body = (request.body ?? {}) as {
+      acao?: 'editar' | 'encerrar' | 'excluir' | 'anexo';
+      dados?: Record<string, unknown>;
+      data?: string;
+      motivo?: string;
+      nome?: string;
+      base64?: string;
+      autor?: string;
+    };
+    const autor = body.autor ?? 'Equipe';
+    const r =
+      body.acao === 'encerrar'
+        ? await opts.juridico.encerrarContrato(id, body.data ?? '', body.motivo ?? '', autor)
+        : body.acao === 'excluir'
+          ? await opts.juridico.excluirContrato(id, body.motivo ?? '', autor)
+          : body.acao === 'anexo'
+            ? await opts.juridico.anexarAoContrato(
+                id,
+                body.nome ?? 'anexo',
+                body.base64 ?? '',
+                autor,
+              )
+            : await opts.juridico.editarContrato(id, body.dados ?? {}, autor);
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.get('/admin/juridico/contratos/:id/anexo/:anexoId', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const { id, anexoId } = request.params as { id: string; anexoId: string };
+    const anexo = await opts.juridico.anexoDoContrato(id, anexoId);
+    if (anexo === null) return reply.code(404).send({ error: 'anexo não encontrado' });
+    return reply
+      .header('content-type', anexo.mime)
+      .header('content-disposition', `inline; filename="${nomeArquivoSeguro(anexo.nome, 'anexo')}"`)
+      .send(Buffer.from(anexo.bytes));
+  });
+
+  app.get('/admin/juridico/guias', async (_request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const guias = await opts.juridico.listarGuias();
+    const total = guias.reduce((soma, g) => soma + (g.valor ?? 0), 0);
+    return { guias, total };
+  });
+
+  app.post('/admin/juridico/guias', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const body = (request.body ?? {}) as {
+      id?: string;
+      acao?: 'remover';
+      dados?: Record<string, unknown>;
+      autor?: string;
+    };
+    const autor = body.autor ?? 'Equipe';
+    const r =
+      body.id !== undefined && body.acao === 'remover'
+        ? await opts.juridico.removerGuia(body.id, autor)
+        : body.id !== undefined
+          ? await opts.juridico.atualizarGuia(body.id, body.dados ?? {}, autor)
+          : await opts.juridico.criarGuia(body.dados ?? {}, autor);
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  app.get('/admin/juridico/pericias', async (_request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    return { pericias: await opts.juridico.listarPericias() };
+  });
+
+  app.post('/admin/juridico/pericias', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const body = (request.body ?? {}) as {
+      id?: string;
+      acao?: 'remover';
+      dados?: Record<string, unknown>;
+      autor?: string;
+    };
+    const autor = body.autor ?? 'Equipe';
+    const r =
+      body.id !== undefined && body.acao === 'remover'
+        ? await opts.juridico.removerPericia(body.id, autor)
+        : body.id !== undefined
+          ? await opts.juridico.atualizarPericia(body.id, body.dados ?? {}, autor)
+          : await opts.juridico.criarPericia(body.dados ?? {}, autor);
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
   });
 
   // ── DISPARO EM LOTE DA APRESENTAÇÃO (2026-08-06) — decreto do dono: nada

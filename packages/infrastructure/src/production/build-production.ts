@@ -213,6 +213,7 @@ import { WebchatGatewayRouter, ehChatWeb } from '../webchat/webchat-gateway-rout
 import { WebchatRuntime } from '../webchat/webchat-runtime.js';
 import { DocsEquipeService } from '../docs-equipe/docs-equipe-service.js';
 import { ChatHumanizadoService } from '../humanizado/chat-humanizado.js';
+import { JuridicoService } from '../juridico/juridico-service.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
 import { CreditosAdvogadoService } from '../advogado/creditos-advogado.js';
@@ -304,6 +305,9 @@ export interface AssembledProduction {
    *  humano; a AHRI nunca responde nele. Sempre montado; sem a env
    *  META_PHONE_NUMBER_ID_HUMANIZADO o envio devolve erro legível. */
   readonly chatHumanizado: ChatHumanizadoService;
+  /** Decreto 2026-08-08: PAINEL JURÍDICO — gestão do pós-protocolo (clientes,
+   *  processos judiciais, guias e perícias), o 2º painel do dono + sócio. */
+  readonly juridico: JuridicoService;
   /** REAQUECIMENTO FASE 1 (decreto 2026-08-07): envia um TEMPLATE aprovado
    *  pelo número OFICIAL da AHRI (o 16) — a única forma de reabrir lead frio
    *  no canal Meta. false = canal não configurado ou Meta recusou. */
@@ -1973,6 +1977,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       observability.error('humanizado', 'chat', clock.now(), mensagem);
     },
   });
+  // PAINEL JURÍDICO (decreto 2026-08-08): gestão do pós-protocolo — clientes,
+  // processos judiciais, guias e perícias do dono + sócio (2º painel).
+  const juridico = new JuridicoService({ json, media: mediaStore, clock });
   const metaCanal =
     metaGateway === null
       ? null
@@ -2391,6 +2398,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     drenarTurnos: (timeoutMs) => plainIngress.aguardarTurnosEmVoo(timeoutMs),
     docsEquipe,
     chatHumanizado,
+    juridico,
     enviarTemplateOficial: async (chatId, nome, variaveis = []) =>
       metaGateway !== null ? metaGateway.sendTemplate(chatId, nome, 'pt_BR', variaveis) : false,
     humanizadoAuth,

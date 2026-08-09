@@ -33,6 +33,7 @@ import {
   projetarDados,
   redigirPii,
   resumirCaso,
+  ufDoTelefone,
   veDadoCompleto,
   CATEGORIAS_CONHECIMENTO,
   type AcaoPericia,
@@ -2420,7 +2421,13 @@ export function buildAdminServer(
   //    memória (o ritual é um clique por dia). ───────────────────────────────
   const reaquecidoEm = new Map<string, number>();
   async function alvosReaquecimentoFase1(): Promise<
-    readonly { chatId: string; nome: string; contratos: number; jaDisparadoHoje: boolean }[]
+    readonly {
+      chatId: string;
+      nome: string;
+      uf: string;
+      contratos: number;
+      jaDisparadoHoje: boolean;
+    }[]
   > {
     if (!opts.pericia?.potencialDeTodos || !opts.humanizado) return [];
     const [potencial, mesa] = await Promise.all([
@@ -2435,6 +2442,9 @@ export function buildAdminServer(
       .map((p) => ({
         chatId: p.chatId,
         nome: p.nomeCliente ?? p.chatId.split('@')[0] ?? p.chatId,
+        // Recorte por ESTADO (2026-08-09): UF pelo DDD do número — a mesma
+        // régua do Mapa de Clientes (o lead da fase 1 nem sempre disse a cidade).
+        uf: ufDoTelefone(p.chatId) ?? 'SEM UF',
         contratos: p.contratos,
         jaDisparadoHoje: agora - (reaquecidoEm.get(p.chatId) ?? 0) < 24 * 60 * 60 * 1000,
       }))
@@ -2450,10 +2460,16 @@ export function buildAdminServer(
   app.post('/admin/reaquecimento/fase1', async (request, reply) => {
     if (!opts.templateOficial)
       return reply.code(503).send({ error: 'canal oficial indisponível nesta montagem' });
-    const body = (request.body ?? {}) as { confirmar?: boolean };
+    const body = (request.body ?? {}) as { confirmar?: boolean; uf?: string; limite?: number };
     if (body.confirmar !== true)
       return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
-    const alvos = (await alvosReaquecimentoFase1()).filter((a) => !a.jaDisparadoHoje);
+    // Recorte por UF + LIMITE por lote (2026-08-09, pós-desbloqueio da conta):
+    // ritmo de recuperação — lotes pequenos, nunca a fila inteira de uma vez.
+    const uf = (body.uf ?? '').trim().toUpperCase();
+    const limite = Math.max(1, Math.min(200, Math.trunc(body.limite ?? 30)));
+    const alvos = (await alvosReaquecimentoFase1())
+      .filter((a) => !a.jaDisparadoHoje && (uf === '' || a.uf === uf))
+      .slice(0, limite);
     let enviados = 0;
     const falhas: { nome: string; erro: string }[] = [];
     for (const a of alvos) {
@@ -2477,8 +2493,9 @@ export function buildAdminServer(
           nome: a.nome,
           erro: 'a Meta recusou — confira se o template reaquecimento_fase1 está APROVADO',
         });
-      // Ritmo suave — a conta está sob análise de spam.
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      // Ritmo de RECUPERAÇÃO (2026-08-09): a conta acabou de sair de uma
+      // restrição por spam — meio segundo entre envios, sempre.
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
     return { enviados, falhas };
   });

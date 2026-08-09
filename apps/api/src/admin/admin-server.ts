@@ -386,6 +386,10 @@ export function buildAdminServer(
       ): Promise<{ ok: boolean; enviados: number; pulados: number; erros: readonly string[] }>;
       /** Decreto 2026-07-30: mensagem DITADA pelo dono, confirmada no console. */
       enviarMensagem(planoId: string): Promise<{ ok: boolean; erro?: string }>;
+      /** 2026-08-09: mensagem ditada a partir da PÁGINA DO CLIENTE — o chatId
+       *  já é conhecido (nada de resolver por nome); confirmação na própria
+       *  página, mesma trilha do decreto anti-automático. */
+      montarMensagemParaChat(chatId: string, texto: string): Promise<unknown>;
     };
     /** Decreto 2026-07-31: o CANAL do último contato do chat (meta/evolution/
      *  webchat) — mostrado na aba Conversa do cadastro do cliente. */
@@ -3394,6 +3398,18 @@ export function buildAdminServer(
     if (!body.planoId) return reply.code(400).send({ error: 'planoId é obrigatório' });
     return opts.jarvis.cobrar(body.planoId);
   });
+  // MENSAGEM DITADA A PARTIR DA PÁGINA DO CLIENTE (2026-08-09): o destinatário
+  // é o chatId da própria página — impossível errar de cliente. Devolve o
+  // plano; o envio continua exigindo a confirmação (/jarvis/enviar).
+  app.post('/admin/clientes/:chatId/jarvis/mensagem', async (request, reply) => {
+    if (!opts.jarvis) return reply.code(503).send({ error: 'jarvis indisponível nesta montagem' });
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { texto?: string };
+    if (typeof body.texto !== 'string' || body.texto.trim() === '')
+      return reply.code(400).send({ error: 'texto é obrigatório' });
+    return opts.jarvis.montarMensagemParaChat(chatId, body.texto);
+  });
+
   // MENSAGEM DITADA (decreto 2026-07-30, fim dos automáticos): o texto sai
   // EXATAMENTE como o dono ditou, só após a confirmação no console.
   app.post('/admin/founder/jarvis/enviar', async (request, reply) => {

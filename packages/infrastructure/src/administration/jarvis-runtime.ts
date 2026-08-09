@@ -328,6 +328,34 @@ export class JarvisRuntime {
     };
   }
 
+  /** MENSAGEM DITADA a partir da PÁGINA DO CLIENTE (2026-08-09): o chatId já é
+   *  conhecido — nada de resolver destinatário por nome (não há como errar de
+   *  cliente). Mesma trilha do decreto: plano + confirmação antes de sair. */
+  async montarMensagemParaChat(chatId: string, texto: string): Promise<JarvisResposta> {
+    const limpo = texto.trim();
+    if (limpo === '') return { resposta: 'Escreva o texto da mensagem antes de preparar o envio.' };
+    const numero = chatId.split('@')[0] ?? chatId;
+    // O cadastro só dá o NOME (para a confirmação ficar humana); o destino é
+    // SEMPRE o chatId desta página.
+    const cadastro = await this.deps.resolverDestinatario(numero).catch(() => null);
+    const pendente: MensagemPendente = {
+      id: `mensagem-${String(Date.now())}`,
+      criadoEm: this.deps.clock.now().toISOString(),
+      tipo: 'mensagem-cliente',
+      chatId,
+      nome: cadastro?.nome ?? numero,
+      texto: limpo,
+    };
+    await this.deps.json.put(NS_PLANO, pendente.id, pendente);
+    return {
+      resposta:
+        `Mensagem pronta para ${pendente.nome} (${numero}), exatamente assim:\n\n` +
+        `"${limpo}"\n\n` +
+        'Confira o texto e clique em CONFIRMAR E ENVIAR — nada sai sem a sua confirmação.',
+      mensagem: pendente,
+    };
+  }
+
   /** ENVIO DA MENSAGEM DITADA (só após a confirmação explícita do fundador). */
   async enviarMensagem(planoId: string): Promise<{ ok: boolean; erro?: string }> {
     const pendente = (await this.deps.json.get(NS_PLANO, planoId)) as MensagemPendente | null;

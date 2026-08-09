@@ -160,6 +160,19 @@ export async function enviarMensagemJarvis(
 ): Promise<{ ok: boolean; erro?: string } | null> {
   return sendJson('POST', '/admin/founder/jarvis/enviar', { planoId });
 }
+/** MENSAGEM DITADA a partir da PÁGINA DO CLIENTE (2026-08-09): o destinatário é
+ *  o chatId da própria página. Devolve o PLANO — o envio só sai depois da
+ *  confirmação (enviarMensagemJarvis), como manda o decreto. */
+export async function prepararMensagemCliente(
+  chatId: string,
+  texto: string,
+): Promise<JarvisResposta | null> {
+  return sendJson<JarvisResposta>(
+    'POST',
+    `/admin/clientes/${encodeURIComponent(chatId)}/jarvis/mensagem`,
+    { texto },
+  );
+}
 
 // ── DOCS DA EQUIPE (decreto 2026-07-30) — fase 2 humana: o time anexa a
 //    procuração assinada, o RG e o comprovante ao cliente concluso da fase 1. ─

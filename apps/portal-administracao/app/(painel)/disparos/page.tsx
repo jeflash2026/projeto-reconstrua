@@ -15,6 +15,16 @@ interface AlvoFase1 {
   jaDisparadoHoje: boolean;
 }
 
+interface InteracaoDisparo {
+  chatId: string;
+  nome: string;
+  template: string;
+  em: string;
+  respondeu: boolean;
+  respostaEm: string | null;
+  previa: string | null;
+}
+
 interface AlvoDisparo {
   chatId: string;
   nome: string;
@@ -31,10 +41,12 @@ const DisparosPage = async ({
 }: {
   searchParams: { uf?: string; uf1?: string };
 }): Promise<ReactElement> => {
-  const [data, fase1Data] = await Promise.all([
+  const [data, fase1Data, interacoesData] = await Promise.all([
     getJson<{ alvos: AlvoDisparo[] }>('/admin/humanizado/disparo'),
     getJson<{ alvos: AlvoFase1[] }>('/admin/reaquecimento/fase1'),
+    getJson<{ interacoes: InteracaoDisparo[] }>('/admin/reaquecimento/fase1/interacoes'),
   ]);
+  const interacoes = interacoesData?.interacoes ?? [];
   // Recorte por UF da FASE 1 (2026-08-09): chips próprios (param uf1 — não
   // conflita com os chips da Layara) e o lote respeita o estado escolhido.
   const fase1Todos = fase1Data?.alvos ?? null;
@@ -221,6 +233,87 @@ const DisparosPage = async ({
                 {fase1.length > 60 ? (
                   <p className="page-sub">… e mais {fase1.length - 60} lead(s) na fila.</p>
                 ) : null}
+              </div>
+            )}
+          </div>
+
+          {/* ── INTERAÇÕES (2026-08-09): quem recebeu o disparo e o que fez —
+              respondeu = a AHRI já retomou o funil; clique abre a conversa. ── */}
+          <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
+            💬 Disparados e interações ({interacoes.filter((i) => i.respondeu).length} responderam
+            de {interacoes.length})
+          </h2>
+          <p className="page-sub">
+            Cada disparo do template fica registrado; quem mandou mensagem DEPOIS do disparo aparece
+            como “respondeu” — a AHRI já retomou o atendimento sozinha. Clique em “ver conversa”
+            para acompanhar.
+          </p>
+          <div className="card">
+            {interacoes.length === 0 ? (
+              <div className="empty">
+                Nenhum disparo registrado ainda (os disparos passam a ser gravados a partir de
+                agora).
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Lead</th>
+                      <th>Disparado em</th>
+                      <th>Situação</th>
+                      <th>Última resposta</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {interacoes.map((i) => (
+                      <tr key={i.chatId}>
+                        <td style={{ fontWeight: 600 }}>{i.nome}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {new Date(i.em).toLocaleString('pt-BR', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}
+                        </td>
+                        <td>
+                          {i.respondeu ? (
+                            <span className="badge ok">✅ respondeu</span>
+                          ) : (
+                            <span className="badge">⏳ sem resposta</span>
+                          )}
+                        </td>
+                        <td style={{ fontSize: 13, maxWidth: 320 }}>
+                          {i.respondeu && i.previa !== null ? (
+                            <>
+                              “{i.previa}”
+                              {i.respostaEm !== null ? (
+                                <span style={{ color: 'var(--text-dim)' }}>
+                                  {' '}
+                                  ·{' '}
+                                  {new Date(i.respostaEm).toLocaleString('pt-BR', {
+                                    dateStyle: 'short',
+                                    timeStyle: 'short',
+                                  })}
+                                </span>
+                              ) : null}
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td>
+                          <a
+                            className="badge"
+                            href={`/admin/clientes/${encodeURIComponent(i.chatId)}`}
+                          >
+                            ver conversa
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

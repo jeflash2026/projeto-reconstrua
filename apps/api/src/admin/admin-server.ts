@@ -284,6 +284,11 @@ export function buildAdminServer(
       nome: string,
       variaveis?: readonly string[],
     ) => Promise<boolean>;
+    /** 2026-08-09: disparos oficiais persistidos (um por chat, o mais recente)
+     *  — a tela de Disparos cruza com a conversa e mostra quem interagiu. */
+    readonly disparosOficial?: () => Promise<
+      readonly { chatId: string; template: string; em: string }[]
+    >;
     /** Decreto 2026-08-04: o VALOR POTENCIAL CONFIRMADO — só clientes com a
      *  documentação completa (procuração assinada + RG + comprovante). */
     readonly potencialConfirmado?: () => Promise<{ total: number; clientes: number }>;
@@ -2430,13 +2435,21 @@ export function buildAdminServer(
     }[]
   > {
     if (!opts.pericia?.potencialDeTodos || !opts.humanizado) return [];
-    const [potencial, mesa] = await Promise.all([
+    const [potencial, mesa, persistidos] = await Promise.all([
       opts.pericia.potencialDeTodos().catch(() => null),
       opts.humanizado.clientes(),
+      opts.disparosOficial?.().catch(() => []) ?? Promise.resolve([]),
     ]);
     if (potencial === null) return [];
     const naMesa = new Set(mesa.map((c) => c.chatId));
     const agora = Date.now();
+    // Trava de 24h SOBREVIVE a restart (2026-08-09): o registro persistido
+    // completa o mapa em memória.
+    for (const d of persistidos) {
+      const em = new Date(d.em).getTime();
+      if (Number.isFinite(em) && em > (reaquecidoEm.get(d.chatId) ?? 0))
+        reaquecidoEm.set(d.chatId, em);
+    }
     return potencial.porCliente
       .filter((p) => !naMesa.has(p.chatId) && p.contratos > 0)
       .map((p) => ({
@@ -2455,6 +2468,44 @@ export function buildAdminServer(
     if (!opts.templateOficial)
       return reply.code(503).send({ error: 'canal oficial indisponível nesta montagem' });
     return { alvos: await alvosReaquecimentoFase1() };
+  });
+
+  // INTERAÇÕES DO DISPARO (2026-08-09): quem recebeu o template e o que fez —
+  // "respondeu" = mensagem DELE na conversa DEPOIS do disparo. Link direto
+  // para a conversa no painel (a AHRI já retomou o funil sozinha).
+  app.get('/admin/reaquecimento/fase1/interacoes', async (_request, reply) => {
+    if (!opts.disparosOficial || !op.conversationStore)
+      return reply.code(503).send({ error: 'disparos persistidos indisponíveis nesta montagem' });
+    const [disparos, potencial] = await Promise.all([
+      opts.disparosOficial().catch(() => []),
+      opts.pericia?.potencialDeTodos?.().catch(() => null) ?? Promise.resolve(null),
+    ]);
+    const nomes = new Map(
+      (potencial?.porCliente ?? []).map((p) => [p.chatId, p.nomeCliente ?? null]),
+    );
+    const recentes = [...disparos].sort((a, b) => b.em.localeCompare(a.em)).slice(0, 120);
+    const interacoes = [];
+    for (const d of recentes) {
+      const desde = new Date(d.em).getTime();
+      const entradas = await op.conversationStore.recent(d.chatId, 20).catch(() => []);
+      const resposta = [...entradas]
+        .reverse()
+        .find((e) => e.kind === 'inbound' && e.at.getTime() > desde);
+      interacoes.push({
+        chatId: d.chatId,
+        nome: nomes.get(d.chatId) ?? d.chatId.split('@')[0] ?? d.chatId,
+        template: d.template,
+        em: d.em,
+        respondeu: resposta !== undefined,
+        respostaEm: resposta?.at.toISOString() ?? null,
+        previa: resposta?.text?.slice(0, 80) ?? null,
+      });
+    }
+    // Quem respondeu primeiro no topo; depois os sem resposta, mais novos antes.
+    interacoes.sort((a, b) =>
+      a.respondeu === b.respondeu ? b.em.localeCompare(a.em) : a.respondeu ? -1 : 1,
+    );
+    return { interacoes };
   });
 
   app.post('/admin/reaquecimento/fase1', async (request, reply) => {

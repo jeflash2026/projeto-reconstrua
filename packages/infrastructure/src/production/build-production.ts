@@ -317,6 +317,11 @@ export interface AssembledProduction {
     nome: string,
     variaveis?: readonly string[],
   ) => Promise<boolean>;
+  /** 2026-08-09: os disparos oficiais persistidos (um por chat, o mais
+   *  recente) — o painel cruza com a conversa para mostrar quem interagiu. */
+  readonly disparosOficial: () => Promise<
+    readonly { chatId: string; template: string; em: string }[]
+  >;
   /** Decreto Dossiê Pericial: visão do PERITO (HISCON→contratos/migrados/indícios). */
   readonly pericia: PericiaService;
   /** Decreto 2026-07-27: relatório V2 × leitura atual (só leitura, nada grava). */
@@ -2407,8 +2412,32 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     docsEquipe,
     chatHumanizado,
     juridico,
-    enviarTemplateOficial: async (chatId, nome, variaveis = []) =>
-      metaGateway !== null ? metaGateway.sendTemplate(chatId, nome, 'pt_BR', variaveis) : false,
+    // 2026-08-09: cada disparo oficial é PERSISTIDO (ns 'disparos-oficial') e
+    // registrado na memória da conversa — a AHRI fica ciente e o painel
+    // consegue mostrar quem interagiu depois do template.
+    enviarTemplateOficial: async (chatId, nome, variaveis = []) => {
+      if (metaGateway === null) return false;
+      const ok = await metaGateway.sendTemplate(chatId, nome, 'pt_BR', variaveis);
+      if (ok) {
+        await json
+          .put('disparos-oficial', chatId, {
+            chatId,
+            template: nome,
+            em: clock.now().toISOString(),
+          })
+          .catch(() => undefined);
+        await convMemory
+          .recordOutbound(chatId, `[Mensagem-modelo enviada: ${nome}]`, `template-${nome}`)
+          .catch(() => undefined);
+      }
+      return ok;
+    },
+    disparosOficial: async () =>
+      (await json.list('disparos-oficial')) as readonly {
+        chatId: string;
+        template: string;
+        em: string;
+      }[],
     humanizadoAuth,
     humanizado,
     funilResumo,

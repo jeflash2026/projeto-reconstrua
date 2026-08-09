@@ -108,6 +108,8 @@ async function main(): Promise<void> {
     juridico: prod.juridico,
     // Reaquecimento FASE 1 (2026-08-07): template pelo número OFICIAL da AHRI.
     templateOficial: prod.enviarTemplateOficial,
+    // 2026-08-09: disparos persistidos — o painel mostra quem interagiu.
+    disparosOficial: prod.disparosOficial,
     // Onda 3 (2026-07-31): o parecer em LOTE para a base legada (ato do Admin).
     parecerLote: prod.parecerLote,
     // Decreto 2026-08-03: o funil real na Visão Executiva do Centro de Comando.

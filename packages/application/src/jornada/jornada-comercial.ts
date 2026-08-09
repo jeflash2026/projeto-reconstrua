@@ -136,6 +136,20 @@ export function ehSobreDossieOuLink(texto: string): boolean {
   return SOBRE_DOSSIE_OU_LINK.test(texto);
 }
 
+// Caso REAL Paulo Roberto (2026-08-09): o parecer foi enviado dia 31/07
+// pedindo o SIM; nove dias depois o cliente escreveu "Eu estou aguardando o
+// retorno sobre análise" e a AHRI respondeu "está em análise, conclusão
+// estimada até 9 de agosto" — análise JÁ CONCLUÍDA e data inventada. Quem
+// pergunta do ANDAMENTO depois do parecer recebe a verdade: está pronta,
+// aqui está o dossiê, e o que falta é a SUA confirmação (SIM).
+const PERGUNTA_DE_ANDAMENTO =
+  /aguardando\s+(o\s+|a\s+)?(retorno|resultado|resposta|an[áa]lise)|\bretorno\s+(sobre|da|do)\b|\bnovidades?\b|\bj[áa]\s+saiu\b|\bficou\s+pronta?\b|\bsaiu\s+(a\s+an[áa]lise|o\s+resultado)\b|\bprevis[ãa]o\b|\bquanto\s+tempo\s+(falta|demora)\b|\bcomo\s+(est[áa]|anda|ficou)\s+(a\s+an[áa]lise|o\s+meu\s+caso|meu\s+caso)\b|\balgum\s+retorno\b/i;
+
+/** O cliente está perguntando do ANDAMENTO/retorno da análise? */
+export function ehPerguntaDeAndamento(texto: string): boolean {
+  return PERGUNTA_DE_ANDAMENTO.test(texto);
+}
+
 export function ehSaudacaoPura(texto: string): boolean {
   return SAUDACOES.test(texto.trim());
 }
@@ -799,6 +813,13 @@ export const MENSAGENS_JORNADA = {
     `${link}\n\n` +
     `Nele estão os ${String(contratos)} contrato(s) de consignado que encontrei na janela de 5 anos e os ${String(indicios)} indício(s) de irregularidade da sua análise.\n\n` +
     'Se não abrir aí no celular: toque no link (ele fica azul) ou copie e cole no navegador (Chrome/Safari). Se ainda assim não abrir, me avisa que eu te conto por aqui mesmo, em texto, tudo o que a análise encontrou.',
+  /** Caso REAL Paulo Roberto (2026-08-09): pergunta de ANDAMENTO depois do
+   *  parecer enviado — a análise está PRONTA; o que falta é o SIM dele. */
+  analiseProntaPedirConfirmacao: (link: string, contratos: number, indicios: number): string =>
+    'Boa notícia: a sua análise já está PRONTA! Encontrei ' +
+    `${String(contratos)} contrato(s) de consignado e ${String(indicios)} indício(s) de irregularidade — o seu caso é APTO para seguirmos.\n\n` +
+    `O seu DOSSIÊ JURÍDICO completo está aqui: ${link}\n\n` +
+    'Para a nossa equipe jurídica assumir o seu caso e darmos entrada, eu só preciso da sua CONFIRMAÇÃO: é só responder SIM aqui nesta conversa. Se tiver qualquer dúvida antes, pode me perguntar — estou à disposição.',
   /** O cliente fala de link/dossiê mas a análise ainda não foi concluída —
    *  a verdade, sem inventar documento nenhum. */
   dossieAindaNaoPronto:

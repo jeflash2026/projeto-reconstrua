@@ -16,6 +16,7 @@ import {
   ehAdiamento,
   capturarEstado,
   ehDesistencia,
+  ehPerguntaDeAndamento,
   ehSobreDossieOuLink,
   interpretarInteresse,
   vaiReceberCobranca,
@@ -70,6 +71,10 @@ export interface JornadaRuntimeDeps {
     readonly contratos: number;
     readonly indicios: number;
   } | null>;
+  /** Caso REAL Paulo Roberto (2026-08-09): o cliente JÁ CONFIRMOU (está na
+   *  mesa do humanizado)? Quem confirmou não recebe pedido de SIM de novo —
+   *  a pergunta de andamento dele segue para a conversa normal. */
+  readonly jaConfirmou?: (chatId: string) => Promise<boolean>;
 }
 
 export class JornadaComercialRuntime {
@@ -297,6 +302,23 @@ export class JornadaComercialRuntime {
       // Sem parecer, só respondemos se a jornada governa a etapa (fase 1) — na
       // conversa livre o LLM segue com o contexto (que já declara a ausência).
       if (derivarEtapa(fatos) !== 'CONCLUIDA') return MENSAGENS_JORNADA.dossieAindaNaoPronto;
+    }
+    // Caso REAL Paulo Roberto (2026-08-09): pergunta de ANDAMENTO ("estou
+    // aguardando o retorno sobre análise") com o PARECER JÁ ENVIADO — a AHRI
+    // dizia "está em análise" e inventava prazo. A verdade é AUTORADA: análise
+    // pronta + dossiê + o pedido do SIM. Quem já confirmou (mesa) fica de fora.
+    if (entrada.tipo === 'texto' && ehPerguntaDeAndamento(entrada.texto)) {
+      const parecer = (await this.deps.parecerDoCliente?.(chatId).catch(() => null)) ?? null;
+      if (parecer !== null) {
+        const confirmado = (await this.deps.jaConfirmou?.(chatId).catch(() => false)) ?? false;
+        if (!confirmado) {
+          return MENSAGENS_JORNADA.analiseProntaPedirConfirmacao(
+            parecer.link,
+            parecer.contratos,
+            parecer.indicios,
+          );
+        }
+      }
     }
     // CPF CAPTURADO NESTE TURNO na CONCLUIDA ⇒ a confirmação é AUTORADA — caso
     // real 51 9109-4367 (2026-07-27): o cliente respondeu ao follow-up com o

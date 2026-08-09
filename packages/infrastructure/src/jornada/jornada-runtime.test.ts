@@ -197,3 +197,57 @@ describe('o FUNIL REAL, determinístico de ponta a ponta', () => {
     expect(await expression.phrase(h.request('oi'))).toBe('LLM-FALLBACK');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Caso REAL Paulo Roberto (2026-08-09): parecer enviado 31/07 pedindo o SIM;
+// nove dias depois, "Eu estou aguardando o retorno sobre análise" recebeu
+// "está em análise, conclusão estimada até 9 de agosto" (análise JÁ pronta e
+// data inventada pelo LLM). A pergunta de ANDAMENTO pós-parecer agora tem
+// resposta AUTORADA: análise pronta + dossiê + pedido do SIM. Quem já
+// confirmou (mesa do humanizado) fica de fora.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('caso REAL Paulo Roberto — andamento pós-parecer pede o SIM', () => {
+  function montar(confirmado: boolean) {
+    const json = new InMemoryJsonStore();
+    const textos: Record<string, string | null> = { d1: 'histórico de empréstimo consignado' };
+    const onboarding = new OnboardingDocumentalRuntime({
+      store: new JsonOnboardingDocumentalStore(json),
+      leitor: { texto: (id) => Promise.resolve(textos[id] ?? null) },
+      pendencias: null,
+    });
+    const jornada = new JornadaComercialRuntime({
+      json,
+      onboarding,
+      observability: new ObservabilityRuntime(),
+      clock: new TestClock(),
+      parecerDoCliente: () =>
+        Promise.resolve({ link: 'https://x/parecer?t=abc', contratos: 11, indicios: 1 }),
+      jaConfirmou: () => Promise.resolve(confirmado),
+    });
+    return { jornada, onboarding };
+  }
+
+  const entrada = {
+    tipo: 'texto' as const,
+    texto: 'Eu estou aguardando o retorno sobre análise',
+    primeiroContato: false,
+    timestamp: NOW,
+  };
+
+  it('sem confirmação ⇒ análise PRONTA + dossiê + pedido do SIM (nunca "em análise")', async () => {
+    const { jornada, onboarding } = montar(false);
+    await onboarding.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'hiscon.pdf', NOW);
+    const r = await jornada.responder(CHAT, entrada);
+    expect(r).toContain('análise já está PRONTA');
+    expect(r).toContain('https://x/parecer?t=abc');
+    expect(r).toContain('responder SIM');
+    expect(r).not.toMatch(/em an[áa]lise\b.*prazo/i);
+  });
+
+  it('quem JÁ confirmou não recebe pedido de SIM — segue para a conversa normal', async () => {
+    const { jornada, onboarding } = montar(true);
+    await onboarding.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'hiscon.pdf', NOW);
+    const r = await jornada.responder(CHAT, entrada);
+    expect(r).toBe(''); // CONCLUIDA delega ao LLM (comportamento existente)
+  });
+});

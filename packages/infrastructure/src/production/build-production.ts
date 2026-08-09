@@ -1044,6 +1044,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         indicios: fato.indicios,
       };
     },
+    // Caso REAL Paulo Roberto (2026-08-09): quem JÁ confirmou (está na mesa do
+    // humanizado) não recebe pedido de SIM de novo. Lazy: a mesa é declarada
+    // adiante nesta montagem; a jornada só a toca em tempo de TURNO.
+    jaConfirmou: async (chatId) => {
+      const mesa = await mesaHumanizada().catch(() => []);
+      return mesa.some((c) => c.chatId === chatId);
+    },
   });
   // Decreto 2026-07-22: REAQUECIMENTO DE LEADS — lista os frios e executa o
   // reaquecimento AUTORIZADO pelo admin (nada automático). Mesmo canal das

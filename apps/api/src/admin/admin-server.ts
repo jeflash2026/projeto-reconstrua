@@ -2487,29 +2487,67 @@ export function buildAdminServer(
     const nomes = new Map(
       (potencial?.porCliente ?? []).map((p) => [p.chatId, p.nomeCliente ?? null]),
     );
-    const recentes = [...disparos].sort((a, b) => b.em.localeCompare(a.em)).slice(0, 120);
-    const interacoes = [];
-    for (const d of recentes) {
-      const desde = new Date(d.em).getTime();
-      const entradas = await op.conversationStore.recent(d.chatId, 20).catch(() => []);
-      const resposta = [...entradas]
-        .reverse()
-        .find((e) => e.kind === 'inbound' && e.at.getTime() > desde);
-      interacoes.push({
-        chatId: d.chatId,
-        nome: nomes.get(d.chatId) ?? d.chatId.split('@')[0] ?? d.chatId,
-        template: d.template,
-        em: d.em,
-        respondeu: resposta !== undefined,
-        respostaEm: resposta?.at.toISOString() ?? null,
-        previa: resposta?.text?.slice(0, 80) ?? null,
-      });
-    }
-    // Quem respondeu primeiro no topo; depois os sem resposta, mais novos antes.
-    interacoes.sort((a, b) =>
-      a.respondeu === b.respondeu ? b.em.localeCompare(a.em) : a.respondeu ? -1 : 1,
+    const porDisparo = new Map(
+      [...disparos].sort((a, b) => b.em.localeCompare(a.em)).map((d) => [d.chatId, d]),
     );
-    return { interacoes };
+    // CANDIDATOS: quem tem disparo REGISTRADO + os leads da fase 1 (para
+    // enxergar quem se MEXEU mesmo quando o disparo é anterior ao registro —
+    // caso dos lotes enviados antes de 2026-08-09).
+    const alvos = await alvosReaquecimentoFase1().catch(() => []);
+    const candidatos = [...new Set([...porDisparo.keys(), ...alvos.map((a) => a.chatId)])].slice(
+      0,
+      400,
+    );
+    // Janela da varredura sem registro: atividade dos últimos 7 dias.
+    const corteAtividade = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    const interacoes: {
+      chatId: string;
+      nome: string;
+      template: string | null;
+      em: string | null;
+      respondeu: boolean;
+      respostaEm: string | null;
+      previa: string | null;
+    }[] = [];
+    // Em lotes (a varredura toca a conversa de cada lead).
+    for (let i = 0; i < candidatos.length; i += 8) {
+      const lote = candidatos.slice(i, i + 8);
+      const resultados = await Promise.all(
+        lote.map(async (chatId) => {
+          const d = porDisparo.get(chatId) ?? null;
+          const entradas = await op.conversationStore.recent(chatId, 20).catch(() => []);
+          const ultimaEntrada = [...entradas].reverse().find((e) => e.kind === 'inbound');
+          if (ultimaEntrada === undefined) return d === null ? null : { d, chatId, resp: null };
+          const quando = ultimaEntrada.at.getTime();
+          // Com registro: só conta o que veio DEPOIS do disparo. Sem registro:
+          // atividade recente já é sinal (o lead se mexeu).
+          const conta = d !== null ? quando > new Date(d.em).getTime() : quando >= corteAtividade;
+          if (!conta) return d === null ? null : { d, chatId, resp: null };
+          return { d, chatId, resp: ultimaEntrada };
+        }),
+      );
+      for (const r of resultados) {
+        if (r === null) continue;
+        interacoes.push({
+          chatId: r.chatId,
+          nome: nomes.get(r.chatId) ?? r.chatId.split('@')[0] ?? r.chatId,
+          template: r.d?.template ?? null,
+          em: r.d?.em ?? null,
+          respondeu: r.resp !== null,
+          respostaEm: r.resp?.at.toISOString() ?? null,
+          previa: r.resp?.text?.slice(0, 80) ?? null,
+        });
+      }
+    }
+    // Quem respondeu primeiro (mais recente antes); depois os sem resposta.
+    interacoes.sort((a, b) => {
+      if (a.respondeu !== b.respondeu) return a.respondeu ? -1 : 1;
+      const chaveA = a.respostaEm ?? a.em ?? '';
+      const chaveB = b.respostaEm ?? b.em ?? '';
+      return chaveB.localeCompare(chaveA);
+    });
+    return { interacoes: interacoes.slice(0, 150) };
   });
 
   app.post('/admin/reaquecimento/fase1', async (request, reply) => {

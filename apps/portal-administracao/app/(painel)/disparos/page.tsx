@@ -18,8 +18,9 @@ interface AlvoFase1 {
 interface InteracaoDisparo {
   chatId: string;
   nome: string;
-  template: string;
-  em: string;
+  /** null = disparo anterior ao registro (lote pré-2026-08-09). */
+  template: string | null;
+  em: string | null;
   respondeu: boolean;
   respostaEm: string | null;
   previa: string | null;
@@ -46,7 +47,8 @@ const DisparosPage = async ({
     getJson<{ alvos: AlvoFase1[] }>('/admin/reaquecimento/fase1'),
     getJson<{ interacoes: InteracaoDisparo[] }>('/admin/reaquecimento/fase1/interacoes'),
   ]);
-  const interacoes = interacoesData?.interacoes ?? [];
+  // null = a API não respondeu (rota nova sem deploy) — diferente de "vazio".
+  const interacoes = interacoesData?.interacoes ?? null;
   // Recorte por UF da FASE 1 (2026-08-09): chips próprios (param uf1 — não
   // conflita com os chips da Layara) e o lote respeita o estado escolhido.
   const fase1Todos = fase1Data?.alvos ?? null;
@@ -240,19 +242,25 @@ const DisparosPage = async ({
           {/* ── INTERAÇÕES (2026-08-09): quem recebeu o disparo e o que fez —
               respondeu = a AHRI já retomou o funil; clique abre a conversa. ── */}
           <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
-            💬 Disparados e interações ({interacoes.filter((i) => i.respondeu).length} responderam
-            de {interacoes.length})
+            💬 Disparados e interações (
+            {interacoes === null ? '—' : interacoes.filter((i) => i.respondeu).length} responderam
+            de {interacoes === null ? '—' : interacoes.length})
           </h2>
           <p className="page-sub">
-            Cada disparo do template fica registrado; quem mandou mensagem DEPOIS do disparo aparece
-            como “respondeu” — a AHRI já retomou o atendimento sozinha. Clique em “ver conversa”
-            para acompanhar.
+            Cada disparo fica registrado e quem mandou mensagem DEPOIS dele aparece como “respondeu”
+            — a AHRI já retomou o atendimento sozinha. Os lotes anteriores a 09/08 não têm registro
+            do envio: para eles a lista mostra a ATIVIDADE recente do lead (quem escreveu nos
+            últimos 7 dias). Clique em “ver conversa” para acompanhar.
           </p>
           <div className="card">
-            {interacoes.length === 0 ? (
+            {interacoes === null ? (
+              <div className="error-box">
+                Rota de interações indisponível — a API precisa do deploy mais recente (bash
+                /opt/reconstrua/deploy.sh).
+              </div>
+            ) : interacoes.length === 0 ? (
               <div className="empty">
-                Nenhum disparo registrado ainda (os disparos passam a ser gravados a partir de
-                agora).
+                Nenhum disparo registrado e nenhum lead da fase 1 escreveu nos últimos 7 dias.
               </div>
             ) : (
               <div className="table-wrap">
@@ -271,14 +279,20 @@ const DisparosPage = async ({
                       <tr key={i.chatId}>
                         <td style={{ fontWeight: 600 }}>{i.nome}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>
-                          {new Date(i.em).toLocaleString('pt-BR', {
-                            dateStyle: 'short',
-                            timeStyle: 'short',
-                          })}
+                          {i.em !== null ? (
+                            new Date(i.em).toLocaleString('pt-BR', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })
+                          ) : (
+                            <span style={{ color: 'var(--text-dim)' }}>sem registro</span>
+                          )}
                         </td>
                         <td>
                           {i.respondeu ? (
-                            <span className="badge ok">✅ respondeu</span>
+                            <span className="badge ok">
+                              {i.em !== null ? '✅ respondeu' : '💬 escreveu'}
+                            </span>
                           ) : (
                             <span className="badge">⏳ sem resposta</span>
                           )}

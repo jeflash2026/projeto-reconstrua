@@ -3460,7 +3460,10 @@ export function buildAdminServer(
   // ── DOCS DA EQUIPE (decreto 2026-07-30) — fase 2 humana: o time anexa a
   //    procuração assinada, o RG e o comprovante ao cliente concluso da fase 1.
   //    Vai ao MESMO media store; o Portal do Advogado lê daqui os downloads. ──
-  const TIPOS_DOC_EQUIPE = new Set(['procuracao', 'rg', 'comprovante', 'outro']);
+  // 4º documento obrigatório (decreto 2026-08-05): o EXTRATO DE CRÉDITO do INSS
+  // (3 meses) já era oferecido nos portais, mas a rota o recusava — anexo do
+  // extrato morria em "falha no envio". A lista aqui é a régua da API.
+  const TIPOS_DOC_EQUIPE = new Set(['procuracao', 'rg', 'comprovante', 'extrato_credito', 'outro']);
   app.get('/admin/clientes/:chatId/docs-equipe', async (request, reply) => {
     if (!opts.docsEquipe)
       return reply.code(503).send({ error: 'docs da equipe indisponíveis nesta montagem' });
@@ -3473,9 +3476,9 @@ export function buildAdminServer(
     const { chatId } = request.params as { chatId: string };
     const body = request.body as { tipo?: string; nome?: string; base64?: string };
     if (!body.tipo || !TIPOS_DOC_EQUIPE.has(body.tipo) || !body.base64)
-      return reply
-        .code(400)
-        .send({ error: 'tipo (procuracao|rg|comprovante|outro) e base64 são obrigatórios' });
+      return reply.code(400).send({
+        error: 'tipo (procuracao|rg|comprovante|extrato_credito|outro) e base64 são obrigatórios',
+      });
     const r = await opts.docsEquipe.anexar(chatId, body.tipo, body.nome ?? '', body.base64);
     if (!r.ok) return reply.code(400).send(r);
     return r;

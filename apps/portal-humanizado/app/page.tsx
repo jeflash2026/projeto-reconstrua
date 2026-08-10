@@ -300,6 +300,11 @@ const MesaPage = async ({
           <Link className="btn primary" href="/conversas">
             💬 Conversas
           </Link>
+          {/* Clientes Prontos (2026-08-09): a agenda permanente de quem já é
+              CLIENTE (4 documentos entregues) — por estado e por advogado. */}
+          <Link className="btn" href="/prontos">
+            ✅ Clientes Prontos
+          </Link>
           <SairButton />
         </div>
       </div>

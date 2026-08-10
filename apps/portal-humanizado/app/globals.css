@@ -940,3 +940,110 @@ button.chip-uf {
   color: #226633;
   font-size: 14px;
 }
+
+/* ── CLIENTE (2026-08-09) — documentação 100% entregue: a linha da conversa
+   ganha borda verde e selo próprios, para a secretária distinguir na hora
+   quem já é CLIENTE de quem ainda está em atendimento. ───────────────────── */
+.cv-item.cliente {
+  border-left: 4px solid #2f9e5e;
+  background: #f7fdf9;
+}
+
+.cv-item.cliente:hover {
+  background: #eefaf2;
+}
+
+.cv-item.cliente.ativo {
+  background: #e6f6ec;
+}
+
+.cv-selo.cliente {
+  background: #d9f2e2;
+  color: #1d6b3f;
+}
+
+/* ── CLIENTES PRONTOS (2026-08-09) — a agenda permanente dos clientes. ───── */
+.prontos-resumo {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0 16px;
+}
+
+.prontos-card {
+  background: #fff;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  padding: 12px 16px;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prontos-valor {
+  font-size: clamp(1.2rem, 3.4vw, 1.7rem);
+  font-weight: 800;
+  color: #1d6b3f;
+}
+
+.prontos-rotulo {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #5a6a78;
+}
+
+.prontos-busca {
+  width: 100%;
+  max-width: 420px;
+  margin: 4px 0 14px;
+  padding: 9px 12px;
+  font-size: 16px;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.prontos-tabela {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+}
+
+.prontos-tabela table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.prontos-tabela th {
+  text-align: left;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5a6a78;
+  background: #faf9f6;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--borda);
+  white-space: nowrap;
+}
+
+.prontos-tabela td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--borda);
+  vertical-align: middle;
+  font-size: 14px;
+}
+
+.prontos-tabela tr:last-child td {
+  border-bottom: none;
+}
+
+.prontos-nome {
+  font-weight: 700;
+}
+
+.prontos-fone {
+  font-size: 12.5px;
+  color: #5a6a78;
+}

@@ -63,6 +63,9 @@ interface Linha {
   temConversa: boolean;
   /** Descartado por desinteresse (2026-08-07): vai ao FIM da fila com a tag. */
   descartado: boolean;
+  /** CLIENTE (2026-08-09): documentação 100% entregue — a linha ganha borda e
+   *  selo próprios, para a secretária ver na hora que não é mais atendimento. */
+  cliente: boolean;
 }
 
 export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[] }): ReactElement {
@@ -133,6 +136,7 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
         diasSilencio: diasDeSilencio(ultimaEntradaEm, cliente?.aguardandoDesde ?? null),
         temConversa: true,
         descartado: cliente?.descartado === true,
+        cliente: cliente?.completo === true && cliente.descartado !== true,
       });
     }
     for (const c of clientes) {
@@ -154,6 +158,7 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
         diasSilencio: diasDeSilencio(null, c.aguardandoDesde),
         temConversa: false,
         descartado: false,
+        cliente: c.completo,
       });
     }
     return out.sort((a, b) => {
@@ -337,7 +342,9 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
                 <button
                   key={l.chatId}
                   type="button"
-                  className={`cv-item${selecionado === l.chatId ? ' ativo' : ''}`}
+                  className={`cv-item${selecionado === l.chatId ? ' ativo' : ''}${
+                    l.cliente ? ' cliente' : ''
+                  }`}
                   onClick={() => setSelecionado(l.chatId)}
                 >
                   <div className="cv-item-topo">
@@ -349,6 +356,9 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
                     {l.naoLidas > 0 ? <span className="cv-badge">{l.naoLidas}</span> : null}
                   </div>
                   <div className="cv-selos">
+                    {/* CLIENTE (2026-08-09): documentação completa — não é
+                        mais atendimento, é cliente da casa. */}
+                    {l.cliente ? <span className="cv-selo cliente">✓ Cliente</span> : null}
                     {l.descartado ? (
                       <span className="cv-selo nova">descartado por desinteresse</span>
                     ) : null}

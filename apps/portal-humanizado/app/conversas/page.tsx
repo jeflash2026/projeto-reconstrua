@@ -41,6 +41,9 @@ const ConversasPage = async (): Promise<ReactElement> => {
           <Link className="btn" href="/">
             ← Mesa de atendimento
           </Link>
+          <Link className="btn" href="/prontos">
+            ✅ Clientes Prontos
+          </Link>
           <SairButton />
         </div>
       </div>

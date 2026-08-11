@@ -35,6 +35,8 @@ interface AlvoDisparo {
   /** Cobrança cirúrgica (2026-08-07): o que falta e o template escolhido. */
   faltantes?: string[];
   template?: 'contato_equipe' | 'documentos_pendentes';
+  /** Fila clássica: documentação enviada e sem retorno desde então. */
+  semRetorno?: boolean;
 }
 
 const DisparosPage = async ({
@@ -102,12 +104,19 @@ const DisparosPage = async ({
               ))}
           </div>
           <div className="card" style={{ marginBottom: 16 }}>
-            <DispararApresentacao elegiveis={elegiveis.length} uf={uf} />
+            <DispararApresentacao
+              elegiveis={elegiveis.length}
+              semRetorno={elegiveis.filter((a) => a.semRetorno === true).length}
+              uf={uf}
+            />
           </div>
           <div className="card">
             <h3>Fila do disparo ({alvos.length})</h3>
             <p className="page-sub">
-              Documentação enviada, incompletos e sem resposta do cliente após o envio.
+              Todos os clientes da mesa com documentação INCOMPLETA. Quem entregou parte recebe a
+              cobrança só do que falta (documentos_pendentes); quem não entregou nada recebe a
+              apresentação. O selo “sem retorno” marca a fila clássica (documentação enviada e o
+              cliente sumiu).
             </p>
             {alvos.length === 0 ? (
               <div className="empty">Ninguém na fila — todos responderam ou completaram.</div>
@@ -146,7 +155,12 @@ const DisparosPage = async ({
                           {a.jaDisparadoHoje ? (
                             <span className="badge">template nas últimas 24h — fora do lote</span>
                           ) : (
-                            <span className="badge ok">entra no lote</span>
+                            <>
+                              <span className="badge ok">entra no lote</span>{' '}
+                              {a.semRetorno === true ? (
+                                <span className="badge warn">sem retorno</span>
+                              ) : null}
+                            </>
                           )}
                         </td>
                       </tr>

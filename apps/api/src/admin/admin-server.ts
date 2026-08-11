@@ -2337,6 +2337,9 @@ export function buildAdminServer(
       /** O que falta deste cliente (rótulos humanos) e o template escolhido. */
       faltantes: string[];
       template: 'contato_equipe' | 'documentos_pendentes';
+      /** Não respondeu desde que a secretária enviou a documentação — a fila
+       *  clássica de cobrança. false = cliente incompleto em outra situação. */
+      semRetorno: boolean;
     }[]
   > {
     if (!opts.humanizado || !opts.chatHumanizado) return [];
@@ -2346,16 +2349,24 @@ export function buildAdminServer(
     const agora = Date.now();
     const alvos = [];
     for (const c of mesa) {
-      if (c.descartado === true || c.completo || !c.aguardandoAssinatura) continue;
+      // ALVO = qualquer cliente da mesa com documentação INCOMPLETA (decreto
+      // 2026-08-11: o template documentos_pendentes foi aprovado e cobra só o
+      // que falta, então a cobrança deixa de exigir a marca "aguardando
+      // devolução" — ela vira apenas um SELO na fila).
+      if (c.descartado === true || c.completo) continue;
       const cv = porChat.get(c.chatId);
       const desde = c.aguardandoDesde ?? null;
       const ultimaEntrada = cv?.ultimaEntradaEm ?? null;
-      const respondeuDepoisDoEnvio =
-        desde !== null
-          ? ultimaEntrada !== null && ultimaEntrada >= desde
-          : ultimaEntrada !== null &&
-            agora - new Date(ultimaEntrada).getTime() <= 2 * 24 * 60 * 60 * 1000;
-      if (respondeuDepoisDoEnvio) continue;
+      // CONVERSA VIVA: o cliente falou nas últimas 24h — a secretária está no
+      // caso; template em cima disso é redundante (e gera bloqueio).
+      if (ultimaEntrada !== null && agora - new Date(ultimaEntrada).getTime() < 24 * 60 * 60 * 1000)
+        continue;
+      const semRetorno =
+        c.aguardandoAssinatura === true &&
+        (desde !== null
+          ? ultimaEntrada === null || ultimaEntrada < desde
+          : ultimaEntrada === null ||
+            agora - new Date(ultimaEntrada).getTime() > 2 * 24 * 60 * 60 * 1000);
       const conversa = await opts.chatHumanizado.listar(c.chatId);
       const jaDisparadoHoje = (
         conversa.mensagens as readonly { direcao?: string; tipo?: string; em?: string }[]
@@ -2377,6 +2388,7 @@ export function buildAdminServer(
         jaDisparadoHoje,
         faltantes: lista,
         template: entregouAlgum ? ('documentos_pendentes' as const) : ('contato_equipe' as const),
+        semRetorno,
       });
     }
     return alvos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
@@ -2389,14 +2401,27 @@ export function buildAdminServer(
 
   app.post('/admin/humanizado/disparo', async (request, reply) => {
     if (!opts.humanizado || !opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
-    const body = (request.body ?? {}) as { confirmar?: boolean; uf?: string };
+    const body = (request.body ?? {}) as {
+      confirmar?: boolean;
+      uf?: string;
+      limite?: number;
+      apenasSemRetorno?: boolean;
+    };
     if (body.confirmar !== true)
       return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
     // Recorte por ESTADO (2026-08-07): o dono pode disparar uma UF por vez.
     const uf = typeof body.uf === 'string' ? body.uf.trim().toUpperCase() : '';
-    const alvos = (await alvosDisparoHumanizado()).filter(
-      (a) => !a.jaDisparadoHoje && (uf === '' || a.uf === uf),
-    );
+    // Lote com TETO (2026-08-11, conta em recuperação): default 60 — a mesa é
+    // público quente (confirmou interesse), mas rajada continua proibida.
+    const limite = Math.max(1, Math.min(300, Math.trunc(body.limite ?? 60)));
+    const alvos = (await alvosDisparoHumanizado())
+      .filter(
+        (a) =>
+          !a.jaDisparadoHoje &&
+          (uf === '' || a.uf === uf) &&
+          (body.apenasSemRetorno !== true || a.semRetorno),
+      )
+      .slice(0, limite);
     let enviados = 0;
     const falhas: { nome: string; erro: string }[] = [];
     for (const a of alvos) {

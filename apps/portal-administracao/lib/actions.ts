@@ -1220,11 +1220,20 @@ export interface AlvoDisparo {
   jaDisparadoHoje: boolean;
 }
 
-export async function dispararApresentacaoHumanizado(uf?: string): Promise<{
+export async function dispararApresentacaoHumanizado(
+  uf?: string,
+  limite?: number,
+  apenasSemRetorno?: boolean,
+): Promise<{
   enviados: number;
   falhas: { nome: string; erro: string }[];
 } | null> {
-  return sendJson('POST', '/admin/humanizado/disparo', { confirmar: true, uf });
+  return sendJson('POST', '/admin/humanizado/disparo', {
+    confirmar: true,
+    uf,
+    limite,
+    apenasSemRetorno,
+  });
 }
 
 // ── REAQUECIMENTO FASE 1 (2026-08-07) — template oficial da AHRI, com a

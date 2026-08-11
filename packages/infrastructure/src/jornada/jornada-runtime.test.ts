@@ -251,3 +251,85 @@ describe('caso REAL Paulo Roberto — andamento pós-parecer pede o SIM', () => 
     expect(r).toBe(''); // CONCLUIDA delega ao LLM (comportamento existente)
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Caso REAL Candida (22/07→11/08/2026) — o "patinar": o HISCON chegou às 22:09
+// e a AHRI ensinou o passo a passo do HISCON às 22:09, às 22:11 ("Ok" do
+// cliente) e DE NOVO três dias depois; 20 dias depois ainda prometia "até 10
+// dias úteis". A rede pós-HISCON troca a fala por uma que CONDUZ o funil.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('caso REAL Candida — nunca mais reensinar o HISCON já recebido', () => {
+  // A fala REAL da AHRI (LLM) que repetiu a aula com o documento na mão.
+  const AULA_INDEVIDA =
+    'Combinado. Então vamos por partes: abre o Meu INSS, entra no menu de serviços e procura ' +
+    'por "Extrato de Empréstimos Consignados". Assim que aparecer a opção de baixar em PDF, é ' +
+    'só clicar e me mandar aqui.';
+
+  async function comHiscon(opts: {
+    cpf?: string | null;
+    parecer?: boolean;
+    confirmado?: boolean;
+    pedidoAtivo?: boolean;
+  }) {
+    const json = new InMemoryJsonStore();
+    const textos: Record<string, string | null> = { d1: 'histórico de empréstimo consignado' };
+    const onboarding = new OnboardingDocumentalRuntime({
+      store: new JsonOnboardingDocumentalStore(json),
+      leitor: { texto: (id) => Promise.resolve(textos[id] ?? null) },
+      pendencias: null,
+    });
+    const jornada = new JornadaComercialRuntime({
+      json,
+      onboarding,
+      observability: new ObservabilityRuntime(),
+      clock: new TestClock(),
+      parecerDoCliente: () =>
+        Promise.resolve(
+          opts.parecer === true
+            ? { link: 'https://x/parecer?t=abc', contratos: 7, indicios: 2 }
+            : null,
+        ),
+      jaConfirmou: () => Promise.resolve(opts.confirmado === true),
+      temPedidoAtivo: () => Promise.resolve(opts.pedidoAtivo === true),
+    });
+    await onboarding.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'hiscon.pdf', NOW);
+    if (opts.cpf !== undefined && opts.cpf !== null) {
+      await jornada.aoReceberTexto(CHAT, opts.cpf, NOW);
+    }
+    return jornada;
+  }
+
+  it('HISCON recebido e SEM CPF ⇒ a aula vira o pedido do CPF (o passo real)', async () => {
+    const jornada = await comHiscon({});
+    const r = await jornada.revisarFalaPosHiscon(CHAT, AULA_INDEVIDA);
+    expect(r).toBe(MENSAGENS_JORNADA.hisconRecebidoFaltaCpf);
+    expect(r).toContain('já está aqui comigo');
+    expect(r).not.toMatch(/Meu INSS/i);
+  });
+
+  it('HISCON + CPF + parecer pronto ⇒ conduz para a FASE 2 pedindo o SIM', async () => {
+    const jornada = await comHiscon({ cpf: '033.842.399-03', parecer: true });
+    const r = await jornada.revisarFalaPosHiscon(CHAT, AULA_INDEVIDA);
+    expect(r).toContain('análise já está PRONTA');
+    expect(r).toContain('responder SIM');
+    expect(r).not.toMatch(/Meu INSS/i);
+  });
+
+  it('HISCON + CPF sem parecer ⇒ andamento honesto, sem reabrir prazo', async () => {
+    const jornada = await comHiscon({ cpf: '033.842.399-03' });
+    const r = await jornada.revisarFalaPosHiscon(CHAT, AULA_INDEVIDA);
+    expect(r).toBe(MENSAGENS_JORNADA.andamentoSemPrometerPrazo);
+    expect(r).not.toMatch(/10 dias|prazo de at[ée]/i);
+  });
+
+  it('pedido ATIVO do advogado (fase 2) ⇒ cobrar é legítimo, a rede não mexe', async () => {
+    const jornada = await comHiscon({ cpf: '033.842.399-03', pedidoAtivo: true });
+    expect(await jornada.revisarFalaPosHiscon(CHAT, AULA_INDEVIDA)).toBe(AULA_INDEVIDA);
+  });
+
+  it('fala que NÃO é cobrança de documento passa intacta', async () => {
+    const jornada = await comHiscon({ cpf: '033.842.399-03' });
+    const conversa = 'Que bom saber! Fico à disposição para qualquer dúvida.';
+    expect(await jornada.revisarFalaPosHiscon(CHAT, conversa)).toBe(conversa);
+  });
+});

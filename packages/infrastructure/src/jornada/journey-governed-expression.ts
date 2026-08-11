@@ -58,7 +58,16 @@ export class JourneyGovernedExpression implements LlmExpressionPort {
     } catch {
       // Falha da jornada JAMAIS silencia a conversa: cai na expressão normal.
     }
-    return this.inner.phrase(request); // CONCLUIDA/fora do funil ⇒ comportamento existente
+    // CONCLUIDA/fora do funil ⇒ a LLM fala. REDE PÓS-HISCON (caso REAL Candida,
+    // 2026-08-11): se ela voltar a cobrar/ensinar um documento que a jornada
+    // JÁ registrou, a fala é trocada por uma que CONDUZ (pede o CPF que falta,
+    // manda o dossiê pedindo o SIM, ou dá o andamento sem reabrir prazo).
+    const falaDoLlm = await this.inner.phrase(request);
+    try {
+      return await this.jornada.revisarFalaPosHiscon(request.intent.chatId, falaDoLlm);
+    } catch {
+      return falaDoLlm; // a rede nunca pode silenciar a conversa
+    }
   }
 
   /** Rediz o roteiro com voz humana. QUALQUER falha ⇒ o roteiro verbatim. */

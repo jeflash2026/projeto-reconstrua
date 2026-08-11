@@ -21,6 +21,7 @@ import {
   interpretarInteresse,
   vaiReceberCobranca,
   novaJornada,
+  pareceCobrancaDeDocumento,
   registroDoTurnoConcluido,
   responderTurno,
   separarCidadeEstado,
@@ -75,6 +76,9 @@ export interface JornadaRuntimeDeps {
    *  mesa do humanizado)? Quem confirmou não recebe pedido de SIM de novo —
    *  a pergunta de andamento dele segue para a conversa normal. */
   readonly jaConfirmou?: (chatId: string) => Promise<boolean>;
+  /** Existe DocumentRequest ATIVO do advogado (fase 2)? Nesse caso pedir
+   *  documento é legítimo e a rede pós-HISCON não intervém. */
+  readonly temPedidoAtivo?: (chatId: string) => Promise<boolean>;
 }
 
 export class JornadaComercialRuntime {
@@ -368,6 +372,36 @@ export class JornadaComercialRuntime {
       }).catch(() => undefined);
     }
     return resposta;
+  }
+
+  /** REDE DEFINITIVA CONTRA O "PATINAR" (caso REAL Candida, 2026-08-11): o
+   *  HISCON chegou às 22:09 e a AHRI ensinou o passo a passo do HISCON às
+   *  22:09, 22:11 e de novo 3 dias depois — o documento já estava com ela. O
+   *  guard antigo (caso Isaú) dependia da PROJEÇÃO da missão estar em ANÁLISE;
+   *  quando a projeção atrasava, o LLM voltava a cobrar o que já recebeu.
+   *
+   *  Aqui a régua é o FATO da jornada (documento registrado), não a projeção.
+   *  E a fala substituta CONDUZ o funil em vez de só calar: falta CPF ⇒ pede o
+   *  CPF; parecer pronto sem confirmação ⇒ manda o dossiê e pede o SIM (a
+   *  fase 2); no resto ⇒ andamento honesto, sem reabrir prazo nenhum. */
+  async revisarFalaPosHiscon(chatId: string, texto: string): Promise<string> {
+    if (texto.trim() === '' || !pareceCobrancaDeDocumento(texto)) return texto;
+    const fatos = await this.fatos(chatId).catch(() => null);
+    // Só age quando o HISCON JÁ está registrado — antes disso, cobrar é certo.
+    if (fatos === null || !fatos.docsCompletos) return texto;
+    // Pedido ATIVO do advogado (fase 2) é legítimo: não mexe.
+    if ((await this.deps.temPedidoAtivo?.(chatId).catch(() => false)) ?? false) return texto;
+    if (fatos.registro.cpf === null) return MENSAGENS_JORNADA.hisconRecebidoFaltaCpf;
+    const parecer = (await this.deps.parecerDoCliente?.(chatId).catch(() => null)) ?? null;
+    const confirmado = (await this.deps.jaConfirmou?.(chatId).catch(() => false)) ?? false;
+    if (parecer !== null && !confirmado) {
+      return MENSAGENS_JORNADA.analiseProntaPedirConfirmacao(
+        parecer.link,
+        parecer.contratos,
+        parecer.indicios,
+      );
+    }
+    return MENSAGENS_JORNADA.andamentoSemPrometerPrazo;
   }
 
   /** 15ª rodada — chega um documento NOVO (pré-turno): qualquer progressão

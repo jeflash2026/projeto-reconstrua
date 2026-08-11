@@ -813,6 +813,19 @@ export const MENSAGENS_JORNADA = {
     `${link}\n\n` +
     `Nele estão os ${String(contratos)} contrato(s) de consignado que encontrei na janela de 5 anos e os ${String(indicios)} indício(s) de irregularidade da sua análise.\n\n` +
     'Se não abrir aí no celular: toque no link (ele fica azul) ou copie e cole no navegador (Chrome/Safari). Se ainda assim não abrir, me avisa que eu te conto por aqui mesmo, em texto, tudo o que a análise encontrou.',
+  /** Caso REAL Candida (2026-08-11): o HISCON chegou às 22:09 e a AHRI ensinou
+   *  o passo a passo do HISCON às 22:09, 22:11 e de novo 3 dias depois — o
+   *  documento JÁ estava na mão dela. Com o extrato recebido e o CPF faltando,
+   *  o único passo pendente é o CPF: a fala vira ESTE pedido, nunca a aula. */
+  hisconRecebidoFaltaCpf:
+    'O seu extrato de empréstimos consignados (HISCON) já está aqui comigo — não precisa enviar de novo.\n\n' +
+    'Para eu conseguir seguir e solicitar os contratos junto aos bancos, falta só uma coisa: o número do seu CPF. Pode digitar aqui os 11 números, por favor?',
+  /** Caso REAL Candida: 20 dias depois a AHRI ainda prometia "até 10 dias
+   *  úteis" como se a análise tivesse começado agora. Andamento HONESTO: sem
+   *  reabrir prazo, sem cobrar documento que já está entregue. */
+  andamentoSemPrometerPrazo:
+    'A sua documentação está completa comigo — não precisa enviar mais nada.\n\n' +
+    'O seu caso está na fase final da análise e eu te aviso por aqui assim que houver a conclusão. Se tiver qualquer dúvida enquanto isso, pode me perguntar que eu respondo.',
   /** Caso REAL Paulo Roberto (2026-08-09): pergunta de ANDAMENTO depois do
    *  parecer enviado — a análise está PRONTA; o que falta é o SIM dele. */
   analiseProntaPedirConfirmacao: (link: string, contratos: number, indicios: number): string =>

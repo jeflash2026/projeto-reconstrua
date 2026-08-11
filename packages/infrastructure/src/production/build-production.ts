@@ -1051,6 +1051,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       const mesa = await mesaHumanizada().catch(() => []);
       return mesa.some((c) => c.chatId === chatId);
     },
+    // Pedido ATIVO do advogado (fase 2): cobrar documento é legítimo — a rede
+    // pós-HISCON não intervém nesses casos (mesma régua do caso Isaú).
+    temPedidoAtivo: async (chatId) => (await pendenciaDocumental(chatId)) !== null,
   });
   // Decreto 2026-07-22: REAQUECIMENTO DE LEADS — lista os frios e executa o
   // reaquecimento AUTORIZADO pelo admin (nada automático). Mesmo canal das

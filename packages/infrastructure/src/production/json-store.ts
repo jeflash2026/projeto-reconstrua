@@ -16,7 +16,23 @@ export interface JsonStore {
   keys(namespace: string): Promise<readonly string[]>;
 }
 
-export class InMemoryJsonStore implements JsonStore {
+/** Uma linha crua do armazenamento (namespace × chave → documento). */
+export interface LinhaDocumento {
+  readonly namespace: string;
+  readonly key: string;
+  readonly value: unknown;
+}
+
+/** VARREDURA POR CONTEÚDO (2026-08-11) — capacidade EXTRA, fora do JsonStore:
+ *  encontra toda linha que cite um texto no namespace, na chave ou dentro do
+ *  documento. Existe porque a identidade do cliente (o chatId) atravessa dezenas
+ *  de namespaces; transferir um atendimento de número exige achar TODAS elas sem
+ *  depender de uma lista escrita à mão (que envelhece e esquece alguma). */
+export interface JsonStoreVarredura {
+  varrer(agulha: string): Promise<readonly LinhaDocumento[]>;
+}
+
+export class InMemoryJsonStore implements JsonStore, JsonStoreVarredura {
   private readonly data = new Map<string, Map<string, unknown>>();
   private ns(namespace: string): Map<string, unknown> {
     let map = this.data.get(namespace);
@@ -42,6 +58,18 @@ export class InMemoryJsonStore implements JsonStore {
   }
   keys(namespace: string): Promise<readonly string[]> {
     return Promise.resolve([...this.ns(namespace).keys()]);
+  }
+  varrer(agulha: string): Promise<readonly LinhaDocumento[]> {
+    const achadas: LinhaDocumento[] = [];
+    for (const [namespace, mapa] of this.data)
+      for (const [key, value] of mapa) {
+        const cita =
+          namespace.includes(agulha) ||
+          key.includes(agulha) ||
+          JSON.stringify(value ?? null).includes(agulha);
+        if (cita) achadas.push({ namespace, key, value });
+      }
+    return Promise.resolve(achadas);
   }
 }
 
@@ -72,7 +100,7 @@ function coerceJson(value: unknown): unknown {
   return value;
 }
 
-export class PgJsonStore implements JsonStore {
+export class PgJsonStore implements JsonStore, JsonStoreVarredura {
   constructor(private readonly sql: SqlClient) {}
 
   async get(namespace: string, key: string): Promise<unknown> {
@@ -110,6 +138,24 @@ export class PgJsonStore implements JsonStore {
       [namespace],
     );
     return rows.map((r) => String(r['key']));
+  }
+  /** `position()` em vez de LIKE: nada a escapar, e o texto procurado (um JID)
+   *  não tem curinga. Varredura completa da tabela — é uma operação RARA, de
+   *  manutenção, nunca no caminho do atendimento. */
+  async varrer(agulha: string): Promise<readonly LinhaDocumento[]> {
+    const rows = await this.sql.query<SqlRow>(
+      `SELECT namespace, key, value FROM production.documents
+        WHERE position($1 in namespace) > 0
+           OR position($1 in key) > 0
+           OR position($1 in value::text) > 0
+        ORDER BY namespace, key`,
+      [agulha],
+    );
+    return rows.map((r) => ({
+      namespace: String(r['namespace']),
+      key: String(r['key']),
+      value: coerceJson(r['value']),
+    }));
   }
 }
 

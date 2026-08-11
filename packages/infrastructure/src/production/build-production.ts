@@ -157,7 +157,12 @@ import { ADVOGADO_RULE_CATALOG } from '../advogado-portal/advogado-rule-catalog.
 import { ConversationClientMessenger } from '../advogado-portal/client-messenger.js';
 import type { AssembledAdminOperation } from '../admin-portal/build-admin-operation.js';
 import type { AssembledLawyerExperience } from '../lawyer-experience/build-lawyer-experience.js';
-import { InMemoryJsonStore, PgJsonStore, type JsonStore } from './json-store.js';
+import {
+  InMemoryJsonStore,
+  PgJsonStore,
+  type JsonStore,
+  type JsonStoreVarredura,
+} from './json-store.js';
 import {
   JsonAssignmentStore,
   JsonConfigStore,
@@ -214,6 +219,7 @@ import { WebchatRuntime } from '../webchat/webchat-runtime.js';
 import { DocsEquipeService } from '../docs-equipe/docs-equipe-service.js';
 import { ChatHumanizadoService } from '../humanizado/chat-humanizado.js';
 import { VarreduraFase2 } from '../humanizado/varredura-fase2.js';
+import { TransferenciaDeNumero } from '../humanizado/transferencia-numero.js';
 import { JuridicoService } from '../juridico/juridico-service.js';
 import { DatajudClient } from '../juridico/datajud-client.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
@@ -310,6 +316,9 @@ export interface AssembledProduction {
   /** VARREDURA DA FASE 2 (2026-08-11): acha e REPARA todos os clientes que
    *  confirmaram o interesse e não chegaram à mesa do Humanizado. */
   readonly varreduraFase2: VarreduraFase2;
+  /** TRANSFERÊNCIA DE NÚMERO (2026-08-11): o cliente troca de chip e continua o
+   *  mesmo atendimento — histórico, HISCON e cadastro vão junto. */
+  readonly transferenciaNumero: TransferenciaDeNumero;
   /** Decreto 2026-08-08: PAINEL JURÍDICO — gestão do pós-protocolo (clientes,
    *  processos judiciais, guias e perícias), o 2º painel do dono + sócio. */
   readonly juridico: JuridicoService;
@@ -443,7 +452,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
 
   // ── Seleção de armazenamento (Postgres real quando DATABASE_URL) ─────────────
   const databaseUrl = env['DATABASE_URL'] ?? null;
-  let json: JsonStore;
+  // Os dois adaptadores reais sabem VARRER (achar toda linha que cite um texto);
+  // é o que permite transferir um atendimento de número sem lista escrita à mão.
+  let json: JsonStore & JsonStoreVarredura;
   let eventStore: EventStore;
   let outboxStore: OutboxStore;
   let deliveries: InMemoryDeliveryStore | PgDeliveryStore;
@@ -2015,6 +2026,15 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       mesaHumanizada.invalidar();
     },
   });
+  // TRANSFERÊNCIA DE NÚMERO (2026-08-11): o cliente trocou de chip e quer
+  // continuar o MESMO atendimento pelo número novo (caso Maria da Piedade).
+  const transferenciaNumero = new TransferenciaDeNumero({
+    json,
+    clock,
+    invalidar: () => {
+      mesaHumanizada.invalidar();
+    },
+  });
   // PAINEL JURÍDICO (decreto 2026-08-08): gestão do pós-protocolo — clientes,
   // processos judiciais, guias e perícias do dono + sócio (2º painel).
   // DataJud (CNJ): acompanhamento automático dos processos pelo nº CNJ — chave
@@ -2444,6 +2464,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     docsEquipe,
     chatHumanizado,
     varreduraFase2,
+    transferenciaNumero,
     juridico,
     // 2026-08-09: cada disparo oficial é PERSISTIDO (ns 'disparos-oficial') e
     // registrado na memória da conversa — a AHRI fica ciente e o painel

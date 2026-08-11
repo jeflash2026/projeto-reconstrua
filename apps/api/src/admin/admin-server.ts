@@ -273,6 +273,12 @@ export function buildAdminServer(
         mensagemId: string,
       ): Promise<{ nome: string; mime: string; bytes: Uint8Array } | null>;
     };
+    /** TRANSFERÊNCIA DE NÚMERO (2026-08-11): o cliente trocou de chip e continua
+     *  o MESMO atendimento pelo número novo. */
+    readonly transferenciaNumero?: {
+      previa(origem: string, destino: string): Promise<unknown>;
+      transferir(origem: string, destino: string): Promise<unknown>;
+    };
     /** VARREDURA DA FASE 2 (2026-08-11): acha e repara TODOS os clientes que
      *  confirmaram o interesse e não chegaram à mesa do Humanizado. */
     readonly varreduraFase2?: {
@@ -2306,6 +2312,37 @@ export function buildAdminServer(
           : await opts.juridico.criarPericia(body.dados ?? {}, autor);
     if (!r.ok) return reply.code(422).send(r);
     return r;
+  });
+
+  // ── TRANSFERÊNCIA DE NÚMERO (2026-08-11) — o cliente trocou de chip e quer
+  //    continuar o MESMO atendimento. A prévia é só leitura; a troca exige
+  //    confirmação explícita e guarda o estado anterior num backup. ───────────
+  app.post('/admin/clientes/transferencia/previa', async (request, reply) => {
+    if (!opts.transferenciaNumero)
+      return reply.code(503).send({ error: 'transferência indisponível nesta montagem' });
+    const body = (request.body ?? {}) as { origem?: string; destino?: string };
+    if (typeof body.origem !== 'string' || typeof body.destino !== 'string')
+      return reply.code(400).send({ error: 'informe origem e destino' });
+    return opts.transferenciaNumero.previa(body.origem, body.destino);
+  });
+
+  app.post('/admin/clientes/transferencia', async (request, reply) => {
+    if (!opts.transferenciaNumero)
+      return reply.code(503).send({ error: 'transferência indisponível nesta montagem' });
+    const body = (request.body ?? {}) as {
+      origem?: string;
+      destino?: string;
+      confirmar?: boolean;
+    };
+    if (typeof body.origem !== 'string' || typeof body.destino !== 'string')
+      return reply.code(400).send({ error: 'informe origem e destino' });
+    if (body.confirmar !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
+    try {
+      return await opts.transferenciaNumero.transferir(body.origem, body.destino);
+    } catch (erro) {
+      return reply.code(400).send({ error: erro instanceof Error ? erro.message : 'falha' });
+    }
   });
 
   // ── VARREDURA DA FASE 2 (decreto do dono, 2026-08-11) — o cliente disse SIM

@@ -107,6 +107,9 @@ async function main(): Promise<void> {
     // Decreto 2026-08-11: a VARREDURA da fase 2 — quem confirmou e não chegou
     // à mesa do Humanizado (caso Oracio "e muitos outros").
     varreduraFase2: prod.varreduraFase2,
+    // Decreto 2026-08-11: o cliente trocou de chip e continua o MESMO
+    // atendimento pelo número novo (histórico, HISCON e cadastro vão junto).
+    transferenciaNumero: prod.transferenciaNumero,
     // Decreto 2026-08-08: o PAINEL JURÍDICO (2º painel — dono + sócio).
     juridico: prod.juridico,
     // Reaquecimento FASE 1 (2026-08-07): template pelo número OFICIAL da AHRI.

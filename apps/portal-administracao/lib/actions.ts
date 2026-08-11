@@ -1270,6 +1270,40 @@ export async function removerAcessoJuridico(id: string): Promise<boolean> {
   return r?.ok === true;
 }
 
+// ── TRANSFERÊNCIA DE NÚMERO (2026-08-11) — o cliente trocou de chip e continua
+// o MESMO atendimento pelo número novo. A prévia é só leitura; a troca exige
+// confirmação explícita e guarda o estado anterior num backup.
+export interface PreviaTransferencia {
+  origem: string;
+  destino: string;
+  linhasOrigem: number;
+  linhasDestino: number;
+  grupos: { namespace: string; linhas: number }[];
+  mensagens: number;
+  podeTransferir: boolean;
+  motivo: string | null;
+}
+
+export async function previaTransferenciaNumero(
+  origem: string,
+  destino: string,
+): Promise<PreviaTransferencia | null> {
+  return sendJson('POST', '/admin/clientes/transferencia/previa', { origem, destino });
+}
+
+export async function transferirNumero(
+  origem: string,
+  destino: string,
+): Promise<{ ok: boolean; linhasMovidas?: number; error?: string }> {
+  const r = await sendJson<{ ok?: boolean; linhasMovidas?: number; error?: string }>(
+    'POST',
+    '/admin/clientes/transferencia',
+    { origem, destino, confirmar: true },
+  );
+  if (r === null) return { ok: false, error: 'falha na API' };
+  return { ok: r.ok === true, linhasMovidas: r.linhasMovidas, error: r.error };
+}
+
 // ── VARREDURA DA FASE 2 (2026-08-11) — manda para a mesa do Humanizado TODOS
 // os clientes que confirmaram o interesse e ficaram para trás. Só dado: nenhuma
 // mensagem é enviada ao cliente (decreto anti-automático).

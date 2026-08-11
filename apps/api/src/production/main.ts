@@ -104,6 +104,9 @@ async function main(): Promise<void> {
     // Decreto 2026-08-05: o CHAT do canal da equipe (número 41 na Meta) —
     // conversa 100% humana no portal; a AHRI nunca responde nele.
     chatHumanizado: prod.chatHumanizado,
+    // Decreto 2026-08-11: a VARREDURA da fase 2 — quem confirmou e não chegou
+    // à mesa do Humanizado (caso Oracio "e muitos outros").
+    varreduraFase2: prod.varreduraFase2,
     // Decreto 2026-08-08: o PAINEL JURÍDICO (2º painel — dono + sócio).
     juridico: prod.juridico,
     // Reaquecimento FASE 1 (2026-08-07): template pelo número OFICIAL da AHRI.

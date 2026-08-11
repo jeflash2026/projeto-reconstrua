@@ -1269,3 +1269,20 @@ export async function removerAcessoJuridico(id: string): Promise<boolean> {
   const r = await sendJson<{ ok?: boolean }>('POST', '/admin/juridico/usuarios/remover', { id });
   return r?.ok === true;
 }
+
+// ── VARREDURA DA FASE 2 (2026-08-11) — manda para a mesa do Humanizado TODOS
+// os clientes que confirmaram o interesse e ficaram para trás. Só dado: nenhuma
+// mensagem é enviada ao cliente (decreto anti-automático).
+export async function repararVarreduraFase2(): Promise<{
+  ok: boolean;
+  reparados?: number;
+  error?: string;
+}> {
+  const r = await sendJson<{ ok?: boolean; reparados?: number; error?: string }>(
+    'POST',
+    '/admin/humanizado/varredura',
+    { confirmar: true },
+  );
+  if (r === null) return { ok: false, error: 'falha na API' };
+  return { ok: r.ok === true, reparados: r.reparados, error: r.error };
+}

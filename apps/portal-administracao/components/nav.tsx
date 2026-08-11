@@ -22,6 +22,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { href: '/clientes', label: 'Clientes' },
   { href: '/clientes/hoje', label: 'Clientes Hoje' },
   { href: '/reaquecimento', label: 'Reaquecimento' },
+  { href: '/varredura-fase2', label: 'Varredura fase 2' },
   { href: '/clientes-prontos', label: 'Prontos p/ Advogado' },
   { href: '/contratos-migrados', label: 'Contratos Migrados' },
   { href: '/missoes', label: 'Missões' },

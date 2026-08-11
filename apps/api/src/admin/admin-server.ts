@@ -273,6 +273,12 @@ export function buildAdminServer(
         mensagemId: string,
       ): Promise<{ nome: string; mime: string; bytes: Uint8Array } | null>;
     };
+    /** VARREDURA DA FASE 2 (2026-08-11): acha e repara TODOS os clientes que
+     *  confirmaram o interesse e não chegaram à mesa do Humanizado. */
+    readonly varreduraFase2?: {
+      diagnosticar(): Promise<unknown>;
+      reparar(): Promise<unknown>;
+    };
     /** Decreto 2026-08-08: PAINEL JURÍDICO — o 2º painel (dono + sócio):
      *  clientes, processos judiciais, guias e perícias do pós-protocolo. */
     readonly juridico?: JuridicoService;
@@ -2300,6 +2306,25 @@ export function buildAdminServer(
           : await opts.juridico.criarPericia(body.dados ?? {}, autor);
     if (!r.ok) return reply.code(422).send(r);
     return r;
+  });
+
+  // ── VARREDURA DA FASE 2 (decreto do dono, 2026-08-11) — o cliente disse SIM
+  //    e não apareceu na mesa. O GET diagnostica (só leitura); o POST REPARA
+  //    (grava a confirmação sob o clienteId que a mesa lê). Nenhuma mensagem
+  //    sai daqui — reparo é dado, não conversa. ──────────────────────────────
+  app.get('/admin/humanizado/varredura', async (_request, reply) => {
+    if (!opts.varreduraFase2)
+      return reply.code(503).send({ error: 'varredura indisponível nesta montagem' });
+    return opts.varreduraFase2.diagnosticar();
+  });
+
+  app.post('/admin/humanizado/varredura', async (request, reply) => {
+    if (!opts.varreduraFase2)
+      return reply.code(503).send({ error: 'varredura indisponível nesta montagem' });
+    const body = (request.body ?? {}) as { confirmar?: boolean };
+    if (body.confirmar !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
+    return opts.varreduraFase2.reparar();
   });
 
   // ── DISPARO EM LOTE DA APRESENTAÇÃO (2026-08-06) — decreto do dono: nada

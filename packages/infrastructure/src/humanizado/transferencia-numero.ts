@@ -140,13 +140,79 @@ export class TransferenciaDeNumero {
 
     for (const linha of linhasOrigem) {
       const novo = this.reescrever(linha, origem, destino);
-      await this.deps.json.put(novo.namespace, novo.key, novo.value);
+      const jaHavia = await this.deps.json.get(novo.namespace, novo.key).catch(() => null);
+      await this.deps.json.put(novo.namespace, novo.key, this.fundir(jaHavia, novo.value));
       const mudouDeLugar = novo.namespace !== linha.namespace || novo.key !== linha.key;
       if (mudouDeLugar) await this.deps.json.del(linha.namespace, linha.key);
     }
 
     this.deps.invalidar?.();
     return { ok: true, origem, destino, linhasMovidas: linhasOrigem.length, backupEm };
+  }
+
+  /** RECUPERAÇÃO (2026-08-11) — conserta o que a primeira versão desta ferramenta
+   *  perdeu: o chat humanizado é UM documento por número (mensagens[] dentro),
+   *  então o registro da origem sobrescrevia o do destino e as mensagens que o
+   *  cliente já tinha mandado pelo número novo sumiam. O backup guardou tudo;
+   *  aqui as conversas do backup voltam MESCLADAS às atuais. Idempotente: a
+   *  mesclagem descarta repetidas por id, então rodar duas vezes não duplica. */
+  async restaurarConversas(destinoBruto: string): Promise<{
+    ok: true;
+    conversasRestauradas: number;
+    mensagensRecuperadas: number;
+  }> {
+    const destino = comoJid(destinoBruto);
+    const backups = (await this.deps.json.list(NS_BACKUP)) as readonly {
+      destino?: string;
+      em?: string;
+      linhas?: readonly LinhaDocumento[];
+    }[];
+    const doDestino = backups
+      .filter((b) => b.destino === destino && Array.isArray(b.linhas))
+      .sort((a, b) => (a.em ?? '').localeCompare(b.em ?? ''));
+    const ultimo = doDestino[doDestino.length - 1] ?? null;
+    if (ultimo === null) throw new Error('não há backup de transferência para este número');
+
+    let conversasRestauradas = 0;
+    let mensagensRecuperadas = 0;
+    for (const linha of ultimo.linhas ?? []) {
+      if (mensagensDe(linha.value) === null) continue; // só conversas
+      // A linha do backup pode ser da ORIGEM (chaveada pelo número antigo): ela
+      // já viajou na transferência, então o alvo é sempre o número NOVO.
+      const alvo: LinhaDocumento = {
+        namespace: trocarJid(linha.namespace, destino),
+        key: trocarJid(linha.key, destino),
+        value: linha.value,
+      };
+      const atual = await this.deps.json.get(alvo.namespace, alvo.key).catch(() => null);
+      const antes = mensagensDe(atual)?.length ?? 0;
+      const fundido = this.fundir(atual, alvo.value);
+      const depois = mensagensDe(fundido)?.length ?? 0;
+      if (depois <= antes) continue; // nada de novo nesta conversa
+      await this.deps.json.put(alvo.namespace, alvo.key, fundido);
+      conversasRestauradas += 1;
+      mensagensRecuperadas += depois - antes;
+    }
+    this.deps.invalidar?.();
+    return { ok: true, conversasRestauradas, mensagensRecuperadas };
+  }
+
+  /** O que já existia no destino × o que chega da origem. Para o ESTADO (memória,
+   *  sessão, jornada, cadastro) a origem prevalece — é ela que traz o histórico
+   *  real. Para CONVERSAS (documento com mensagens[]) as duas se somam: nenhuma
+   *  mensagem do cliente pode desaparecer porque ele trocou de chip. */
+  private fundir(anterior: unknown, chegando: unknown): unknown {
+    const mensagensAntes = mensagensDe(anterior);
+    const mensagensDepois = mensagensDe(chegando);
+    if (mensagensAntes === null || mensagensDepois === null) return chegando;
+
+    const porId = new Map<string, Record<string, unknown>>();
+    for (const m of [...mensagensAntes, ...mensagensDepois]) {
+      const id = typeof m['id'] === 'string' ? m['id'] : JSON.stringify(m);
+      if (!porId.has(id)) porId.set(id, m);
+    }
+    const mensagens = [...porId.values()].sort((a, b) => instante(a).localeCompare(instante(b)));
+    return { ...(chegando as Record<string, unknown>), mensagens };
   }
 
   /** Troca o número antigo pelo novo no namespace, na chave e no documento — o
@@ -159,4 +225,25 @@ export class TransferenciaDeNumero {
       value: JSON.parse(conteudo.split(origem).join(destino)) as unknown,
     };
   }
+}
+
+/** O documento é uma CONVERSA? (tem `mensagens` como lista) — devolve as
+ *  mensagens ou null. É o único formato que se funde em vez de sobrescrever. */
+function mensagensDe(valor: unknown): readonly Record<string, unknown>[] | null {
+  if (typeof valor !== 'object' || valor === null) return null;
+  const campo = (valor as Record<string, unknown>)['mensagens'];
+  if (!Array.isArray(campo)) return null;
+  return campo.filter((m): m is Record<string, unknown> => typeof m === 'object' && m !== null);
+}
+
+/** O instante da mensagem (`em`, ISO) — vazio quando ausente, para ordenar sem
+ *  quebrar em registros antigos. */
+function instante(mensagem: Record<string, unknown>): string {
+  const em = mensagem['em'];
+  return typeof em === 'string' ? em : '';
+}
+
+/** Reescreve QUALQUER jid presente no texto para o número informado. */
+function trocarJid(texto: string, destino: string): string {
+  return texto.replace(/\d+@s\.whatsapp\.net/g, destino);
 }

@@ -1304,6 +1304,28 @@ export async function transferirNumero(
   return { ok: r.ok === true, linhasMovidas: r.linhasMovidas, error: r.error };
 }
 
+/** Recupera do backup as conversas que uma transferência antiga sobrescreveu. */
+export async function restaurarConversasTransferidas(destino: string): Promise<{
+  ok: boolean;
+  conversasRestauradas?: number;
+  mensagensRecuperadas?: number;
+  error?: string;
+}> {
+  const r = await sendJson<{
+    ok?: boolean;
+    conversasRestauradas?: number;
+    mensagensRecuperadas?: number;
+    error?: string;
+  }>('POST', '/admin/clientes/transferencia/restaurar-conversas', { destino });
+  if (r === null) return { ok: false, error: 'falha na API' };
+  return {
+    ok: r.ok === true,
+    conversasRestauradas: r.conversasRestauradas,
+    mensagensRecuperadas: r.mensagensRecuperadas,
+    error: r.error,
+  };
+}
+
 // ── VARREDURA DA FASE 2 (2026-08-11) — manda para a mesa do Humanizado TODOS
 // os clientes que confirmaram o interesse e ficaram para trás. Só dado: nenhuma
 // mensagem é enviada ao cliente (decreto anti-automático).

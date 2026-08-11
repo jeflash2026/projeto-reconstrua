@@ -87,6 +87,70 @@ describe('TransferenciaDeNumero', () => {
     });
   });
 
+  // REGRESSÃO REAL (Maria da Piedade, 2026-08-11): o chat humanizado é UM
+  // documento por número, com mensagens[] dentro. A primeira versão sobrescrevia
+  // o do destino e as mensagens que a cliente já tinha mandado pelo número novo
+  // sumiam. Conversa se FUNDE; estado (memória, cadastro) a origem vence.
+  it('funde as conversas em vez de sobrescrever a do número novo', async () => {
+    const json = await baseComCliente();
+    await json.put('humanizado-chat', ANTIGO, {
+      chatId: ANTIGO,
+      lidoEm: null,
+      mensagens: [{ id: 'a1', em: '2026-08-11T13:50:00.000Z', texto: 'pelo número antigo' }],
+    });
+    await json.put('humanizado-chat', NOVO, {
+      chatId: NOVO,
+      lidoEm: null,
+      mensagens: [{ id: 'b1', em: '2026-08-11T14:10:00.000Z', texto: 'pelo número novo' }],
+    });
+
+    await new TransferenciaDeNumero({ json, clock }).transferir(ANTIGO, NOVO);
+
+    const conversa = (await json.get('humanizado-chat', NOVO)) as {
+      chatId: string;
+      mensagens: { id: string; texto: string }[];
+    };
+    expect(conversa.chatId).toBe(NOVO);
+    // As duas conversas, em ordem cronológica — nenhuma mensagem se perde.
+    expect(conversa.mensagens.map((m) => m.id)).toEqual(['a1', 'b1']);
+  });
+
+  it('recupera do backup as conversas perdidas por uma transferência antiga', async () => {
+    const json = await baseComCliente();
+    const conversaPerdida = {
+      chatId: NOVO,
+      lidoEm: null,
+      mensagens: [{ id: 'b1', em: '2026-08-11T14:10:00.000Z', texto: 'pelo número novo' }],
+    };
+    // Simula o estrago da versão antiga: o backup tem a conversa do destino, mas
+    // o registro atual só tem a da origem.
+    await json.put('transferencia-numero-backup', `${NOVO}|2026-08-11T12:00:00.000Z`, {
+      origem: ANTIGO,
+      destino: NOVO,
+      em: '2026-08-11T12:00:00.000Z',
+      linhas: [{ namespace: 'humanizado-chat', key: NOVO, value: conversaPerdida }],
+    });
+    await json.put('humanizado-chat', NOVO, {
+      chatId: NOVO,
+      lidoEm: null,
+      mensagens: [{ id: 'a1', em: '2026-08-11T13:50:00.000Z', texto: 'pelo número antigo' }],
+    });
+
+    const t = new TransferenciaDeNumero({ json, clock });
+    const r = await t.restaurarConversas(NOVO);
+    expect(r.conversasRestauradas).toBe(1);
+    expect(r.mensagensRecuperadas).toBe(1);
+
+    const conversa = (await json.get('humanizado-chat', NOVO)) as {
+      mensagens: { id: string }[];
+    };
+    expect(conversa.mensagens.map((m) => m.id)).toEqual(['a1', 'b1']);
+
+    // Rodar de novo não duplica nada (dedup por id).
+    const outra = await t.restaurarConversas(NOVO);
+    expect(outra.mensagensRecuperadas).toBe(0);
+  });
+
   it('guarda o estado anterior num backup antes de escrever', async () => {
     const json = await baseComCliente();
     await json.put('client-memory', NOVO, { chatId: NOVO, nome: 'contato novo' });

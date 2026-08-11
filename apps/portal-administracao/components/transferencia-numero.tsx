@@ -6,6 +6,7 @@
 import { useState, type ReactElement } from 'react';
 import {
   previaTransferenciaNumero,
+  restaurarConversasTransferidas,
   transferirNumero,
   type PreviaTransferencia,
 } from '../lib/actions';
@@ -60,6 +61,23 @@ export default function TransferenciaNumero(): ReactElement {
     setPrevia(null);
   }
 
+  async function recuperar(): Promise<void> {
+    setErro(null);
+    setAviso(null);
+    setBusy(true);
+    const r = await restaurarConversasTransferidas(destino.trim());
+    setBusy(false);
+    if (!r.ok) {
+      setErro(r.error ?? 'falha ao recuperar');
+      return;
+    }
+    setAviso(
+      r.mensagensRecuperadas === 0
+        ? 'Nada a recuperar: a conversa já está completa.'
+        : `${r.mensagensRecuperadas ?? 0} mensagem(ns) recuperadas em ${r.conversasRestauradas ?? 0} conversa(s).`,
+    );
+  }
+
   return (
     <>
       <div className="card" style={{ marginBottom: 16 }}>
@@ -100,6 +118,19 @@ export default function TransferenciaNumero(): ReactElement {
             {aviso}
           </div>
         ) : null}
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h3>Recuperar conversa de uma transferência já feita</h3>
+        <p className="page-sub">
+          Se o cliente já tinha conversado pelo número NOVO antes da transferência, aquelas
+          mensagens podem ter sido substituídas pela conversa do número antigo. Isto traz de volta,
+          do backup, tudo o que faltava — as duas conversas ficam juntas, em ordem. Pode rodar mais
+          de uma vez: nada é duplicado. Preencha o número novo acima.
+        </p>
+        <button disabled={busy || soDigitos(destino).length < 12} onClick={() => void recuperar()}>
+          Recuperar conversa do {destino.trim() === '' ? 'número novo' : destino.trim()}
+        </button>
       </div>
 
       {previa !== null ? (

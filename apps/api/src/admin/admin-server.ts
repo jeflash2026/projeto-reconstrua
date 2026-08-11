@@ -278,6 +278,7 @@ export function buildAdminServer(
     readonly transferenciaNumero?: {
       previa(origem: string, destino: string): Promise<unknown>;
       transferir(origem: string, destino: string): Promise<unknown>;
+      restaurarConversas(destino: string): Promise<unknown>;
     };
     /** VARREDURA DA FASE 2 (2026-08-11): acha e repara TODOS os clientes que
      *  confirmaram o interesse e não chegaram à mesa do Humanizado. */
@@ -2340,6 +2341,21 @@ export function buildAdminServer(
       return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
     try {
       return await opts.transferenciaNumero.transferir(body.origem, body.destino);
+    } catch (erro) {
+      return reply.code(400).send({ error: erro instanceof Error ? erro.message : 'falha' });
+    }
+  });
+
+  // Recupera do backup as conversas que uma transferência antiga sobrescreveu
+  // (o chat humanizado é um documento por número). Idempotente.
+  app.post('/admin/clientes/transferencia/restaurar-conversas', async (request, reply) => {
+    if (!opts.transferenciaNumero)
+      return reply.code(503).send({ error: 'transferência indisponível nesta montagem' });
+    const body = (request.body ?? {}) as { destino?: string };
+    if (typeof body.destino !== 'string')
+      return reply.code(400).send({ error: 'informe o número de destino' });
+    try {
+      return await opts.transferenciaNumero.restaurarConversas(body.destino);
     } catch (erro) {
       return reply.code(400).send({ error: erro instanceof Error ? erro.message : 'falha' });
     }

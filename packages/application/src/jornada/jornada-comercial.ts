@@ -150,6 +150,19 @@ export function ehPerguntaDeAndamento(texto: string): boolean {
   return PERGUNTA_DE_ANDAMENTO.test(texto);
 }
 
+// Caso REAL Oracio (2026-08-11): um minuto depois de mandar o DOSSIÊ pedindo o
+// SIM, a AHRI disse "seu caso está em análise, dentro do prazo de até 10 dias
+// úteis" — e repetiu isso DEPOIS de o cliente confirmar ("previsão até 21 de
+// agosto"). Duas mentiras: a análise acabou e prazo nenhum foi prometido.
+// Toda fala de PRAZO/ANÁLISE EM CURSO é proibida quando o dossiê já saiu.
+const FALA_DE_PRAZO_OU_ANALISE =
+  /\bem\s+an[áa]lise\b|\bdias\s+[úu]teis\b|\bprazo\b|\bprevis[ãa]o\b|\bat[ée]\s+\d{1,2}\s+de\s+\w+|\banalisando\b|\baguardando\s+(a\s+)?(conclus[ãa]o|an[áa]lise)\b/i;
+
+/** A fala promete/repete PRAZO ou diz que a análise ainda está em curso? */
+export function ehFalaDePrazoOuAnalise(texto: string): boolean {
+  return FALA_DE_PRAZO_OU_ANALISE.test(texto);
+}
+
 export function ehSaudacaoPura(texto: string): boolean {
   return SAUDACOES.test(texto.trim());
 }
@@ -823,6 +836,12 @@ export const MENSAGENS_JORNADA = {
   /** Caso REAL Candida: 20 dias depois a AHRI ainda prometia "até 10 dias
    *  úteis" como se a análise tivesse começado agora. Andamento HONESTO: sem
    *  reabrir prazo, sem cobrar documento que já está entregue. */
+  /** Caso REAL Oracio (2026-08-11): DEPOIS do SIM e do cadastro gerado, a AHRI
+   *  disse "seguimos para a análise, prazo de até 10 dias, previsão até 21 de
+   *  agosto". Quem confirmou já é da fase 2: quem fala com ele é a equipe. */
+  confirmadoAguardeEquipe:
+    'Está tudo certo por aqui: o seu cadastro já foi gerado e o seu caso está com a nossa equipe.\n\n' +
+    'O próximo passo é nosso — a nossa equipe entra em contato com você pelo WhatsApp (41) 99802-8530 para recolher os documentos que faltam (procuração, RG, comprovante de endereço e o extrato de crédito do INSS). Qualquer dúvida enquanto isso, é só me chamar.',
   andamentoSemPrometerPrazo:
     'A sua documentação está completa comigo — não precisa enviar mais nada.\n\n' +
     'O seu caso está na fase final da análise e eu te aviso por aqui assim que houver a conclusão. Se tiver qualquer dúvida enquanto isso, pode me perguntar que eu respondo.',

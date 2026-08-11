@@ -16,6 +16,7 @@ import {
   ehAdiamento,
   capturarEstado,
   ehDesistencia,
+  ehFalaDePrazoOuAnalise,
   ehPerguntaDeAndamento,
   ehSobreDossieOuLink,
   interpretarInteresse,
@@ -385,15 +386,27 @@ export class JornadaComercialRuntime {
    *  CPF; parecer pronto sem confirmação ⇒ manda o dossiê e pede o SIM (a
    *  fase 2); no resto ⇒ andamento honesto, sem reabrir prazo nenhum. */
   async revisarFalaPosHiscon(chatId: string, texto: string): Promise<string> {
-    if (texto.trim() === '' || !pareceCobrancaDeDocumento(texto)) return texto;
+    if (texto.trim() === '') return texto;
+    // Duas famílias de fala proibida depois do HISCON registrado:
+    //  (a) COBRAR/ENSINAR documento que já está entregue (caso Candida);
+    //  (b) PROMETER PRAZO ou dizer que a análise está em curso quando o
+    //      dossiê já saiu (caso Oracio) — a AHRI mentia um minuto depois de
+    //      mandar o parecer e voltava a mentir DEPOIS do SIM do cliente.
+    const cobra = pareceCobrancaDeDocumento(texto);
+    const prometePrazo = ehFalaDePrazoOuAnalise(texto);
+    if (!cobra && !prometePrazo) return texto;
     const fatos = await this.fatos(chatId).catch(() => null);
     // Só age quando o HISCON JÁ está registrado — antes disso, cobrar é certo.
     if (fatos === null || !fatos.docsCompletos) return texto;
     // Pedido ATIVO do advogado (fase 2) é legítimo: não mexe.
     if ((await this.deps.temPedidoAtivo?.(chatId).catch(() => false)) ?? false) return texto;
-    if (fatos.registro.cpf === null) return MENSAGENS_JORNADA.hisconRecebidoFaltaCpf;
+    if (fatos.registro.cpf === null) {
+      // Sem CPF a análise nem roda: prometer prazo aqui é mentira dupla.
+      return MENSAGENS_JORNADA.hisconRecebidoFaltaCpf;
+    }
     const parecer = (await this.deps.parecerDoCliente?.(chatId).catch(() => null)) ?? null;
     const confirmado = (await this.deps.jaConfirmou?.(chatId).catch(() => false)) ?? false;
+    // DOSSIÊ NA MÃO E SEM O SIM ⇒ a missão é UMA: converter para a fase 2.
     if (parecer !== null && !confirmado) {
       return MENSAGENS_JORNADA.analiseProntaPedirConfirmacao(
         parecer.link,
@@ -401,6 +414,8 @@ export class JornadaComercialRuntime {
         parecer.indicios,
       );
     }
+    // JÁ CONFIRMOU: nada de "em análise" — quem fala com ele agora é a equipe.
+    if (confirmado) return MENSAGENS_JORNADA.confirmadoAguardeEquipe;
     return MENSAGENS_JORNADA.andamentoSemPrometerPrazo;
   }
 

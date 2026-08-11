@@ -333,3 +333,74 @@ describe('caso REAL Candida — nunca mais reensinar o HISCON já recebido', () 
     expect(await jornada.revisarFalaPosHiscon(CHAT, conversa)).toBe(conversa);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Caso REAL Oracio (11/08/2026, 12:48→12:50) — UM MINUTO depois de mandar o
+// DOSSIÊ pedindo o SIM, a AHRI disse "seu caso está em análise, dentro do
+// prazo de até 10 dias úteis"; e DEPOIS do cliente confirmar, repetiu
+// "seguimos para a análise... previsão até 21 de agosto". Prazo é proibido: com
+// o dossiê na mão a missão é UMA — converter no SIM (fase 2).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('caso REAL Oracio — prazo proibido; a missão é converter no SIM', () => {
+  const FALA_EM_ANALISE =
+    'Perfeito, Oracio. Seu caso está em análise, dentro do prazo de até 10 dias úteis. Assim que ' +
+    'tivermos qualquer novidade, eu aviso você por aqui.';
+  const FALA_POS_SIM =
+    'Que bom que confirmou! Agora é com a nossa equipe: seguimos para a análise, dentro do prazo ' +
+    'de até 10 dias, previsão até 21 de agosto.';
+
+  async function montar(opts: { parecer?: boolean; confirmado?: boolean }) {
+    const json = new InMemoryJsonStore();
+    const textos: Record<string, string | null> = { d1: 'histórico de empréstimo consignado' };
+    const onboarding = new OnboardingDocumentalRuntime({
+      store: new JsonOnboardingDocumentalStore(json),
+      leitor: { texto: (id) => Promise.resolve(textos[id] ?? null) },
+      pendencias: null,
+    });
+    const jornada = new JornadaComercialRuntime({
+      json,
+      onboarding,
+      observability: new ObservabilityRuntime(),
+      clock: new TestClock(),
+      parecerDoCliente: () =>
+        Promise.resolve(
+          opts.parecer === true
+            ? { link: 'https://x/parecer?t=abc', contratos: 10, indicios: 3 }
+            : null,
+        ),
+      jaConfirmou: () => Promise.resolve(opts.confirmado === true),
+    });
+    await onboarding.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'hiscon.pdf', NOW);
+    await jornada.aoReceberTexto(CHAT, '972.735.628-15', NOW); // CPF registrado
+    return jornada;
+  }
+
+  it('dossiê enviado e SEM o SIM ⇒ "em análise/10 dias" vira o pedido de CONFIRMAÇÃO', async () => {
+    const jornada = await montar({ parecer: true });
+    const r = await jornada.revisarFalaPosHiscon(CHAT, FALA_EM_ANALISE);
+    expect(r).toContain('análise já está PRONTA');
+    expect(r).toContain('responder SIM');
+    expect(r).not.toMatch(/10 dias|dias [úu]teis|em an[áa]lise/i);
+  });
+
+  it('DEPOIS do SIM ⇒ nada de prazo: quem fala com ele agora é a equipe', async () => {
+    const jornada = await montar({ parecer: true, confirmado: true });
+    const r = await jornada.revisarFalaPosHiscon(CHAT, FALA_POS_SIM);
+    expect(r).toBe(MENSAGENS_JORNADA.confirmadoAguardeEquipe);
+    expect(r).toContain('41) 99802-8530');
+    expect(r).not.toMatch(/10 dias|previs[ãa]o|prazo/i);
+  });
+
+  it('sem parecer ainda ⇒ andamento honesto, jamais com prazo', async () => {
+    const jornada = await montar({});
+    const r = await jornada.revisarFalaPosHiscon(CHAT, FALA_EM_ANALISE);
+    expect(r).toBe(MENSAGENS_JORNADA.andamentoSemPrometerPrazo);
+    expect(r).not.toMatch(/10 dias|dias [úu]teis|prazo/i);
+  });
+
+  it('conversa normal (sem prazo e sem cobrança) continua passando intacta', async () => {
+    const jornada = await montar({ parecer: true });
+    const boa = 'Ótima pergunta! Os honorários só existem em caso de êxito, ao final.';
+    expect(await jornada.revisarFalaPosHiscon(CHAT, boa)).toBe(boa);
+  });
+});

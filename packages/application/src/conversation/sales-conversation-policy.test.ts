@@ -300,9 +300,15 @@ describe('Decreto · ANALISE_ADMINISTRATIVA — conversa normal, zero pedido esp
     expect(p.substituiCuriosidade).toBe(false);
     expect(p.conduta).toBe('');
   });
-  it('responde dúvidas, informa andamento (em análise, prazo 10 dias), sigilo, sem inventar', () => {
-    expect(p.reforco).toContain('EM ANÁLISE');
-    expect(p.reforco).toContain('10 dias úteis');
+  // Decreto 2026-08-11 (casos REAIS Candida e Oracio): o PRAZO saiu do roteiro
+  // — a AHRI prometia "10 dias úteis" inclusive DEPOIS de enviar o dossiê e
+  // DEPOIS do SIM do cliente. Prometer data virou PROIBIÇÃO; com o dossiê na
+  // mão, a missão dela é converter o cliente no SIM (a porta da fase 2).
+  it('responde dúvidas e informa andamento SEM prometer prazo; sigilo; sem inventar', () => {
+    expect(p.reforco).toContain('em análise');
+    expect(p.reforco).not.toContain('10 dias');
+    expect(p.reforco).toContain('PROIBIDO prometer prazo');
+    expect(p.reforco).toContain('CONFIRMAÇÃO');
     expect(p.reforco).toContain('sigilo da empresa');
     expect(p.reforco).toContain('NUNCA revele dados de terceiros');
     expect(p.reforco).toContain('sem inventar datas, resultados ou valores');

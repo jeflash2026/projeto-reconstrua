@@ -157,6 +157,7 @@ import { ADVOGADO_RULE_CATALOG } from '../advogado-portal/advogado-rule-catalog.
 import { ConversationClientMessenger } from '../advogado-portal/client-messenger.js';
 import type { AssembledAdminOperation } from '../admin-portal/build-admin-operation.js';
 import { DossieInvestidor } from '../admin-portal/dossie-investidor.js';
+import { AtribuicaoDeCampanha } from '../admin-portal/atribuicao-campanha.js';
 import type { AssembledLawyerExperience } from '../lawyer-experience/build-lawyer-experience.js';
 import {
   InMemoryJsonStore,
@@ -323,6 +324,9 @@ export interface AssembledProduction {
   /** DOSSIÊ DE INVESTIDOR (2026-08-12): funil real, custo de IA por cliente
    *  fechado e potencial da carteira — sem nenhum dado pessoal. */
   readonly dossieInvestidor: DossieInvestidor;
+  /** ATRIBUIÇÃO DE CAMPANHA (2026-08-12): de onde vem cada cliente, cruzado com
+   *  o funil — a página "Campanhas" finalmente com fonte de dados. */
+  readonly atribuicaoCampanha: AtribuicaoDeCampanha;
   /** Decreto 2026-08-08: PAINEL JURÍDICO — gestão do pós-protocolo (clientes,
    *  processos judiciais, guias e perícias), o 2º painel do dono + sócio. */
   readonly juridico: JuridicoService;
@@ -2077,6 +2081,32 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       (await custos.listar().catch(() => [])).map((c) => ({ custoUsd: c.custoUsd })),
   });
 
+  // ATRIBUIÇÃO DE CAMPANHA (decreto 2026-08-12): a página "Campanhas" mostrava
+  // "sem fonte de dados" porque o campo campaignAttribution nunca foi escrito
+  // por ninguém. A fonte sempre esteve na PRIMEIRA MENSAGEM do cliente — a
+  // landing carimba "Vim pelo site (X)" nela. Aqui essa marca vira o funil por
+  // origem: contatos → HISCON → confirmados → documentação completa.
+  const atribuicaoCampanha = new AtribuicaoDeCampanha({
+    clock,
+    contatos: async () =>
+      (await clientes.list()).map((c) => ({ chatId: c.chatId, clienteId: c.clienteId })),
+    // Só o começo da conversa: a marca está na primeira fala do cliente, e ler
+    // a conversa inteira de toda a base para nada seria desperdício.
+    inicioDaConversa: async (chatId) =>
+      (await conversationStore.primeiras(chatId, 6))
+        .filter((e) => e.kind === 'inbound' && e.text !== null)
+        .map((e) => e.text ?? ''),
+    comHiscon: async () => new Set((await perito.todosComHiscon()).map((c) => c.chatId)),
+    confirmados: async () =>
+      new Set((await parecerStore.listarConfirmados()).map((p) => p.clienteId)),
+    fechados: async () =>
+      new Set(
+        (await mesaHumanizada().catch(() => []))
+          .filter((m) => m.completo && !m.descartado)
+          .map((m) => m.chatId),
+      ),
+  });
+
   // TRANSFERÊNCIA DE NÚMERO (2026-08-11): o cliente trocou de chip e quer
   // continuar o MESMO atendimento pelo número novo (caso Maria da Piedade).
   const transferenciaNumero = new TransferenciaDeNumero({
@@ -2517,6 +2547,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     varreduraFase2,
     transferenciaNumero,
     dossieInvestidor,
+    atribuicaoCampanha,
     juridico,
     // 2026-08-09: cada disparo oficial é PERSISTIDO (ns 'disparos-oficial') e
     // registrado na memória da conversa — a AHRI fica ciente e o painel

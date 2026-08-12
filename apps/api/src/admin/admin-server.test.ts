@@ -335,9 +335,12 @@ describe('Admin Portal API', () => {
     const finance = await call({ method: 'GET', url: '/admin/finance' });
     const financeBody: { available: boolean } = finance.json();
     expect(financeBody.available).toBe(false);
+    // ATRIBUIÇÃO DE ORIGEM (2026-08-12): a rota deixou de ler um campo que
+    // nunca era escrito e passou a exigir o serviço de atribuição. Sem ele na
+    // montagem, 503 EXPLÍCITO — nunca uma tabela vazia, que o painel leria como
+    // "nenhuma campanha traz cliente" quando a verdade é "falta deploy".
     const campaigns = await call({ method: 'GET', url: '/admin/campaigns' });
-    const campaignsBody: { available: boolean } = campaigns.json();
-    expect(campaignsBody.available).toBe(false);
+    expect(campaigns.statusCode).toBe(503);
   });
 
   it('BL-2.1 — sem Authorization ⇒ 401 (rota /admin/* protegida)', async () => {

@@ -7,3 +7,5 @@ export * from './build-admin-operation.js';
 // Decreto 2026-08-12: o DOSSIÊ DE INVESTIDOR — o funil real, o custo de IA por
 // cliente fechado e o potencial da carteira, sem nenhum dado pessoal.
 export * from './dossie-investidor.js';
+// Decreto 2026-08-12: a ATRIBUIÇÃO DE ORIGEM — a página Campanhas com fonte.
+export * from './atribuicao-campanha.js';

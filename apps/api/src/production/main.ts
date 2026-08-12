@@ -113,6 +113,8 @@ async function main(): Promise<void> {
     // Decreto 2026-08-12: o DOSSIÊ DE INVESTIDOR (funil real + custo de IA por
     // cliente fechado + potencial da carteira; nenhum dado pessoal).
     dossieInvestidor: prod.dossieInvestidor,
+    // Decreto 2026-08-12: a página Campanhas com fonte de dados de verdade.
+    atribuicaoCampanha: prod.atribuicaoCampanha,
     // Decreto 2026-08-08: o PAINEL JURÍDICO (2º painel — dono + sócio).
     juridico: prod.juridico,
     // Reaquecimento FASE 1 (2026-08-07): template pelo número OFICIAL da AHRI.

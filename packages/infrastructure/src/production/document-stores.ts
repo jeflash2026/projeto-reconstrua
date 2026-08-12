@@ -197,6 +197,11 @@ export class JsonConversationStore implements ConversationStore {
     const all = await this.entries(chatId);
     return all.slice(Math.max(0, all.length - limit));
   }
+  /** O COMEÇO da conversa (2026-08-12) — irmã de `recent`, para quem precisa da
+   *  origem do cliente: a landing carimba a campanha na primeira mensagem dele. */
+  async primeiras(chatId: string, limit: number): Promise<readonly MemoryEntry[]> {
+    return (await this.entries(chatId)).slice(0, limit);
+  }
   async recentOutboundTexts(chatId: string, limit: number): Promise<readonly string[]> {
     const all = await this.entries(chatId);
     const texts: string[] = [];

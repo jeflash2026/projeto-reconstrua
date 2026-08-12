@@ -280,6 +280,8 @@ export function buildAdminServer(
     /** DOSSIÊ DE INVESTIDOR (2026-08-12): o funil real com as taxas de cada
      *  degrau, o custo de IA por cliente fechado e o potencial da carteira. */
     readonly dossieInvestidor?: { gerar(): Promise<unknown> };
+    /** ATRIBUIÇÃO DE CAMPANHA (2026-08-12): de onde vem cada cliente. */
+    readonly atribuicaoCampanha?: { gerar(): Promise<unknown> };
     /** TRANSFERÊNCIA DE NÚMERO (2026-08-11): o cliente trocou de chip e continua
      *  o MESMO atendimento pelo número novo. */
     readonly transferenciaNumero?: {
@@ -3519,12 +3521,14 @@ export function buildAdminServer(
   });
 
   // ── CAMPANHAS / FINANCEIRO (read models; ausência explícita, nunca inventado) ─
-  app.get('/admin/campaigns', async () => {
-    const metrics = await op.metricsStore.load();
-    return {
-      attribution: metrics?.campaignAttribution ?? {},
-      available: Object.keys(metrics?.campaignAttribution ?? {}).length > 0,
-    };
+  // ATRIBUIÇÃO DE ORIGEM (2026-08-12): antes esta rota lia `campaignAttribution`
+  // do read-model de métricas — um campo que NUNCA foi escrito por ninguém, e
+  // por isso a página vivia dizendo "sem fonte de dados". A fonte real é a marca
+  // que a landing carimba na primeira mensagem do cliente.
+  app.get('/admin/campaigns', async (_request, reply) => {
+    if (!opts.atribuicaoCampanha)
+      return reply.code(503).send({ error: 'atribuição indisponível nesta montagem' });
+    return opts.atribuicaoCampanha.gerar();
   });
 
   // ── PAINEL FINANCEIRO (pedido do dono, 2026-08-06) — o FUNIL do dinheiro:

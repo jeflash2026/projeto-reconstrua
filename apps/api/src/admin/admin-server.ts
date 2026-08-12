@@ -273,6 +273,9 @@ export function buildAdminServer(
         mensagemId: string,
       ): Promise<{ nome: string; mime: string; bytes: Uint8Array } | null>;
     };
+    /** DOSSIÊ DE INVESTIDOR (2026-08-12): o funil real com as taxas de cada
+     *  degrau, o custo de IA por cliente fechado e o potencial da carteira. */
+    readonly dossieInvestidor?: { gerar(): Promise<unknown> };
     /** TRANSFERÊNCIA DE NÚMERO (2026-08-11): o cliente trocou de chip e continua
      *  o MESMO atendimento pelo número novo. */
     readonly transferenciaNumero?: {
@@ -2313,6 +2316,14 @@ export function buildAdminServer(
           : await opts.juridico.criarPericia(body.dados ?? {}, autor);
     if (!r.ok) return reply.code(422).send(r);
     return r;
+  });
+
+  // ── DOSSIÊ DE INVESTIDOR (2026-08-12) — só leitura, e sem nenhum dado
+  //    pessoal: este relatório sai da empresa, a base do cliente não. ─────────
+  app.get('/admin/dossie-investidor', async (_request, reply) => {
+    if (!opts.dossieInvestidor)
+      return reply.code(503).send({ error: 'dossiê indisponível nesta montagem' });
+    return opts.dossieInvestidor.gerar();
   });
 
   // ── TRANSFERÊNCIA DE NÚMERO (2026-08-11) — o cliente trocou de chip e quer

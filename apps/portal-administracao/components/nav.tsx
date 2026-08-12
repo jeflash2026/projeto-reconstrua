@@ -43,6 +43,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { href: '/financeiro', label: 'Financeiro' },
   { href: '/custos-ia', label: 'Custos de IA' },
   { href: '/founder-console', label: 'Founder Console' },
+  { href: '/dossie-investidor', label: 'Dossiê de Investidor' },
   { sep: 'Sistema' },
   { href: '/configuracoes', label: 'Configurações' },
   { href: '/logs', label: 'Logs' },

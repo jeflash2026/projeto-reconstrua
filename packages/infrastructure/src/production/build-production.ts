@@ -156,6 +156,7 @@ import type { AssembledAdvogadoOperation } from '../advogado-portal/build-advoga
 import { ADVOGADO_RULE_CATALOG } from '../advogado-portal/advogado-rule-catalog.js';
 import { ConversationClientMessenger } from '../advogado-portal/client-messenger.js';
 import type { AssembledAdminOperation } from '../admin-portal/build-admin-operation.js';
+import { DossieInvestidor } from '../admin-portal/dossie-investidor.js';
 import type { AssembledLawyerExperience } from '../lawyer-experience/build-lawyer-experience.js';
 import {
   InMemoryJsonStore,
@@ -319,6 +320,9 @@ export interface AssembledProduction {
   /** TRANSFERÊNCIA DE NÚMERO (2026-08-11): o cliente troca de chip e continua o
    *  mesmo atendimento — histórico, HISCON e cadastro vão junto. */
   readonly transferenciaNumero: TransferenciaDeNumero;
+  /** DOSSIÊ DE INVESTIDOR (2026-08-12): funil real, custo de IA por cliente
+   *  fechado e potencial da carteira — sem nenhum dado pessoal. */
+  readonly dossieInvestidor: DossieInvestidor;
   /** Decreto 2026-08-08: PAINEL JURÍDICO — gestão do pós-protocolo (clientes,
    *  processos judiciais, guias e perícias), o 2º painel do dono + sócio. */
   readonly juridico: JuridicoService;
@@ -2026,6 +2030,53 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       mesaHumanizada.invalidar();
     },
   });
+  // DOSSIÊ DE INVESTIDOR (decreto 2026-08-12): os números que um comprador de
+  // participação pede — o funil com as taxas de cada degrau, o custo de IA por
+  // cliente fechado e o potencial da carteira. Tudo derivado do banco REAL, e
+  // sem NENHUM dado pessoal: o relatório circula fora da empresa, a base não.
+  const dossieInvestidor = new DossieInvestidor({
+    clock,
+    sessoes: async () =>
+      (await sessionStore.all()).map((s) => ({ chatId: s.chatId, openedAt: s.openedAt })),
+    comHiscon: async () =>
+      (await perito.todosComHiscon()).map((c) => ({
+        clienteId: c.clienteId,
+        chatId: c.chatId,
+        temCpf: c.temCpf,
+        totalContratos: c.totalContratos,
+      })),
+    // Todos os pareceres, não só os confirmados — a taxa de conversão do SIM
+    // depende de conhecer o denominador (quem recebeu o dossiê e não respondeu).
+    pareceres: async () => {
+      const brutos = (await json.list('parecer-enviado').catch(() => [])) as readonly {
+        clienteId?: string;
+        enviadoEm?: string;
+        confirmadoEm?: string | null;
+      }[];
+      return brutos.flatMap((p) => {
+        if (typeof p.clienteId !== 'string' || typeof p.enviadoEm !== 'string') return [];
+        return [
+          {
+            clienteId: p.clienteId,
+            enviadoEm: new Date(p.enviadoEm),
+            confirmadoEm: p.confirmadoEm != null ? new Date(p.confirmadoEm) : null,
+          },
+        ];
+      });
+    },
+    mesa: async () =>
+      (await mesaHumanizada().catch(() => [])).map((m) => ({
+        clienteId: m.clienteId,
+        chatId: m.chatId,
+        uf: m.uf,
+        potencial: m.potencial,
+        completo: m.completo,
+        descartado: m.descartado,
+      })),
+    custos: async () =>
+      (await custos.listar().catch(() => [])).map((c) => ({ custoUsd: c.custoUsd })),
+  });
+
   // TRANSFERÊNCIA DE NÚMERO (2026-08-11): o cliente trocou de chip e quer
   // continuar o MESMO atendimento pelo número novo (caso Maria da Piedade).
   const transferenciaNumero = new TransferenciaDeNumero({
@@ -2465,6 +2516,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     chatHumanizado,
     varreduraFase2,
     transferenciaNumero,
+    dossieInvestidor,
     juridico,
     // 2026-08-09: cada disparo oficial é PERSISTIDO (ns 'disparos-oficial') e
     // registrado na memória da conversa — a AHRI fica ciente e o painel

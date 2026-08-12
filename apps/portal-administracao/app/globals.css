@@ -1727,3 +1727,63 @@ details[open] > .lab-explica-body,
 .chat-input input:focus {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+
+/* ── DOSSIÊ DE INVESTIDOR (2026-08-12): a página que vira PDF na mesa de
+      negociação. Números grandes, tabelas limpas, e a impressão sem navegação. ── */
+.dossie-numeros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 8px 0 12px;
+}
+.dossie-num-rotulo {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dossie-num-valor {
+  display: block;
+  font-size: 26px;
+  line-height: 1.25;
+}
+.dossie-num-valor.destaque {
+  color: var(--accent);
+  font-size: 32px;
+}
+.dossie-num-nota {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.dossie-explica {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.dossie-fontes {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+@media print {
+  /* Só o dossiê vai para o papel: nada de menu, botão ou barra lateral. */
+  nav,
+  aside,
+  header,
+  .so-tela {
+    display: none !important;
+  }
+  .card {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    break-inside: avoid;
+  }
+  .dossie-num-valor.destaque {
+    color: #000;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+}

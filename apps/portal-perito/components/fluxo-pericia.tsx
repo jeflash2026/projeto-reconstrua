@@ -45,7 +45,11 @@ export function BaixarEIniciar({ c }: { c: ClienteComHiscon }): ReactElement {
   );
 }
 
-/** Lote: baixa o .zip de todos os aguardando e inicia a perícia de todos. */
+/** Lote: baixa o PACOTE COMPLETO de todos os aguardando (uma pasta por cliente:
+ *  planilha + procuração assinada, RG, comprovante e originais) e inicia a
+ *  perícia de todos. Decreto 2026-08-12: este botão ainda descia só os CSV — a
+ *  correção de 2026-08-04 tinha ficado só no botão unitário, e o perito baixava
+ *  o lote sem os documentos para protocolar. */
 export function BaixarTodosEIniciar({
   aguardando,
 }: {
@@ -59,7 +63,7 @@ export function BaixarTodosEIniciar({
     await iniciarPericiaTodos(
       aguardando.map((c) => ({ chatId: c.chatId, clienteId: c.clienteId, quem: c.quem })),
     );
-    baixar('/perito/api/planilhas-zip');
+    baixar('/perito/api/pacotes-zip');
     router.refresh();
     setBusy(false);
   };
@@ -67,9 +71,12 @@ export function BaixarTodosEIniciar({
     <button
       className="btn primary"
       disabled={busy || aguardando.length === 0}
+      title="Um .zip com uma pasta por cliente: planilha de contratos + procuração, RG, comprovante e originais"
       onClick={() => void acao()}
     >
-      {busy ? 'Baixando…' : `Baixar TODOS e iniciar perícia (${String(aguardando.length)} · .zip)`}
+      {busy
+        ? 'Montando o pacote… (pode levar um minuto)'
+        : `Baixar TODOS os pacotes e iniciar perícia (${String(aguardando.length)} · .zip)`}
     </button>
   );
 }

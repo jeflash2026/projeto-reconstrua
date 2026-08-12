@@ -912,11 +912,17 @@ export function buildAdminServer(
   // pedido administrativo: procuração assinada/RG/comprovante (anexos da
   // equipe) e os originais do cliente (HISCON etc.). Caso real: o CSV descia
   // sozinho e o perito ficava sem os documentos para protocolar.
-  app.get('/admin/jornada/pericia/:clienteId/pacote', async (request, reply) => {
-    if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
-    const { clienteId } = request.params as { clienteId: string };
+  /** O pacote de UM cliente: a planilha (guia v2) + todos os documentos dele.
+   *  Extraído em 2026-08-12 porque o "Baixar TODOS" do perito ainda descia só
+   *  os CSV — a correção de 2026-08-04 tinha ficado só no botão unitário. Agora
+   *  as duas rotas montam o pacote pela MESMA função. */
+  async function pacoteDoCliente(clienteId: string): Promise<{
+    nomeCliente: string;
+    arquivos: { name: string; content: string | Buffer }[];
+  } | null> {
+    if (!op.perito) return null;
     const gerada = await op.perito.planilhaEstruturada(clienteId);
-    if (gerada === null) return reply.code(404).send({ error: 'cliente não encontrado' });
+    if (gerada === null) return null;
     // Pedido do dono (2026-08-05): o pacote e a planilha levam o NOME do
     // cliente — e a planilha é EXCEL REAL (.xlsx) com largura de coluna
     // calculada (o CSV abria espremido: "1,5E+09" no contrato, "####" nas
@@ -980,21 +986,89 @@ export function buildAdminServer(
         /* originais indisponíveis não seguram a planilha — o zip desce assim mesmo */
       }
     }
+    return { nomeCliente, arquivos };
+  }
+
+  /** Content-disposition com nome acentuado: ASCII de fallback + UTF-8 real. */
+  function anexoZip(reply: FastifyReply, nome: string): FastifyReply {
+    const ascii = nome
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^\x20-\x7e]/g, '_');
     return reply
       .header('content-type', 'application/zip')
       .header(
         'content-disposition',
-        // filename ASCII de fallback + filename* UTF-8 (o navegador moderno usa
-        // o segundo — acentos do nome preservados; o antigo cai no primeiro).
-        `attachment; filename="${nomeCliente
-          .normalize('NFD')
-          .replace(/[̀-ͯ]/g, '')
-          .replace(
-            /[^\x20-\x7e]/g,
-            '_',
-          )}.zip"; filename*=UTF-8''${encodeURIComponent(nomeCliente)}.zip`,
-      )
-      .send(zipStore(arquivos));
+        `attachment; filename="${ascii}.zip"; filename*=UTF-8''${encodeURIComponent(nome)}.zip`,
+      );
+  }
+
+  app.get('/admin/jornada/pericia/:clienteId/pacote', async (request, reply) => {
+    if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
+    const { clienteId } = request.params as { clienteId: string };
+    const pacote = await pacoteDoCliente(clienteId);
+    if (pacote === null) return reply.code(404).send({ error: 'cliente não encontrado' });
+    return anexoZip(reply, pacote.nomeCliente).send(zipStore(pacote.arquivos));
+  });
+
+  // PACOTES EM LOTE (2026-08-12) — "Baixar TODOS" do perito. Até hoje ele
+  // descia o `planilhas-zip`: só os CSV, sem os documentos, enquanto o botão
+  // unitário já entregava o pacote completo desde 2026-08-04. O perito baixava
+  // o lote e ficava sem procuração, RG e comprovante para protocolar.
+  // Uma pasta por cliente, mesma montagem do pacote unitário.
+  const TETO_LOTE_BYTES = 200 * 1024 * 1024; // o zip é montado em memória
+  app.get('/admin/jornada/pericia/pacotes-zip', async (_request, reply) => {
+    if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
+    // Onda 3: o lote do perito respeita a MESMA trava do ciclo completo.
+    const aptos = await clientesAptosParaPedido();
+    const todos = await op.perito.planilhasDeTodos();
+    const alvos = aptos === null ? todos : todos.filter((p) => aptos.has(p.clienteId));
+
+    const arquivos: { name: string; content: string | Buffer }[] = [];
+    const pastas = new Map<string, number>();
+    const incluidos: string[] = [];
+    const forasDoTeto: string[] = [];
+    let bytes = 0;
+    for (const alvo of alvos) {
+      const pacote = await pacoteDoCliente(alvo.clienteId).catch(() => null);
+      if (pacote === null) continue; // cliente problemático não derruba o lote
+      const tamanho = pacote.arquivos.reduce(
+        (s, a) =>
+          s + (typeof a.content === 'string' ? Buffer.byteLength(a.content) : a.content.length),
+        0,
+      );
+      if (bytes + tamanho > TETO_LOTE_BYTES) {
+        forasDoTeto.push(pacote.nomeCliente);
+        continue;
+      }
+      // Homônimos ganham sufixo — duas pastas com o mesmo nome se fundiriam.
+      const n = (pastas.get(pacote.nomeCliente) ?? 0) + 1;
+      pastas.set(pacote.nomeCliente, n);
+      const pasta = n === 1 ? pacote.nomeCliente : `${pacote.nomeCliente} (${String(n)})`;
+      for (const a of pacote.arquivos)
+        arquivos.push({ name: `${pasta}/${a.name}`, content: a.content });
+      bytes += tamanho;
+      incluidos.push(pasta);
+    }
+    // NADA DE CORTE SILENCIOSO: quem ficou de fora vai escrito dentro do zip.
+    arquivos.push({
+      name: '_LEIA-ME.txt',
+      content: [
+        `Pacotes do perito — ${String(incluidos.length)} cliente(s).`,
+        'Cada pasta traz a planilha de contratos (.xlsx) e os documentos do cliente.',
+        '',
+        ...incluidos.map((n) => `• ${n}`),
+        ...(forasDoTeto.length > 0
+          ? [
+              '',
+              `ATENÇÃO: ${String(forasDoTeto.length)} cliente(s) NÃO couberam neste arquivo`,
+              'e precisam ser baixados um a um pelo botão do próprio cliente:',
+              ...forasDoTeto.map((n) => `• ${n}`),
+            ]
+          : []),
+      ].join('\n'),
+    });
+    return anexoZip(reply, 'pacotes-do-perito').send(zipStore(arquivos));
   });
 
   // Lote: um arquivo POR CLIENTE (JSON com os conteúdos; a tela dispara os downloads).

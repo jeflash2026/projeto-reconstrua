@@ -33,14 +33,36 @@ function primeiroNomeDe(nome: string | null): string {
   return bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
 }
 
+/** O que ainda falta, em nome de cliente — só para o botão dizer à secretária o
+ *  que vai ser pedido. Quem MANDA na mensagem é o servidor (regra única). */
+function faltamDe(docs: DocsCliente | null): string[] {
+  if (docs === null) return [];
+  const falta: string[] = [];
+  if (!docs.procuracao) falta.push('procuração');
+  if (!docs.rg) falta.push('RG');
+  if (!docs.comprovante) falta.push('comprovante');
+  if (docs.extratoCredito !== true) falta.push('extrato INSS');
+  return falta;
+}
+
+export interface DocsCliente {
+  procuracao: boolean;
+  rg: boolean;
+  comprovante: boolean;
+  extratoCredito?: boolean;
+}
+
 export default function ChatConversa({
   chatId,
   nomeCliente = null,
+  docs = null,
   sugerirApresentacao = false,
 }: {
   chatId: string;
   /** Nome do cliente (da mesa) — preenche o {{1}} dos templates. */
   nomeCliente?: string | null;
+  /** Documentos já entregues — o botão de cobrança mostra só o que falta. */
+  docs?: DocsCliente | null;
   /** Botão "mensagem pronta" da mesa: chega com a APRESENTAÇÃO armada —
    *  um clique dispara o template contato_equipe com o nome do cliente. */
   sugerirApresentacao?: boolean;
@@ -59,6 +81,15 @@ export default function ChatConversa({
   const fimRef = useRef<HTMLDivElement | null>(null);
   const totalRef = useRef(0);
   const base = `/humanizado/api/chat/${encodeURIComponent(chatId)}`;
+  // COBRANÇA CIRÚRGICA (2026-08-12, caso Sandra): o botão só existe se houver o
+  // que pedir, e diz exatamente o quê. Sem cadastro na mesa, não há cobrança.
+  const faltamRotulos = faltamDe(docs);
+  const pendencias =
+    docs === null
+      ? 'Cliente sem cadastro na mesa — a cobrança precisa saber o que ele já entregou'
+      : faltamRotulos.length === 0
+        ? 'Este cliente já entregou toda a documentação'
+        : null;
 
   const carregar = useCallback(async (): Promise<void> => {
     try {
@@ -454,21 +485,28 @@ export default function ChatConversa({
           <button
             type="button"
             className="btn"
-            disabled={ocupado}
-            title="Retomada após 24h: lembrete da documentação pendente (template aprovado)"
+            disabled={ocupado || pendencias !== null}
+            title={
+              pendencias ??
+              'Cobra SÓ o que falta no cadastro deste cliente (template aprovado, atravessa a janela de 24h)'
+            }
             onClick={() => {
               const primeiro = primeiroNomeDe(nomeCliente);
-              if (window.confirm(`Enviar a COBRANÇA da documentação para ${primeiro}?`))
-                void acao({
-                  acao: 'template',
-                  template: 'retomada_documentos',
-                  variaveis: [primeiro],
-                }).then((ok) => {
-                  if (ok) setAviso('Lembrete da documentação enviado.');
+              if (
+                window.confirm(
+                  `Cobrar de ${primeiro}: ${faltamRotulos.join(', ')}? Só isso será pedido — o que ela já entregou não entra na mensagem.`,
+                )
+              )
+                // O SERVIDOR decide o texto lendo o cadastro na hora — o portal
+                // só pede a cobrança (caso Sandra, 2026-08-12).
+                void acao({ acao: 'template_cobranca' }).then((ok) => {
+                  if (ok) setAviso(`Cobrança enviada: ${faltamRotulos.join(', ')}.`);
                 });
             }}
           >
-            Template: cobrar documentação
+            {pendencias === null
+              ? `Cobrar ${faltamRotulos.length === 1 ? faltamRotulos[0] : `${String(faltamRotulos.length)} documentos`}`
+              : 'Nada a cobrar'}
           </button>
         </div>
       </div>

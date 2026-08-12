@@ -446,6 +446,8 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
                 key={selecionado}
                 chatId={selecionado}
                 nomeCliente={clienteSelecionado?.nome ?? null}
+                // Caso Sandra (2026-08-12): a cobrança pede SÓ o que falta.
+                docs={clienteSelecionado?.docs ?? null}
               />
             </>
           )}

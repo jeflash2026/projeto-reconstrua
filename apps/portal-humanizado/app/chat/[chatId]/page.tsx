@@ -63,6 +63,9 @@ const ChatPage = async ({
       <ChatConversa
         chatId={chatId}
         nomeCliente={cliente?.nome ?? null}
+        // Caso Sandra (2026-08-12): o botão de cobrança pede SÓ o que falta —
+        // para isso precisa saber o que o cliente já entregou.
+        docs={cliente?.docs ?? null}
         // Botão da mesa "mensagem pronta": chega com a apresentação da Layara
         // armada — um clique dispara o template com o nome do cliente.
         sugerirApresentacao={searchParams.apresentacao === '1'}

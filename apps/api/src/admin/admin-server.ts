@@ -7,7 +7,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import type { AssembledAdminOperation, JuridicoService } from '@reconstrua/infrastructure';
+import {
+  cobrancaDocumental,
+  type AssembledAdminOperation,
+  type JuridicoService,
+} from '@reconstrua/infrastructure';
 import { zipStore, nomeArquivoSeguro } from '../util/zip.js';
 import { xlsxDePlanilha } from '../util/xlsx.js';
 import {
@@ -2396,25 +2400,47 @@ export function buildAdminServer(
   //    documentação enviada + incompleto + o cliente NÃO respondeu no canal
   //    depois do envio. Trava anti-duplicado: quem recebeu template nas
   //    últimas 24h fica fora. Ritmo suave (a conta está sob análise). ────────
-  // Rótulos da COBRANÇA CIRÚRGICA (2026-08-07): a lista do que falta vira o
-  // {{2}} do template documentos_pendentes — cada cliente cobra só o que falta.
-  const ROTULO_FALTA: readonly { chave: 'procuracao' | 'rg' | 'comprovante'; rotulo: string }[] = [
-    { chave: 'procuracao', rotulo: 'a procuração assinada' },
-    { chave: 'rg', rotulo: 'o RG (frente e verso)' },
-    { chave: 'comprovante', rotulo: 'o comprovante de endereço' },
-  ];
-  function faltantesDe(docs: {
-    procuracao: boolean;
-    rg: boolean;
-    comprovante: boolean;
-    extratoCredito?: boolean;
-  }): { lista: string[]; entregouAlgum: boolean } {
-    const lista = ROTULO_FALTA.filter((i) => !docs[i.chave]).map((i) => i.rotulo);
-    if (docs.extratoCredito !== true) lista.push('o extrato do INSS dos últimos 3 meses');
-    const entregouAlgum =
-      docs.procuracao || docs.rg || docs.comprovante || docs.extratoCredito === true;
-    return { lista, entregouAlgum };
-  }
+  // A COBRANÇA CIRÚRGICA vem da REGRA ÚNICA (cobrancaDocumental) — a mesma que
+  // o botão do chat usa. Duas cópias da regra foi o que fez a Sandra receber um
+  // pedido dos quatro documentos tendo entregue três (2026-08-12).
+  const frasePendencias = (faltantes: readonly string[]): string =>
+    faltantes.length > 1
+      ? `${faltantes.slice(0, -1).join(', ')} e ${faltantes[faltantes.length - 1] ?? ''}`
+      : (faltantes[0] ?? 'a documentação pendente');
+
+  /** Primeiro nome com capitalização humana ("SANDRA APARECIDA" → "Sandra"). */
+  const primeiroNome = (nome: string): string => {
+    const bruto = nome.trim().split(/\s+/)[0] ?? '';
+    return bruto === '' ? 'Cliente' : bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
+  };
+
+  // ── COBRANÇA DE UM CLIENTE (2026-08-12, caso Sandra) — o botão do chat da
+  //    secretária. O SERVIDOR decide o que pedir, lendo o cadastro na hora: o
+  //    portal não escolhe template nem monta lista. Quem já entregou tudo não
+  //    recebe cobrança nenhuma. ───────────────────────────────────────────────
+  app.post('/admin/humanizado/chat/:chatId/template-cobranca', async (request, reply) => {
+    if (!opts.humanizado || !opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { autor?: string };
+    const cliente = (await opts.humanizado.clientes()).find((c) => c.chatId === chatId) ?? null;
+    if (cliente === null)
+      return reply.code(404).send({ error: 'cliente não está na mesa do Humanizado' });
+    const cobranca = cobrancaDocumental(cliente.docs);
+    if (cobranca.completo)
+      return reply
+        .code(400)
+        .send({ error: 'este cliente já entregou toda a documentação — não há o que cobrar' });
+    const r = await opts.chatHumanizado.enviarTemplate(
+      chatId,
+      cobranca.template,
+      body.autor ?? 'Equipe',
+      cobranca.template === 'documentos_pendentes'
+        ? [primeiroNome(cliente.nome), cobranca.lista]
+        : [primeiroNome(cliente.nome)],
+    );
+    if (!r.ok) return reply.code(502).send(r);
+    return { ok: true, pedidos: cobranca.faltantes, template: cobranca.template };
+  });
 
   async function alvosDisparoHumanizado(): Promise<
     readonly {
@@ -2468,15 +2494,16 @@ export function buildAdminServer(
       );
       // A FASE do cliente decide o template: nada entregue → apresentação
       // completa; entregou parte → cobrança SÓ do que falta ({{2}}).
-      const { lista, entregouAlgum } = faltantesDe(c.docs);
+      const cobranca = cobrancaDocumental(c.docs);
+      if (cobranca.completo) continue; // nada a pedir de quem já entregou tudo
       alvos.push({
         chatId: c.chatId,
         nome: c.nome,
         telefone: c.telefone,
         uf: c.uf,
         jaDisparadoHoje,
-        faltantes: lista,
-        template: entregouAlgum ? ('documentos_pendentes' as const) : ('contato_equipe' as const),
+        faltantes: [...cobranca.faltantes],
+        template: cobranca.template,
         semRetorno,
       });
     }
@@ -2514,14 +2541,10 @@ export function buildAdminServer(
     let enviados = 0;
     const falhas: { nome: string; erro: string }[] = [];
     for (const a of alvos) {
-      const bruto = a.nome.trim().split(/\s+/)[0] ?? '';
-      const primeiro =
-        bruto === '' ? 'Cliente' : bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
-      // Lista humana do que falta: "a procuração assinada e o RG (frente e verso)".
-      const lista =
-        a.faltantes.length > 1
-          ? `${a.faltantes.slice(0, -1).join(', ')} e ${a.faltantes[a.faltantes.length - 1] ?? ''}`
-          : (a.faltantes[0] ?? 'a documentação pendente');
+      const primeiro = primeiroNome(a.nome);
+      // A frase do {{2}} vem da mesma regra que montou a lista (nada de juntar
+      // os rótulos "à mão" aqui — foi assim que as duas cobranças divergiram).
+      const lista = frasePendencias(a.faltantes);
       const r = await opts.chatHumanizado.enviarTemplate(
         a.chatId,
         a.template,

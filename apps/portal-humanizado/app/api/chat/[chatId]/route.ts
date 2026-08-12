@@ -43,6 +43,7 @@ interface AcaoChat {
     | 'documento'
     | 'audio'
     | 'template'
+    | 'template_cobranca'
     | 'template_documento'
     | 'confirmar'
     | 'lido'
@@ -81,6 +82,10 @@ export async function POST(
       path: `${chat}/template`,
       payload: { nome: body.template, variaveis: body.variaveis, autor },
     },
+    // COBRANÇA (2026-08-12, caso Sandra): o portal NÃO escolhe o template nem
+    // monta a lista — a API lê o cadastro do cliente na hora e pede SÓ o que
+    // falta. Assim o botão e o disparo em lote nunca divergem.
+    template_cobranca: { path: `${chat}/template-cobranca`, payload: { autor } },
     // Procuração via template (2026-08-08): o PDF viaja no cabeçalho do
     // modelo aprovado — atravessa a janela de 24h.
     template_documento: {

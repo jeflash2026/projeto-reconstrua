@@ -5,6 +5,7 @@ import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { BrandMark } from '@/components/brand-mark';
 import { linkWhatsApp } from '@/lib/whatsapp';
+import { trackGoogleAdsContact } from '@/lib/google-ads';
 
 export function FinalCtaSection({ numeroWhatsApp }: { numeroWhatsApp: string }) {
   const [isSent, setIsSent] = useState(false);
@@ -22,6 +23,12 @@ export function FinalCtaSection({ numeroWhatsApp }: { numeroWhatsApp: string }) 
     const relatoCru = dados.get('message');
     const relato = typeof relatoCru === 'string' ? relatoCru : '';
     window.open(linkWhatsApp(numeroWhatsApp, { nome, relato }), '_blank', 'noopener');
+    // CONVERSÃO "Contato" (2026-08-12): só DEPOIS do envio dar certo. O submit
+    // já passou pela validação nativa do formulário (todos os campos são
+    // required) — inválido nem chega aqui. Este formulário não chama API: ele
+    // ABRE O WHATSAPP, então este é o mesmo contato do botão flutuante, contado
+    // uma vez (a janela anti-duplicado cobre quem clica nos dois seguidos).
+    trackGoogleAdsContact();
     setIsSubmitting(false);
     setIsSent(true);
   }

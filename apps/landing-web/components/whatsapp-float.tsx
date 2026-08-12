@@ -3,6 +3,7 @@
 // montado no clique, com a campanha da visita no texto — atribuição preservada).
 import { useEffect, useState, type ReactElement } from 'react';
 import { linkWhatsApp } from '@/lib/whatsapp';
+import { trackGoogleAdsContact } from '@/lib/google-ads';
 
 export function WhatsAppFloat({ numero }: { numero: string }): ReactElement {
   const [href, setHref] = useState('#');
@@ -16,6 +17,12 @@ export function WhatsAppFloat({ numero }: { numero: string }): ReactElement {
       rel="nofollow noreferrer"
       target="_blank"
       aria-label="Falar no WhatsApp"
+      // CONVERSÃO "Contato" (2026-08-12): contato de verdade começa aqui. Não
+      // preventDefault, não async — o link segue para o WhatsApp exatamente
+      // como antes; o rastreamento apenas acompanha.
+      onClick={() => {
+        trackGoogleAdsContact();
+      }}
       style={{
         position: 'fixed',
         right: 20,

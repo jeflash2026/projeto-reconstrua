@@ -1133,10 +1133,16 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // Decreto 2026-08-13: o DOSSIÊ já saiu? Sem este fato a AHRI pedia o SIM de
     // um documento que o cliente nunca recebeu — ele ficava esperando a análise
     // e nós achando que ele não tinha respondido.
+    //
+    // DUAS LEITURAS POR CHAVE, nunca uma varredura. A primeira versão disto
+    // fazia `clientes.list()` — a base INTEIRA, com ALIR composto por cliente —
+    // a cada turno de conversa. Em produção a API parou de responder e o proxy
+    // devolveu 502. Aqui o caminho é identidade (1 chave) → parecer (1 chave).
     async (chatId) => {
-      const cliente = (await clientes.list()).find((c) => c.chatId === chatId) ?? null;
-      if (cliente === null || cliente.clienteId === cliente.chatId) return false;
-      return (await parecerStore.load(cliente.clienteId).catch(() => null)) !== null;
+      const identidade = await identityMap.load(chatId).catch(() => null);
+      const clienteId = identidade?.clienteId ?? null;
+      if (clienteId === null || clienteId === chatId) return false;
+      return (await parecerStore.load(clienteId).catch(() => null)) !== null;
     },
   );
 
@@ -2125,12 +2131,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       }[];
       return new Set(brutos.flatMap((p) => (typeof p.clienteId === 'string' ? [p.clienteId] : [])));
     },
-    ultimaEntrada: async (chatId) => {
-      const em = await conversationStore.lastInboundAt(chatId).catch(() => null);
-      return em === null ? null : new Date(em).toISOString();
+    // UMA leitura da conversa por cliente (ela vem inteira numa consulta só).
+    conversa: async (chatId) => {
+      const entradas = await conversationStore.recent(chatId, 200).catch(() => []);
+      let ultimaEntradaEm: string | null = null;
+      const falasDaAhri: string[] = [];
+      for (const e of entradas) {
+        if (e.kind === 'inbound') ultimaEntradaEm = new Date(e.at).toISOString();
+        else if (e.kind === 'outbound' && e.text !== null) falasDaAhri.push(e.text);
+      }
+      return { ultimaEntradaEm, falasDaAhri: falasDaAhri.slice(-8) };
     },
-    ultimasFalas: async (chatId) =>
-      (await conversationStore.recentOutboundTexts(chatId, 8).catch(() => [])).slice(),
     pediuConfirmacao: ehPedidoDeConfirmacao,
   });
 

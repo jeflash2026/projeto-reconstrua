@@ -13,8 +13,7 @@ function deps(over: Partial<ParadosPosHisconDeps> = {}): ParadosPosHisconDeps {
     clock,
     comHiscon: () => Promise.resolve([]),
     comDossie: () => Promise.resolve(new Set()),
-    ultimaEntrada: () => Promise.resolve(null),
-    ultimasFalas: () => Promise.resolve([]),
+    conversa: () => Promise.resolve({ ultimaEntradaEm: null, falasDaAhri: [] }),
     pediuConfirmacao: (t) => /responda sim/i.test(t),
     ...over,
   };
@@ -30,10 +29,11 @@ const base = deps({
     ]),
   // Davi já recebeu o dossiê: está fora.
   comDossie: () => Promise.resolve(new Set(['cli-d'])),
-  ultimaEntrada: (chatId) =>
-    Promise.resolve(chatId === 'c@x' ? hAtras(30) : hAtras(chatId === 'a@x' ? 3 : 10)),
-  ultimasFalas: (chatId) =>
-    Promise.resolve(chatId === 'a@x' ? ['Para darmos andamento, responda SIM aqui.'] : ['oi']),
+  conversa: (chatId) =>
+    Promise.resolve({
+      ultimaEntradaEm: chatId === 'c@x' ? hAtras(30) : hAtras(chatId === 'a@x' ? 3 : 10),
+      falasDaAhri: chatId === 'a@x' ? ['Para darmos andamento, responda SIM aqui.'] : ['oi'],
+    }),
 });
 
 describe('ParadosPosHiscon', () => {
@@ -75,7 +75,7 @@ describe('ParadosPosHiscon', () => {
           Promise.resolve([
             { chatId: 'v@x', clienteId: 'cli-v', nome: 'Velho', temCpf: true, totalContratos: 2 },
           ]),
-        ultimaEntrada: () => Promise.resolve(hAtras(24 * 30)),
+        conversa: () => Promise.resolve({ ultimaEntradaEm: hAtras(24 * 30), falasDaAhri: [] }),
       }),
     ).varrer();
     expect(r.total).toBe(0); // caso de reaquecimento, não deste defeito

@@ -65,10 +65,13 @@ export interface ParadosPosHisconDeps {
   readonly comHiscon: () => Promise<readonly CandidatoParado[]>;
   /** clienteIds que JÁ receberam o dossiê — estes estão fora da varredura. */
   readonly comDossie: () => Promise<ReadonlySet<string>>;
-  /** Última mensagem DO CLIENTE (ISO) — mede a janela de 24h da Meta. */
-  readonly ultimaEntrada: (chatId: string) => Promise<string | null>;
-  /** As últimas falas da AHRI, para flagrar o pedido de SIM indevido. */
-  readonly ultimasFalas: (chatId: string) => Promise<readonly string[]>;
+  /** UMA leitura por conversa (a conversa inteira vem numa consulta só): a
+   *  última fala do cliente, para a janela de 24h, e as últimas falas da AHRI,
+   *  para flagrar o pedido de SIM indevido. Eram dois acessos separados — em
+   *  uma base de centenas de chats isso dobrava o custo da varredura à toa. */
+  readonly conversa: (
+    chatId: string,
+  ) => Promise<{ ultimaEntradaEm: string | null; falasDaAhri: readonly string[] }>;
   /** O detector canônico do pedido de confirmação (mesma régua da rede). */
   readonly pediuConfirmacao: (texto: string) => boolean;
 }
@@ -89,7 +92,9 @@ export class ParadosPosHiscon {
     for (const c of candidatos) {
       if (comDossie.has(c.clienteId)) continue; // já recebeu o dossiê
 
-      const ultimaEntradaEm = await this.deps.ultimaEntrada(c.chatId).catch(() => null);
+      const { ultimaEntradaEm, falasDaAhri } = await this.deps
+        .conversa(c.chatId)
+        .catch(() => ({ ultimaEntradaEm: null, falasDaAhri: [] as readonly string[] }));
       // A varredura olha para quem se mexeu na janela pedida: cliente parado há
       // meses é outro assunto (reaquecimento), não este defeito.
       if (ultimaEntradaEm === null || new Date(ultimaEntradaEm) < desde) continue;
@@ -100,7 +105,6 @@ export class ParadosPosHiscon {
           ? 'hiscon-ilegivel'
           : 'pronto-sem-dossie';
 
-      const falas = await this.deps.ultimasFalas(c.chatId).catch(() => []);
       clientes.push({
         chatId: c.chatId,
         clienteId: c.clienteId,
@@ -109,7 +113,7 @@ export class ParadosPosHiscon {
         situacao,
         ultimaEntradaEm,
         dentroDaJanela24h: agora.getTime() - new Date(ultimaEntradaEm).getTime() < JANELA_META_MS,
-        pediuSimSemDossie: falas.some((f) => this.deps.pediuConfirmacao(f)),
+        pediuSimSemDossie: falasDaAhri.some((f) => this.deps.pediuConfirmacao(f)),
       });
     }
 

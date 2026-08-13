@@ -282,6 +282,9 @@ export function buildAdminServer(
     readonly dossieInvestidor?: { gerar(): Promise<unknown> };
     /** ATRIBUIÇÃO DE CAMPANHA (2026-08-12): de onde vem cada cliente. */
     readonly atribuicaoCampanha?: { gerar(): Promise<unknown> };
+    /** PARADOS DEPOIS DO HISCON (2026-08-13): entregaram o extrato e ficaram
+     *  sem o dossiê — por motivo e pela janela de 24h da Meta. */
+    readonly paradosPosHiscon?: { varrer(desdeMs?: number): Promise<unknown> };
     /** TRANSFERÊNCIA ENTRE ADVOGADOS (2026-08-12): corrige o encaminhamento
      *  errado — o caso muda de mãos e os créditos seguem o cliente. */
     readonly transferirAdvogado?: (
@@ -2408,6 +2411,18 @@ export function buildAdminServer(
           : await opts.juridico.criarPericia(body.dados ?? {}, autor);
     if (!r.ok) return reply.code(422).send(r);
     return r;
+  });
+
+  // ── PARADOS DEPOIS DO HISCON (2026-08-13) — só leitura. Quem entregou o
+  //    extrato e continua sem o dossiê, separado por MOTIVO e marcando quem
+  //    ainda está na janela de 24h da Meta. Nenhuma mensagem sai daqui. ──────
+  app.get('/admin/jornada/parados-pos-hiscon', async (request, reply) => {
+    if (!opts.paradosPosHiscon)
+      return reply.code(503).send({ error: 'varredura indisponível nesta montagem' });
+    const { horas } = request.query as { horas?: string };
+    const h = Number.parseInt(horas ?? '', 10);
+    const janela = Number.isFinite(h) && h > 0 ? Math.min(h, 24 * 30) : 72;
+    return opts.paradosPosHiscon.varrer(janela * 60 * 60 * 1000);
   });
 
   // ── TRANSFERÊNCIA ENTRE ADVOGADOS (2026-08-12) — o cliente foi encaminhado

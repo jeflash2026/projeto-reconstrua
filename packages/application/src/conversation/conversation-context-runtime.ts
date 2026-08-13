@@ -46,6 +46,12 @@ export type OnboardingDocumentalProvider = (
  *  pedido que o próprio sistema fez. Ausente/falha ⇒ null (sem fonte). */
 export type CpfProvider = (chatId: string) => Promise<boolean | null>;
 
+/** Decreto 2026-08-13: o DOSSIÊ já foi entregue a este cliente? É o fato que
+ *  decide se a AHRI pode pedir o SIM. Sem ele, a instrução "se o dossiê já foi
+ *  enviado, busque a confirmação" virava chute — e o LLM chutava que sim.
+ *  Ausente/falha ⇒ null (sem fonte, e aí nenhuma das duas ordens é dada). */
+export type DossieProvider = (chatId: string) => Promise<boolean | null>;
+
 export class ConversationContextRuntime {
   private readonly options: ContextOptions;
 
@@ -58,6 +64,7 @@ export class ConversationContextRuntime {
     private readonly pendencia?: PendenciaDocumentalProvider,
     private readonly onboarding?: OnboardingDocumentalProvider,
     private readonly cpf?: CpfProvider,
+    private readonly dossie?: DossieProvider,
   ) {
     this.options = { ...DEFAULT_CONTEXT_OPTIONS, ...options };
   }
@@ -69,22 +76,31 @@ export class ConversationContextRuntime {
     silenceMs: number | null = null,
   ): Promise<ConversationContextView> {
     const session: Session = await this.sessions.getOrOpen(chatId, now);
-    const [recentEntries, recentOutboundTexts, casoFatos, missao, pendencia, onboarding, cpf] =
-      await Promise.all([
-        this.memory.recent(chatId, this.options.memoryWindow),
-        this.memory.recentOutboundTexts(chatId, this.options.outboundWindow),
-        this.casoFatos !== undefined
-          ? this.casoFatos(chatId).catch(() => null)
-          : Promise.resolve(null),
-        this.missao !== undefined ? this.missao(chatId).catch(() => null) : Promise.resolve(null),
-        this.pendencia !== undefined
-          ? this.pendencia(chatId).catch(() => null)
-          : Promise.resolve(null),
-        this.onboarding !== undefined
-          ? this.onboarding(chatId).catch(() => null)
-          : Promise.resolve(null),
-        this.cpf !== undefined ? this.cpf(chatId).catch(() => null) : Promise.resolve(null),
-      ]);
+    const [
+      recentEntries,
+      recentOutboundTexts,
+      casoFatos,
+      missao,
+      pendencia,
+      onboarding,
+      cpf,
+      dossie,
+    ] = await Promise.all([
+      this.memory.recent(chatId, this.options.memoryWindow),
+      this.memory.recentOutboundTexts(chatId, this.options.outboundWindow),
+      this.casoFatos !== undefined
+        ? this.casoFatos(chatId).catch(() => null)
+        : Promise.resolve(null),
+      this.missao !== undefined ? this.missao(chatId).catch(() => null) : Promise.resolve(null),
+      this.pendencia !== undefined
+        ? this.pendencia(chatId).catch(() => null)
+        : Promise.resolve(null),
+      this.onboarding !== undefined
+        ? this.onboarding(chatId).catch(() => null)
+        : Promise.resolve(null),
+      this.cpf !== undefined ? this.cpf(chatId).catch(() => null) : Promise.resolve(null),
+      this.dossie !== undefined ? this.dossie(chatId).catch(() => null) : Promise.resolve(null),
+    ]);
     return {
       chatId,
       session,
@@ -101,6 +117,8 @@ export class ConversationContextRuntime {
       onboardingDocumental: onboarding,
       // Decreto 2026-07-27 — o estado do CPF, para a conversa nunca negá-lo.
       cpfRegistrado: cpf,
+      // Decreto 2026-08-13 — o dossiê já saiu? Só com ele a AHRI pede o SIM.
+      dossieEnviado: dossie,
     };
   }
 }

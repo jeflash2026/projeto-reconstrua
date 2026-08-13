@@ -190,4 +190,11 @@ export interface ConversationContextView {
    *  null/ausente ⇒ sem fonte. Sem isto, o LLM NEGAVA o próprio pedido de CPF
    *  feito pelo sistema ("se precisarmos do CPF, eu falo com você"). */
   readonly cpfRegistrado?: boolean | null;
+  /** Decreto 2026-08-13 (caso real: HISCON lido e a AHRI já pediu o SIM sem ter
+   *  entregado o dossiê). O reforço dizia "SE o dossiê já foi enviado, busque a
+   *  confirmação" — uma condição que o LLM NÃO tem como verificar, então ele
+   *  assumia que sim e pulava a entrega. Agora o fato viaja: true ⇒ o dossiê
+   *  está com o cliente e o SIM pode ser pedido; false ⇒ NUNCA pedir
+   *  confirmação (não há o que confirmar); null/ausente ⇒ sem fonte. */
+  readonly dossieEnviado?: boolean | null;
 }

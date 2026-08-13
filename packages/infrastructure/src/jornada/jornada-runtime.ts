@@ -17,6 +17,8 @@ import {
   capturarEstado,
   ehDesistencia,
   ehFalaDePrazoOuAnalise,
+  ehPedidoDeConfirmacao,
+  ehFalaDeAnalisePronta,
   ehPerguntaDeAndamento,
   ehSobreDossieOuLink,
   interpretarInteresse,
@@ -392,9 +394,14 @@ export class JornadaComercialRuntime {
     //  (b) PROMETER PRAZO ou dizer que a análise está em curso quando o
     //      dossiê já saiu (caso Oracio) — a AHRI mentia um minuto depois de
     //      mandar o parecer e voltava a mentir DEPOIS do SIM do cliente.
+    //  (c) PEDIR O SIM ou anunciar a ANÁLISE PRONTA antes de o dossiê sair
+    //      (caso 2026-08-13) — o cliente mandou o HISCON e já ouviu "responda
+    //      SIM para darmos andamento": ele não sabe o que está confirmando, e
+    //      o dossiê que ele esperava nunca chega.
     const cobra = pareceCobrancaDeDocumento(texto);
     const prometePrazo = ehFalaDePrazoOuAnalise(texto);
-    if (!cobra && !prometePrazo) return texto;
+    const pedeSim = ehPedidoDeConfirmacao(texto) || ehFalaDeAnalisePronta(texto);
+    if (!cobra && !prometePrazo && !pedeSim) return texto;
     const fatos = await this.fatos(chatId).catch(() => null);
     // Só age quando o HISCON JÁ está registrado — antes disso, cobrar é certo.
     if (fatos === null || !fatos.docsCompletos) return texto;

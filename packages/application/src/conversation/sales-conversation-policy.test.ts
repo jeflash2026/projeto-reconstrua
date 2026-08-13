@@ -42,6 +42,8 @@ function contexto(
     texto?: string | null;
     arquivo?: string;
     onboarding?: { recebidos: string[]; faltando: string[]; proximo: string | null } | null;
+    /** Decreto 2026-08-13: o dossiê já foi entregue? Decide o pedido do SIM. */
+    dossieEnviado?: boolean | null;
   } = {},
 ): ConversationContextView {
   return {
@@ -61,6 +63,7 @@ function contexto(
     casoFatos: null,
     ...(over.missao !== undefined ? { missaoDaConversa: over.missao } : {}),
     ...(over.onboarding !== undefined ? { onboardingDocumental: over.onboarding } : {}),
+    ...(over.dossieEnviado !== undefined ? { dossieEnviado: over.dossieEnviado } : {}),
   } as unknown as ConversationContextView;
 }
 
@@ -308,10 +311,35 @@ describe('Decreto · ANALISE_ADMINISTRATIVA — conversa normal, zero pedido esp
     expect(p.reforco).toContain('em análise');
     expect(p.reforco).not.toContain('10 dias');
     expect(p.reforco).toContain('PROIBIDO prometer prazo');
-    expect(p.reforco).toContain('CONFIRMAÇÃO');
     expect(p.reforco).toContain('sigilo da empresa');
     expect(p.reforco).toContain('NUNCA revele dados de terceiros');
     expect(p.reforco).toContain('sem inventar datas, resultados ou valores');
+  });
+
+  // Decreto 2026-08-13 (caso REAL): o cliente mandou o HISCON, a AHRI leu e já
+  // pediu o SIM — sem nunca ter entregado o dossiê. A instrução era um "SE" em
+  // prosa que o LLM não tinha como avaliar, e ele assumia que sim. Agora quem
+  // avalia é o código, com o FATO; o LLM recebe só a ordem que vale.
+  describe('o pedido do SIM depende do FATO do dossiê, não de um "se"', () => {
+    it('sem o fato, nenhuma das duas ordens é dada', () => {
+      expect(p.reforco).not.toContain('CONFIRMAÇÃO');
+    });
+    it('dossiê ENTREGUE ⇒ a missão vira conseguir o SIM', () => {
+      const comDossie = politicaDaMissao(
+        contexto({ missao: 'ANALISE_ADMINISTRATIVA', dossieEnviado: true }),
+      );
+      expect(comDossie.reforco).toContain('DOSSIÊ JÁ FOI ENTREGUE');
+      expect(comDossie.reforco).toContain('CONFIRMAÇÃO');
+    });
+    it('dossiê NÃO entregue ⇒ pedir confirmação é PROIBIDO', () => {
+      const semDossie = politicaDaMissao(
+        contexto({ missao: 'ANALISE_ADMINISTRATIVA', dossieEnviado: false }),
+      );
+      expect(semDossie.reforco).toContain('AINDA NÃO FOI ENTREGUE');
+      expect(semDossie.reforco).toContain('É PROIBIDO pedir confirmação');
+      // Nem pode anunciar uma análise que o cliente não recebeu.
+      expect(semDossie.reforco).toContain('NUNCA diga que a análise está pronta');
+    });
   });
   it('NUNCA solicita documentos por iniciativa própria — só depois, pelo advogado', () => {
     expect(p.reforco).toContain('NUNCA solicite documentos por iniciativa própria');

@@ -163,6 +163,28 @@ export function ehFalaDePrazoOuAnalise(texto: string): boolean {
   return FALA_DE_PRAZO_OU_ANALISE.test(texto);
 }
 
+// Caso REAL (2026-08-13): o cliente mandou o HISCON, a AHRI leu e JÁ PEDIU a
+// confirmação para ir à fase 2 — sem nunca ter entregado o dossiê. O cliente
+// não sabe o que está confirmando, e a análise que ele esperava não chega.
+// Pedir o SIM só faz sentido DEPOIS que o dossiê está na mão dele.
+const PEDIDO_DE_CONFIRMACAO =
+  /\bresponda?\s+sim\b|\bresponder\s+sim\b|\bdigite\s+sim\b|\bme\s+confirm[ae]\b|\bconfirma[çc][ãa]o\b|\bconfirmar\s+(o\s+)?(interesse|andamento)\b|\bposso\s+seguir\b|\bposso\s+dar\s+andamento\b|\bdeseja\s+(dar\s+andamento|seguir|prosseguir)\b|\bpodemos\s+(seguir|prosseguir|dar\s+andamento)\b/i;
+
+/** A fala PEDE a confirmação do cliente para abrir a fase 2? */
+export function ehPedidoDeConfirmacao(texto: string): boolean {
+  return PEDIDO_DE_CONFIRMACAO.test(texto);
+}
+
+// A fala AFIRMA que a análise terminou. Sem o dossiê entregue isso é falso — e
+// é o que deixa o cliente esperando um documento que nunca vem.
+const FALA_DE_ANALISE_PRONTA =
+  /\ban[áa]lise\s+(j[áa]\s+)?(est[áa]\s+)?(pronta|conclu[íi]da|finalizada)\b|\bj[áa]\s+est[áa]\s+pronta\b|\bconclu[íi](mos|da)\s+a\s+an[áa]lise\b|\bresultado\s+(j[áa]\s+)?(saiu|est[áa]\s+pronto)\b/i;
+
+/** A fala diz que a ANÁLISE ficou pronta? */
+export function ehFalaDeAnalisePronta(texto: string): boolean {
+  return FALA_DE_ANALISE_PRONTA.test(texto);
+}
+
 export function ehSaudacaoPura(texto: string): boolean {
   return SAUDACOES.test(texto.trim());
 }

@@ -82,6 +82,9 @@ import {
   type OnboardingDocumentalProvider,
   type EnviadorDeDocumento,
   interpretarInteresse,
+  // Decreto 2026-08-13: a mesma régua da rede — a varredura dos parados usa o
+  // detector canônico para flagrar quem ouviu "responda SIM" sem dossiê.
+  ehPedidoDeConfirmacao,
   type ClienteElegivel,
   type InboundEnvelope,
   ufDoTelefone,
@@ -158,6 +161,7 @@ import { ConversationClientMessenger } from '../advogado-portal/client-messenger
 import type { AssembledAdminOperation } from '../admin-portal/build-admin-operation.js';
 import { DossieInvestidor } from '../admin-portal/dossie-investidor.js';
 import { AtribuicaoDeCampanha } from '../admin-portal/atribuicao-campanha.js';
+import { ParadosPosHiscon } from '../jornada/parados-pos-hiscon.js';
 import type { AssembledLawyerExperience } from '../lawyer-experience/build-lawyer-experience.js';
 import {
   InMemoryJsonStore,
@@ -327,6 +331,9 @@ export interface AssembledProduction {
   /** ATRIBUIÇÃO DE CAMPANHA (2026-08-12): de onde vem cada cliente, cruzado com
    *  o funil — a página "Campanhas" finalmente com fonte de dados. */
   readonly atribuicaoCampanha: AtribuicaoDeCampanha;
+  /** PARADOS DEPOIS DO HISCON (2026-08-13): entregaram o extrato e ficaram sem
+   *  o dossiê — separados por motivo e pela janela de 24h da Meta. */
+  readonly paradosPosHiscon: ParadosPosHiscon;
   /** TRANSFERÊNCIA ENTRE ADVOGADOS (2026-08-12): corrige um encaminhamento
    *  errado — o caso muda de mãos e os créditos seguem o cliente. */
   readonly transferirAdvogado: (
@@ -1123,6 +1130,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // Decreto 2026-07-27 (caso 51 9109-4367): o estado do CPF no contexto — a
     // conversa nunca mais nega o pedido de CPF feito pelo próprio sistema.
     async (chatId) => (await jornadaComercial.fatos(chatId)).registro.cpf !== null,
+    // Decreto 2026-08-13: o DOSSIÊ já saiu? Sem este fato a AHRI pedia o SIM de
+    // um documento que o cliente nunca recebeu — ele ficava esperando a análise
+    // e nós achando que ele não tinha respondido.
+    async (chatId) => {
+      const cliente = (await clientes.list()).find((c) => c.chatId === chatId) ?? null;
+      if (cliente === null || cliente.clienteId === cliente.chatId) return false;
+      return (await parecerStore.load(cliente.clienteId).catch(() => null)) !== null;
+    },
   );
 
   // GO-LIVE 15C-3 · Parte 2 — ASSOCIAÇÃO INTELIGENTE: documento reconhecido no
@@ -2090,6 +2105,35 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       (await custos.listar().catch(() => [])).map((c) => ({ custoUsd: c.custoUsd })),
   });
 
+  // PARADOS DEPOIS DO HISCON (decreto do dono, 2026-08-13) — quem entregou o
+  // extrato e continua sem o dossiê. Separa por MOTIVO (falta CPF / HISCON
+  // ilegível / pronto e sem dossiê) e marca quem ainda está na janela de 24h da
+  // Meta. Nada é enviado: a lista existe para o dono decidir.
+  const paradosPosHiscon = new ParadosPosHiscon({
+    clock,
+    comHiscon: async () =>
+      (await perito.todosComHiscon()).map((c) => ({
+        chatId: c.chatId,
+        clienteId: c.clienteId,
+        nome: c.quem,
+        temCpf: c.temCpf,
+        totalContratos: c.totalContratos,
+      })),
+    comDossie: async () => {
+      const brutos = (await json.list('parecer-enviado').catch(() => [])) as readonly {
+        clienteId?: string;
+      }[];
+      return new Set(brutos.flatMap((p) => (typeof p.clienteId === 'string' ? [p.clienteId] : [])));
+    },
+    ultimaEntrada: async (chatId) => {
+      const em = await conversationStore.lastInboundAt(chatId).catch(() => null);
+      return em === null ? null : new Date(em).toISOString();
+    },
+    ultimasFalas: async (chatId) =>
+      (await conversationStore.recentOutboundTexts(chatId, 8).catch(() => [])).slice(),
+    pediuConfirmacao: ehPedidoDeConfirmacao,
+  });
+
   // TRANSFERÊNCIA ENTRE ADVOGADOS (decreto 2026-08-12) — caso real: um cliente
   // foi encaminhado ao advogado errado e não havia como desfazer. A distribuição
   // era mão única: atribuía, avisava e abatia os créditos, sem volta.
@@ -2619,6 +2663,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     transferenciaNumero,
     dossieInvestidor,
     atribuicaoCampanha,
+    paradosPosHiscon,
     transferirAdvogado,
     juridico,
     // 2026-08-09: cada disparo oficial é PERSISTIDO (ns 'disparos-oficial') e

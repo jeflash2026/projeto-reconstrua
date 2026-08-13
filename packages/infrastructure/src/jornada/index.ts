@@ -4,3 +4,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 export * from './jornada-runtime.js';
 export * from './journey-governed-expression.js';
+// Decreto 2026-08-13: quem entregou o HISCON e ficou sem o dossiê.
+export * from './parados-pos-hiscon.js';

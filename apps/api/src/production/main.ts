@@ -115,6 +115,8 @@ async function main(): Promise<void> {
     dossieInvestidor: prod.dossieInvestidor,
     // Decreto 2026-08-12: a página Campanhas com fonte de dados de verdade.
     atribuicaoCampanha: prod.atribuicaoCampanha,
+    // Decreto 2026-08-13: quem entregou o HISCON e ficou sem o dossiê.
+    paradosPosHiscon: prod.paradosPosHiscon,
     // Decreto 2026-08-12: corrigir um encaminhamento para o advogado errado.
     transferirAdvogado: prod.transferirAdvogado,
     // Decreto 2026-08-08: o PAINEL JURÍDICO (2º painel — dono + sócio).

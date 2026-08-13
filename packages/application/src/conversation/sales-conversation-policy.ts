@@ -219,13 +219,43 @@ function condutaOnboarding(context: ConversationContextView): string {
 const REFORCO_ANALISE_ADMINISTRATIVA =
   'ESTADO: ANALISE_ADMINISTRATIVA — o HISCON foi recebido e o caso está em análise. ' +
   'PROIBIDO prometer prazo, data ou quantidade de dias para a conclusão: nunca cite número de dias, nunca diga "dias úteis" e nunca dê previsão de data — a análise fica pronta quando fica, e você avisa por aqui. ' +
-  'Se o DOSSIÊ já foi enviado a este cliente, a sua missão é UMA: conseguir a CONFIRMAÇÃO dele ("SIM") para a equipe jurídica assumir o caso — responda o que ele perguntar e termine pedindo o SIM. ' +
   'Comporte-se como uma consultora humana: converse normalmente, com acolhimento. ' +
   'Se a pessoa perguntar sobre o andamento, informe com naturalidade que o caso ainda está EM ANÁLISE dentro do prazo e que você a avisará por aqui assim que houver novidade — sem inventar datas, resultados ou valores. ' +
   'Se ela perguntar qualquer outra coisa (dúvidas sobre o processo, sobre custos, sobre o INSS, ou assuntos gerais), RESPONDA de verdade, como uma pessoa faria. ' +
   'Lembre, quando fizer sentido, que a análise e a entrada no processo não têm custo — os honorários do advogado são cobrados só no final e apenas em caso de êxito. ' +
   'Preserve o sigilo da empresa, NUNCA revele dados de terceiros. ' +
   'NUNCA solicite documentos por iniciativa própria: RG, comprovante e procuração só são pedidos DEPOIS da análise, quando o advogado abrir a solicitação (aparece como MISSÃO OPERACIONAL); sem ela, nenhum pedido de documento';
+
+/**
+ * Decreto 2026-08-13 — o pedido do SIM depende de um FATO, não de um "se".
+ *
+ * CASO REAL: o cliente mandou o HISCON, a AHRI leu, NÃO entregou o dossiê e já
+ * pediu a confirmação para ir à fase 2. A causa era esta instrução, escrita
+ * como condicional em prosa: "SE o dossiê já foi enviado, busque o SIM". O LLM
+ * não tinha nenhum fato para avaliar esse "se" — e, na dúvida, assumia que sim.
+ * Pedir confirmação de um documento que o cliente nunca recebeu queima o lead:
+ * ele não sabe do que se trata, e a análise que ele esperava nunca chega.
+ *
+ * Agora a condição é avaliada AQUI, com o fato do sistema, e o LLM recebe só a
+ * ordem que vale para o estado real deste cliente.
+ */
+function reforcoDossie(context: ConversationContextView): string {
+  if (context.dossieEnviado === true)
+    return (
+      ' O DOSSIÊ JÁ FOI ENTREGUE a este cliente. A sua missão agora é UMA: conseguir a ' +
+      'CONFIRMAÇÃO dele ("SIM") para a equipe jurídica assumir o caso — responda o que ele ' +
+      'perguntar e termine pedindo o SIM.'
+    );
+  if (context.dossieEnviado === false)
+    return (
+      ' O DOSSIÊ AINDA NÃO FOI ENTREGUE a este cliente. É PROIBIDO pedir confirmação, "SIM", ' +
+      'aceite ou autorização para seguir: não há nada que ele possa confirmar ainda, e pedir ' +
+      'isso o deixa perdido. Também NUNCA diga que a análise está pronta, concluída ou ' +
+      'disponível. O que você faz é acolher, responder o que ele perguntar e dizer que avisa ' +
+      'por aqui assim que a análise concluir.'
+    );
+  return '';
+}
 
 /** Decreto 2026-07-27 (caso 51 9109-4367): o LLM NEGOU o pedido de CPF que o
  *  próprio sistema fez ("se precisarmos do CPF, eu falo com você") porque não
@@ -300,7 +330,7 @@ export function politicaDaMissao(context: ConversationContextView): PoliticaDaMi
         perguntaDireta,
         respostaCanonica: null,
         conduta: '',
-        reforco: REFORCO_ANALISE_ADMINISTRATIVA + reforcoCpf(context),
+        reforco: REFORCO_ANALISE_ADMINISTRATIVA + reforcoDossie(context) + reforcoCpf(context),
       };
     case 'CLIENTE':
       return {

@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import {
   cobrancaDocumental,
+  relembrarOCaso,
   type AssembledAdminOperation,
   type JuridicoService,
 } from '@reconstrua/infrastructure';
@@ -2566,6 +2567,33 @@ export function buildAdminServer(
     const bruto = nome.trim().split(/\s+/)[0] ?? '';
     return bruto === '' ? 'Cliente' : bruto.charAt(0).toUpperCase() + bruto.slice(1).toLowerCase();
   };
+
+  // ── RELEMBRAR O CASO (2026-08-13) — "algumas pessoas que passaram pela fase 1
+  //    estão se esquecendo do que se trata". Vai como MENSAGEM COMUM, não
+  //    template: a secretária só usa respondendo alguém que acabou de escrever,
+  //    então a janela de 24h está aberta. O SERVIDOR monta o texto com os fatos
+  //    reais do caso (contratos, indícios, quando confirmou, o que falta) —
+  //    nenhum número vem do portal. ──────────────────────────────────────────
+  app.post('/admin/humanizado/chat/:chatId/relembrar', async (request, reply) => {
+    if (!opts.humanizado || !opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const { chatId } = request.params as { chatId: string };
+    const body = (request.body ?? {}) as { autor?: string };
+    const cliente = (await opts.humanizado.clientes()).find((c) => c.chatId === chatId) ?? null;
+    if (cliente === null)
+      return reply
+        .code(404)
+        .send({ error: 'este contato não está na mesa — só quem confirmou o interesse tem caso' });
+    const texto = relembrarOCaso({
+      nome: cliente.nome,
+      contratos: cliente.contratos,
+      indicios: cliente.indicios,
+      confirmadoEm: cliente.confirmadoEm,
+      docs: cliente.docs,
+    });
+    const r = await opts.chatHumanizado.enviarTexto(chatId, texto, body.autor ?? 'Equipe');
+    if (!r.ok) return reply.code(502).send(r);
+    return { ok: true };
+  });
 
   // ── COBRANÇA DE UM CLIENTE (2026-08-12, caso Sandra) — o botão do chat da
   //    secretária. O SERVIDOR decide o que pedir, lendo o cadastro na hora: o

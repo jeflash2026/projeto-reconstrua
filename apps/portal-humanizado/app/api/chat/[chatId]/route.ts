@@ -43,6 +43,7 @@ interface AcaoChat {
     | 'documento'
     | 'audio'
     | 'template'
+    | 'relembrar'
     | 'template_cobranca'
     | 'template_documento'
     | 'confirmar'
@@ -86,6 +87,10 @@ export async function POST(
     // monta a lista — a API lê o cadastro do cliente na hora e pede SÓ o que
     // falta. Assim o botão e o disparo em lote nunca divergem.
     template_cobranca: { path: `${chat}/template-cobranca`, payload: { autor } },
+    // RELEMBRAR O CASO (2026-08-13): mensagem COMUM (a janela está aberta —
+    // o cliente acabou de escrever). O texto é montado na API com os fatos
+    // reais do caso; o portal não escreve número nenhum.
+    relembrar: { path: `${chat}/relembrar`, payload: { autor } },
     // Procuração via template (2026-08-08): o PDF viaja no cabeçalho do
     // modelo aprovado — atravessa a janela de 24h.
     template_documento: {

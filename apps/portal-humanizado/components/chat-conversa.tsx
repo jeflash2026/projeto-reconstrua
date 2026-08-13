@@ -453,6 +453,34 @@ export default function ChatConversa({
               }}
             />
           </label>
+          {/* RELEMBRAR O CASO (2026-08-13): a pessoa passou pela fase 1 e já não
+              liga a conversa ao que ela mesma autorizou. Este é o único botão
+              que manda MENSAGEM COMUM (não template): serve para responder quem
+              acabou de escrever, com a janela de 24h aberta. O texto é montado
+              na API com os fatos do caso — a secretária não digita nada. */}
+          <button
+            type="button"
+            className="btn"
+            disabled={ocupado || docs === null}
+            title={
+              docs === null
+                ? 'Só para cliente da mesa — é o cadastro que tem os dados do caso'
+                : 'Explica em que ponto o caso está: o que ele enviou, o que a análise achou, que ele autorizou seguir e o que falta'
+            }
+            onClick={() => {
+              const primeiro = primeiroNomeDe(nomeCliente);
+              if (
+                window.confirm(
+                  `Relembrar o caso para ${primeiro}?\n\nVai uma mensagem explicando o HISCON que ela enviou, o que a análise encontrou, que ela confirmou o interesse e o que falta agora. Mensagem comum — use respondendo quem acabou de escrever.`,
+                )
+              )
+                void acao({ acao: 'relembrar' }).then((ok) => {
+                  if (ok) setAviso('Resumo do caso enviado.');
+                });
+            }}
+          >
+            Relembrar o caso
+          </button>
           {/* TEMPLATES (2026-08-05): fora da janela de 24h a Meta só aceita
               modelo aprovado. Dois botões: apresentação (1º contato) e
               retomada (cliente que ficou de enviar documento e sumiu). O

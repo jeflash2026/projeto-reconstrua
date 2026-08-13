@@ -19,12 +19,17 @@ const NS = 'creditos-advogado';
 
 export interface LancamentoCredito {
   readonly em: string;
-  readonly tipo: 'compra' | 'abate';
-  /** Contratos (a unidade vendida). Compra soma; abate subtrai. */
+  /** 'estorno' (2026-08-12): o cliente saiu deste advogado — os créditos dele
+   *  voltam. Nasceu do caso real de um cliente encaminhado ao advogado errado:
+   *  sem o estorno, o advogado que perdeu o cliente continuava pagando por ele. */
+  readonly tipo: 'compra' | 'abate' | 'estorno';
+  /** Contratos (a unidade vendida). Compra e estorno somam; abate subtrai. */
   readonly quantidade: number;
-  /** Presentes no ABATE: o cliente encaminhado que consumiu os créditos. */
+  /** Presentes no ABATE e no ESTORNO: o cliente que consumiu (ou devolveu). */
   readonly clienteId?: string;
   readonly nome?: string;
+  /** Por que o estorno aconteceu — a prestação de contas ao advogado. */
+  readonly motivo?: string;
 }
 
 export interface CarteiraAdvogado {
@@ -97,20 +102,60 @@ export class CreditosAdvogadoService {
     return { ok: true, jaAbatido: false, abatidos: n };
   }
 
-  /** Saldo derivado (nunca armazenado): comprados − abatidos. */
+  /** ESTORNO (2026-08-12): o cliente deixou este advogado — os créditos que ele
+   *  consumiu voltam para a carteira. Nada é apagado: o abate original continua
+   *  no extrato e o estorno entra como lançamento próprio, para o advogado ver
+   *  o que aconteceu. Só estorna o que foi de fato abatido, e uma vez só. */
+  async estornarPorCliente(
+    advogadoId: string,
+    clienteId: string,
+    motivo: string,
+  ): Promise<{ ok: boolean; estornados: number }> {
+    const c = await this.carteira(advogadoId);
+    const abatido = c.lancamentos
+      .filter((l) => l.tipo === 'abate' && l.clienteId === clienteId)
+      .reduce((s, l) => s + l.quantidade, 0);
+    const jaEstornado = c.lancamentos
+      .filter((l) => l.tipo === 'estorno' && l.clienteId === clienteId)
+      .reduce((s, l) => s + l.quantidade, 0);
+    const devolver = abatido - jaEstornado;
+    if (devolver <= 0) return { ok: true, estornados: 0 };
+    const nome = c.lancamentos.find((l) => l.tipo === 'abate' && l.clienteId === clienteId)?.nome;
+    await this.deps.json.put(NS, advogadoId, {
+      advogadoId,
+      lancamentos: [
+        ...c.lancamentos,
+        {
+          em: this.deps.clock.now().toISOString(),
+          tipo: 'estorno',
+          quantidade: devolver,
+          clienteId,
+          ...(nome !== undefined ? { nome } : {}),
+          motivo,
+        },
+      ],
+    } satisfies CarteiraAdvogado);
+    return { ok: true, estornados: devolver };
+  }
+
+  /** Saldo derivado (nunca armazenado): comprados + estornados − abatidos. */
   async saldo(advogadoId: string): Promise<SaldoAdvogado> {
     const c = await this.carteira(advogadoId);
     const comprados = c.lancamentos
       .filter((l) => l.tipo === 'compra')
       .reduce((s, l) => s + l.quantidade, 0);
     const abates = c.lancamentos.filter((l) => l.tipo === 'abate');
+    const estornos = c.lancamentos.filter((l) => l.tipo === 'estorno');
     const abatidos = abates.reduce((s, l) => s + l.quantidade, 0);
+    const estornados = estornos.reduce((s, l) => s + l.quantidade, 0);
+    // Clientes que o advogado REALMENTE tem: abatidos menos os devolvidos.
+    const devolvidos = new Set(estornos.map((l) => l.clienteId));
     return {
       advogadoId,
       comprados,
-      abatidos,
-      saldo: comprados - abatidos,
-      clientesAbatidos: abates.length,
+      abatidos: abatidos - estornados,
+      saldo: comprados - abatidos + estornados,
+      clientesAbatidos: abates.filter((l) => !devolvidos.has(l.clienteId)).length,
     };
   }
 

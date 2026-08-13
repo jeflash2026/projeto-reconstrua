@@ -1304,6 +1304,36 @@ export async function transferirNumero(
   return { ok: r.ok === true, linhasMovidas: r.linhasMovidas, error: r.error };
 }
 
+// ── TRANSFERIR CLIENTE DE ADVOGADO (2026-08-12) — corrige o encaminhamento
+// errado. Os créditos seguem o cliente; nenhuma mensagem é enviada.
+export async function buscarClienteParaTransferir(termo: string): Promise<{
+  clientes: {
+    chatId: string;
+    nome: string;
+    telefone: string;
+    uf: string;
+    advogadoId: string | null;
+    advogado: string | null;
+  }[];
+  advogados?: { id: string; nome: string }[];
+} | null> {
+  return getJson(`/admin/advogados/transferencia/buscar?q=${encodeURIComponent(termo)}`);
+}
+
+export async function transferirClienteDeAdvogado(
+  chatId: string,
+  advogadoId: string,
+): Promise<{ ok: boolean; estornados?: number; abatidos?: number; error?: string }> {
+  const r = await sendJson<{
+    ok?: boolean;
+    estornados?: number;
+    abatidos?: number;
+    error?: string;
+  }>('POST', '/admin/advogados/transferencia', { chatId, advogadoId, confirmar: true });
+  if (r === null) return { ok: false, error: 'falha na API' };
+  return { ok: r.ok === true, estornados: r.estornados, abatidos: r.abatidos, error: r.error };
+}
+
 /** Recupera do backup as conversas que uma transferência antiga sobrescreveu. */
 export async function restaurarConversasTransferidas(destino: string): Promise<{
   ok: boolean;

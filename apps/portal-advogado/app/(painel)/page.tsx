@@ -14,9 +14,12 @@ interface Carteira {
   };
   extrato: readonly {
     em: string;
-    tipo: 'compra' | 'abate';
+    /** 'estorno' (2026-08-12): o cliente saiu daqui e os créditos voltaram —
+     *  o advogado precisa ver isso como CRÉDITO, nunca como mais um débito. */
+    tipo: 'compra' | 'abate' | 'estorno';
     quantidade: number;
     nome?: string;
+    motivo?: string;
   }[];
 }
 
@@ -102,6 +105,11 @@ const PainelPage = async (): Promise<ReactElement> => {
                       <td>
                         {l.tipo === 'compra' ? (
                           <span className="badge ok">compra</span>
+                        ) : l.tipo === 'estorno' ? (
+                          <>
+                            <span className="badge ok">estorno</span> {l.nome ?? 'cliente'} —{' '}
+                            {l.motivo ?? 'crédito devolvido'}
+                          </>
                         ) : (
                           <>
                             <span className="badge warn">abate</span>{' '}
@@ -110,7 +118,7 @@ const PainelPage = async (): Promise<ReactElement> => {
                         )}
                       </td>
                       <td style={{ fontWeight: 600 }}>
-                        {l.tipo === 'compra' ? '+' : '−'}
+                        {l.tipo === 'abate' ? '−' : '+'}
                         {l.quantidade}
                       </td>
                     </tr>

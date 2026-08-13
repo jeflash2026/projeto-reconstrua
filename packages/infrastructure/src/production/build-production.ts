@@ -327,6 +327,15 @@ export interface AssembledProduction {
   /** ATRIBUIÇÃO DE CAMPANHA (2026-08-12): de onde vem cada cliente, cruzado com
    *  o funil — a página "Campanhas" finalmente com fonte de dados. */
   readonly atribuicaoCampanha: AtribuicaoDeCampanha;
+  /** TRANSFERÊNCIA ENTRE ADVOGADOS (2026-08-12): corrige um encaminhamento
+   *  errado — o caso muda de mãos e os créditos seguem o cliente. */
+  readonly transferirAdvogado: (
+    chatId: string,
+    novoAdvogadoId: string,
+  ) => Promise<
+    | { ok: true; de: string | null; para: string; estornados: number; abatidos: number }
+    | { ok: false; error: string }
+  >;
   /** Decreto 2026-08-08: PAINEL JURÍDICO — gestão do pós-protocolo (clientes,
    *  processos judiciais, guias e perícias), o 2º painel do dono + sócio. */
   readonly juridico: JuridicoService;
@@ -2081,6 +2090,68 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       (await custos.listar().catch(() => [])).map((c) => ({ custoUsd: c.custoUsd })),
   });
 
+  // TRANSFERÊNCIA ENTRE ADVOGADOS (decreto 2026-08-12) — caso real: um cliente
+  // foi encaminhado ao advogado errado e não havia como desfazer. A distribuição
+  // era mão única: atribuía, avisava e abatia os créditos, sem volta.
+  //
+  // Transferir é UM ato com TRÊS efeitos que não podem se separar: o caso muda
+  // de advogado, o antigo recebe os créditos de volta e o novo é debitado. Fazer
+  // só o primeiro deixaria o advogado errado pagando por um cliente que não tem.
+  // Nenhuma mensagem sai daqui — avisar os dois advogados é do dono.
+  const transferirAdvogado = async (
+    chatId: string,
+    novoAdvogadoId: string,
+  ): Promise<
+    | { ok: true; de: string | null; para: string; estornados: number; abatidos: number }
+    | { ok: false; error: string }
+  > => {
+    const cliente = (await clientes.list()).find((c) => c.chatId === chatId) ?? null;
+    if (cliente === null) return { ok: false, error: 'cliente não encontrado' };
+    const missionId = cliente.missionId;
+    if (missionId === null) return { ok: false, error: 'cliente ainda não tem caso aberto' };
+
+    const atual = await work.assignedTo(missionId).catch(() => null);
+    const advogadoAnterior = atual?.advogadoId ?? null;
+    if (advogadoAnterior === novoAdvogadoId)
+      return { ok: false, error: 'o cliente já está com este advogado' };
+
+    await work.assign(missionId, novoAdvogadoId, 'transferencia-admin', chatId);
+    await humanizado.marcarAdvogado(chatId, novoAdvogadoId);
+
+    // Os créditos seguem o cliente: volta para quem o perdeu, sai de quem o
+    // recebeu. O estorno vem ANTES do abate — se o abate falhar, o advogado
+    // antigo já está inteiro, que é o lado do erro que dói.
+    let estornados = 0;
+    if (advogadoAnterior !== null) {
+      const r = await creditosAdvogado
+        .estornarPorCliente(
+          advogadoAnterior,
+          cliente.clienteId,
+          `cliente transferido para outro advogado em ${clock.now().toISOString().slice(0, 10)}`,
+        )
+        .catch(() => ({ estornados: 0 }));
+      estornados = r.estornados;
+    }
+    const acoes = await pericia.acoesDe(chatId).catch(() => null);
+    const processos = acoes?.agrupamento.resumo.totalAcoes ?? 0;
+    const abate = await creditosAdvogado
+      .abaterPorCliente(
+        novoAdvogadoId,
+        { clienteId: cliente.clienteId, nome: cliente.quem },
+        processos,
+      )
+      .catch(() => ({ abatidos: 0 }));
+
+    mesaHumanizada.invalidar();
+    return {
+      ok: true,
+      de: advogadoAnterior,
+      para: novoAdvogadoId,
+      estornados,
+      abatidos: abate.abatidos,
+    };
+  };
+
   // ATRIBUIÇÃO DE CAMPANHA (decreto 2026-08-12): a página "Campanhas" mostrava
   // "sem fonte de dados" porque o campo campaignAttribution nunca foi escrito
   // por ninguém. A fonte sempre esteve na PRIMEIRA MENSAGEM do cliente — a
@@ -2548,6 +2619,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     transferenciaNumero,
     dossieInvestidor,
     atribuicaoCampanha,
+    transferirAdvogado,
     juridico,
     // 2026-08-09: cada disparo oficial é PERSISTIDO (ns 'disparos-oficial') e
     // registrado na memória da conversa — a AHRI fica ciente e o painel

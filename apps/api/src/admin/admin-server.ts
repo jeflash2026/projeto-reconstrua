@@ -282,6 +282,15 @@ export function buildAdminServer(
     readonly dossieInvestidor?: { gerar(): Promise<unknown> };
     /** ATRIBUIÇÃO DE CAMPANHA (2026-08-12): de onde vem cada cliente. */
     readonly atribuicaoCampanha?: { gerar(): Promise<unknown> };
+    /** TRANSFERÊNCIA ENTRE ADVOGADOS (2026-08-12): corrige o encaminhamento
+     *  errado — o caso muda de mãos e os créditos seguem o cliente. */
+    readonly transferirAdvogado?: (
+      chatId: string,
+      novoAdvogadoId: string,
+    ) => Promise<
+      | { ok: true; de: string | null; para: string; estornados: number; abatidos: number }
+      | { ok: false; error: string }
+    >;
     /** TRANSFERÊNCIA DE NÚMERO (2026-08-11): o cliente trocou de chip e continua
      *  o MESMO atendimento pelo número novo. */
     readonly transferenciaNumero?: {
@@ -326,10 +335,13 @@ export function buildAdminServer(
       extrato(advogadoId: string): Promise<
         readonly {
           em: string;
-          tipo: 'compra' | 'abate';
+          /** 'estorno' (2026-08-12): o cliente saiu deste advogado e os
+           *  créditos voltaram — transferência para outro advogado. */
+          tipo: 'compra' | 'abate' | 'estorno';
           quantidade: number;
           clienteId?: string;
           nome?: string;
+          motivo?: string;
         }[]
       >;
       registrarCompra(
@@ -2395,6 +2407,56 @@ export function buildAdminServer(
           ? await opts.juridico.atualizarPericia(body.id, body.dados ?? {}, autor)
           : await opts.juridico.criarPericia(body.dados ?? {}, autor);
     if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  // ── TRANSFERÊNCIA ENTRE ADVOGADOS (2026-08-12) — o cliente foi encaminhado
+  //    ao advogado errado. A busca acha por nome OU telefone (é assim que o
+  //    dono conhece o cliente, não por id) e mostra com quem ele está hoje;
+  //    a troca exige confirmação. Nenhuma mensagem é enviada. ────────────────
+  app.get('/admin/advogados/transferencia/buscar', async (request, reply) => {
+    if (!opts.humanizado) return reply.code(503).send({ error: 'mesa indisponível' });
+    const { q } = request.query as { q?: string };
+    const termo = (q ?? '').trim().toLowerCase();
+    if (termo.length < 3) return { clientes: [] };
+    const digitos = termo.replace(/\D/g, '');
+    const advs = await op.staff.list('advogado');
+    const nomeAdv = new Map(advs.map((a) => [a.id, a.name]));
+    const achados = (await opts.humanizado.clientes())
+      .filter((c) => {
+        const porNome = c.nome.toLowerCase().includes(termo);
+        // O telefone do painel vem só com dígitos; a busca aceita máscara.
+        const porTelefone = digitos.length >= 4 && c.telefone.includes(digitos);
+        return porNome || porTelefone;
+      })
+      .slice(0, 20)
+      .map((c) => ({
+        chatId: c.chatId,
+        nome: c.nome,
+        telefone: c.telefone,
+        uf: c.uf,
+        advogadoId: c.advogadoId ?? null,
+        // Advogado marcado mas fora do diretório (removido da equipe) mostra o
+        // id — some do painel seria pior: o dono precisa saber que há alguém.
+        advogado: c.advogadoId == null ? null : (nomeAdv.get(c.advogadoId) ?? c.advogadoId),
+      }));
+    return { clientes: achados, advogados: advs.map((a) => ({ id: a.id, nome: a.name })) };
+  });
+
+  app.post('/admin/advogados/transferencia', async (request, reply) => {
+    if (!opts.transferirAdvogado)
+      return reply.code(503).send({ error: 'transferência indisponível nesta montagem' });
+    const body = (request.body ?? {}) as {
+      chatId?: string;
+      advogadoId?: string;
+      confirmar?: boolean;
+    };
+    if (typeof body.chatId !== 'string' || typeof body.advogadoId !== 'string')
+      return reply.code(400).send({ error: 'informe o cliente e o advogado de destino' });
+    if (body.confirmar !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
+    const r = await opts.transferirAdvogado(body.chatId, body.advogadoId);
+    if (!r.ok) return reply.code(400).send(r);
     return r;
   });
 

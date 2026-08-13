@@ -99,10 +99,13 @@ export function buildAdvogadoServer(
       extrato(advogadoId: string): Promise<
         readonly {
           em: string;
-          tipo: 'compra' | 'abate';
+          /** 'estorno' (2026-08-12): o cliente saiu deste advogado e os
+           *  créditos voltaram — o extrato dele mostra por quê. */
+          tipo: 'compra' | 'abate' | 'estorno';
           quantidade: number;
           clienteId?: string;
           nome?: string;
+          motivo?: string;
         }[]
       >;
     };

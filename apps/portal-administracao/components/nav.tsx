@@ -33,6 +33,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { href: '/releitura-hiscon', label: 'Releitura HISCON' },
   { sep: 'Equipe' },
   { href: '/advogados', label: 'Advogados' },
+  { href: '/transferir-advogado', label: 'Transferir de advogado' },
   { href: '/operadores', label: 'Operadores' },
   { href: '/supervisores', label: 'Supervisores' },
   { sep: 'Gestão' },

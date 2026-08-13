@@ -56,6 +56,7 @@ export default function ChatConversa({
   chatId,
   nomeCliente = null,
   docs = null,
+  aoConfirmarDoc,
   sugerirApresentacao = false,
 }: {
   chatId: string;
@@ -63,6 +64,13 @@ export default function ChatConversa({
   nomeCliente?: string | null;
   /** Documentos já entregues — o botão de cobrança mostra só o que falta. */
   docs?: DocsCliente | null;
+  /** A JANELA NÃO PODE FECHAR (2026-08-13): quando a conversa vive DENTRO do
+   *  painel, confirmar um anexo não pode chamar router.refresh() — o portal tem
+   *  loading.tsx, então o refresh troca a árvore inteira pela tela "Preparando a
+   *  mesa…" e, na volta, a conversa aberta e o texto digitado se perdem. Com
+   *  este aviso, o painel atualiza o selo do documento sozinho. Ausente (página
+   *  /chat própria, onde não há o que perder) ⇒ mantém o refresh. */
+  aoConfirmarDoc?: (tipo: string) => void;
   /** Botão "mensagem pronta" da mesa: chega com a APRESENTAÇÃO armada —
    *  um clique dispara o template contato_equipe com o nome do cliente. */
   sugerirApresentacao?: boolean;
@@ -215,8 +223,11 @@ export default function ChatConversa({
     const ok = await acao({ acao: 'confirmar', mensagemId: m.id, tipo });
     if (ok) {
       setAviso(`Anexo salvo no perfil do cliente como ${ROTULOS[tipo] ?? tipo}.`);
-      // O STATUS dos documentos no cabeçalho vem do servidor — atualiza já.
-      router.refresh();
+      // O selo do documento precisa atualizar — mas NUNCA às custas da conversa
+      // aberta. Dentro do painel quem atualiza é o pai (sem remontar nada);
+      // só a página /chat, que não tem o que perder, ainda usa o refresh.
+      if (aoConfirmarDoc !== undefined) aoConfirmarDoc(tipo);
+      else router.refresh();
     }
   }
 

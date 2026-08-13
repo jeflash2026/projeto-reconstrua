@@ -77,6 +77,19 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
   const [uf, setUf] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [selecionado, setSelecionado] = useState<string | null>(null);
+  // A JANELA NÃO PODE FECHAR (2026-08-13, relato do dono: "a secretária está
+  // conversando e a janela fecha"). O portal tem loading.tsx, então QUALQUER
+  // router.refresh() troca a árvore inteira pela tela "Preparando a mesa…" —
+  // e, na volta, a conversa aberta, o texto digitado e a rolagem se perdem. A
+  // confirmação de anexo era a ação mais frequente no meio do atendimento.
+  // Agora o selo do documento é atualizado AQUI, em memória, sobre a prop.
+  const [docsConfirmados, setDocsConfirmados] = useState<Record<string, Set<string>>>({});
+  const confirmarDocLocal = useCallback((chatId: string, tipo: string): void => {
+    setDocsConfirmados((atual) => ({
+      ...atual,
+      [chatId]: new Set([...(atual[chatId] ?? []), tipo]),
+    }));
+  }, []);
 
   const carregar = useCallback(async (): Promise<void> => {
     try {
@@ -214,6 +227,23 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
   }, [linhas, filtro, uf, busca]);
 
   const clienteSelecionado = selecionado !== null ? (porChat.get(selecionado) ?? null) : null;
+
+  /** Os documentos do selecionado com o que a secretária acabou de confirmar
+   *  nesta sessão por cima — sem isso o botão de cobrança continuaria pedindo
+   *  um documento que ela salvou há dois segundos. */
+  const docsDoSelecionado = useMemo((): DocsFlags | null => {
+    const base = clienteSelecionado?.docs ?? null;
+    if (clienteSelecionado === null || base === null) return null;
+    const novos = docsConfirmados[clienteSelecionado.chatId];
+    if (novos === undefined) return base;
+    return {
+      ...base,
+      procuracao: base.procuracao || novos.has('procuracao'),
+      rg: base.rg || novos.has('rg'),
+      comprovante: base.comprovante || novos.has('comprovante'),
+      extratoCredito: base.extratoCredito === true || novos.has('extrato_credito'),
+    };
+  }, [clienteSelecionado, docsConfirmados]);
 
   /** DESCARTAR por DESINTERESSE (2026-08-07, com confirmação) — o mesmo
    *  descarte da mesa: o cliente sai das filas de trabalho e a conversa vai
@@ -433,11 +463,18 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
               </div>
               {/* STATUS DOS DOCUMENTOS (2026-08-06): o que falta / 100% verde,
                   direto no cabeçalho — atualiza quando a secretária confirma. */}
-              {clienteSelecionado?.docs !== undefined ? (
+              {docsDoSelecionado !== null ? (
                 <div className="cv-docs">
                   <StatusDocsCliente
-                    docs={clienteSelecionado.docs}
-                    completo={clienteSelecionado.completo}
+                    docs={docsDoSelecionado}
+                    // O selo fica verde na hora do "Confirmar" — antes ele só
+                    // mudava depois de um refresh que fechava a conversa.
+                    completo={
+                      docsDoSelecionado.procuracao &&
+                      docsDoSelecionado.rg &&
+                      docsDoSelecionado.comprovante &&
+                      docsDoSelecionado.extratoCredito === true
+                    }
                   />
                 </div>
               ) : null}
@@ -447,7 +484,11 @@ export default function ConversasPainel({ clientes }: { clientes: ClienteDaMesa[
                 chatId={selecionado}
                 nomeCliente={clienteSelecionado?.nome ?? null}
                 // Caso Sandra (2026-08-12): a cobrança pede SÓ o que falta.
-                docs={clienteSelecionado?.docs ?? null}
+                docs={docsDoSelecionado}
+                // A confirmação de anexo NUNCA remonta a tela (2026-08-13).
+                aoConfirmarDoc={(tipo) => {
+                  confirmarDocLocal(selecionado, tipo);
+                }}
               />
             </>
           )}

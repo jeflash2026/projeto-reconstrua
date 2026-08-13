@@ -864,9 +864,14 @@ export const MENSAGENS_JORNADA = {
   confirmadoAguardeEquipe:
     'Está tudo certo por aqui: o seu cadastro já foi gerado e o seu caso está com a nossa equipe.\n\n' +
     'O próximo passo é nosso — a nossa equipe entra em contato com você pelo WhatsApp (41) 99802-8530 para recolher os documentos que faltam (procuração, RG, comprovante de endereço e o extrato de crédito do INSS). Qualquer dúvida enquanto isso, é só me chamar.',
+  /** Caso REAL Beatriz (2026-08-13): esta mensagem dizia "o seu caso está na
+   *  FASE FINAL da análise" para quem tinha acabado de mandar o HISCON e ainda
+   *  não tinha dossiê nenhum. "Fase final" era invenção — ninguém tinha olhado o
+   *  caso dela. A cliente foi dormir achando que estava quase pronto. Andamento
+   *  honesto não promete etapa, só diz o que é verdade: chegou e vai ser lido. */
   andamentoSemPrometerPrazo:
     'A sua documentação está completa comigo — não precisa enviar mais nada.\n\n' +
-    'O seu caso está na fase final da análise e eu te aviso por aqui assim que houver a conclusão. Se tiver qualquer dúvida enquanto isso, pode me perguntar que eu respondo.',
+    'O seu extrato está na fila da nossa análise e eu te aviso por aqui assim que ela concluir, com o resultado completo. Se tiver qualquer dúvida enquanto isso, pode me perguntar que eu respondo.',
   /** Caso REAL Paulo Roberto (2026-08-09): pergunta de ANDAMENTO depois do
    *  parecer enviado — a análise está PRONTA; o que falta é o SIM dele. */
   analiseProntaPedirConfirmacao: (link: string, contratos: number, indicios: number): string =>

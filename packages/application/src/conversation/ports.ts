@@ -197,4 +197,15 @@ export interface ConversationContextView {
    *  está com o cliente e o SIM pode ser pedido; false ⇒ NUNCA pedir
    *  confirmação (não há o que confirmar); null/ausente ⇒ sem fonte. */
   readonly dossieEnviado?: boolean | null;
+  /** Caso REAL Beatriz (2026-08-13): a AHRI pediu a cidade TRÊS vezes — uma
+   *  delas logo depois de a cliente responder — porque o registro da jornada
+   *  (nome, cidade, estado) nunca chegou ao contexto. Ela sabia do CPF e do
+   *  HISCON e era cega para o resto, então repetia a pergunta e a conversa
+   *  patinava. Aqui viaja o que JÁ ESTÁ REGISTRADO: o que estiver preenchido
+   *  nunca mais é perguntado. null/ausente ⇒ sem fonte. */
+  readonly registroDaJornada?: {
+    readonly nome: string | null;
+    readonly cidade: string | null;
+    readonly estado: string | null;
+  } | null;
 }

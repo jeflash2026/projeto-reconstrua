@@ -52,6 +52,13 @@ export type CpfProvider = (chatId: string) => Promise<boolean | null>;
  *  Ausente/falha ⇒ null (sem fonte, e aí nenhuma das duas ordens é dada). */
 export type DossieProvider = (chatId: string) => Promise<boolean | null>;
 
+/** Caso REAL Beatriz (2026-08-13): a AHRI pediu a cidade três vezes porque o
+ *  registro da jornada nunca chegou ao contexto. O que está aqui NUNCA é
+ *  perguntado de novo. Ausente/falha ⇒ null (sem fonte). */
+export type RegistroProvider = (
+  chatId: string,
+) => Promise<NonNullable<ConversationContextView['registroDaJornada']> | null>;
+
 export class ConversationContextRuntime {
   private readonly options: ContextOptions;
 
@@ -65,6 +72,7 @@ export class ConversationContextRuntime {
     private readonly onboarding?: OnboardingDocumentalProvider,
     private readonly cpf?: CpfProvider,
     private readonly dossie?: DossieProvider,
+    private readonly registro?: RegistroProvider,
   ) {
     this.options = { ...DEFAULT_CONTEXT_OPTIONS, ...options };
   }
@@ -85,6 +93,7 @@ export class ConversationContextRuntime {
       onboarding,
       cpf,
       dossie,
+      registro,
     ] = await Promise.all([
       this.memory.recent(chatId, this.options.memoryWindow),
       this.memory.recentOutboundTexts(chatId, this.options.outboundWindow),
@@ -100,6 +109,7 @@ export class ConversationContextRuntime {
         : Promise.resolve(null),
       this.cpf !== undefined ? this.cpf(chatId).catch(() => null) : Promise.resolve(null),
       this.dossie !== undefined ? this.dossie(chatId).catch(() => null) : Promise.resolve(null),
+      this.registro !== undefined ? this.registro(chatId).catch(() => null) : Promise.resolve(null),
     ]);
     return {
       chatId,
@@ -119,6 +129,8 @@ export class ConversationContextRuntime {
       cpfRegistrado: cpf,
       // Decreto 2026-08-13 — o dossiê já saiu? Só com ele a AHRI pede o SIM.
       dossieEnviado: dossie,
+      // Caso Beatriz — o que já está registrado nunca mais é perguntado.
+      registroDaJornada: registro,
     };
   }
 }

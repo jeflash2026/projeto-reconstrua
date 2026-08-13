@@ -257,6 +257,32 @@ function reforcoDossie(context: ConversationContextView): string {
   return '';
 }
 
+/**
+ * Caso REAL Beatriz (2026-08-13) — a AHRI perguntou a cidade TRÊS vezes.
+ *
+ * Ela já tinha o nome e a cidade no registro desde a primeira troca, e mesmo
+ * assim voltou a pedir "Cidade - UF" duas vezes depois de a cliente responder.
+ * O motivo é simples: o registro da jornada nunca chegou ao contexto do LLM.
+ * Ele enxergava o CPF e os documentos, e era cego para nome/cidade/estado.
+ *
+ * Repetir pergunta que a pessoa já respondeu é o que faz a conversa parecer
+ * um robô quebrado — e some com a confiança que o resto do atendimento constrói.
+ */
+function reforcoRegistro(context: ConversationContextView): string {
+  const r = context.registroDaJornada ?? null;
+  if (r === null) return '';
+  const registrados: string[] = [];
+  if (r.nome !== null && r.nome !== '') registrados.push(`nome do cliente = ${r.nome}`);
+  if (r.cidade !== null && r.cidade !== '') registrados.push(`cidade = ${r.cidade}`);
+  if (r.estado !== null && r.estado !== '') registrados.push(`estado = ${r.estado}`);
+  if (registrados.length === 0) return '';
+  return (
+    ` JÁ ESTÁ REGISTRADO no sistema (${registrados.join('; ')}): NUNCA pergunte de novo nada ` +
+    'que esteja nesta lista. Se a pessoa repetir espontaneamente algum destes dados, apenas ' +
+    'confirme que está anotado e siga — jamais peça que ela informe outra vez.'
+  );
+}
+
 /** Decreto 2026-07-27 (caso 51 9109-4367): o LLM NEGOU o pedido de CPF que o
  *  próprio sistema fez ("se precisarmos do CPF, eu falo com você") porque não
  *  sabia do estado. Agora o estado viaja no contexto e vira instrução direta. */
@@ -309,7 +335,7 @@ export function politicaDaMissao(context: ConversationContextView): PoliticaDaMi
         substituiCuriosidade: true,
         perguntaDireta,
         respostaCanonica,
-        conduta: CONDUTA_LEAD + reforcoCpf(context),
+        conduta: CONDUTA_LEAD + reforcoRegistro(context) + reforcoCpf(context),
         reforco: '',
       };
     case 'ONBOARDING_DOCUMENTAL':
@@ -319,7 +345,7 @@ export function politicaDaMissao(context: ConversationContextView): PoliticaDaMi
         substituiCuriosidade: true,
         perguntaDireta,
         respostaCanonica,
-        conduta: condutaOnboarding(context) + reforcoCpf(context),
+        conduta: condutaOnboarding(context) + reforcoRegistro(context) + reforcoCpf(context),
         reforco: '',
       };
     case 'ANALISE_ADMINISTRATIVA':
@@ -330,7 +356,11 @@ export function politicaDaMissao(context: ConversationContextView): PoliticaDaMi
         perguntaDireta,
         respostaCanonica: null,
         conduta: '',
-        reforco: REFORCO_ANALISE_ADMINISTRATIVA + reforcoDossie(context) + reforcoCpf(context),
+        reforco:
+          REFORCO_ANALISE_ADMINISTRATIVA +
+          reforcoDossie(context) +
+          reforcoRegistro(context) +
+          reforcoCpf(context),
       };
     case 'CLIENTE':
       return {

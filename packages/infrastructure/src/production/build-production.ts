@@ -1144,6 +1144,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       if (clienteId === null || clienteId === chatId) return false;
       return (await parecerStore.load(clienteId).catch(() => null)) !== null;
     },
+    // Caso REAL Beatriz (2026-08-13): a AHRI pediu a cidade TRÊS vezes tendo o
+    // dado registrado desde a primeira troca — ela enxergava o CPF e era cega
+    // para nome/cidade/estado. O registro da jornada é UMA leitura por chave.
+    async (chatId) => {
+      const r = (await jornadaComercial.fatos(chatId)).registro;
+      return { nome: r.nome, cidade: r.cidade, estado: r.estado };
+    },
   );
 
   // GO-LIVE 15C-3 · Parte 2 — ASSOCIAÇÃO INTELIGENTE: documento reconhecido no

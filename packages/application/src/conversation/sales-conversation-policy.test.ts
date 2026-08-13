@@ -44,6 +44,8 @@ function contexto(
     onboarding?: { recebidos: string[]; faltando: string[]; proximo: string | null } | null;
     /** Decreto 2026-08-13: o dossiê já foi entregue? Decide o pedido do SIM. */
     dossieEnviado?: boolean | null;
+    /** Caso Beatriz: o que já está registrado nunca mais é perguntado. */
+    registro?: { nome: string | null; cidade: string | null; estado: string | null } | null;
   } = {},
 ): ConversationContextView {
   return {
@@ -64,6 +66,7 @@ function contexto(
     ...(over.missao !== undefined ? { missaoDaConversa: over.missao } : {}),
     ...(over.onboarding !== undefined ? { onboardingDocumental: over.onboarding } : {}),
     ...(over.dossieEnviado !== undefined ? { dossieEnviado: over.dossieEnviado } : {}),
+    ...(over.registro !== undefined ? { registroDaJornada: over.registro } : {}),
   } as unknown as ConversationContextView;
 }
 
@@ -475,5 +478,46 @@ describe('15A · o estado é INTEGRADO ao ConversationContextView (ContextRuntim
     );
     const view = await rt.build('c1', null, NOW);
     expect(view.onboardingDocumental?.proximo).toBe('comprovante de endereço');
+  });
+});
+
+// Caso REAL Beatriz (2026-08-13): a AHRI pediu a cidade TRÊS vezes — uma delas
+// logo depois de a cliente responder "São paulo-SP". O registro da jornada
+// nunca chegava ao contexto: ela enxergava o CPF e era cega para o resto.
+describe('Caso Beatriz · o que já está registrado nunca é perguntado de novo', () => {
+  const registro = { nome: 'Beatriz Francisca', cidade: 'São Paulo', estado: 'SP' };
+
+  it('injeta o registro como FATO em LEAD, onboarding e análise', () => {
+    for (const missao of ['LEAD', 'ONBOARDING_DOCUMENTAL', 'ANALISE_ADMINISTRATIVA'] as const) {
+      const p = politicaDaMissao(contexto({ missao, registro }));
+      const texto = p.conduta + p.reforco;
+      expect(texto).toContain('JÁ ESTÁ REGISTRADO');
+      expect(texto).toContain('cidade = São Paulo');
+      expect(texto).toContain('estado = SP');
+      expect(texto).toContain('NUNCA pergunte de novo');
+    }
+  });
+
+  it('só cita o que existe — campo vazio não vira ordem', () => {
+    const p = politicaDaMissao(
+      contexto({
+        missao: 'LEAD',
+        registro: { nome: 'Beatriz', cidade: null, estado: null },
+      }),
+    );
+    expect(p.conduta).toContain('nome do cliente = Beatriz');
+    expect(p.conduta).not.toContain('cidade =');
+    expect(p.conduta).not.toContain('estado =');
+  });
+
+  it('registro vazio ou ausente não injeta nada', () => {
+    expect(
+      politicaDaMissao(
+        contexto({ missao: 'LEAD', registro: { nome: null, cidade: null, estado: null } }),
+      ).conduta,
+    ).not.toContain('JÁ ESTÁ REGISTRADO');
+    expect(politicaDaMissao(contexto({ missao: 'LEAD' })).conduta).not.toContain(
+      'JÁ ESTÁ REGISTRADO',
+    );
   });
 });

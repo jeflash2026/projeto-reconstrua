@@ -51,19 +51,28 @@ const FiltroEstados = ({
   contagens,
   ativo,
   total,
+  fase,
+  q,
 }: {
   contagens: readonly [string, ClienteHumanizado[]][];
   ativo: string | null;
   total: number;
+  // A FILA e a BUSCA sobrevivem à troca de estado (2026-08-13): escolher a UF
+  // dentro de "A chamar" continua em "A chamar".
+  fase: FaseDaMesa;
+  q: string;
 }): ReactElement => (
   <div className="filtro-uf">
-    <Link href="/" className={`chip-uf${ativo === null ? ' ativo' : ''}`}>
+    <Link
+      href={comFiltros({ uf: null, q, fase })}
+      className={`chip-uf${ativo === null ? ' ativo' : ''}`}
+    >
       Todos <span className="chip-num">{total}</span>
     </Link>
     {contagens.map(([uf, lista]) => (
       <Link
         key={uf}
-        href={`/?uf=${encodeURIComponent(uf)}`}
+        href={comFiltros({ uf, q, fase })}
         className={`chip-uf${ativo === uf ? ' ativo' : ''}`}
       >
         {uf} <span className="chip-num">{lista.length}</span>
@@ -78,42 +87,100 @@ const Badge = ({ ok, rotulo }: { ok: boolean; rotulo: string }): ReactElement =>
   </span>
 );
 
+/** PAINÉIS CLICÁVEIS (pedido do dono, 2026-08-13) — o resumo mostrava o tamanho
+ *  de cada fila, mas para trabalhar uma delas a secretária tinha de caçar os
+ *  cartões no meio da mesa inteira. Agora cada painel É o filtro. */
+export type FaseDaMesa = 'todos' | 'a-chamar' | 'enviada' | 'concluidos' | 'descartados';
+
+const FASES: ReadonlySet<string> = new Set([
+  'todos',
+  'a-chamar',
+  'enviada',
+  'concluidos',
+  'descartados',
+]);
+/** Fase inválida na URL ⇒ 'todos' (nunca uma tela vazia sem explicação). */
+export function faseValida(v: string | undefined): FaseDaMesa {
+  return FASES.has(v ?? '') ? (v as FaseDaMesa) : 'todos';
+}
+
+const ROTULO_FASE: Readonly<Record<FaseDaMesa, string>> = {
+  todos: 'Confirmados na mesa',
+  'a-chamar': 'A chamar',
+  enviada: 'Documentação enviada',
+  concluidos: 'Concluídos',
+  descartados: 'Descartados',
+};
+
+/** O link da mesa preservando os três filtros — mudar um NUNCA apaga os outros:
+ *  a secretária escolhe o estado, busca um nome e clica na fila, em qualquer
+ *  ordem, sem perder o caminho andado. */
+function comFiltros({ uf, q, fase }: { uf: string | null; q: string; fase: FaseDaMesa }): string {
+  const p = new URLSearchParams();
+  if (uf !== null) p.set('uf', uf);
+  if (q !== '') p.set('q', q);
+  if (fase !== 'todos') p.set('fase', fase);
+  const s = p.toString();
+  return s === '' ? '/' : `/?${s}`;
+}
+
 /** O RESUMO DO DIA (pedido do dono, 2026-08-04): a secretária vê de relance o
  *  tamanho de cada fila — quantos aguardam contato, quantos já receberam a
  *  documentação e quantos concluíram. Sobre a base TODA (o filtro de UF não
  *  esconde o total do trabalho). */
-const ResumoDaMesa = ({ todos }: { todos: readonly ClienteHumanizado[] }): ReactElement => {
+const ResumoDaMesa = ({
+  todos,
+  fase,
+  uf,
+  q,
+}: {
+  todos: readonly ClienteHumanizado[];
+  fase: FaseDaMesa;
+  uf: string | null;
+  q: string;
+}): ReactElement => {
   const ativos = todos.filter((c) => c.descartado !== true);
   const descartados = todos.length - ativos.length;
   const completos = ativos.filter((c) => c.completo).length;
   const enviados = ativos.filter((c) => !c.completo && c.aguardandoAssinatura).length;
   const aChamar = ativos.length - completos - enviados;
-  const itens: readonly { rotulo: string; valor: number; classe: string; dica: string }[] = [
+  const itens: readonly {
+    chave: FaseDaMesa;
+    rotulo: string;
+    valor: number;
+    classe: string;
+    dica: string;
+  }[] = [
     {
+      chave: 'todos',
       rotulo: 'Confirmados na mesa',
       valor: ativos.length,
       classe: '',
       dica: 'Todos os clientes que confirmaram o interesse após o dossiê',
     },
     {
+      chave: 'a-chamar',
       rotulo: 'A chamar',
       valor: aChamar,
       classe: 'atencao',
       dica: 'Ainda sem documentação enviada — o próximo contato é com eles',
     },
     {
+      chave: 'enviada',
       rotulo: 'Documentação enviada',
       valor: enviados,
       classe: 'enviado',
       dica: 'Você já enviou os documentos — aguardando o cliente devolver assinado',
     },
     {
+      chave: 'concluidos',
       rotulo: 'Concluídos',
       valor: completos,
       classe: 'ok',
       dica: 'Os 4 documentos recebidos — seguiram para o perito',
     },
     {
+      chave: 'descartados',
       rotulo: 'Descartados',
       valor: descartados,
       classe: 'descartado',
@@ -122,13 +189,24 @@ const ResumoDaMesa = ({ todos }: { todos: readonly ClienteHumanizado[] }): React
   ];
   return (
     <div className="resumo-mesa">
-      {itens.map((i) => (
-        <div key={i.rotulo} className={`stat-card ${i.classe}`} title={i.dica}>
-          <div className="stat-valor">{i.valor}</div>
-          <div className="stat-rotulo">{i.rotulo}</div>
-          <div className="stat-dica">{i.dica}</div>
-        </div>
-      ))}
+      {itens.map((i) => {
+        // Clicar no painel ATIVO desliga o filtro — o mesmo cartão serve de ida
+        // e volta, sem a secretária ter de procurar um "limpar" em outro canto.
+        const alvo = i.chave === fase ? 'todos' : i.chave;
+        return (
+          <Link
+            key={i.chave}
+            href={comFiltros({ uf, q, fase: alvo })}
+            className={`stat-card ${i.classe}${fase === i.chave ? ' ativo' : ''}`}
+            title={`${i.dica} — clique para ver só estes`}
+            scroll={false}
+          >
+            <div className="stat-valor">{i.valor}</div>
+            <div className="stat-rotulo">{i.rotulo}</div>
+            <div className="stat-dica">{i.dica}</div>
+          </Link>
+        );
+      })}
     </div>
   );
 };
@@ -137,9 +215,20 @@ const ResumoDaMesa = ({ todos }: { todos: readonly ClienteHumanizado[] }): React
  *  funciona sem JavaScript, preserva a UF escolhida e limpa com um clique.
  *  SEM action: o envio fica na URL ATUAL (que já carrega o basePath
  *  /humanizado) — action="/" caía na raiz do domínio, o site principal. */
-const BuscaCliente = ({ q, uf }: { q: string; uf: string | null }): ReactElement => (
+const BuscaCliente = ({
+  q,
+  uf,
+  fase,
+}: {
+  q: string;
+  uf: string | null;
+  fase: FaseDaMesa;
+}): ReactElement => (
   <form method="GET" className="busca-mesa">
     {uf !== null ? <input type="hidden" name="uf" value={uf} /> : null}
+    {/* A FILA escolhida sobrevive à busca (2026-08-13) — sem isto, procurar um
+        nome dentro de "A chamar" jogava a secretária de volta na mesa inteira. */}
+    {fase !== 'todos' ? <input type="hidden" name="fase" value={fase} /> : null}
     <input
       type="text"
       name="q"
@@ -151,7 +240,7 @@ const BuscaCliente = ({ q, uf }: { q: string; uf: string | null }): ReactElement
       Buscar
     </button>
     {q !== '' ? (
-      <Link className="btn" href={uf !== null ? `/?uf=${encodeURIComponent(uf)}` : '/'}>
+      <Link className="btn" href={comFiltros({ uf, q: '', fase })}>
         Limpar
       </Link>
     ) : null}
@@ -253,7 +342,7 @@ const CartaoCliente = ({
 const MesaPage = async ({
   searchParams,
 }: {
-  searchParams: { uf?: string; q?: string };
+  searchParams: { uf?: string; q?: string; fase?: string };
 }): Promise<ReactElement> => {
   const cookie = cookies().get(HUMANIZADO_SESSION_COOKIE)?.value ?? '';
   if (operadorDaSessao(SEGREDO_SESSAO, cookie) === null) redirect('/login');
@@ -287,9 +376,33 @@ const MesaPage = async ({
         );
   // Descartados FICAM FORA das filas de trabalho — seção própria no rodapé.
   const ativas = clientes?.filter((c) => c.descartado !== true) ?? [];
-  const pendentes = ativas.filter((c) => !c.completo);
-  const completos = ativas.filter((c) => c.completo);
-  const descartados = clientes?.filter((c) => c.descartado === true) ?? [];
+  const todosPendentes = ativas.filter((c) => !c.completo);
+  // FILA ESCOLHIDA (2026-08-13): o painel clicado recorta a mesa. 'todos' é a
+  // tela de sempre; as demais mostram SÓ a sua fila — as outras seções somem,
+  // senão a secretária continuaria rolando a página inteira para achar o grupo.
+  const fase = faseValida(searchParams.fase);
+  const pendentes =
+    fase === 'a-chamar'
+      ? todosPendentes.filter((c) => !c.aguardandoAssinatura)
+      : fase === 'enviada'
+        ? todosPendentes.filter((c) => c.aguardandoAssinatura)
+        : fase === 'concluidos' || fase === 'descartados'
+          ? []
+          : todosPendentes;
+  const completos =
+    fase === 'concluidos' || fase === 'todos' ? ativas.filter((c) => c.completo) : [];
+  const descartados =
+    fase === 'descartados' || fase === 'todos'
+      ? (clientes?.filter((c) => c.descartado === true) ?? [])
+      : [];
+  const mostraPendentes = fase !== 'concluidos' && fase !== 'descartados';
+  const mostraCompletos = fase === 'concluidos' || fase === 'todos';
+  const tituloPendentes =
+    fase === 'enviada'
+      ? '📤 Documentação enviada'
+      : fase === 'a-chamar'
+        ? '📞 A chamar'
+        : '📞 Aguardando documentos';
 
   return (
     <div style={{ maxWidth: 1500, margin: '0 auto', padding: '24px 20px 48px' }}>
@@ -319,7 +432,13 @@ const MesaPage = async ({
         <div className="error-box">API indisponível — recarregue a página.</div>
       ) : (
         <>
-          <ResumoDaMesa todos={todos} />
+          <ResumoDaMesa todos={todos} fase={fase} uf={ativo} q={q} />
+          {fase !== 'todos' ? (
+            <p className="page-sub" style={{ marginTop: 8 }}>
+              Mostrando só a fila <strong>{ROTULO_FASE[fase]}</strong>.{' '}
+              <Link href={comFiltros({ uf: ativo, q, fase: 'todos' })}>ver a mesa inteira →</Link>
+            </p>
+          ) : null}
           {/* CAIXA DE ENTRADA do canal da equipe (2026-08-05): quem respondeu
               no número oficial espera a secretária — inclusive número que não
               está na mesa (cliente que escreveu direto). */}
@@ -352,8 +471,14 @@ const MesaPage = async ({
               </div>
             </div>
           ) : null}
-          <FiltroEstados contagens={gruposDeTodos} ativo={ativo} total={todos.length} />
-          <BuscaCliente q={q} uf={ativo} />
+          <FiltroEstados
+            contagens={gruposDeTodos}
+            ativo={ativo}
+            total={todos.length}
+            fase={fase}
+            q={q}
+          />
+          <BuscaCliente q={q} uf={ativo} fase={fase} />
 
           {/* LEGENDA DAS CORES (pedido do dono, 2026-08-04): o estado de cada
               cartão de relance — sem precisar ler os selos um a um. */}
@@ -378,97 +503,105 @@ const MesaPage = async ({
             </p>
           ) : null}
 
-          <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 16 }}>
-            📞 Aguardando documentos <span className="badge warn">{pendentes.length}</span>
-            {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
-          </h2>
-          {pendentes.length === 0 ? (
-            <div className="card empty">
-              {q !== ''
-                ? 'Nenhum cliente pendente na busca.'
-                : ativo === null
-                  ? 'Ninguém aguardando — tudo em dia.'
-                  : `Ninguém aguardando em ${ativo}.`}
-            </div>
-          ) : ativo !== null || q !== '' ? (
-            // Com estado escolhido (ou busca), a lista é direta em GRADE.
-            <div className="grade-cartoes">
-              {pendentes.map((c) => (
-                <CartaoCliente key={c.chatId} c={c} advogados={advogados} />
-              ))}
-            </div>
-          ) : (
-            porEstado(pendentes).map(([uf, lista]) => (
-              <section key={uf}>
-                <div className="uf-titulo">
-                  {uf} <span className="badge">{lista.length}</span>
+          {!mostraPendentes ? null : (
+            <>
+              <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 16 }}>
+                {tituloPendentes} <span className="badge warn">{pendentes.length}</span>
+                {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
+              </h2>
+              {pendentes.length === 0 ? (
+                <div className="card empty">
+                  {q !== ''
+                    ? 'Nenhum cliente pendente na busca.'
+                    : ativo === null
+                      ? 'Ninguém aguardando — tudo em dia.'
+                      : `Ninguém aguardando em ${ativo}.`}
                 </div>
+              ) : ativo !== null || q !== '' ? (
+                // Com estado escolhido (ou busca), a lista é direta em GRADE.
                 <div className="grade-cartoes">
-                  {lista.map((c) => (
+                  {pendentes.map((c) => (
                     <CartaoCliente key={c.chatId} c={c} advogados={advogados} />
                   ))}
                 </div>
-              </section>
-            ))
+              ) : (
+                porEstado(pendentes).map(([uf, lista]) => (
+                  <section key={uf}>
+                    <div className="uf-titulo">
+                      {uf} <span className="badge">{lista.length}</span>
+                    </div>
+                    <div className="grade-cartoes">
+                      {lista.map((c) => (
+                        <CartaoCliente key={c.chatId} c={c} advogados={advogados} />
+                      ))}
+                    </div>
+                  </section>
+                ))
+              )}
+            </>
           )}
 
-          <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
-            ✅ Documentação completa <span className="badge ok">{completos.length}</span>
-            {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
-          </h2>
-          {completos.length === 0 ? (
-            <div className="card empty">
-              {q !== ''
-                ? 'Nenhum concluído na busca.'
-                : ativo === null
-                  ? 'Nenhum concluído ainda.'
-                  : `Nenhum concluído em ${ativo}.`}
-            </div>
-          ) : (
-            porEstado(completos).map(([uf, lista]) => (
-              <section key={uf}>
-                <div className="uf-titulo">
-                  {uf} <span className="badge">{lista.length}</span>
+          {!mostraCompletos ? null : (
+            <>
+              <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
+                ✅ Documentação completa <span className="badge ok">{completos.length}</span>
+                {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
+              </h2>
+              {completos.length === 0 ? (
+                <div className="card empty">
+                  {q !== ''
+                    ? 'Nenhum concluído na busca.'
+                    : ativo === null
+                      ? 'Nenhum concluído ainda.'
+                      : `Nenhum concluído em ${ativo}.`}
                 </div>
-                <div className="grade-cartoes">
-                  {lista.map((c) => (
-                    <div className="card concluida" key={c.chatId}>
-                      <strong>{c.nome}</strong>{' '}
-                      <span className="mono" style={{ fontSize: 12 }}>
-                        {c.telefone}
-                      </span>{' '}
-                      <span className="badge">{c.uf}</span>
-                      {/* Pedido do dono (2026-08-03): com os 4 documentos, o
-                          cartão anuncia a conclusão e o caso segue ao perito. */}
-                      <div className="concluido">
-                        ✅ <strong>Documentação completa recebida</strong> — este cliente saiu da
-                        sua fila e seguiu para o perito fazer o pedido administrativo.
-                      </div>
-                      <div style={{ marginTop: 6 }}>
-                        <Badge ok rotulo="Procuração" />
-                        <Badge ok rotulo="RG" />
-                        <Badge ok rotulo="Comprovante" />
-                        <Badge ok rotulo="Extrato INSS (3m)" />
-                      </div>
-                      <TamanhoDoCaso c={c} />
-                      {/* Guia v2: o pacote do Jarvis usa OS COMPLETOS — a
-                          marcação do advogado precisa estar viva aqui. */}
-                      <AdvogadoSelect
-                        chatId={c.chatId}
-                        advogadoId={c.advogadoId ?? null}
-                        advogados={advogados}
-                      />
-                      <DocsFase2 chatId={c.chatId} />
-                      <div style={{ marginTop: 8 }}>
-                        <Link className="btn" href={`/chat/${encodeURIComponent(c.chatId)}`}>
-                          💬 Conversa no sistema
-                        </Link>
-                      </div>
+              ) : (
+                porEstado(completos).map(([uf, lista]) => (
+                  <section key={uf}>
+                    <div className="uf-titulo">
+                      {uf} <span className="badge">{lista.length}</span>
                     </div>
-                  ))}
-                </div>
-              </section>
-            ))
+                    <div className="grade-cartoes">
+                      {lista.map((c) => (
+                        <div className="card concluida" key={c.chatId}>
+                          <strong>{c.nome}</strong>{' '}
+                          <span className="mono" style={{ fontSize: 12 }}>
+                            {c.telefone}
+                          </span>{' '}
+                          <span className="badge">{c.uf}</span>
+                          {/* Pedido do dono (2026-08-03): com os 4 documentos, o
+                          cartão anuncia a conclusão e o caso segue ao perito. */}
+                          <div className="concluido">
+                            ✅ <strong>Documentação completa recebida</strong> — este cliente saiu
+                            da sua fila e seguiu para o perito fazer o pedido administrativo.
+                          </div>
+                          <div style={{ marginTop: 6 }}>
+                            <Badge ok rotulo="Procuração" />
+                            <Badge ok rotulo="RG" />
+                            <Badge ok rotulo="Comprovante" />
+                            <Badge ok rotulo="Extrato INSS (3m)" />
+                          </div>
+                          <TamanhoDoCaso c={c} />
+                          {/* Guia v2: o pacote do Jarvis usa OS COMPLETOS — a
+                          marcação do advogado precisa estar viva aqui. */}
+                          <AdvogadoSelect
+                            chatId={c.chatId}
+                            advogadoId={c.advogadoId ?? null}
+                            advogados={advogados}
+                          />
+                          <DocsFase2 chatId={c.chatId} />
+                          <div style={{ marginTop: 8 }}>
+                            <Link className="btn" href={`/chat/${encodeURIComponent(c.chatId)}`}>
+                              💬 Conversa no sistema
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))
+              )}
+            </>
           )}
 
           {/* DESCARTADOS (2026-08-04): fora da fila de trabalho, mas nunca

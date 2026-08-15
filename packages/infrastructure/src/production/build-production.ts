@@ -162,6 +162,7 @@ import type { AssembledAdminOperation } from '../admin-portal/build-admin-operat
 import { DossieInvestidor } from '../admin-portal/dossie-investidor.js';
 import { AtribuicaoDeCampanha } from '../admin-portal/atribuicao-campanha.js';
 import { ParadosPosHiscon } from '../jornada/parados-pos-hiscon.js';
+import { DiagnosticoDoCliente } from '../humanizado/diagnostico-do-cliente.js';
 import type { AssembledLawyerExperience } from '../lawyer-experience/build-lawyer-experience.js';
 import {
   InMemoryJsonStore,
@@ -334,6 +335,9 @@ export interface AssembledProduction {
   /** PARADOS DEPOIS DO HISCON (2026-08-13): entregaram o extrato e ficaram sem
    *  o dossiê — separados por motivo e pela janela de 24h da Meta. */
   readonly paradosPosHiscon: ParadosPosHiscon;
+  /** POR QUE ESTE CLIENTE NAO ESTA NA MESA (2026-08-13): a corrente inteira,
+   *  por nome ou telefone, com o primeiro elo quebrado nomeado. */
+  readonly diagnosticoDoCliente: DiagnosticoDoCliente;
   /** TRANSFERÊNCIA ENTRE ADVOGADOS (2026-08-12): corrige um encaminhamento
    *  errado — o caso muda de mãos e os créditos seguem o cliente. */
   readonly transferirAdvogado: (
@@ -2118,6 +2122,62 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       (await custos.listar().catch(() => [])).map((c) => ({ custoUsd: c.custoUsd })),
   });
 
+  // POR QUE ESTE CLIENTE NÃO ESTÁ NA MESA (decreto 2026-08-13) — a pergunta que
+  // se repetia caso a caso e virava investigação minha no código (e uma delas eu
+  // errei). Agora a corrente inteira é lida de uma vez, por nome ou telefone.
+  const diagnosticoDoCliente = new DiagnosticoDoCliente({
+    procurar: async (termo) => {
+      const alvo = termo.trim().toLowerCase();
+      const digitos = alvo.replace(/\D/g, '');
+      const [lista, mesa, comHiscon] = await Promise.all([
+        clientes.list(),
+        mesaHumanizada().catch(() => []),
+        perito.todosComHiscon().catch(() => []),
+      ]);
+      const naMesa = new Set(mesa.filter((m) => !m.descartado).map((m) => m.chatId));
+      const descartados = new Set(mesa.filter((m) => m.descartado).map((m) => m.chatId));
+      const hisconPorChat = new Map(comHiscon.map((c) => [c.chatId, c]));
+
+      const achados = lista
+        .filter((c) => {
+          const telefone = c.chatId.split('@')[0] ?? '';
+          return (
+            c.quem.toLowerCase().includes(alvo) ||
+            (digitos.length >= 4 && telefone.includes(digitos))
+          );
+        })
+        .slice(0, 10);
+
+      const out = [];
+      for (const c of achados) {
+        const fatos = await jornadaComercial.fatos(c.chatId).catch(() => null);
+        const parecer =
+          c.clienteId === c.chatId ? null : await parecerStore.load(c.clienteId).catch(() => null);
+        const hiscon = hisconPorChat.get(c.chatId) ?? null;
+        const entradas = await conversationStore.recent(c.chatId, 200).catch(() => []);
+        out.push({
+          chatId: c.chatId,
+          clienteId: c.clienteId,
+          nome: c.quem,
+          mensagens: entradas.length,
+          cpf: fatos?.registro.cpf ?? null,
+          hisconRecebido: hiscon !== null,
+          contratosLidos: hiscon?.totalContratos ?? 0,
+          parecerEnviadoEm: parecer === null ? null : new Date(parecer.enviadoEm).toISOString(),
+          confirmadoEm:
+            parecer?.confirmadoEm == null ? null : new Date(parecer.confirmadoEm).toISOString(),
+          disseSim:
+            parecer === null
+              ? false
+              : await disseSimApos(c.chatId, new Date(parecer.enviadoEm)).catch(() => false),
+          naMesa: naMesa.has(c.chatId),
+          descartado: descartados.has(c.chatId),
+        });
+      }
+      return out;
+    },
+  });
+
   // PARADOS DEPOIS DO HISCON (decreto do dono, 2026-08-13) — quem entregou o
   // extrato e continua sem o dossiê. Separa por MOTIVO (falta CPF / HISCON
   // ilegível / pronto e sem dossiê) e marca quem ainda está na janela de 24h da
@@ -2682,6 +2742,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     dossieInvestidor,
     atribuicaoCampanha,
     paradosPosHiscon,
+    diagnosticoDoCliente,
     transferirAdvogado,
     juridico,
     // 2026-08-09: cada disparo oficial é PERSISTIDO (ns 'disparos-oficial') e

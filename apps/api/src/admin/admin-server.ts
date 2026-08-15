@@ -286,6 +286,8 @@ export function buildAdminServer(
     /** PARADOS DEPOIS DO HISCON (2026-08-13): entregaram o extrato e ficaram
      *  sem o dossiê — por motivo e pela janela de 24h da Meta. */
     readonly paradosPosHiscon?: { varrer(desdeMs?: number): Promise<unknown> };
+    /** POR QUE ESTE CLIENTE NAO ESTA NA MESA (2026-08-13): a corrente inteira. */
+    readonly diagnosticoDoCliente?: { procurar(termo: string): Promise<unknown> };
     /** TRANSFERÊNCIA ENTRE ADVOGADOS (2026-08-12): corrige o encaminhamento
      *  errado — o caso muda de mãos e os créditos seguem o cliente. */
     readonly transferirAdvogado?: (
@@ -2412,6 +2414,15 @@ export function buildAdminServer(
           : await opts.juridico.criarPericia(body.dados ?? {}, autor);
     if (!r.ok) return reply.code(422).send(r);
     return r;
+  });
+
+  // ── POR QUE ESTE CLIENTE NÃO ESTÁ NA MESA (2026-08-13) — só leitura. A
+  //    corrente inteira de UM cliente, achado por nome ou telefone. ─────────
+  app.get('/admin/clientes/diagnostico', async (request, reply) => {
+    if (!opts.diagnosticoDoCliente)
+      return reply.code(503).send({ error: 'diagnóstico indisponível nesta montagem' });
+    const { q } = request.query as { q?: string };
+    return { clientes: await opts.diagnosticoDoCliente.procurar(q ?? '') };
   });
 
   // ── PARADOS DEPOIS DO HISCON (2026-08-13) — só leitura. Quem entregou o

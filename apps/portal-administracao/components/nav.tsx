@@ -22,6 +22,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { href: '/clientes', label: 'Clientes' },
   { href: '/clientes/hoje', label: 'Clientes Hoje' },
   { href: '/reaquecimento', label: 'Reaquecimento' },
+  { href: '/diagnostico-cliente', label: 'Diagnóstico do cliente' },
   { href: '/parados-pos-hiscon', label: 'Parados pós-HISCON' },
   { href: '/varredura-fase2', label: 'Varredura fase 2' },
   { href: '/transferir-numero', label: 'Transferir número' },

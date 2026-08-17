@@ -7,10 +7,25 @@
 import { useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { registrarCompraContratos } from '../lib/actions';
-import type { CarteiraAdvogadoView } from '../lib/api';
+import type { CarteiraAdvogadoView, LancamentoCarteira } from '../lib/api';
 
 function dataBr(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+/** O texto de UM lançamento. Antes só a COMPRA tinha texto próprio e todo o
+ *  resto virava "abate de N" — então um ESTORNO era desenhado como se fosse mais
+ *  um débito, e a leitura dizia o contrário do que aconteceu (caso Joelcio: ele
+ *  foi transferido para outro advogado, os créditos voltaram, e o extrato do
+ *  Cornélio continuava parecendo que ele pagava por esse cliente).
+ *  O SINAL vai em cada linha: sem ele, "16" não diz se entrou ou saiu. */
+function textoDoLancamento(l: LancamentoCarteira): string {
+  const qtd = String(l.quantidade);
+  const quem = l.nome ?? l.clienteId ?? 'cliente';
+  if (l.tipo === 'compra') return `+${qtd} — compra de contratos`;
+  if (l.tipo === 'estorno')
+    return `+${qtd} — ESTORNO de ${quem}${l.motivo !== undefined ? ` (${l.motivo})` : ''}`;
+  return `−${qtd} — abate de ${quem}`;
 }
 
 const FormCompra = ({ advogadoId }: { advogadoId: string }): ReactElement => {
@@ -101,10 +116,7 @@ const CarteiraAdvogados = ({ carteiras }: { carteiras: CarteiraAdvogadoView[] })
                       <ul style={{ margin: '6px 0 0', paddingLeft: 16, fontSize: 12 }}>
                         {c.extrato.map((l, i) => (
                           <li key={i}>
-                            {dataBr(l.em)} —{' '}
-                            {l.tipo === 'compra'
-                              ? `compra de ${String(l.quantidade)} contrato(s)`
-                              : `abate de ${String(l.quantidade)} (${l.nome ?? l.clienteId ?? 'cliente'})`}
+                            {dataBr(l.em)} — {textoDoLancamento(l)}
                           </li>
                         ))}
                       </ul>

@@ -151,10 +151,15 @@ export interface DossieJuridico {
 // ── CARTEIRA DE CRÉDITOS DO ADVOGADO PARCEIRO (decreto 2026-08-04) ────────────
 export interface LancamentoCarteira {
   em: string;
-  tipo: 'compra' | 'abate';
+  /** 'estorno' (2026-08-12): o cliente saiu deste advogado e os créditos
+   *  voltaram. Sem este tipo aqui, o extrato do Admin desenhava o estorno como
+   *  se fosse mais um ABATE — e o dono lia que o advogado continuava pagando
+   *  por um cliente que já tinha sido transferido (caso Joelcio → Rubens). */
+  tipo: 'compra' | 'abate' | 'estorno';
   quantidade: number;
   clienteId?: string;
   nome?: string;
+  motivo?: string;
 }
 
 export interface CarteiraAdvogadoView {

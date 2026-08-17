@@ -9,6 +9,7 @@
 // downloads passam pelos proxies autenticados do portal.
 import type { ReactElement } from 'react';
 import AutoRefresh from '../../../../components/auto-refresh';
+import CredenciaisPedido from '../../../../components/credenciais-pedido';
 import { getJson, type ProcessDetail } from '../../../../lib/api';
 import { formatDate, shortId } from '../../../../lib/format';
 
@@ -241,6 +242,11 @@ const ClienteDestinadoPage = async ({
           ))}
         </div>
       ) : null}
+
+      {/* CREDENCIAIS DO PEDIDO (decisão do dono, 2026-08-13): a caixa por onde o
+          banco responde a este pedido. A senha só é buscada no clique — nunca
+          no carregamento — e cada revelação fica registrada no servidor. */}
+      <CredenciaisPedido missionId={params.missionId} />
 
       {/* ── DOSSIÊ JURÍDICO — os contratos organizados (mesma leitura do perito) ── */}
       <div className="card" style={{ marginBottom: 16 }}>

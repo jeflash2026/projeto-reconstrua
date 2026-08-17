@@ -83,7 +83,16 @@ export function buildAdvogadoServer(
       /** 2026-08-05: resposta do banco registrada pelo perito — encerra a
        *  espera antes do prazo (o status atualiza pela condição). */
       respostaBanco?: { texto: string; registradaEm: string } | null;
+      /** CREDENCIAIS DO PEDIDO (decisão do dono, 2026-08-13): o e-mail e a senha
+       *  da caixa por onde o banco responde. Vão ao advogado para ele buscar a
+       *  resposta sozinho — antes paravam no Admin e os pedidos venciam sem
+       *  ninguém abrir a caixa. Só o advogado ATRIBUÍDO ao caso alcança. */
+      credenciais?: { email: string; senha: string; provedor: string } | null;
     } | null>;
+    /** Registra que um advogado REVELOU a senha de um pedido (quem, qual, quando)
+     *  — credencial vista precisa deixar rastro. Best-effort: falha no registro
+     *  nunca impede o advogado de trabalhar. */
+    readonly registrarVistaDeCredencial?: (advogadoId: string, chatId: string) => Promise<void>;
     /** Decreto 2026-07-30: docs da fase 2 humana (procuração/RG/comprovante). */
     /** CARTEIRA DE CRÉDITOS (decreto 2026-08-05): o advogado parceiro vê a
      *  PRÓPRIA carteira — contratos comprados, abatidos pelos encaminhamentos
@@ -647,6 +656,34 @@ export function buildAdvogadoServer(
     const dossie = await opts.estudo.dossiePorChat(r.chatId);
     if (dossie === null) return reply.code(404).send({ error: 'estudo indisponível' });
     return dossie;
+  });
+
+  // ── CREDENCIAIS DO PEDIDO ADMINISTRATIVO (decisão do dono, 2026-08-13) —
+  //    o e-mail e a senha da caixa por onde o banco responde. Rota SEPARADA de
+  //    propósito: a lista de clientes não carrega senha, então ela nunca vaza
+  //    numa tela aberta ao lado de outra pessoa. Só o advogado ATRIBUÍDO ao
+  //    caso alcança, e cada revelação fica registrada (quem, qual, quando).
+  app.get('/advogado/processos/:missionId/credenciais', async (request, reply) => {
+    const { missionId } = request.params as { missionId: string };
+    const r = await chatDaMissaoAtribuida(request, missionId);
+    if ('erro' in r) {
+      if (r.erro === 'auth') return reply.code(401).send({ error: 'advogado não identificado' });
+      if (r.erro === 'atribuicao')
+        return reply.code(403).send({ error: 'processo não atribuído a você' });
+      return reply.code(404).send({ error: 'conversa do processo não encontrada' });
+    }
+    const pericia = (await opts.periciaDoChat?.(r.chatId).catch(() => null)) ?? null;
+    const cred = pericia?.credenciais ?? null;
+    if (cred === null)
+      return reply
+        .code(404)
+        .send({ error: 'este pedido ainda não tem credenciais cadastradas pelo perito' });
+    // O rastro nasce ANTES da entrega: se o registro falhar, a senha sai igual
+    // (o advogado não pode ficar travado), mas a tentativa fica na observação.
+    const advogadoId = await advogadoOf(request);
+    if (advogadoId)
+      await opts.registrarVistaDeCredencial?.(advogadoId, r.chatId).catch(() => undefined);
+    return { credenciais: cred };
   });
 
   // Decreto 2026-08-04: o DOSSIÊ DE AÇÕES — como a AHRI classificou e agrupou

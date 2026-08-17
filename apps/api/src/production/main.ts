@@ -240,8 +240,30 @@ async function main(): Promise<void> {
             respostaBanco: p.respostaBanco
               ? { texto: p.respostaBanco.texto, registradaEm: p.respostaBanco.registradaEm }
               : null,
+            // CREDENCIAIS DO PEDIDO (decisão do dono, 2026-08-13): antes elas
+            // paravam no Admin e o advogado via o prazo vencer sem poder abrir a
+            // caixa onde o banco respondeu. Agora seguem com o caso — a rota do
+            // portal exige atribuição e registra cada revelação da senha.
+            credenciais: p.credenciais
+              ? {
+                  email: p.credenciais.email,
+                  senha: p.credenciais.senha,
+                  provedor: p.credenciais.provedor,
+                }
+              : null,
           }
         : null;
+    },
+    // Quem revelou a senha de qual pedido, e quando — credencial vista deixa
+    // rastro. Fato simples; nunca segura o trabalho do advogado se falhar.
+    registrarVistaDeCredencial: (advogadoId, chatId) => {
+      prod.observability.event(
+        'credencial-pedido',
+        'senha revelada ao advogado',
+        clock.now(),
+        `advogado=${advogadoId} chat=${chatId}`,
+      );
+      return Promise.resolve();
     },
     docsEquipe: {
       listar: (chatId) => prod.docsEquipe.listar(chatId),

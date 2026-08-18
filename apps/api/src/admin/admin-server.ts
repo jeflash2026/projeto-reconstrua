@@ -1123,29 +1123,49 @@ export function buildAdminServer(
   // TODOS os clientes com HISCON legível (Decreto 2026-07-23) — o perito trabalha
   // a partir da ENTREGA do HISCON, não só da fila de sociedade. Rota ESTÁTICA
   // (resolvida antes da paramétrica :clienteId).
+  // PERFORMANCE (2026-08-14, "por que a página do perito está tão pesada?"):
+  // esta rota tinha DOIS custos que se somavam a cada abertura da Central.
+  //   1. O laço dos PROCESSOS era em série e SEM cache: para cada cliente da
+  //      fila, acoesDe() relia o texto inteiro do HISCON e o re-parseava — a
+  //      cada F5, tudo de novo, um cliente por vez.
+  //   2. A lista todosComHiscon tem cache de 60s, mas o resto da rota não —
+  //      então o parse repetido dominava o tempo.
+  // Agora: as leituras correm em PARALELO e a RESPOSTA INTEIRA fica no mesmo
+  // regime da mesa (memo curto + requentar): a Central abre na hora com a
+  // resposta pronta enquanto a varredura nova corre por trás. Os atos que
+  // mudam a fila (iniciar perícia, estorno, upload) invalidam o memo.
+  const filaPeritoMemo = memoCurto(
+    async () => {
+      const aptos = await clientesAptosParaPedido();
+      // O guard fica DENTRO do memo: a rota já nega 503 antes, mas o memo é
+      // criado na montagem, quando op.perito pode não existir.
+      if (!op.perito) return { clientes: [] };
+      const todos = (await op.perito.todosComHiscon()).filter((c) => c.temCpf);
+      const fila = aptos === null ? todos : todos.filter((c) => aptos.has(c.clienteId));
+      // Central v2 (2026-08-05): a fila é PEQUENA (só aptos) — cada linha ganha
+      // os PROCESSOS do guia (a régua do que o perito efetivamente protocola).
+      const clientes = await Promise.all(
+        fila.map(async (c) => {
+          let processos: number | null = null;
+          try {
+            const a = (await opts.pericia?.acoesDe?.(c.chatId)) as {
+              agrupamento?: { resumo?: { totalAcoes?: number } };
+            } | null;
+            processos = a?.agrupamento?.resumo?.totalAcoes ?? null;
+          } catch {
+            /* sem processos não segura a fila */
+          }
+          return { ...c, processos };
+        }),
+      );
+      return { clientes };
+    },
+    30_000,
+    { requentar: true },
+  );
   app.get('/admin/jornada/pericia/todos-com-hiscon', async (_request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
-    // Decreto 2026-07-27: a fila da perícia exige a FASE 1 completa (CPF +
-    // HISCON). Onda 3: e o ciclo completo (confirmação + docs do humanizado).
-    const aptos = await clientesAptosParaPedido();
-    const todos = (await op.perito.todosComHiscon()).filter((c) => c.temCpf);
-    const fila = aptos === null ? todos : todos.filter((c) => aptos.has(c.clienteId));
-    // Central v2 (2026-08-05): a fila é PEQUENA (só aptos) — cada linha ganha
-    // os PROCESSOS do guia (a régua do que o perito efetivamente protocola).
-    const clientes = [];
-    for (const c of fila) {
-      let processos: number | null = null;
-      try {
-        const a = (await opts.pericia?.acoesDe?.(c.chatId)) as {
-          agrupamento?: { resumo?: { totalAcoes?: number } };
-        } | null;
-        processos = a?.agrupamento?.resumo?.totalAcoes ?? null;
-      } catch {
-        /* sem processos não segura a fila */
-      }
-      clientes.push({ ...c, processos });
-    }
-    return { clientes };
+    return filaPeritoMemo();
   });
 
   // ── CARTEIRA DE CRÉDITOS DO ADVOGADO PARCEIRO (decreto 2026-08-04) ─────────
@@ -1473,6 +1493,7 @@ export function buildAdminServer(
   // com a leitura corrigida. Registros preservados em 'pericia-fluxo-backup'.
   app.post('/admin/jornada/pericia/estornar-todos', async (_request, reply) => {
     if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
+    filaPeritoMemo.invalidar();
     return opts.periciaFluxo.estornarTodos();
   });
 
@@ -1485,6 +1506,7 @@ export function buildAdminServer(
       return reply.code(503).send({ error: 'fluxo de perícia indisponível nesta montagem' });
     }
     const chatsAptos = await chatsAptosParaPedido();
+    filaPeritoMemo.invalidar();
     return opts.periciaFluxo.estornarSemCicloCompleto([...(chatsAptos ?? [])]);
   });
 
@@ -1496,6 +1518,7 @@ export function buildAdminServer(
     const itens = (body.itens ?? [])
       .filter((i) => i.chatId && i.clienteId)
       .map((i) => ({ chatId: i.chatId ?? '', clienteId: i.clienteId ?? '', quem: i.quem ?? '' }));
+    filaPeritoMemo.invalidar();
     return opts.periciaFluxo.iniciarVarios(itens);
   });
 
@@ -1504,6 +1527,7 @@ export function buildAdminServer(
     const { chatId } = request.params as { chatId: string };
     const body = request.body as { clienteId?: string; quem?: string };
     if (!body.clienteId) return reply.code(400).send({ error: 'clienteId é obrigatório' });
+    filaPeritoMemo.invalidar();
     return opts.periciaFluxo.iniciar(chatId, body.clienteId, body.quem ?? '');
   });
 

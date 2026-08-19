@@ -319,23 +319,36 @@ const ClienteDestinadoPage = async ({
                 </tr>
               </thead>
               <tbody>
-                {docsEquipe.map((d) => (
-                  <tr key={d.id}>
-                    <td style={{ fontWeight: 600 }}>{d.rotulo}</td>
-                    <td className="mono" style={{ fontSize: 12 }}>
-                      {d.nome}
-                    </td>
-                    <td>{formatDate(d.em)}</td>
-                    <td>
-                      <a
-                        className="btn"
-                        href={`/advogado/api/doc-equipe/${encodeURIComponent(params.missionId)}/${encodeURIComponent(d.id)}`}
-                      >
-                        Baixar
-                      </a>
-                    </td>
-                  </tr>
-                ))}
+                {/* NUMERAÇÃO POR TIPO (caso Cornélio, 2026-08-18): as duas faces
+                    do RG confirmadas de foto chegavam com o MESMO nome — duas
+                    linhas idênticas liam-se como duplicata, o advogado baixava
+                    uma e concluía que o RG veio incompleto. "RG (1 de 2)" e
+                    "RG (2 de 2)" dizem que são arquivos DIFERENTES. */}
+                {docsEquipe.map((d) => {
+                  const doTipo = docsEquipe.filter((x) => x.tipo === d.tipo);
+                  const n = doTipo.findIndex((x) => x.id === d.id) + 1;
+                  const rotulo =
+                    doTipo.length > 1
+                      ? `${d.rotulo} (${String(n)} de ${String(doTipo.length)})`
+                      : d.rotulo;
+                  return (
+                    <tr key={d.id}>
+                      <td style={{ fontWeight: 600 }}>{rotulo}</td>
+                      <td className="mono" style={{ fontSize: 12 }}>
+                        {d.nome}
+                      </td>
+                      <td>{formatDate(d.em)}</td>
+                      <td>
+                        <a
+                          className="btn"
+                          href={`/advogado/api/doc-equipe/${encodeURIComponent(params.missionId)}/${encodeURIComponent(d.id)}`}
+                        >
+                          Baixar
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

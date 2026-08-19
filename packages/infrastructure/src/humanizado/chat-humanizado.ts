@@ -483,7 +483,18 @@ export class ChatHumanizadoService {
       return { ok: false, error: 'esta mensagem não tem anexo do cliente' };
     const blob = await this.deps.media.read(mensagem.sha256);
     if (blob === null) return { ok: false, error: 'anexo indisponível no armazenamento' };
-    const nome = mensagem.nomeArquivo ?? `${tipo}-${chatId.split('@')[0] ?? chatId}`;
+    // NOME ÚNICO E COM EXTENSÃO (caso Cornélio, 2026-08-18): foto do WhatsApp
+    // vem SEM nome de arquivo, e o fallback antigo dava o MESMO nome às duas
+    // faces do RG ("rg-5511...", sem extensão). No portal do advogado viravam
+    // duas linhas idênticas — ele baixava uma, via um lado só e concluía que o
+    // RG não veio completo; e o arquivo sem ".jpg" nem abria no clique duplo.
+    // Agora cada confirmação ganha o número de ordem e a extensão do mime.
+    const jaDoTipo = (await this.deps.docsEquipe.listar(chatId)).filter(
+      (d) => d.tipo === tipo,
+    ).length;
+    const ext = blob.mime === 'application/pdf' ? 'pdf' : blob.mime === 'image/png' ? 'png' : 'jpg';
+    const telefone = chatId.split('@')[0] ?? chatId;
+    const nome = mensagem.nomeArquivo ?? `${tipo}-${String(jaDoTipo + 1)}-${telefone}.${ext}`;
     const anexado = await this.deps.docsEquipe.anexar(
       chatId,
       tipo,

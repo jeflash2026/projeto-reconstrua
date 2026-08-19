@@ -749,9 +749,21 @@ export function buildAdvogadoServer(
     }
     const doc = await opts.docsEquipe.baixar(r.chatId, id);
     if (doc === null) return reply.code(404).send({ error: 'documento não encontrado' });
+    // EXTENSÃO GARANTIDA (caso Cornélio, 2026-08-18): documentos confirmados de
+    // foto do WhatsApp foram salvos sem ".jpg" — o download não abria no clique
+    // duplo e o advogado lia como "não recebi". Para o acervo antigo, a
+    // extensão certa vem do mime na hora de servir.
+    const extPorMime: Record<string, string> = {
+      'application/pdf': 'pdf',
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+    };
+    const ext = extPorMime[doc.mime] ?? 'bin';
+    const nomeLimpo = doc.nome.replace(/"/g, '');
+    const nomeFinal = /\.[a-z0-9]{2,4}$/i.test(nomeLimpo) ? nomeLimpo : `${nomeLimpo}.${ext}`;
     return reply
       .header('content-type', doc.mime)
-      .header('content-disposition', `attachment; filename="${doc.nome.replace(/"/g, '')}"`)
+      .header('content-disposition', `attachment; filename="${nomeFinal}"`)
       .send(Buffer.from(doc.bytes));
   });
 

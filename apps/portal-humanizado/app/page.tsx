@@ -31,6 +31,12 @@ function dataBr(iso: string): string {
 // à conversa DO SISTEMA com a apresentação da Layara pronta para disparar em
 // um clique (template contato_equipe, com o nome do cliente preenchido).
 
+/** Só os dígitos do JID — o web.whatsapp.com/send?phone= quer o número cru,
+ *  com DDI, sem "@s.whatsapp.net" e sem símbolo. */
+function telefoneDe(chatId: string): string {
+  return (chatId.split('@')[0] ?? chatId).replace(/\D/g, '');
+}
+
 /** Agrupa por UF (ordem alfabética; 'SEM UF' por último). */
 function porEstado(
   clientes: readonly ClienteHumanizado[],
@@ -302,11 +308,20 @@ const CartaoCliente = ({
         </div>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {/* Abre a conversa DO SISTEMA com a apresentação da Layara pronta
-            para disparar (template com o nome do cliente preenchido). */}
-        <Link className="btn primary" href={`/chat/${encodeURIComponent(c.chatId)}?apresentacao=1`}>
-          📲 Chamar no WhatsApp (mensagem pronta)
-        </Link>
+        {/* WHATSAPP DIRETO (decreto do dono, 2026-08-18): a Meta baniu em
+            definitivo os DOIS números da empresa — o contato com o cliente
+            passa a sair do celular PARTICULAR, pelo WhatsApp normal. O botão
+            abre o web.whatsapp.com já na conversa do cliente; quem escreve é a
+            pessoa, do próprio aparelho. O chat do sistema continua no botão ao
+            lado (histórico + anexos), para quando houver número oficial de novo. */}
+        <a
+          className="btn primary"
+          href={`https://web.whatsapp.com/send?phone=${telefoneDe(c.chatId)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          📲 Chamar no WhatsApp
+        </a>
         <Link className="btn" href={`/chat/${encodeURIComponent(c.chatId)}`}>
           💬 Conversa no sistema
         </Link>

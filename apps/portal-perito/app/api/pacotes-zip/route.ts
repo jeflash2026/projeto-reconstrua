@@ -9,11 +9,17 @@ export const dynamic = 'force-dynamic';
 /** Montar o pacote de dezenas de clientes (com anexos) leva mais que o padrão. */
 export const maxDuration = 300;
 
-export async function GET(): Promise<Response> {
-  const res = await fetch(`${API_BASE}/admin/jornada/pericia/pacotes-zip`, {
-    cache: 'no-store',
-    headers: authHeaders(),
-  });
+export async function GET(request: Request): Promise<Response> {
+  // Os ids EXATOS da fila "aguardando" (2026-08-19): sem eles a API empacotava
+  // todos os aptos — inclusive os já em perícia — e o proxy cortava por tempo.
+  const ids = new URL(request.url).searchParams.get('ids') ?? '';
+  const res = await fetch(
+    `${API_BASE}/admin/jornada/pericia/pacotes-zip?ids=${encodeURIComponent(ids)}`,
+    {
+      cache: 'no-store',
+      headers: authHeaders(),
+    },
+  );
   if (!res.ok) return new Response('pacote indisponível', { status: res.status });
   const conteudo = await res.arrayBuffer();
   return new Response(conteudo, {

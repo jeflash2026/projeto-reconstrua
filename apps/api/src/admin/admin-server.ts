@@ -936,7 +936,12 @@ export function buildAdminServer(
    *  Extraído em 2026-08-12 porque o "Baixar TODOS" do perito ainda descia só
    *  os CSV — a correção de 2026-08-04 tinha ficado só no botão unitário. Agora
    *  as duas rotas montam o pacote pela MESMA função. */
-  async function pacoteDoCliente(clienteId: string): Promise<{
+  async function pacoteDoCliente(
+    clienteId: string,
+    /** O lote passa o chatId JÁ resolvido — sem isto cada pacote relia a base
+     *  inteira (clientes.list compõe o ALIR de todo mundo) só para achar o chat. */
+    chatIdConhecido: string | null = null,
+  ): Promise<{
     nomeCliente: string;
     arquivos: { name: string; content: string | Buffer }[];
   } | null> {
@@ -954,10 +959,11 @@ export function buildAdminServer(
         content: xlsxDePlanilha('Contratos', gerada.planilha.colunas, gerada.planilha.linhas),
       },
     ];
-    const cliente = (await op.clientes?.list())?.find(
-      (c) => c.clienteId === clienteId || c.chatId === clienteId,
-    );
-    const chatId = cliente?.chatId ?? null;
+    const chatId =
+      chatIdConhecido ??
+      (await op.clientes?.list())?.find((c) => c.clienteId === clienteId || c.chatId === clienteId)
+        ?.chatId ??
+      null;
     if (chatId !== null) {
       // 1) Docs da FASE 2 (procuração assinada, RG, comprovante) — equipe.
       if (opts.docsEquipe) {
@@ -1037,20 +1043,41 @@ export function buildAdminServer(
   // o lote e ficava sem procuração, RG e comprovante para protocolar.
   // Uma pasta por cliente, mesma montagem do pacote unitário.
   const TETO_LOTE_BYTES = 200 * 1024 * 1024; // o zip é montado em memória
-  app.get('/admin/jornada/pericia/pacotes-zip', async (_request, reply) => {
+  app.get('/admin/jornada/pericia/pacotes-zip', async (request, reply) => {
     if (!op.perito) return reply.code(503).send({ error: 'perícia indisponível nesta montagem' });
-    // Onda 3: o lote do perito respeita a MESMA trava do ciclo completo.
+    // FALHA REAL (2026-08-19, "o individual baixa, o lote não"): o lote chamava
+    // planilhasDeTodos() — que monta a planilha da BASE INTEIRA só para achar
+    // os ids — e depois empacotava TODOS os aptos (aguardando + em perícia +
+    // concluídos, 21 clientes), cada um relendo a base de novo. Minutos de
+    // trabalho; o proxy cortava em 60s e o download morria. Agora:
+    //   • o portal manda os ids EXATOS da fila "aguardando" (?ids=a,b,c);
+    //   • a lista vem do todosComHiscon (cache de 60s), não da planilha geral;
+    //   • a base é lida UMA vez e os pacotes correm em PARALELO.
+    const { ids } = request.query as { ids?: string };
+    const pedidos = new Set(
+      (ids ?? '')
+        .split(',')
+        .map((x) => x.trim())
+        .filter((x) => x !== ''),
+    );
     const aptos = await clientesAptosParaPedido();
-    const todos = await op.perito.planilhasDeTodos();
-    const alvos = aptos === null ? todos : todos.filter((p) => aptos.has(p.clienteId));
+    const base = (await op.perito.todosComHiscon()).filter((c) => c.temCpf);
+    const alvos = base.filter(
+      (c) =>
+        (aptos === null || aptos.has(c.clienteId)) &&
+        (pedidos.size === 0 || pedidos.has(c.clienteId)),
+    );
+
+    const pacotes = await Promise.all(
+      alvos.map((alvo) => pacoteDoCliente(alvo.clienteId, alvo.chatId).catch(() => null)),
+    );
 
     const arquivos: { name: string; content: string | Buffer }[] = [];
     const pastas = new Map<string, number>();
     const incluidos: string[] = [];
     const forasDoTeto: string[] = [];
     let bytes = 0;
-    for (const alvo of alvos) {
-      const pacote = await pacoteDoCliente(alvo.clienteId).catch(() => null);
+    for (const pacote of pacotes) {
       if (pacote === null) continue; // cliente problemático não derruba o lote
       const tamanho = pacote.arquivos.reduce(
         (s, a) =>

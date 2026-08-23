@@ -63,7 +63,10 @@ export function BaixarTodosEIniciar({
     await iniciarPericiaTodos(
       aguardando.map((c) => ({ chatId: c.chatId, clienteId: c.clienteId, quem: c.quem })),
     );
-    baixar('/perito/api/pacotes-zip');
+    // Só os clientes DESTA fila (2026-08-19): a API empacotava todos os aptos —
+    // os em perícia e os concluídos junto — e o lote morria por tempo no proxy.
+    const ids = aguardando.map((c) => c.clienteId).join(',');
+    baixar(`/perito/api/pacotes-zip?ids=${encodeURIComponent(ids)}`);
     router.refresh();
     setBusy(false);
   };

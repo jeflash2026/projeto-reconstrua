@@ -1372,3 +1372,17 @@ export async function repararVarreduraFase2(): Promise<{
   if (r === null) return { ok: false, error: 'falha na API' };
   return { ok: r.ok === true, reparados: r.reparados, error: r.error };
 }
+
+// ── AUDITORIA DE ABATES (2026-08-24) — ajusta o abatido à régua atual do guia.
+export async function ajustarAbates(
+  advogadoId?: string,
+  clienteId?: string,
+): Promise<{ ok: boolean; ajustados?: number; error?: string }> {
+  const r = await sendJson<{ ok?: boolean; ajustados?: number; error?: string }>(
+    'POST',
+    '/admin/creditos-advogado/auditoria/ajustar',
+    { advogadoId, clienteId, confirmar: true },
+  );
+  if (r === null) return { ok: false, error: 'falha na API' };
+  return { ok: r.ok === true, ajustados: r.ajustados, error: r.error };
+}

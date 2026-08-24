@@ -138,24 +138,78 @@ export class CreditosAdvogadoService {
     return { ok: true, estornados: devolver };
   }
 
+  /** O abatido LÍQUIDO de cada cliente (abates − estornos), por clienteId. */
+  private liquidoPorCliente(c: CarteiraAdvogado): Map<string, number> {
+    const porCliente = new Map<string, number>();
+    for (const l of c.lancamentos) {
+      if (l.clienteId === undefined) continue;
+      const atual = porCliente.get(l.clienteId) ?? 0;
+      if (l.tipo === 'abate') porCliente.set(l.clienteId, atual + l.quantidade);
+      if (l.tipo === 'estorno') porCliente.set(l.clienteId, atual - l.quantidade);
+    }
+    return porCliente;
+  }
+
+  /** AJUSTE À RÉGUA ATUAL (auditoria 2026-08-24, caso Juvenal): o guia mudou
+   *  (migração + RMC/RCC que o leitor não via) e abates antigos ficaram
+   *  menores — e o abate normal é idempotente por cliente, então não se
+   *  corrige sozinho. Aqui o lançamento é a DIFERENÇA: complemento de abate
+   *  quando a régua atual é maior; estorno parcial quando é menor. Sempre com
+   *  motivo, sempre como lançamento novo — o extrato conta a história toda. */
+  async ajustarPorCliente(
+    advogadoId: string,
+    cliente: { clienteId: string; nome: string },
+    regraAtual: number,
+    motivo: string,
+  ): Promise<{ ok: boolean; ajuste: number }> {
+    const alvo = Math.max(0, Math.round(regraAtual));
+    const c = await this.carteira(advogadoId);
+    const liquido = this.liquidoPorCliente(c).get(cliente.clienteId) ?? 0;
+    const ajuste = alvo - liquido;
+    if (ajuste === 0) return { ok: true, ajuste: 0 };
+    // Só ajusta quem JÁ foi abatido — ajustar quem nunca foi encaminhado seria
+    // cobrar por cliente que o advogado não recebeu.
+    if (!c.lancamentos.some((l) => l.tipo === 'abate' && l.clienteId === cliente.clienteId))
+      return { ok: false, ajuste: 0 };
+    await this.deps.json.put(NS, advogadoId, {
+      advogadoId,
+      lancamentos: [
+        ...c.lancamentos,
+        {
+          em: this.deps.clock.now().toISOString(),
+          tipo: ajuste > 0 ? ('abate' as const) : ('estorno' as const),
+          quantidade: Math.abs(ajuste),
+          clienteId: cliente.clienteId,
+          nome: cliente.nome,
+          motivo,
+        },
+      ],
+    } satisfies CarteiraAdvogado);
+    return { ok: true, ajuste };
+  }
+
   /** Saldo derivado (nunca armazenado): comprados + estornados − abatidos. */
   async saldo(advogadoId: string): Promise<SaldoAdvogado> {
     const c = await this.carteira(advogadoId);
     const comprados = c.lancamentos
       .filter((l) => l.tipo === 'compra')
       .reduce((s, l) => s + l.quantidade, 0);
-    const abates = c.lancamentos.filter((l) => l.tipo === 'abate');
-    const estornos = c.lancamentos.filter((l) => l.tipo === 'estorno');
-    const abatidos = abates.reduce((s, l) => s + l.quantidade, 0);
-    const estornados = estornos.reduce((s, l) => s + l.quantidade, 0);
-    // Clientes que o advogado REALMENTE tem: abatidos menos os devolvidos.
-    const devolvidos = new Set(estornos.map((l) => l.clienteId));
+    const abatidos = c.lancamentos
+      .filter((l) => l.tipo === 'abate')
+      .reduce((s, l) => s + l.quantidade, 0);
+    const estornados = c.lancamentos
+      .filter((l) => l.tipo === 'estorno')
+      .reduce((s, l) => s + l.quantidade, 0);
+    // Clientes que o advogado REALMENTE tem: líquido > 0 (com os ajustes da
+    // auditoria, um cliente pode ter MAIS de um lançamento de abate — contar
+    // lançamentos contaria o mesmo cliente duas vezes).
+    const liquidos = this.liquidoPorCliente(c);
     return {
       advogadoId,
       comprados,
       abatidos: abatidos - estornados,
       saldo: comprados - abatidos + estornados,
-      clientesAbatidos: abates.filter((l) => !devolvidos.has(l.clienteId)).length,
+      clientesAbatidos: [...liquidos.values()].filter((v) => v > 0).length,
     };
   }
 

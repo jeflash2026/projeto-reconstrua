@@ -71,3 +71,55 @@ describe('CreditosAdvogadoService — estorno', () => {
     expect(estorno?.nome).toBe(JOELCIO.nome); // o advogado vê de quem se trata
   });
 });
+
+// ── AUDITORIA DE ABATES (2026-08-24, pós-caso Juvenal): a régua mudou e o
+// abate idempotente não se corrige sozinho — o ajuste lança a DIFERENÇA.
+describe('ajustarPorCliente — o acerto à régua atual', () => {
+  it('régua maior ⇒ complemento de abate só da diferença', async () => {
+    const c = novo();
+    await c.registrarCompra('adv', 100);
+    await c.abaterPorCliente('adv', JOELCIO, 3); // a régua antiga
+    const r = await c.ajustarPorCliente('adv', JOELCIO, 5, 'auditoria: régua nova (RMC/RCC)');
+    expect(r).toEqual({ ok: true, ajuste: 2 });
+    const s = await c.saldo('adv');
+    expect(s.abatidos).toBe(5);
+    expect(s.saldo).toBe(95);
+    expect(s.clientesAbatidos).toBe(1); // dois lançamentos, UM cliente
+  });
+
+  it('régua menor ⇒ estorno parcial da diferença', async () => {
+    const c = novo();
+    await c.registrarCompra('adv', 100);
+    await c.abaterPorCliente('adv', JOELCIO, 7);
+    const r = await c.ajustarPorCliente('adv', JOELCIO, 5, 'auditoria');
+    expect(r).toEqual({ ok: true, ajuste: -2 });
+    expect((await c.saldo('adv')).abatidos).toBe(5);
+  });
+
+  it('já na régua ⇒ nenhum lançamento', async () => {
+    const c = novo();
+    await c.registrarCompra('adv', 100);
+    await c.abaterPorCliente('adv', JOELCIO, 5);
+    expect(await c.ajustarPorCliente('adv', JOELCIO, 5, 'x')).toEqual({ ok: true, ajuste: 0 });
+    expect((await c.extrato('adv')).length).toBe(2); // compra + abate, nada novo
+  });
+
+  it('cliente que NUNCA foi abatido não é ajustado (não é dele)', async () => {
+    const c = novo();
+    await c.registrarCompra('adv', 100);
+    const r = await c.ajustarPorCliente('adv', JOELCIO, 5, 'x');
+    expect(r.ok).toBe(false);
+    expect((await c.saldo('adv')).saldo).toBe(100);
+  });
+
+  it('o ajuste é idempotente: rodar a auditoria duas vezes não lança de novo', async () => {
+    const c = novo();
+    await c.registrarCompra('adv', 100);
+    await c.abaterPorCliente('adv', JOELCIO, 3);
+    await c.ajustarPorCliente('adv', JOELCIO, 5, 'auditoria');
+    expect(await c.ajustarPorCliente('adv', JOELCIO, 5, 'auditoria')).toEqual({
+      ok: true,
+      ajuste: 0,
+    });
+  });
+});

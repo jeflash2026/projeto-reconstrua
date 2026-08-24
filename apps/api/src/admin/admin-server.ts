@@ -354,6 +354,14 @@ export function buildAdminServer(
         advogadoId: string,
         quantidade: number,
       ): Promise<{ ok: boolean; error?: string }>;
+      /** AUDITORIA (2026-08-24): lança a DIFERENÇA entre o abatido líquido e a
+       *  régua atual — complemento ou estorno parcial, sempre com motivo. */
+      ajustarPorCliente(
+        advogadoId: string,
+        cliente: { clienteId: string; nome: string },
+        regraAtual: number,
+        motivo: string,
+      ): Promise<{ ok: boolean; ajuste: number }>;
     };
     /** Decreto 2026-08-03: o retrato do FUNIL para a Visão Executiva. */
     readonly funilResumo?: () => Promise<{
@@ -1219,6 +1227,120 @@ export function buildAdminServer(
     const r = await opts.creditosAdvogado.registrarCompra(advogadoId, Number(body.quantidade));
     if (!r.ok) return reply.code(400).send({ error: r.error ?? 'compra inválida' });
     return { ok: true };
+  });
+
+  // ── AUDITORIA DE ABATES (pedido do dono, 2026-08-24) — a régua do guia mudou
+  //    (migração vale processo; RMC/RCC que o leitor não via) e os abates já
+  //    feitos ficaram defasados; o abate normal é idempotente por cliente e não
+  //    se corrige sozinho. O GET compara, cliente a cliente, o abatido LÍQUIDO
+  //    com a régua ATUAL (acoesDe relê o HISCON com o leitor corrigido). O POST
+  //    lança só a DIFERENÇA, com motivo — o extrato conta a história toda. ────
+  async function auditoriaDeAbates(): Promise<
+    readonly {
+      advogadoId: string;
+      advogado: string;
+      clienteId: string;
+      chatId: string | null;
+      nome: string;
+      abatido: number;
+      regraAtual: number | null;
+      diferenca: number | null;
+    }[]
+  > {
+    if (!opts.creditosAdvogado) return [];
+    const [advogados, lista] = await Promise.all([
+      op.staff.list('advogado'),
+      op.clientes?.list() ?? Promise.resolve([]),
+    ]);
+    const chatPorCliente = new Map(lista.map((c) => [c.clienteId, c.chatId]));
+    const linhas = [];
+    for (const a of advogados) {
+      const extrato = await opts.creditosAdvogado.extrato(a.id);
+      // Abatido LÍQUIDO por cliente (abates − estornos) — a mesma conta do saldo.
+      const porCliente = new Map<string, { nome: string; liquido: number }>();
+      for (const l of [...extrato].reverse()) {
+        if (l.clienteId === undefined) continue;
+        const atual = porCliente.get(l.clienteId) ?? { nome: l.nome ?? l.clienteId, liquido: 0 };
+        if (l.tipo === 'abate') atual.liquido += l.quantidade;
+        if (l.tipo === 'estorno') atual.liquido -= l.quantidade;
+        if (l.nome !== undefined) atual.nome = l.nome;
+        porCliente.set(l.clienteId, atual);
+      }
+      for (const [clienteId, info] of porCliente) {
+        if (info.liquido <= 0) continue; // transferido/devolvido: não é mais dele
+        const chatId = chatPorCliente.get(clienteId) ?? null;
+        let regraAtual: number | null = null;
+        if (chatId !== null) {
+          try {
+            const acoes = (await opts.pericia?.acoesDe?.(chatId)) as {
+              agrupamento?: { resumo?: { totalAcoes?: number } };
+            } | null;
+            regraAtual = acoes?.agrupamento?.resumo?.totalAcoes ?? null;
+          } catch {
+            regraAtual = null; // HISCON ilegível: aparece como "não conferível"
+          }
+        }
+        linhas.push({
+          advogadoId: a.id,
+          advogado: a.name,
+          clienteId,
+          chatId,
+          nome: info.nome,
+          abatido: info.liquido,
+          regraAtual,
+          diferenca: regraAtual === null ? null : regraAtual - info.liquido,
+        });
+      }
+    }
+    // Divergências primeiro (maiores diferenças no topo), conferidos por último.
+    return linhas.sort(
+      (a, b) =>
+        Math.abs(b.diferenca ?? 0) - Math.abs(a.diferenca ?? 0) ||
+        a.nome.localeCompare(b.nome, 'pt-BR'),
+    );
+  }
+
+  app.get('/admin/creditos-advogado/auditoria', async (_request, reply) => {
+    if (!opts.creditosAdvogado)
+      return reply.code(503).send({ error: 'carteira indisponível nesta montagem' });
+    const linhas = await auditoriaDeAbates();
+    return {
+      linhas,
+      divergentes: linhas.filter((l) => (l.diferenca ?? 0) !== 0).length,
+      naoConferiveis: linhas.filter((l) => l.diferenca === null).length,
+    };
+  });
+
+  app.post('/admin/creditos-advogado/auditoria/ajustar', async (request, reply) => {
+    if (!opts.creditosAdvogado)
+      return reply.code(503).send({ error: 'carteira indisponível nesta montagem' });
+    const body = (request.body ?? {}) as {
+      advogadoId?: string;
+      clienteId?: string;
+      confirmar?: boolean;
+    };
+    if (body.confirmar !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
+    const linhas = await auditoriaDeAbates();
+    // Sem advogadoId/clienteId ⇒ ajusta TODAS as divergências conferíveis.
+    const alvos = linhas.filter(
+      (l) =>
+        l.diferenca !== null &&
+        l.diferenca !== 0 &&
+        (body.advogadoId === undefined || l.advogadoId === body.advogadoId) &&
+        (body.clienteId === undefined || l.clienteId === body.clienteId),
+    );
+    const ajustes = [];
+    for (const l of alvos) {
+      const r = await opts.creditosAdvogado.ajustarPorCliente(
+        l.advogadoId,
+        { clienteId: l.clienteId, nome: l.nome },
+        l.regraAtual ?? 0,
+        'auditoria 2026-08-24: régua atual do guia (migração + RMC/RCC relidos)',
+      );
+      ajustes.push({ advogado: l.advogado, nome: l.nome, ajuste: r.ajuste });
+    }
+    return { ok: true, ajustados: ajustes.filter((a) => a.ajuste !== 0).length, ajustes };
   });
 
   // Decreto 2026-08-04: o DOSSIÊ DE AÇÕES de UM cliente — o guia de

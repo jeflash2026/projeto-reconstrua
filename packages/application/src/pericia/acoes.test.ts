@@ -229,3 +229,48 @@ describe('RMC/RCC, janela e seleção', () => {
     expect(sel.map((c) => c.contrato).sort()).toEqual(['ATIVO-1', 'X1', 'X2', 'X3']);
   });
 });
+
+// ── DECRETO JUVENAL (2026-08-24): a migração viaja inteira no processo ───────
+describe('migração — o espelho do banco de origem viaja no processo do ativo', () => {
+  const hoje = new Date('2026-08-24');
+  const ativoMigrado = contrato({
+    contrato: '90157361363',
+    bancoCodigo: '012',
+    bancoNome: 'BANCO INBURSA',
+    situacao: 'ATIVO',
+    migrado: true,
+    migradoDoContrato: '90157361363',
+    migradoDoCbc: '626',
+    valorEmprestado: 34020.2,
+  });
+  const espelho = contrato({
+    contrato: '90157361363',
+    bancoCodigo: '626',
+    bancoNome: 'C6 CONSIGNADO',
+    situacao: 'EXCLUÍDO',
+    valorEmprestado: 34020.2,
+  });
+
+  it('1 processo com os DOIS contratos, e a regra explica a tese', () => {
+    const g = agruparContratosEmAcoes([ativoMigrado, espelho], hoje);
+    expect(g.resumo.totalAcoes).toBe(1);
+    const acao = g.acoes[0];
+    expect(acao?.categoria).toBe('ATIVOS');
+    expect(acao?.contratos.map((c) => `${c.bancoCodigo ?? ''}:${c.situacao ?? ''}`)).toEqual([
+      '012:ATIVO',
+      '626:EXCLUÍDO',
+    ]);
+    expect(acao?.regra).toContain('MIGRADO');
+    expect(acao?.regra).toContain('sem autorização');
+  });
+
+  it('o espelho NÃO conta duas vezes: fica fora do pool de trios', () => {
+    // Dois excluídos comuns do mesmo banco/ano + o espelho: se o espelho
+    // entrasse no pool, o 626 teria 3 no ano e fecharia um trio indevido.
+    const ex1 = naoAtivo({ contrato: 'EX-1', bancoCodigo: '626', bancoNome: 'C6 CONSIGNADO' });
+    const ex2 = naoAtivo({ contrato: 'EX-2', bancoCodigo: '626', bancoNome: 'C6 CONSIGNADO' });
+    const g = agruparContratosEmAcoes([ativoMigrado, espelho, ex1, ex2], hoje);
+    expect(g.resumo.totalAcoes).toBe(1); // só o processo da migração
+    expect(g.resumo.porCategoria.EXCLUIDOS).toBe(0);
+  });
+});

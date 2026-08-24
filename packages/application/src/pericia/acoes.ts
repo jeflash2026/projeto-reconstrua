@@ -110,6 +110,27 @@ export function agruparContratosEmAcoes(
   // A MESMA janela de 5 anos de todo o pipeline (decreto: fora dela, descarta).
   const janela = contratosDaJanela(contratos, hoje, 5);
 
+  // MIGRAÇÕES (decreto do dono, caso Juvenal 2026-08-24): migração NÃO é o
+  // mesmo empréstimo — é contrato NOVO criado sem autorização do cliente, e a
+  // migração em si é objeto da ação. O ESPELHO (o registro não-ativo do banco
+  // de origem, com o número que o ativo declara em "Migrado do contrato X
+  // CBC: N") viaja no MESMO processo do ativo migrado: o advogado e o pedido
+  // administrativo recebem os DOIS números juntos. O espelho sai do pool de
+  // trios — ele já está representado no processo da migração.
+  const espelhoDe = (ativo: ContratoHiscon): ContratoHiscon | null => {
+    if (!ativo.migrado || ativo.migradoDoContrato === null) return null;
+    return (
+      janela.find(
+        (c) =>
+          c !== ativo &&
+          c.contrato === ativo.migradoDoContrato &&
+          (ativo.migradoDoCbc === null || c.bancoCodigo === ativo.migradoDoCbc) &&
+          (c.situacao ?? '').toUpperCase() !== 'ATIVO',
+      ) ?? null
+    );
+  };
+  const espelhosDeMigracao = new Set<ContratoHiscon>();
+
   const porCategoria: Record<CategoriaAcao, ContratoHiscon[]> = {
     ATIVOS: [],
     EXCLUIDOS: [],
@@ -125,18 +146,24 @@ export function agruparContratosEmAcoes(
     (a, b) => chaveBanco(a).localeCompare(chaveBanco(b)) || valorDe(b) - valorDe(a),
   );
   for (const c of ativosOrdenados) {
+    const espelho = espelhoDe(c);
+    if (espelho !== null) espelhosDeMigracao.add(espelho);
     acoes.push({
       categoria: 'ATIVOS',
       banco: bancoDe(c),
-      contratos: [c],
-      regra: 'Contrato ATIVO: 1 contrato = 1 processo.',
+      contratos: espelho !== null ? [c, espelho] : [c],
+      regra:
+        espelho !== null
+          ? 'Contrato ATIVO MIGRADO: 1 processo com os DOIS contratos — o original do banco de origem e o migrado. A migração gerou contrato novo sem autorização do cliente.'
+          : 'Contrato ATIVO: 1 contrato = 1 processo.',
     });
   }
 
   // ── NÃO-ATIVOS: trios do MESMO banco + MESMO ano = 1 processo; teto de 15
-  //    processos POR BANCO; sempre dos MAIORES valores para os menores. ───────
+  //    processos POR BANCO; sempre dos MAIORES valores para os menores.
+  //    Espelhos de migração ficam FORA do pool: já viajam no processo do ativo.
   const naoAtivosPorBanco = new Map<string, ContratoHiscon[]>();
-  for (const c of porCategoria.EXCLUIDOS) {
+  for (const c of porCategoria.EXCLUIDOS.filter((x) => !espelhosDeMigracao.has(x))) {
     const k = chaveBanco(c);
     naoAtivosPorBanco.set(k, [...(naoAtivosPorBanco.get(k) ?? []), c]);
   }

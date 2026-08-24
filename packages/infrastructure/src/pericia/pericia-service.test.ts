@@ -64,7 +64,13 @@ describe('PericiaService · dossiê do perito', () => {
     expect(dossie?.beneficio.numeroBeneficio).toBe('186.472.726-5');
     expect(dossie?.totalContratos).toBe(2);
     expect(dossie?.migrados.map((c) => c.contrato)).toEqual(['MIGRA1']);
-    expect(dossie?.filaPedidoAdministrativo.map((c) => c.contrato)).toEqual(['NORMAL1']);
+    // Decreto Juvenal (2026-08-24): a fila do pedido administrativo cobre TODOS
+    // os contratos — a migração é contrato novo sem autorização e os dois lados
+    // entram no pedido. O migrado deixou de ser excluído da fila.
+    expect(dossie?.filaPedidoAdministrativo.map((c) => c.contrato).sort()).toEqual([
+      'MIGRA1',
+      'NORMAL1',
+    ]);
     expect(dossie?.porBanco.map((b) => b.bancoNome)).toEqual([
       'BANCO BRADESCO S A',
       'NOVO BANCO CONTINENTAL S A',

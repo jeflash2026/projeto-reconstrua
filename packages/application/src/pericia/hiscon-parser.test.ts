@@ -175,10 +175,13 @@ describe('parseHisconDetalhado · o documento REAL da produção', () => {
     });
   });
 
-  it('fila do PERITO = não migrados (pedido administrativo)', () => {
+  it('fila do PERITO = TODOS os contratos, migrados inclusive (decreto Juvenal 2026-08-24)', () => {
+    // A regra antiga excluía migrados do pedido administrativo. O dono decretou
+    // o contrário: migração é contrato novo criado sem autorização — os DOIS
+    // lados precisam estar no pedido. Nenhum contrato fica de fora.
     const fila = contratosParaPedidoAdministrativo(extraido.contratos);
-    expect(fila).toHaveLength(4);
-    expect(fila.every((c) => !c.migrado)).toBe(true);
+    expect(fila).toHaveLength(extraido.contratos.length);
+    expect(fila.some((c) => c.migrado)).toBe(true);
   });
 
   it('agrupamento por banco (ordem alfabética)', () => {
@@ -298,5 +301,45 @@ VALOR PARCELA: R$200,00
     const e = parseHisconDetalhado(texto);
     expect(e.contratos).toHaveLength(2);
     expect(e.contratos.map((c) => c.contrato).sort()).toEqual(['12345', '67890']);
+  });
+});
+
+// ── DECRETO JUVENAL (2026-08-24): migração NÃO é o mesmo empréstimo ──────────
+// O contrato migrado reaparece com o MESMO número em dois bancos: ATIVO no novo
+// e EXCLUÍDO no de origem. O dedup antigo (só pelo número) apagava o espelho —
+// e o pedido administrativo saía sem o contrato do banco de origem.
+describe('dedup preserva os espelhos de migração', () => {
+  const HISCON_MIGRACAO = `
+JUVENAL TESTE
+Nº Benefício: 111.111.111-1
+
+CONTRATO: 90157361363
+BANCO: 012 - BANCO INBURSA
+SITUAÇÃO: ATIVO
+ORIGEM DA AVERBAÇÃO: Migrado do contrato 90157361363 CBC: 626
+DATA INCLUSÃO: 07/02/26
+VALOR PARCELA: R$780,10
+VALOR EMPRESTADO: R$34.020,20
+
+CONTRATO: 90157361363
+BANCO: 626 - C6 CONSIGNADO
+SITUAÇÃO: EXCLUÍDO
+ORIGEM DA AVERBAÇÃO: Averbação por Refinanciamento
+DATA INCLUSÃO: 07/02/26
+VALOR PARCELA: R$780,10
+VALOR EMPRESTADO: R$34.020,20
+`;
+
+  it('mantém os DOIS registros da migração (bancos diferentes, mesmo número)', () => {
+    const e = parseHisconDetalhado(HISCON_MIGRACAO);
+    expect(e.contratos).toHaveLength(2);
+    const situacoes = e.contratos.map((c) => c.situacao).sort();
+    expect(situacoes).toEqual(['ATIVO', 'EXCLUÍDO']);
+  });
+
+  it('página repetida (mesmo número + banco + situação) continua caindo', () => {
+    const duplicado = HISCON_MIGRACAO + HISCON_MIGRACAO;
+    const e = parseHisconDetalhado(duplicado);
+    expect(e.contratos).toHaveLength(2); // nunca 4
   });
 });

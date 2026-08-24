@@ -205,14 +205,20 @@ export function parseHisconDetalhado(textoBruto: string): HisconExtraido {
     });
   }
 
-  // DEDUP por número de contrato (caso 2026-07-22): um HISCON enviado 2× ou uma
-  // transcrição que repete páginas gerava o MESMO contrato várias vezes, e o
-  // potencial somava cada cópia. O número do contrato é ÚNICO no HISCON ⇒ mantém
-  // a primeira ocorrência de cada um.
+  // DEDUP (caso 2026-07-22): um HISCON enviado 2× ou uma transcrição que repete
+  // páginas gerava o MESMO contrato várias vezes, e o potencial somava cada
+  // cópia. A chave era SÓ o número — e isso apagava as MIGRAÇÕES (caso Juvenal,
+  // 2026-08-24): o contrato migrado reaparece com o MESMO número no banco novo
+  // (ATIVO) e no banco de origem (EXCLUÍDO), e o espelho do banco antigo sumia
+  // da leitura. Decreto do dono: migração é contrato NOVO criado sem autorização
+  // do cliente — os DOIS registros são objeto do pedido administrativo e do
+  // processo. A chave agora inclui banco e situação: a página repetida continua
+  // caindo (mesmo número + banco + situação); o espelho da migração fica.
   const vistos = new Set<string>();
   const contratosUnicos = contratos.filter((c) => {
-    if (vistos.has(c.contrato)) return false;
-    vistos.add(c.contrato);
+    const chave = `${c.contrato}|${c.bancoCodigo ?? ''}|${(c.situacao ?? '').toUpperCase()}`;
+    if (vistos.has(chave)) return false;
+    vistos.add(chave);
     return true;
   });
 
@@ -342,11 +348,16 @@ export function mapaDeMigracoes(
     }));
 }
 
-/** Contratos que exigem PEDIDO ADMINISTRATIVO (fila do perito): consignado/RMC/RCC não migrados. */
+/** Contratos que exigem PEDIDO ADMINISTRATIVO (fila do perito): TODOS.
+ *  A regra antiga excluía os migrados ("não precisam de pedido"). Decreto do
+ *  dono (caso Juvenal, 2026-08-24): a MIGRAÇÃO é um contrato novo criado sem
+ *  autorização do cliente — cabível de processo por si — e o pedido precisa
+ *  cobrir os DOIS lados (o contrato original no banco de origem e o migrado no
+ *  banco novo). Nenhum contrato fica de fora do pedido. */
 export function contratosParaPedidoAdministrativo(
   contratos: readonly ContratoHiscon[],
 ): readonly ContratoHiscon[] {
-  return contratos.filter((c) => !c.migrado);
+  return contratos;
 }
 
 // ── indícios de estratégia (SINAL para o perito — nunca conclusão jurídica) ──

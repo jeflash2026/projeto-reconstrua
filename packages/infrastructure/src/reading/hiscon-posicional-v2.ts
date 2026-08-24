@@ -282,6 +282,16 @@ const CABECALHO_CARTAO: readonly (readonly [RegExp, number])[] = [
   [/RESERVADO|ATUALIZADO/, 462],
 ];
 
+/** PÁGINA MISTA (caso Juvenal): mantém só as palavras ACIMA do título
+ *  "DESCONTOS DE CARTÃO" — a tabela de contratos fica; o histórico mensal sai.
+ *  Sem o título posicionável, devolve a página inteira (não inventa corte). */
+function cortarAntesDoHistorico(ps: readonly Palavra[]): readonly Palavra[] {
+  const titulos = ps.filter((p) => /DESCONTOS DE CART/.test(semAcentos(p.s).toUpperCase()));
+  if (titulos.length === 0) return ps;
+  const yCorte = Math.min(...titulos.map((t) => t.y));
+  return ps.filter((p) => p.y < yCorte);
+}
+
 function templateCasa(ps: readonly Palavra[], ehCartao: boolean): boolean {
   const alvo = ehCartao ? CABECALHO_CARTAO : CABECALHO_EMPRESTIMO;
   const casa = (re: RegExp, cx: number): boolean =>
@@ -551,12 +561,20 @@ export function reconstruirHisconPosicionalV2(
     //    leitura (caso NYCOLLAS: ~80 linhas mensais viravam "87 contratos").
     //  • "CARTAO DE CREDITO" + "CONTRATOS…" = os CONTRATOS de cartão RMC/RCC.
     //  • "CONTRATOS ATIVOS/EXCLUIDOS" (sem cartão) = empréstimos bancários.
-    const ehHistoricoMensal = /DESCONTOS DE CARTAO/.test(textoPagina);
-    const ehCartao = !ehHistoricoMensal && /CARTAO DE CREDITO/.test(textoPagina);
-    const ehEmprestimos =
-      !ehHistoricoMensal &&
-      !ehCartao &&
+    //
+    // PÁGINA MISTA (caso JUVENAL, 2026-08-24): o formato "completo" do HISCON
+    // põe as TABELAS de contrato RMC/RCC e o começo do histórico mensal na
+    // MESMA página. A regra antiga via "DESCONTOS DE CARTAO" e pulava a página
+    // inteira — os contratos de cartão sumiam da leitura, o estudo saía sem
+    // RMC/RCC e o abate do advogado vinha menor. Agora: página com tabela de
+    // contratos é processada SEMPRE; se ela também tiver o histórico, o corte
+    // posicional (cortarAntesDoHistorico) remove só a parte mensal.
+    const temTabelaDeContratos =
       /CONTRATOS ATIVOS E SUSPENSOS|CONTRATOS EXCLUIDOS E ENCERRADOS/.test(textoPagina);
+    const temHistoricoMensal = /DESCONTOS DE CARTAO/.test(textoPagina);
+    const ehHistoricoMensal = temHistoricoMensal && !temTabelaDeContratos;
+    const ehCartao = !ehHistoricoMensal && /CARTAO DE CREDITO/.test(textoPagina);
+    const ehEmprestimos = !ehHistoricoMensal && !ehCartao && temTabelaDeContratos;
 
     if (ehHistoricoMensal) continue; // histórico ≠ contrato (agregação fica p/ o futuro)
     if (!ehCartao && !ehEmprestimos) {
@@ -578,14 +596,19 @@ export function reconstruirHisconPosicionalV2(
     // NÃO é o layout em linhas (é a matriz do V1, ou outra coisa) — pular é a
     // única leitura honesta; fatiar geraria contratos fabricados. O modo
     // diagnóstico (relatório) desliga o portão para MEDIR o resultado.
-    if (opcoes.portaoDoTemplate !== false && !templateCasa(ps, ehCartao)) continue;
+    // PÁGINA MISTA: só a região ACIMA do título "DESCONTOS DE CARTÃO" é tabela
+    // de contratos — o histórico mensal abaixo fica fora (proteção Nycollas
+    // preservada por posição, não mais pelo descarte da página inteira).
+    const psTabela = temHistoricoMensal ? cortarAntesDoHistorico(ps) : ps;
+
+    if (opcoes.portaoDoTemplate !== false && !templateCasa(psTabela, ehCartao)) continue;
 
     const cols = ehCartao ? COLS_CARTAO : COLS_EMPRESTIMO;
     // Âncora: nos EMPRÉSTIMOS é a competência MM/AAAA do início de desconto; nos
     // CONTRATOS de cartão é a DATA INCLUSÃO dd/mm/aa (não há competência ali).
     const registros = ehCartao
-      ? extrairRegistros(ps, cols, 'data_inclusao', ehDataCurta)
-      : extrairRegistros(ps, cols, 'inicio_desconto', ehCompetencia);
+      ? extrairRegistros(psTabela, cols, 'data_inclusao', ehDataCurta)
+      : extrairRegistros(psTabela, cols, 'inicio_desconto', ehCompetencia);
     for (const reg of registros) {
       const v = (id: ColunaId): string => reg.campos.get(id) ?? '';
       const so = (id: ColunaId, ok: (s: string) => boolean): string => {

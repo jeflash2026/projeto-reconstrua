@@ -1258,6 +1258,7 @@ export function buildAdminServer(
       abatido: number;
       regraAtual: number | null;
       diferenca: number | null;
+      composicao: { ativos: number; excluidos: number; rmc: number; rcc: number } | null;
     }[]
   > {
     if (!opts.creditosAdvogado) return [];
@@ -1283,12 +1284,28 @@ export function buildAdminServer(
         if (info.liquido <= 0) continue; // transferido/devolvido: não é mais dele
         const chatId = chatPorCliente.get(clienteId) ?? null;
         let regraAtual: number | null = null;
+        // A COMPOSIÇÃO da régua sai junto ("está considerando RMC?", pedido do
+        // dono 2026-08-24): a linha mostra quantos processos vêm de ativos,
+        // trios de excluídos e cartões — conferível a olho, não por fé.
+        let composicao: { ativos: number; excluidos: number; rmc: number; rcc: number } | null =
+          null;
         if (chatId !== null) {
           try {
             const acoes = (await opts.pericia?.acoesDe?.(chatId)) as {
-              agrupamento?: { resumo?: { totalAcoes?: number } };
+              agrupamento?: {
+                resumo?: { totalAcoes?: number; porCategoria?: Record<string, number> };
+              };
             } | null;
             regraAtual = acoes?.agrupamento?.resumo?.totalAcoes ?? null;
+            const cat = acoes?.agrupamento?.resumo?.porCategoria;
+            if (regraAtual !== null && cat !== undefined) {
+              composicao = {
+                ativos: cat['ATIVOS'] ?? 0,
+                excluidos: cat['EXCLUIDOS'] ?? 0,
+                rmc: cat['RMC'] ?? 0,
+                rcc: cat['RCC'] ?? 0,
+              };
+            }
           } catch {
             regraAtual = null; // HISCON ilegível: aparece como "não conferível"
           }
@@ -1302,6 +1319,7 @@ export function buildAdminServer(
           abatido: info.liquido,
           regraAtual,
           diferenca: regraAtual === null ? null : regraAtual - info.liquido,
+          composicao,
         });
       }
     }

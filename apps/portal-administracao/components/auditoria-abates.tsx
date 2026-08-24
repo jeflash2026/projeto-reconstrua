@@ -15,6 +15,18 @@ export interface LinhaAuditoria {
   abatido: number;
   regraAtual: number | null;
   diferenca: number | null;
+  /** De onde a régua atual vem (pedido do dono: "está considerando RMC?"). */
+  composicao: { ativos: number; excluidos: number; rmc: number; rcc: number } | null;
+}
+
+/** "3 ativos + 1 RMC + 1 RCC" — só as partes que existem. */
+function composicaoLegivel(c: NonNullable<LinhaAuditoria['composicao']>): string {
+  const partes: string[] = [];
+  if (c.ativos > 0) partes.push(`${String(c.ativos)} ativo${c.ativos > 1 ? 's' : ''}`);
+  if (c.excluidos > 0) partes.push(`${String(c.excluidos)} de excluídos`);
+  if (c.rmc > 0) partes.push(`${String(c.rmc)} RMC`);
+  if (c.rcc > 0) partes.push(`${String(c.rcc)} RCC`);
+  return partes.length > 0 ? partes.join(' + ') : 'nenhum processo';
 }
 
 export interface Auditoria {
@@ -108,6 +120,7 @@ export default function AuditoriaAbates({ auditoria }: { auditoria: Auditoria })
                   <th>Advogado</th>
                   <th>Abatido</th>
                   <th>Régua atual</th>
+                  <th>Composição (cartão incluso?)</th>
                   <th>Diferença</th>
                   <th />
                 </tr>
@@ -119,6 +132,20 @@ export default function AuditoriaAbates({ auditoria }: { auditoria: Auditoria })
                     <td>{l.advogado}</td>
                     <td>{l.abatido}</td>
                     <td>{l.regraAtual ?? '—'}</td>
+                    <td className="page-sub">
+                      {l.composicao === null ? (
+                        '—'
+                      ) : (
+                        <>
+                          {composicaoLegivel(l.composicao)}
+                          {l.composicao.rmc + l.composicao.rcc > 0 ? (
+                            <span className="badge ok" style={{ marginLeft: 6 }}>
+                              cartão contado
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                    </td>
                     <td>
                       {l.diferenca === null ? (
                         <span className="badge dim">não conferível</span>

@@ -283,6 +283,33 @@ async function main(): Promise<void> {
     `AHRIOS em produção: main:${String(port)} admin:${String(port + 1)} advogado:${String(port + 2)} lx:${String(port + 3)}\n`,
   );
 
+  // AQUECIMENTO (2026-08-24, "o sistema todo está sobrecarregado"): depois de
+  // cada deploy TUDO nascia frio e o primeiro clique de cada página pagava a
+  // varredura completa (o spinner do dono). Aqui as leituras mais pesadas são
+  // pré-computadas UMA A UMA (single-thread: em sequência, nunca em paralelo,
+  // para não competir com webhooks que chegam no boot) — o primeiro clique já
+  // encontra a resposta pronta no cache; dali em diante o requentar sustenta.
+  const segredoAdmin = env['ADMIN_ACCESS_SECRET'] ?? '';
+  if (segredoAdmin !== '') {
+    const PAGINAS_QUENTES = [
+      '/admin/command-center',
+      '/admin/dashboard',
+      '/admin/jornada/clientes',
+      '/admin/humanizado/clientes',
+      '/admin/jornada/pericia/todos-com-hiscon',
+      '/admin/financeiro/painel',
+      '/admin/metrics/operacional',
+    ];
+    void (async () => {
+      for (const url of PAGINAS_QUENTES) {
+        await admin
+          .inject({ method: 'GET', url, headers: { authorization: `Bearer ${segredoAdmin}` } })
+          .catch(() => undefined);
+      }
+      process.stdout.write('[reconstrua] aquecimento concluído: páginas pesadas prontas.\n');
+    })();
+  }
+
   // DEPLOY GRACIOSO (caso REAL Iracema 5551 9232-3343, 2026-07-31): o restart
   // do container (deploy/rebuild) matava o processo NO MEIO de um turno (~20s
   // de decisão) — a mensagem do cliente ficava registrada e a resposta nunca

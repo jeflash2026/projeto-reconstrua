@@ -262,6 +262,48 @@ describe('Leitor posicional V2 — template + âncoras + auditoria', () => {
     expect(r?.auditoria).toBe('conferida');
   });
 
+  it('REGRESSÃO (caso JUVENAL, p5 MISTA): tabela de cartão + início do histórico na MESMA página', () => {
+    // Formato "completo" 240826: a p5 traz as tabelas RMC/RCC E o título
+    // "DESCONTOS DE CARTÃO" com as primeiras linhas mensais logo abaixo. O
+    // classificador via o título e pulava a página INTEIRA — os cartões sumiam
+    // e o cliente era entregue com abates a menos (Juvenal: 3 em vez de 5).
+    // Agora a página é cortada no título: a tabela entra, o histórico não.
+    const mista = pagina([
+      cel(400, 10, 'CARTÃO DE CRÉDITO - RMC', 150),
+      cel(400, 20, 'CONTRATOS ATIVOS E SUSPENSOS', 180),
+      cel(55, 30, 'CONTRATO', 30),
+      cel(120, 30, 'TIPO', 18),
+      cel(190, 30, 'BANCO', 22),
+      cel(248, 30, 'SITUAÇÃO', 30),
+      cel(408, 30, 'LIMITE', 24),
+      cel(462, 30, 'RESERVADO', 34),
+      cel(55, 50, '780434117-5', 40),
+      cel(120, 48, 'Reserva de Margem', 50),
+      cel(120, 56, 'para Cartão (RMC)', 50),
+      cel(190, 50, '623 - BANCO PAN', 50),
+      cel(248, 50, 'Ativo', 20),
+      cel(352, 50, '17/11/23', 30), // ÂNCORA (data de inclusão)
+      cel(408, 50, 'R$3.241,00', 34),
+      cel(462, 50, 'R$125,97', 26),
+      // ── e, MAIS ABAIXO na mesma página, o histórico mensal começa ──
+      cel(400, 100, 'DESCONTOS DE CARTÃO', 140),
+      cel(55, 120, 'CONTRATO', 30),
+      cel(340, 120, 'COMPETÊNCIA', 40),
+      cel(500, 120, 'DESCONTO', 32),
+      cel(55, 140, '780434117-5/026', 50),
+      cel(340, 140, '01/2026', 28),
+      cel(500, 140, 'R$125,97', 26),
+    ]);
+    const r = reconstruirHisconPosicionalV2([pagina1(2), paginaEmprestimos(), mista]);
+    expect(r?.auditoria).toBe('conferida'); // cartão fora do quantitativo, como sempre
+    const h = parseHisconDetalhado(r?.texto ?? '');
+    expect(h.contratos).toHaveLength(3); // 2 empréstimos + o RMC; nenhum mês virou contrato
+    const rmc = h.contratos.find((c) => c.contrato === '780434117-5');
+    expect(rmc?.modalidade).toBe('RMC');
+    expect(rmc?.situacao).toBe('ATIVO');
+    expect(rmc?.valorParcela).toBe(125.97); // RESERVADO = mensal do cartão
+  });
+
   it('MARGENS da página 2 alimentam o indício de margem extrapolada', () => {
     const margens = pagina([
       cel(300, 20, 'VALORES DO BENEFÍCIO', 120),

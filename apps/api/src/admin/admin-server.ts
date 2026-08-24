@@ -50,6 +50,7 @@ import {
   type StaffRole,
 } from '@reconstrua/application';
 import { requireBearer, secretsMatch } from '../auth/bearer-guard.js';
+import { instalarCacheDeResposta } from './cache-de-resposta.js';
 
 const STAFF_ROLES: readonly StaffRole[] = [
   'advogado',
@@ -564,6 +565,13 @@ export function buildAdminServer(
     protect: (path) => path.startsWith('/admin/'),
   });
 
+  // CACHE DE RESPOSTA (2026-08-24, "o sistema todo está sobrecarregado"): toda
+  // rota GET de leitura sai do cache com requentar — a página abre na hora e a
+  // varredura nova corre por trás. Registrado DEPOIS do requireBearer: sem
+  // Bearer, o 401 acontece antes de o cache ser consultado. A invalidação vive
+  // no hook de ações abaixo, junto dos caches específicos.
+  const cacheResposta = instalarCacheDeResposta(app);
+
   // ── DASHBOARD ────────────────────────────────────────────────────────────────
   app.get('/admin/dashboard', async () => {
     await op.projector.refresh();
@@ -869,6 +877,11 @@ export function buildAdminServer(
       commandCenterMemo.invalidar();
       cacheCliente.limpar();
       cacheDossie.limpar();
+      cacheResposta.invalidar();
+    } else if (request.method !== 'GET' && request.url.startsWith('/admin/juridico/')) {
+      // O Painel Jurídico não esfria a operação (mundo próprio) — mas as SUAS
+      // páginas cacheadas precisam refletir o próprio POST na hora.
+      cacheResposta.invalidar('/admin/juridico/');
     }
     done();
   });

@@ -121,6 +121,8 @@ async function main(): Promise<void> {
     diagnosticoDoCliente: prod.diagnosticoDoCliente,
     // Decreto 2026-08-12: corrigir um encaminhamento para o advogado errado.
     transferirAdvogado: prod.transferirAdvogado,
+    // Integração 2026-08-25: notificação de bancos por correspondência (Corvo).
+    corvo: prod.corvo,
     // Decreto 2026-08-08: o PAINEL JURÍDICO (2º painel — dono + sócio).
     juridico: prod.juridico,
     // Reaquecimento FASE 1 (2026-08-07): template pelo número OFICIAL da AHRI.
@@ -437,6 +439,35 @@ async function main(): Promise<void> {
   };
   setTimeout(atualizarAndamentosJuridico, 3 * 60_000);
   setInterval(atualizarAndamentosJuridico, 6 * 60 * 60_000);
+
+  // INTEGRAÇÃO CORVO (2026-08-25): cliente com documentação completa vira ZIP
+  // enviado à correspondência (5 min); a reconciliação (15 min) repassa o feed
+  // de eventos e recupera qualquer webhook perdido. Sem CORVO_API_KEY, os dois
+  // jobs são inertes (o serviço devolve zero sem tocar em nada).
+  if (prod.corvo.ativa) {
+    const enviarAoCorvo = (): void => {
+      void prod.corvo.varrerEEnviar().catch((error: unknown) => {
+        prod.observability.error(
+          'corvo',
+          'varredura',
+          clock.now(),
+          error instanceof Error ? error.message : 'falha na varredura de envio',
+        );
+      });
+    };
+    setTimeout(enviarAoCorvo, 2 * 60_000); // primeiro envio 2 min após o boot
+    setInterval(enviarAoCorvo, 5 * 60_000);
+    setInterval(() => {
+      void prod.corvo.reconciliar().catch((error: unknown) => {
+        prod.observability.error(
+          'corvo',
+          'reconciliacao',
+          clock.now(),
+          error instanceof Error ? error.message : 'falha na reconciliação',
+        );
+      });
+    }, 15 * 60_000);
+  }
 }
 
 // Executado apenas quando o DONO roda este arquivo (node dist/production/main.js).

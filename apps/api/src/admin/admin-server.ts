@@ -11,6 +11,7 @@ import {
   cobrancaDocumental,
   relembrarOCaso,
   type AssembledAdminOperation,
+  type CorvoService,
   type JuridicoService,
 } from '@reconstrua/infrastructure';
 import { zipStore, nomeArquivoSeguro } from '../util/zip.js';
@@ -314,6 +315,8 @@ export function buildAdminServer(
     /** Decreto 2026-08-08: PAINEL JURÍDICO — o 2º painel (dono + sócio):
      *  clientes, processos judiciais, guias e perícias do pós-protocolo. */
     readonly juridico?: JuridicoService;
+    /** Integração Corvo (2026-08-25): envio do lead + caixa/respostas dos bancos. */
+    readonly corvo?: CorvoService;
     /** REAQUECIMENTO FASE 1 (2026-08-07): template aprovado pelo número
      *  OFICIAL da AHRI — reabre lead frio; a resposta cai na entrada única e
      *  o funil retoma sozinho de onde parou. */
@@ -1372,6 +1375,52 @@ export function buildAdminServer(
       ajustes.push({ advogado: l.advogado, nome: l.nome, ajuste: r.ajuste });
     }
     return { ok: true, ajustados: ajustes.filter((a) => a.ajuste !== 0).length, ajustes };
+  });
+
+  // ── INTEGRAÇÃO CORVO (2026-08-25) — notificação de bancos por correspondência.
+  //    Leitura da visão/timeline + ações explícitas (reenvio, credencial). A
+  //    SENHA da caixa nunca sai em lista: só no POST de revelar, com trilha. ──
+  app.get('/admin/corvo', async (_request, reply) => {
+    if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
+    return opts.corvo.visaoAdmin();
+  });
+  app.get('/admin/corvo/cliente/:clienteId', async (request, reply) => {
+    if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
+    const { clienteId } = request.params as { clienteId: string };
+    const timeline = await opts.corvo.timelineDoCliente(clienteId);
+    if (timeline === null) return reply.code(404).send({ error: 'cliente nunca enviado ao Corvo' });
+    return timeline;
+  });
+  app.post('/admin/corvo/reenviar/:clienteId', async (request, reply) => {
+    if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
+    const { clienteId } = request.params as { clienteId: string };
+    return opts.corvo.forcarReenvio(clienteId);
+  });
+  app.post('/admin/corvo/caixas/:cpf/reenviar-credencial', async (request, reply) => {
+    if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
+    const { cpf } = request.params as { cpf: string };
+    return opts.corvo.pedirReenvioDeCredencial(cpf);
+  });
+  app.post('/admin/corvo/caixas/:cpf/revelar', async (request, reply) => {
+    if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
+    const { cpf } = request.params as { cpf: string };
+    const body = (request.body ?? {}) as { quem?: string };
+    const credencial = await opts.corvo.revelarSenha(cpf, body.quem ?? 'admin');
+    if (credencial === null) return reply.code(404).send({ error: 'caixa sem senha guardada' });
+    return credencial;
+  });
+  app.get('/admin/corvo/respostas/:respostaId/anexo/:indice', async (request, reply) => {
+    if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
+    const { respostaId, indice } = request.params as { respostaId: string; indice: string };
+    const anexo = await opts.corvo.anexoDaResposta(respostaId, Number(indice));
+    if (anexo === null) return reply.code(404).send({ error: 'anexo indisponível' });
+    return reply
+      .header('content-type', anexo.mime)
+      .header(
+        'content-disposition',
+        `attachment; filename="${anexo.nome.replace(/[^\w. \-()]/g, '_')}"`,
+      )
+      .send(anexo.bytes);
   });
 
   // Decreto 2026-08-04: o DOSSIÊ DE AÇÕES de UM cliente — o guia de

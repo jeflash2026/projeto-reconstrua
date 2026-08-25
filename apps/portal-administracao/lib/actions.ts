@@ -1386,3 +1386,36 @@ export async function ajustarAbates(
   if (r === null) return { ok: false, error: 'falha na API' };
   return { ok: r.ok === true, ajustados: r.ajustados, error: r.error };
 }
+
+// ── INTEGRAÇÃO CORVO (2026-08-25) — notificação de bancos por correspondência.
+export async function reenviarAoCorvo(clienteId: string): Promise<{ ok: boolean }> {
+  const r = await sendJson<{ ok?: boolean }>(
+    'POST',
+    `/admin/corvo/reenviar/${encodeURIComponent(clienteId)}`,
+    {},
+  );
+  return { ok: r?.ok === true };
+}
+
+export async function reenviarCredencialCorvo(
+  cpf: string,
+): Promise<{ ok: boolean; erro?: string }> {
+  const r = await sendJson<{ ok?: boolean; erro?: string }>(
+    'POST',
+    `/admin/corvo/caixas/${encodeURIComponent(cpf)}/reenviar-credencial`,
+    {},
+  );
+  if (r === null) return { ok: false, erro: 'falha na API' };
+  return { ok: r.ok === true, erro: r.erro };
+}
+
+/** Revela a senha da caixa do cliente — ato explícito, com trilha na API. */
+export async function revelarSenhaCorvo(
+  cpf: string,
+): Promise<{ email: string; senha: string } | null> {
+  return sendJson<{ email: string; senha: string }>(
+    'POST',
+    `/admin/corvo/caixas/${encodeURIComponent(cpf)}/revelar`,
+    { quem: 'admin (portal)' },
+  );
+}

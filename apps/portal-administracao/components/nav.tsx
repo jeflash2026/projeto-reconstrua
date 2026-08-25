@@ -42,6 +42,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { href: '/campanhas', label: 'Campanhas' },
   { href: '/disparos', label: 'Disparos' },
   { href: '/juridico', label: 'Painel Jurídico' },
+  { href: '/corvo', label: 'Bancos (Corvo)' },
   { href: '/auditoria-abates', label: 'Auditoria de abates' },
   { href: '/socios', label: 'Sócios' },
   { href: '/financeiro', label: 'Financeiro' },

@@ -229,6 +229,9 @@ import { VarreduraFase2 } from '../humanizado/varredura-fase2.js';
 import { TransferenciaDeNumero } from '../humanizado/transferencia-numero.js';
 import { JuridicoService } from '../juridico/juridico-service.js';
 import { DatajudClient } from '../juridico/datajud-client.js';
+import { CorvoClient } from '../corvo/corvo-client.js';
+import { CorvoService, type DocumentoColetado } from '../corvo/corvo-service.js';
+import type { ContratoDoLead } from '../corvo/corvo-zip.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
 import { CreditosAdvogadoService } from '../advogado/creditos-advogado.js';
@@ -466,6 +469,9 @@ export interface AssembledProduction {
   readonly despedida: DespedidaRuntime;
   /** GO-LIVE-02: tradução humanizada das anotações do advogado (fail-closed; tick reprocessa). */
   readonly traducao: TraducaoClienteRuntime;
+  /** Integração Corvo (2026-08-25): envio do lead completo + credencial da caixa
+   *  e respostas dos bancos via webhook verificado. Sem CORVO_API_KEY = inerte. */
+  readonly corvo: CorvoService;
 }
 
 export function assembleProduction(wiring: ProductionWiring): AssembledProduction {
@@ -2702,6 +2708,102 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       nascimento.enviarParecer(clienteId, clock.now()),
   };
 
+  // ── INTEGRAÇÃO CORVO (2026-08-25) — o cliente COMPLETO da mesa vira um ZIP
+  // (planilha dos contratos do guia + HISCON + procuração + RG + comprovante)
+  // enviado à operação de correspondência; caixa de e-mail e respostas dos
+  // bancos voltam por webhook. Sem CORVO_API_KEY, o serviço existe mas nada sai.
+  const corvoApiKey = env['CORVO_API_KEY'] ?? '';
+  const corvo = new CorvoService({
+    json,
+    clock,
+    client:
+      corvoApiKey === ''
+        ? null
+        : new CorvoClient({
+            baseUrl: env['CORVO_BASE_URL'] ?? 'https://corvo.clsolucoes.com',
+            apiKey: corvoApiKey,
+          }),
+    webhookSecret: env['CORVO_WEBHOOK_SECRET'] ?? '',
+    chaveCredencial: env['CORVO_CRED_KEY'] ?? env['CORVO_WEBHOOK_SECRET'] ?? '',
+    observability,
+    mesa: async () =>
+      (await humanizado.clientes()).map((m) => ({
+        clienteId: m.clienteId,
+        chatId: m.chatId,
+        nome: m.nome,
+        completo: m.completo,
+        descartado: m.descartado === true,
+      })),
+    // O CPF vem da jornada (fase 1) — mesma fonte do perito.
+    cpfDe: async (chatId) => {
+      const r = (await json.get('jornada', chatId)) as { cpf?: string | null } | null;
+      return r?.cpf ?? null;
+    },
+    // Os contratos do ZIP são os SELECIONADOS pelo guia (os que viram processo)
+    // — exatamente o que os bancos serão notificados a responder.
+    contratosDe: async (chatId) => {
+      const acoes = await pericia.acoesDe(chatId);
+      if (acoes === null) return null;
+      const vistos = new Set<string>();
+      const out: ContratoDoLead[] = [];
+      for (const acao of acoes.agrupamento.acoes) {
+        for (const c of acao.contratos) {
+          const chave = `${c.contrato}|${c.bancoCodigo ?? ''}`;
+          if (vistos.has(chave)) continue;
+          vistos.add(chave);
+          out.push({
+            bancoCodigo: c.bancoCodigo,
+            bancoNome: c.bancoNome,
+            contrato: c.contrato,
+            modalidade: c.modalidade === 'EMPRESTIMO' ? 'EMPRÉSTIMO CONSIGNADO' : c.modalidade,
+            valorEmprestado: c.valorEmprestado,
+            qtdeParcelas: c.qtdeParcelas,
+            valorParcela: c.valorParcela,
+            inicio: c.competenciaInicio,
+            fim: c.competenciaFim,
+            situacao: c.situacao,
+          });
+        }
+      }
+      return out;
+    },
+    documentosDe: async (chatId) => {
+      const out: DocumentoColetado[] = [];
+      // HISCON: o PDF ORIGINAL do cliente (contabilidade documental, código CNIS).
+      const onboarding = (await json.get('onboarding-documental', chatId)) as {
+        recebidos?: readonly { codigo: string; documentId: string }[];
+      } | null;
+      const cnis = onboarding?.recebidos?.find((r) => r.codigo === 'CNIS');
+      if (cnis !== undefined) {
+        const conteudo = await documentContent.byDocumentId(cnis.documentId).catch(() => null);
+        if (conteudo !== null)
+          out.push({
+            categoria: 'HISCON',
+            mime: conteudo.mime,
+            bytes: conteudo.bytes,
+            ref: cnis.documentId,
+          });
+      }
+      // Fase 2 (docs da equipe): procuração assinada, RG, comprovante.
+      const docs = await docsEquipe.listar(chatId).catch(() => []);
+      for (const d of docs) {
+        const categoria =
+          d.tipo === 'procuracao'
+            ? ('PROCURACAO' as const)
+            : d.tipo === 'rg'
+              ? ('RG' as const)
+              : d.tipo === 'comprovante'
+                ? ('COMPROVANTE' as const)
+                : null;
+        if (categoria === null) continue;
+        const baixado = await docsEquipe.baixar(chatId, d.id).catch(() => null);
+        if (baixado === null) continue;
+        out.push({ categoria, mime: baixado.mime, bytes: baixado.bytes, ref: d.sha256 });
+      }
+      return out;
+    },
+  });
+
   return {
     ingress: shadowMode ? shadow : plainIngress,
     shadow,
@@ -2799,6 +2901,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     nascimento,
     despedida,
     traducao,
+    corvo,
   };
 }
 

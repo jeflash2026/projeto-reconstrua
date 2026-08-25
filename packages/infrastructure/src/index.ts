@@ -48,3 +48,7 @@ export * from './pericia-digital/index.js';
 export * from './humanizado/index.js';
 // Decreto 2026-08-08: Painel Jurídico — gestão do pós-protocolo (2º painel).
 export * from './juridico/index.js';
+// 2026-08-25: utilitários ZIP/XLSX (movidos do apps/api) + integração Corvo
+// (correspondência que notifica bancos a partir dos contratos do cliente).
+export * from './util/index.js';
+export * from './corvo/index.js';

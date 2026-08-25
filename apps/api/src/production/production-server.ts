@@ -206,6 +206,27 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
     return { ok: true };
   });
 
+  // ── WEBHOOK CORVO (integração 2026-08-25) — credencial da caixa e respostas
+  //    dos bancos. A assinatura HMAC exige o corpo BRUTO (bytes), então a rota
+  //    vive num plugin com parser próprio (parseAs buffer) — o resto do servidor
+  //    segue com o parser JSON normal. Verificação, anti-replay e idempotência
+  //    ficam no serviço; aqui só o transporte. Fail-closed sem segredo. ───────
+  void app.register((sub, _opts, done) => {
+    sub.addContentTypeParser(
+      ['application/json', 'text/plain'],
+      { parseAs: 'buffer' },
+      (_req, body, feito) => {
+        feito(null, body);
+      },
+    );
+    sub.post('/webhooks/corvo', async (request, reply) => {
+      const corpo = Buffer.isBuffer(request.body) ? request.body : Buffer.from('');
+      const r = await prod.corvo.receberWebhook(corpo, request.headers);
+      return reply.code(r.status).send(r.corpo);
+    });
+    done();
+  });
+
   // ── ADMIN CONFIG (persistida; segredos mascarados no GET; merge no PUT) ──────
   app.get('/production/config', async () => {
     const stored = await prod.configStore.load();

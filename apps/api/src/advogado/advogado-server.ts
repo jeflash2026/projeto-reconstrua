@@ -544,7 +544,20 @@ export function buildAdvogadoServer(
     await op.projector.refresh();
     const assignments = await op.work.myMissions(advogadoId);
     const summaries = op.projector.missions();
-    return assignments.map((a) => ({
+    // DEDUP (2026-08-25, caso Cornélio): duas missões do MESMO chat = um caso.
+    // Vale a atribuição mais recente (mesma regra de /advogado/meus-clientes).
+    const porChat = new Map<string, (typeof assignments)[number]>();
+    for (const a of assignments) {
+      const chave =
+        a.chatId ?? summaries.find((m) => m.missionId === a.missionId)?.chatId ?? a.missionId;
+      const atual = porChat.get(chave);
+      if (
+        atual === undefined ||
+        new Date(a.assignedAt).getTime() > new Date(atual.assignedAt).getTime()
+      )
+        porChat.set(chave, a);
+    }
+    return [...porChat.values()].map((a) => ({
       assignment: a,
       summary: summaries.find((m) => m.missionId === a.missionId) ?? null,
     }));
@@ -582,7 +595,8 @@ export function buildAdvogadoServer(
     const docs = op.projector.allDocuments();
     const clientes = await Promise.all(
       assignments.map(async (a) => {
-        const chatId = summaries.find((m) => m.missionId === a.missionId)?.chatId ?? null;
+        const chatId =
+          a.chatId ?? summaries.find((m) => m.missionId === a.missionId)?.chatId ?? null;
         return {
           missionId: a.missionId,
           chatId,
@@ -599,8 +613,26 @@ export function buildAdvogadoServer(
         };
       }),
     );
-    clientes.sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
-    return { clientes };
+    // DEDUP (2026-08-25, caso Cornélio "cliente duplicando"): o MESMO cliente
+    // pode carregar duas missões atribuídas (novo contato/novo chip abre outra
+    // missão e o encaminhamento cria outra atribuição). Todas as telas do
+    // advogado resolvem pelo CHAT — duas linhas são o mesmo caso. Fica UMA:
+    // a atribuição mais recente, com os documentos das missões SOMADOS.
+    const porCliente = new Map<string, (typeof clientes)[number]>();
+    for (const c of clientes) {
+      const chave = c.chatId ?? c.missionId;
+      const atual = porCliente.get(chave);
+      if (atual === undefined) {
+        porCliente.set(chave, c);
+        continue;
+      }
+      const maisRecente =
+        new Date(c.atribuidoEm).getTime() > new Date(atual.atribuidoEm).getTime() ? c : atual;
+      porCliente.set(chave, { ...maisRecente, documentos: atual.documentos + c.documentos });
+    }
+    const unicos = [...porCliente.values()];
+    unicos.sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
+    return { clientes: unicos };
   });
 
   // ── ESTUDO DO CLIENTE DESTINADO (decreto 2026-07-30) — o advogado recebe o

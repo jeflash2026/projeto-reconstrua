@@ -381,4 +381,25 @@ describe('Portal do Advogado', () => {
     });
     expect(fantasma.statusCode).toBe(404);
   });
+
+  it('DEDUP (caso Cornélio 2026-08-25): duas missões do MESMO cliente viram UMA linha', async () => {
+    // Novo contato/novo chip abre outra missão; o encaminhamento cria outra
+    // atribuição — o painel do advogado mostrava o cliente DUPLICADO.
+    await op.work.assign('missao-fantasma-mesmo-chat', advogadoA, 'admin-1', CHAT);
+    const clientes = await call({
+      method: 'GET',
+      url: '/advogado/meus-clientes',
+      headers: { 'x-advogado-id': advogadoA },
+    });
+    const corpo: { clientes: { chatId: string | null; missionId: string }[] } = clientes.json();
+    expect(corpo.clientes.filter((c) => c.chatId === CHAT)).toHaveLength(1);
+
+    const processos = await call({
+      method: 'GET',
+      url: '/advogado/processos',
+      headers: { 'x-advogado-id': advogadoA },
+    });
+    const lista: unknown[] = processos.json();
+    expect(lista).toHaveLength(1); // e a mais RECENTE das atribuições prevalece
+  });
 });

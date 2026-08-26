@@ -401,3 +401,76 @@ describe('Produção — Landing pública (GET /) injeta config do ambiente', ()
     }
   });
 });
+
+// ── WEBHOOK CORVO (2026-08-26, "assinatura-invalida em toda entrega") — prova
+// PONTA A PONTA na rota real: o corpo BRUTO atravessa o parser escopado do
+// Fastify e a assinatura HMAC (ts + "." + corpo) confere. A causa raiz do
+// incidente foi outra (as envs CORVO_* fora da lista do compose ⇒ segredo
+// vazio ⇒ fail-closed), mas este teste fixa o transporte para sempre.
+import { createHmac } from 'node:crypto';
+
+describe('Webhook Corvo — transporte real (raw body + HMAC)', () => {
+  const CORVO_SECRET = '89acce53482f2a821f3d6801cd7095b58682cc950a5c8c5b0e4b91b242163181';
+
+  function assinado(corpo: string, agora: Date, segredo = CORVO_SECRET) {
+    const ts = String(Math.floor(agora.getTime() / 1000));
+    const sig =
+      'v1=' +
+      createHmac('sha256', segredo)
+        .update(ts + '.' + corpo)
+        .digest('hex');
+    return {
+      'content-type': 'application/json',
+      'x-corvo-timestamp': ts,
+      'x-corvo-signature': sig,
+    };
+  }
+
+  it('entrega corretamente assinada ⇒ 200 (o corpo bruto chega intacto ao HMAC)', async () => {
+    const { app, clock } = harness({ CORVO_WEBHOOK_SECRET: CORVO_SECRET });
+    const corpo =
+      '{"id":"evt_e2e-1","tipo":"webhook.teste","tentativa":1,"ocorridoEm":"2026-07-14T08:00:00.000Z","dados":{"mensagem":"ping"}}';
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/corvo',
+      headers: assinado(corpo, clock.now()),
+      payload: corpo,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+  });
+
+  it('sem assinatura mas COM segredo configurado ⇒ "expirado" (não "assinatura-invalida")', async () => {
+    // O sintoma do incidente: curl sem headers respondia "assinatura-invalida" —
+    // o que só acontece com segredo VAZIO. Com o segredo carregado, o veredito
+    // de quem chega sem timestamp é "expirado". Serve de diagnóstico de campo.
+    const { app } = harness({ CORVO_WEBHOOK_SECRET: CORVO_SECRET });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/corvo',
+      headers: { 'content-type': 'application/json' },
+      payload: '{}',
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({ error: 'expirado' });
+  });
+
+  it('sem CORVO_WEBHOOK_SECRET ⇒ tudo 401 assinatura-invalida (fail-closed)', async () => {
+    const { app, clock } = harness({});
+    const corpo = '{"id":"evt_e2e-2","tipo":"webhook.teste","ocorridoEm":"","dados":{}}';
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/corvo',
+      headers: assinado(corpo, clock.now()),
+      payload: corpo,
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({ error: 'assinatura-invalida' });
+  });
+
+  it('rotas vizinhas seguem com o parser JSON normal (o parser bruto é escopado)', async () => {
+    const { app } = harness({ CORVO_WEBHOOK_SECRET: CORVO_SECRET });
+    const semToken = await app.inject({ method: 'POST', url: '/webhook/meta', payload: {} });
+    expect(semToken.statusCode).toBe(401); // o guard do Meta continua lendo o body normal
+  });
+});

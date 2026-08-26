@@ -93,6 +93,14 @@ services:
       # Central de Perícia Digital — feature flag (default OFF; endpoints 404
       # enquanto false). Ligue definindo PERICIA_DIGITAL_ENABLED=true no .env.
       PERICIA_DIGITAL_ENABLED: ${PERICIA_DIGITAL_ENABLED:-false}
+      # Integração CORVO (2026-08-25): sem as chaves a integração é INERTE
+      # (nada é enviado; /webhooks/corvo responde 401 a tudo — fail-closed).
+      # CAUSA RAIZ do "assinatura-invalida em toda entrega": as chaves estavam
+      # no .env mas NÃO nesta lista — o container nunca as viu.
+      CORVO_BASE_URL: ${CORVO_BASE_URL:-https://corvo.clsolucoes.com}
+      CORVO_API_KEY: ${CORVO_API_KEY:-}
+      CORVO_WEBHOOK_SECRET: ${CORVO_WEBHOOK_SECRET:-}
+      CORVO_CRED_KEY: ${CORVO_CRED_KEY:-}
     # DEPLOY GRACIOSO (caso Iracema, 2026-07-31): a API drena os turnos em voo
     # no SIGTERM (até 45s) — o Docker precisa dar mais que os 10s padrão antes
     # do SIGKILL, senão o desligamento gracioso morre no meio.

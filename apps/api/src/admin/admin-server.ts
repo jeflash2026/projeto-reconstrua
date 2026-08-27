@@ -1778,7 +1778,15 @@ export function buildAdminServer(
       .filter((i) => i.chatId && i.clienteId)
       .map((i) => ({ chatId: i.chatId ?? '', clienteId: i.clienteId ?? '', quem: i.quem ?? '' }));
     filaPeritoMemo.invalidar();
-    return opts.periciaFluxo.iniciarVarios(itens);
+    const rLote = await opts.periciaFluxo.iniciarVarios(itens);
+    // GATILHO CORVO (acerto 2026-08-27): perícia iniciada = lead na fila de
+    // envio (o Corvo dispara a notificação extrajudicial ao receber). Só quem
+    // TRANSITOU agora — nunca a base inteira. Best-effort: falha aqui jamais
+    // desfaz o início da perícia.
+    for (const i of itens) {
+      await opts.corvo?.agendarEnvio(i.clienteId, i.chatId, i.quem).catch(() => undefined);
+    }
+    return rLote;
   });
 
   app.post('/admin/jornada/pericia/:chatId/iniciar', async (request, reply) => {
@@ -1787,7 +1795,10 @@ export function buildAdminServer(
     const body = request.body as { clienteId?: string; quem?: string };
     if (!body.clienteId) return reply.code(400).send({ error: 'clienteId é obrigatório' });
     filaPeritoMemo.invalidar();
-    return opts.periciaFluxo.iniciar(chatId, body.clienteId, body.quem ?? '');
+    const rIniciar = await opts.periciaFluxo.iniciar(chatId, body.clienteId, body.quem ?? '');
+    // GATILHO CORVO: mesmo acerto do lote (um POST por cliente, só na transição).
+    await opts.corvo?.agendarEnvio(body.clienteId, chatId, body.quem ?? '').catch(() => undefined);
+    return rIniciar;
   });
 
   app.post('/admin/jornada/pericia/:chatId/credenciais', async (request, reply) => {

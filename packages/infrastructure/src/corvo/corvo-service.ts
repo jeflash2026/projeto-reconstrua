@@ -36,6 +36,7 @@ const NS_ANEXOS = 'corvo-anexos'; // chave: `${respostaId}:${indice}`
 const NS_ESTADO = 'corvo-estado'; // chave: 'reconciliacao'
 const NS_DOSSIES = 'corvo-dossies'; // chave: `${cpf}:${hashRaiz}` (uma linha por VERSÃO)
 const NS_DOSSIE_FILA = 'corvo-dossie-fila'; // chave: cpf (debounce do download)
+const NS_ENVIO_FILA = 'corvo-envio-fila'; // chave: clienteId (gatilho: perícia iniciada)
 
 /** Debounce do dossiê: vários eventos do mesmo CPF em sequência ⇒ UM download
  *  ao final da rajada (2 min de silêncio) — com teto de 10 min de espera. */
@@ -180,12 +181,12 @@ export interface DossieCorvo {
 
 // ── Dependências (o build-production liga cada uma às fontes reais) ───────────
 
-export interface MesaParaCorvo {
+/** Um pedido de envio na fila — nasce no gatilho (perícia iniciada) ou no
+ *  botão Reenviar do Admin. Nunca mais uma varredura da base inteira. */
+export interface PedidoDeEnvio {
   readonly clienteId: string;
   readonly chatId: string;
   readonly nome: string;
-  readonly completo: boolean;
-  readonly descartado: boolean;
 }
 
 /** Documento coletado com uma referência ESTÁVEL (id/sha) — é o que entra na
@@ -208,7 +209,6 @@ export interface CorvoDeps {
   /** Base da chave AES da credencial (env dedicada; derivada por sha256). */
   readonly chaveCredencial: string;
   readonly observability: CorvoObservabilidade;
-  readonly mesa: () => Promise<readonly MesaParaCorvo[]>;
   readonly cpfDe: (chatId: string) => Promise<string | null>;
   /** Contratos SELECIONADOS pelo guia (os que viram processo). null = ilegível. */
   readonly contratosDe: (chatId: string) => Promise<readonly ContratoDoLead[] | null>;
@@ -225,11 +225,6 @@ export interface CorvoDeps {
   };
 }
 
-function uuidDe(hex: string): string {
-  const h = (hex + '0'.repeat(32)).slice(0, 32);
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
-}
-
 export class CorvoService {
   private readonly chaveAes: Buffer;
 
@@ -242,20 +237,37 @@ export class CorvoService {
   }
 
   // ── A. Envio do lead ────────────────────────────────────────────────────────
+  // GATILHO NOVO (2026-08-27, acerto com o Corvo): o lead sai quando a PERÍCIA
+  // INICIA (Aguardando → Em perícia) — a notificação extrajudicial É o pedido
+  // administrativo, e o Corvo agora dispara sozinho ao receber. Nada de varrer
+  // a base inteira: só a FILA, alimentada pelo gatilho e pelo Reenviar manual.
 
-  /** A varredura periódica: todo cliente completo da mesa vira (ou atualiza) um
-   *  envio ao Corvo. Sequencial de propósito (processo single-thread). */
+  /** Entra na fila de envio (idempotente por clienteId). */
+  async agendarEnvio(clienteId: string, chatId: string, nome: string): Promise<void> {
+    await this.deps.json.put(NS_ENVIO_FILA, clienteId, {
+      clienteId,
+      chatId,
+      nome,
+      pedidoEm: this.deps.clock.now().toISOString(),
+    });
+  }
+
+  /** Processa a fila (job de 5 min). Sequencial de propósito (single-thread).
+   *  Fica na fila só quem AGUARDA (backoff de transitório); estados de bloqueio
+   *  (sem CPF/contratos/docs) saem — aparecem na tela e voltam pelo Reenviar. */
   async varrerEEnviar(): Promise<{ enviados: number; erros: number }> {
     if (this.deps.client === null) return { enviados: 0, erros: 0 };
     const agora = this.deps.clock.now();
     let enviados = 0;
     let erros = 0;
-    const completos = (await this.deps.mesa()).filter((m) => m.completo && !m.descartado);
-    for (const m of completos) {
+    const fila = (await this.deps.json.list(NS_ENVIO_FILA)) as readonly PedidoDeEnvio[];
+    for (const m of fila) {
       try {
         const r = await this.enviarCliente(m, agora);
         if (r === 'enviado') enviados += 1;
-        if (r === 'erro') erros += 1;
+        if (r === 'erro-permanente' || r === 'erro-transitorio') erros += 1;
+        if (r !== 'aguarda' && r !== 'erro-transitorio')
+          await this.deps.json.del(NS_ENVIO_FILA, m.clienteId);
       } catch (e) {
         erros += 1;
         this.deps.observability.error(
@@ -269,17 +281,20 @@ export class CorvoService {
     return { enviados, erros };
   }
 
-  private async enviarCliente(m: MesaParaCorvo, agora: Date): Promise<'enviado' | 'erro' | 'nada'> {
+  private async enviarCliente(
+    m: PedidoDeEnvio,
+    agora: Date,
+  ): Promise<'enviado' | 'erro-permanente' | 'erro-transitorio' | 'aguarda' | 'nada'> {
     if (this.deps.client === null) return 'nada';
     const anterior = (await this.deps.json.get(NS_IMPORTACOES, m.clienteId)) as
       (ImportacaoCorvo & { salDaChave?: number }) | null;
-    // Backoff em andamento: respeita a agenda.
+    // Backoff em andamento: respeita a agenda (fica na fila até a hora).
     if (
       anterior !== null &&
       anterior.proximaTentativaEm !== null &&
       new Date(anterior.proximaTentativaEm).getTime() > agora.getTime()
     )
-      return 'nada';
+      return 'aguarda';
 
     const cpf = ((await this.deps.cpfDe(m.chatId)) ?? '').replace(/\D/g, '');
     if (cpf.length !== 11) {
@@ -299,10 +314,6 @@ export class CorvoService {
 
     // Assinatura de conteúdo: contratos + refs dos documentos. Igual à última
     // enviada ⇒ nada novo, não reenviar (o modo mesclar é para conteúdo NOVO).
-    // `versao` = FORMATO/PROTOCOLO do envio: quando o nosso lado muda (v2:
-    // coluna "Código banco"; v3: HTTP 200 do remerge aceito como sucesso), a
-    // assinatura muda junto e TODOS os leads — inclusive os parados em ERRO
-    // pela versão anterior — reenviam sozinhos no próximo ciclo.
     const assinatura = createHash('sha256')
       .update(
         JSON.stringify({
@@ -319,12 +330,6 @@ export class CorvoService {
       if (anterior.estado === 'ENVIADO') return 'nada'; // já está lá
       if (anterior.estado === 'ERRO') return 'nada'; // permanente: espera operador
     }
-    const sal = anterior?.salDaChave ?? 0;
-    const idempotencyKey = uuidDe(
-      createHash('sha256')
-        .update(`${m.clienteId}:${assinatura}:${String(sal)}`)
-        .digest('hex'),
-    );
 
     const zip = montarZipDoLead(m.nome, cpf, contratos, documentos);
     if (zip.length > TETO_ZIP_BYTES) {
@@ -334,8 +339,15 @@ export class CorvoService {
         { estado: 'ERRO', cpf, assinatura, ultimoErro: 'ZIP acima de 100 MB' },
         agora,
       );
-      return 'erro';
+      return 'erro-permanente';
     }
+    // Chave de idempotência no FORMATO ACORDADO com o Corvo (2026-08-27):
+    // lead:<cpf>:<sha256 dos bytes do zip, 16 hex>. Retry do MESMO pacote reusa
+    // a chave (replay inofensivo lá); pacote novo = chave nova; o sal só entra
+    // se o Corvo devolver 409 (chave reusada com conteúdo diferente).
+    const sal = anterior?.salDaChave ?? 0;
+    const hashZip16 = createHash('sha256').update(zip).digest('hex').slice(0, 16);
+    const idempotencyKey = `lead:${cpf}:${hashZip16}${sal > 0 ? `:r${String(sal)}` : ''}`;
     const resultado = await this.deps.client.enviarZip(zip, idempotencyKey);
     if (resultado.ok) {
       const cliente = resultado.corpo.clientes[0] ?? null;
@@ -395,11 +407,11 @@ export class CorvoService {
       agora,
       `cliente=${m.nome} tentativa=${String(tentativas)} ${resultado.erro.slice(0, 120)}`,
     );
-    return 'erro';
+    return permanente ? 'erro-permanente' : 'erro-transitorio';
   }
 
   private async salvarEstado(
-    m: MesaParaCorvo,
+    m: PedidoDeEnvio,
     anterior: ImportacaoCorvo | null,
     mudanca: Partial<ImportacaoCorvo> & { estado: EstadoImportacao },
     agora: Date,
@@ -428,7 +440,8 @@ export class CorvoService {
     void agora;
   }
 
-  /** Ação do Admin: zera a assinatura — a próxima varredura reenvia do zero. */
+  /** Ação do Admin: zera a assinatura E recoloca o cliente na fila — o próximo
+   *  ciclo reenvia do zero (gatilho manual; a fila não anda sozinha). */
   async forcarReenvio(clienteId: string): Promise<{ ok: boolean }> {
     const imp = (await this.deps.json.get(NS_IMPORTACOES, clienteId)) as ImportacaoCorvo | null;
     if (imp === null) return { ok: false };
@@ -440,6 +453,7 @@ export class CorvoService {
       proximaTentativaEm: null,
       ultimoErro: null,
     } satisfies ImportacaoCorvo);
+    await this.agendarEnvio(clienteId, imp.chatId, imp.nome);
     return { ok: true };
   }
 

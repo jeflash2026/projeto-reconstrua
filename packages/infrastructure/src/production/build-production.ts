@@ -2782,14 +2782,6 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // Dossiê de integridade (2026-08-26): o ZIP probatório vai ao MESMO media
     // store content-addressed dos documentos (storage privado; nunca público).
     media: mediaStore,
-    mesa: async () =>
-      (await humanizado.clientes()).map((m) => ({
-        clienteId: m.clienteId,
-        chatId: m.chatId,
-        nome: m.nome,
-        completo: m.completo,
-        descartado: m.descartado === true,
-      })),
     // O CPF vem da jornada (fase 1) — mesma fonte do perito.
     cpfDe: async (chatId) => {
       const r = (await json.get('jornada', chatId)) as { cpf?: string | null } | null;

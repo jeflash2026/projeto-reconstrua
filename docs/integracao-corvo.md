@@ -30,8 +30,12 @@ destino do `/webhook/meta`, nos DOIS hosts (www e sem-www).
 
 ## A. Envio do lead (nós → Corvo)
 
-- **Gatilho**: job a cada 5 min varre a mesa do Humanizado; todo cliente
-  `completo && !descartado` é enviado (100% automático, nenhum clique).
+- **Gatilho (acerto 2026-08-27)**: o lead sai quando a **perícia inicia**
+  (Aguardando → Em perícia, botões "Baixar pacote e iniciar" / "iniciar todos")
+  — a notificação extrajudicial É o pedido administrativo, e o Corvo dispara
+  sozinho ao receber. O clique alimenta uma **fila** (`corvo-envio-fila`);
+  o job de 5 min só processa a fila — **nunca varre a base inteira**.
+  Reenvio manual: botão "Reenviar" na tela Bancos (Corvo).
 - **ZIP** (`CorvoService.varrerEEnviar` → `montarZipDoLead`):
   - `Contratos - <NOME>.xlsx` na raiz — colunas `CPF do cliente` (texto, 11
     dígitos), `Nome do cliente`, `Banco` (`033 - BANCO SANTANDER`), `Contrato`,
@@ -42,9 +46,11 @@ destino do `/webhook/meta`, nos DOIS hosts (www e sem-www).
   - `documentos/HISCON - <NOME>.pdf` (o PDF original do cliente, código CNIS),
     `Procuração assinada`, `RG` (2ª face ganha sufixo após o " - "),
     `Comprovante de endereço` — dos docs da equipe (fase 2).
-- **Idempotência**: `X-Idempotency-Key` = UUID derivado de
-  `clienteId + assinatura do conteúdo` (contratos + refs dos documentos).
-  Retry usa a MESMA key; `409` incrementa um sal e gera key nova.
+- **Idempotência**: `X-Idempotency-Key` no formato acordado —
+  `lead:<cpf>:<sha256 dos bytes do ZIP, 16 hex>`. Retry do mesmo pacote reusa a
+  key (replay inofensivo); pacote novo = key nova; `409` acrescenta sufixo
+  `:rN`. A assinatura de conteúdo (contratos + refs de docs) continua evitando
+  reenvio sem mudança.
 - **Retry**: 5xx/timeout → backoff 1m, 5m, 30m (máx. 5 tentativas); 400/401/413
   → estado `ERRO`, parado até ação do operador (botão "Reenviar") ou conteúdo
   novo. Conteúdo novo (doc/contrato) muda a assinatura ⇒ reenvio automático em

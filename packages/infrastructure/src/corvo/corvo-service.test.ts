@@ -16,7 +16,7 @@ import {
   type CorvoDeps,
   type DocumentoColetado,
   type ImportacaoCorvo,
-  type MesaParaCorvo,
+  type PedidoDeEnvio,
 } from './corvo-service.js';
 import type { ContratoDoLead } from './corvo-zip.js';
 
@@ -51,13 +51,13 @@ const DOC: DocumentoColetado = {
   bytes: new Uint8Array([1]),
   ref: 'doc-1',
 };
-const NA_MESA: MesaParaCorvo = {
+const O_PEDIDO: PedidoDeEnvio = {
   clienteId: 'cli-1',
   chatId: '5531999@c.us',
   nome: 'JOSÉ',
-  completo: true,
-  descartado: false,
 };
+const agendar = (svc: CorvoService): Promise<void> =>
+  svc.agendarEnvio(O_PEDIDO.clienteId, O_PEDIDO.chatId, O_PEDIDO.nome);
 
 /** Cliente falso: grava cada envio e devolve o roteiro programado. */
 function clienteFalso(roteiro: ResultadoEnvio[]): {
@@ -106,7 +106,6 @@ function servico(over: Partial<CorvoDeps> = {}): { svc: CorvoService; json: InMe
     webhookSecret: SEGREDO,
     chaveCredencial: 'chave-de-teste',
     observability: obs,
-    mesa: () => Promise.resolve([NA_MESA]),
     cpfDe: () => Promise.resolve('01795790881'),
     contratosDe: () => Promise.resolve([CONTRATO]),
     documentosDe: () => Promise.resolve([DOC]),
@@ -281,6 +280,7 @@ describe('processarEvento — cada tipo grava o que deve', () => {
   it('banco.envio + banco.resposta compõem a timeline do cliente enviado', async () => {
     const { client } = clienteFalso([]);
     const { svc } = servico({ client });
+    await agendar(svc);
     await svc.varrerEEnviar(); // cria a importação (cpf ligado ao clienteId)
     await svc.processarEvento({
       id: 'e-env',
@@ -322,12 +322,16 @@ describe('processarEvento — cada tipo grava o que deve', () => {
   });
 });
 
-describe('varrerEEnviar — idempotência e retry do envio', () => {
-  it('envia o completo, guarda ENVIADO e NÃO reenvia sem conteúdo novo', async () => {
+describe('fila de envio (gatilho: perícia iniciada) — idempotência e retry', () => {
+  it('agendado ⇒ envia, sai da fila e NÃO reenvia sem conteúdo novo', async () => {
     const { client, envios } = clienteFalso([]);
     const { svc, json } = servico({ client });
+    await agendar(svc);
     expect(await svc.varrerEEnviar()).toEqual({ enviados: 1, erros: 0 });
-    expect(await svc.varrerEEnviar()).toEqual({ enviados: 0, erros: 0 }); // nada novo
+    expect(await svc.varrerEEnviar()).toEqual({ enviados: 0, erros: 0 }); // fila vazia
+    // Re-agendado SEM conteúdo novo: assinatura igual ⇒ nada sai de novo.
+    await agendar(svc);
+    expect(await svc.varrerEEnviar()).toEqual({ enviados: 0, erros: 0 });
     expect(envios).toHaveLength(1);
     const imp = (await json.get('corvo-importacoes', 'cli-1')) as ImportacaoCorvo;
     expect(imp.estado).toBe('ENVIADO');
@@ -342,7 +346,9 @@ describe('varrerEEnviar — idempotência e retry do envio', () => {
       client,
       documentosDe: () => Promise.resolve(docs[Math.min(vez++, 1)] ?? []),
     });
+    await agendar(svc);
     await svc.varrerEEnviar();
+    await agendar(svc); // ex.: Reenviar manual após documento novo
     await svc.varrerEEnviar();
     expect(envios).toHaveLength(2);
     expect(envios[0]?.key).not.toBe(envios[1]?.key); // conteúdo novo, key nova
@@ -353,11 +359,12 @@ describe('varrerEEnviar — idempotência e retry do envio', () => {
       { ok: false, status: 500, erro: 'instável', permanente: false, conflitoDeChave: false },
     ]);
     const { svc, json } = servico({ client });
+    await agendar(svc);
     expect(await svc.varrerEEnviar()).toEqual({ enviados: 0, erros: 1 });
     const imp = (await json.get('corvo-importacoes', 'cli-1')) as ImportacaoCorvo;
     expect(imp.estado).toBe('PENDENTE');
     expect(imp.proximaTentativaEm).not.toBe(null); // backoff agendado
-    // Dentro do backoff a varredura NÃO tenta de novo.
+    // Dentro do backoff, o cliente PERMANECE na fila e nada tenta de novo.
     expect(await svc.varrerEEnviar()).toEqual({ enviados: 0, erros: 0 });
     // Backoff vencido: tenta com a MESMA key e desta vez entra.
     await json.put('corvo-importacoes', 'cli-1', { ...imp, proximaTentativaEm: null });
@@ -371,6 +378,7 @@ describe('varrerEEnviar — idempotência e retry do envio', () => {
       { ok: false, status: 409, erro: 'conflito', permanente: false, conflitoDeChave: true },
     ]);
     const { svc, json } = servico({ client });
+    await agendar(svc);
     await svc.varrerEEnviar();
     const imp = (await json.get('corvo-importacoes', 'cli-1')) as ImportacaoCorvo;
     await json.put('corvo-importacoes', 'cli-1', { ...imp, proximaTentativaEm: null });
@@ -384,6 +392,7 @@ describe('varrerEEnviar — idempotência e retry do envio', () => {
       { ok: false, status: 400, erro: 'zip inválido', permanente: true, conflitoDeChave: false },
     ]);
     const { svc, json } = servico({ client });
+    await agendar(svc);
     await svc.varrerEEnviar();
     expect(((await json.get('corvo-importacoes', 'cli-1')) as ImportacaoCorvo).estado).toBe('ERRO');
     expect(await svc.varrerEEnviar()).toEqual({ enviados: 0, erros: 0 }); // parado
@@ -395,6 +404,7 @@ describe('varrerEEnviar — idempotência e retry do envio', () => {
   it('sem CPF de 11 dígitos ⇒ SEM_CPF, nada sai', async () => {
     const { client, envios } = clienteFalso([]);
     const { svc, json } = servico({ client, cpfDe: () => Promise.resolve(null) });
+    await agendar(svc);
     await svc.varrerEEnviar();
     expect(envios).toHaveLength(0);
     expect(((await json.get('corvo-importacoes', 'cli-1')) as ImportacaoCorvo).estado).toBe(
@@ -481,7 +491,6 @@ describe('dossiê de integridade — debounce, verificação e versões', () => 
       webhookSecret: SEGREDO,
       chaveCredencial: 'chave-de-teste',
       observability: obs,
-      mesa: () => Promise.resolve([NA_MESA]),
       cpfDe: () => Promise.resolve(CPF),
       contratosDe: () => Promise.resolve([CONTRATO]),
       documentosDe: () => Promise.resolve([DOC]),
@@ -493,6 +502,7 @@ describe('dossiê de integridade — debounce, verificação e versões', () => 
   it('evento com dados.dossie enfileira; o download espera a rajada ASSENTAR (2 min)', async () => {
     const { zip, hashRaiz } = zipDossie('abc  a.eml\n', { envios: [1, 2], respostas: [1] });
     const b = bancadaDossie([{ zip, hashRaiz }]);
+    await b.svc.agendarEnvio('cli-1', '5531999@c.us', 'JOSÉ');
     await b.svc.varrerEEnviar(); // importação liga o CPF ao clienteId
     await b.svc.processarEvento({
       id: 'e-d1',

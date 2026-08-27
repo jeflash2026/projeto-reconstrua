@@ -223,7 +223,7 @@ export default function CorvoTimeline({ timeline }: { timeline: TimelineCorvoVie
                   {r.anexos.map((a, i) => (
                     <a
                       key={`${r.respostaId}-${String(i)}`}
-                      href={`/api/corvo-anexo?respostaId=${encodeURIComponent(r.respostaId)}&indice=${String(i)}`}
+                      href={`/admin/api/corvo-anexo?respostaId=${encodeURIComponent(r.respostaId)}&indice=${String(i)}`}
                       style={{ marginRight: 12 }}
                     >
                       📎 {a.nome}
@@ -272,7 +272,7 @@ export default function CorvoTimeline({ timeline }: { timeline: TimelineCorvoVie
                 </button>
               </div>
               <a
-                href={`/api/corvo-dossie?cpf=${encodeURIComponent(dossieAtual.cpf)}&hash=${encodeURIComponent(dossieAtual.hashRaiz)}`}
+                href={`/admin/api/corvo-dossie?cpf=${encodeURIComponent(dossieAtual.cpf)}&hash=${encodeURIComponent(dossieAtual.hashRaiz)}`}
               >
                 <button>Baixar ZIP ({Math.round(dossieAtual.tamanho / 1024)} KB)</button>
               </a>
@@ -283,7 +283,7 @@ export default function CorvoTimeline({ timeline }: { timeline: TimelineCorvoVie
                 {timeline.dossies.slice(1).map((d) => (
                   <a
                     key={d.hashRaiz}
-                    href={`/api/corvo-dossie?cpf=${encodeURIComponent(d.cpf)}&hash=${encodeURIComponent(d.hashRaiz)}`}
+                    href={`/admin/api/corvo-dossie?cpf=${encodeURIComponent(d.cpf)}&hash=${encodeURIComponent(d.hashRaiz)}`}
                     style={{ marginRight: 10 }}
                     title={d.hashRaiz}
                   >

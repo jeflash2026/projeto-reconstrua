@@ -78,6 +78,41 @@ function exigir2xx(provider: string, status: number, body: unknown): void {
   throw new Error(`${provider} HTTP ${String(status)}: ${excerto}`);
 }
 
+/** RETENTATIVA COM PAUSA (2026-08-27, "instabilidade rapidinha" no webchat):
+ *  as duas tentativas dos ports eram COLADAS — um 429/529 (limite/sobrecarga da
+ *  API) derrubava as duas em milissegundos e o cliente via o fallback, mesmo
+ *  com o turno seguinte funcionando. Este envelope repete SÓ o transitório
+ *  (408/429/5xx e falha de rede), com pausa que dá tempo do limite passar.
+ *  Erro permanente (400, chave inválida, corpo sem texto) sobe na hora. */
+const PAUSAS_TRANSIENTE_MS = [1_000, 2_500] as const;
+
+function ehTransiente(mensagem: string): boolean {
+  if (/HTTP (408|409|429|5\d\d)/.test(mensagem)) return true;
+  return /fetch failed|timed? ?out|ECONN|EPIPE|socket|network|aborted/i.test(mensagem);
+}
+
+export class CompletionComRetentativa implements LlmCompletion {
+  readonly name: string;
+  constructor(
+    private readonly interno: LlmCompletion,
+    private readonly esperar: (ms: number) => Promise<void> = (ms) =>
+      new Promise((r) => setTimeout(r, ms)),
+  ) {
+    this.name = interno.name;
+  }
+  async complete(system: string, user: string): Promise<CompletionResult> {
+    for (let i = 0; ; i += 1) {
+      try {
+        return await this.interno.complete(system, user);
+      } catch (e) {
+        const mensagem = e instanceof Error ? e.message : String(e);
+        if (!ehTransiente(mensagem) || i >= PAUSAS_TRANSIENTE_MS.length) throw e;
+        await this.esperar(PAUSAS_TRANSIENTE_MS[i] ?? 2_500);
+      }
+    }
+  }
+}
+
 export class OpenAiCompletion implements LlmCompletion {
   readonly name = 'openai';
   constructor(
@@ -498,7 +533,9 @@ export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
 
   // Mede TODO uso (chamadas + tokens) para o Shadow Mode, sem mudar comportamento.
   const meter = new TokensMeter(completion.name);
-  const inner = completion;
+  // Transitórios (429/529/rede) repetem com pausa ANTES de qualquer degrade —
+  // vale para percepção, expressão, narração e extração de uma vez só.
+  const inner: LlmCompletion = new CompletionComRetentativa(completion);
   const metered: LlmCompletion = {
     name: inner.name,
     async complete(system: string, user: string): Promise<CompletionResult> {

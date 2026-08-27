@@ -68,3 +68,73 @@ describe('AnthropicCompletion — erro HTTP vira causa LITERAL (nunca texto vazi
     expect(r.text).toContain('summary');
   });
 });
+
+// ── RETENTATIVA COM PAUSA (2026-08-27, "instabilidade rapidinha") ────────────
+import { CompletionComRetentativa, type LlmCompletion } from './llm-adapters.js';
+
+function completionRoteirizada(roteiro: (string | 'ok')[]): {
+  llm: LlmCompletion;
+  chamadas: () => number;
+} {
+  let n = 0;
+  return {
+    llm: {
+      name: 'fake',
+      complete: () => {
+        n += 1;
+        const passo = roteiro.shift();
+        if (passo === 'ok' || passo === undefined)
+          return Promise.resolve({ text: 'resposta', tokensIn: 1, tokensOut: 1 });
+        return Promise.reject(new Error(passo));
+      },
+    },
+    chamadas: () => n,
+  };
+}
+
+describe('CompletionComRetentativa — só o transitório repete, com pausa', () => {
+  it('429/529 repetem com pausa e a resposta sai (o cliente nunca vê o fallback)', async () => {
+    const esperas: number[] = [];
+    const { llm, chamadas } = completionRoteirizada([
+      'anthropic HTTP 529: {"type":"overloaded_error"}',
+      'anthropic HTTP 429: rate limit',
+      'ok',
+    ]);
+    const comRetry = new CompletionComRetentativa(llm, (ms) => {
+      esperas.push(ms);
+      return Promise.resolve();
+    });
+    const r = await comRetry.complete('s', 'u');
+    expect(r.text).toBe('resposta');
+    expect(chamadas()).toBe(3);
+    expect(esperas).toEqual([1000, 2500]); // pausas reais entre tentativas
+  });
+
+  it('falha de rede (fetch failed) também repete', async () => {
+    const { llm, chamadas } = completionRoteirizada(['fetch failed', 'ok']);
+    const r = await new CompletionComRetentativa(llm, () => Promise.resolve()).complete('s', 'u');
+    expect(r.text).toBe('resposta');
+    expect(chamadas()).toBe(2);
+  });
+
+  it('erro PERMANENTE (HTTP 400) sobe na hora — nada de martelar a API', async () => {
+    const { llm, chamadas } = completionRoteirizada(['anthropic HTTP 400: invalid request', 'ok']);
+    await expect(
+      new CompletionComRetentativa(llm, () => Promise.resolve()).complete('s', 'u'),
+    ).rejects.toThrow('HTTP 400');
+    expect(chamadas()).toBe(1);
+  });
+
+  it('transitório persistente esgota as pausas e o erro sobe (degrade honesto)', async () => {
+    const { llm, chamadas } = completionRoteirizada([
+      'anthropic HTTP 529: a',
+      'anthropic HTTP 529: b',
+      'anthropic HTTP 529: c',
+      'ok',
+    ]);
+    await expect(
+      new CompletionComRetentativa(llm, () => Promise.resolve()).complete('s', 'u'),
+    ).rejects.toThrow('HTTP 529');
+    expect(chamadas()).toBe(3); // 1 + 2 retentativas, nunca infinito
+  });
+});

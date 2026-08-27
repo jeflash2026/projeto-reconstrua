@@ -323,16 +323,19 @@ describe('processarEvento — cada tipo grava o que deve', () => {
 });
 
 describe('fila de envio (gatilho: perícia iniciada) — idempotência e retry', () => {
-  it('agendado ⇒ envia, sai da fila e NÃO reenvia sem conteúdo novo', async () => {
+  it('agendado ⇒ envia e sai da fila; RE-agendado idêntico ⇒ POSTa de novo com key :rN', async () => {
+    // O POST é o SINAL de disparo do Corvo: entrar na fila é evento deliberado
+    // (perícia iniciada / Reenviar) e SEMPRE sai — pacote idêntico ganha :rN
+    // para não cair na janela de replay de 24h (incidente 2026-08-27).
     const { client, envios } = clienteFalso([]);
     const { svc, json } = servico({ client });
     await agendar(svc);
     expect(await svc.varrerEEnviar()).toEqual({ enviados: 1, erros: 0 });
     expect(await svc.varrerEEnviar()).toEqual({ enviados: 0, erros: 0 }); // fila vazia
-    // Re-agendado SEM conteúdo novo: assinatura igual ⇒ nada sai de novo.
-    await agendar(svc);
-    expect(await svc.varrerEEnviar()).toEqual({ enviados: 0, erros: 0 });
-    expect(envios).toHaveLength(1);
+    await agendar(svc); // mesmo conteúdo, novo evento
+    expect(await svc.varrerEEnviar()).toEqual({ enviados: 1, erros: 0 });
+    expect(envios).toHaveLength(2);
+    expect(envios[1]?.key).toBe(envios[0]?.key + ':r1'); // mesma base, sal novo
     const imp = (await json.get('corvo-importacoes', 'cli-1')) as ImportacaoCorvo;
     expect(imp.estado).toBe('ENVIADO');
     expect(imp.importacaoId).toBe('imp-1');

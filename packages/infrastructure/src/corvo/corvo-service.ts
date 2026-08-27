@@ -312,8 +312,11 @@ export class CorvoService {
       return 'nada';
     }
 
-    // Assinatura de conteúdo: contratos + refs dos documentos. Igual à última
-    // enviada ⇒ nada novo, não reenviar (o modo mesclar é para conteúdo NOVO).
+    // Assinatura de conteúdo — registro do QUE foi enviado. Entrar na fila é um
+    // EVENTO deliberado (perícia iniciada / Reenviar): o POST sai SEMPRE — para
+    // o Corvo ele é o sinal de disparo das notificações, não só sincronização.
+    // (Incidente 2026-08-27: os 7 aguardando-perícia já estavam ENVIADO da
+    // remessa anterior e a trava de "conteúdo igual" engolia o POST do gatilho.)
     const assinatura = createHash('sha256')
       .update(
         JSON.stringify({
@@ -326,10 +329,6 @@ export class CorvoService {
         }),
       )
       .digest('hex');
-    if (anterior !== null && anterior.assinatura === assinatura) {
-      if (anterior.estado === 'ENVIADO') return 'nada'; // já está lá
-      if (anterior.estado === 'ERRO') return 'nada'; // permanente: espera operador
-    }
 
     const zip = montarZipDoLead(m.nome, cpf, contratos, documentos);
     if (zip.length > TETO_ZIP_BYTES) {
@@ -342,12 +341,19 @@ export class CorvoService {
       return 'erro-permanente';
     }
     // Chave de idempotência no FORMATO ACORDADO com o Corvo (2026-08-27):
-    // lead:<cpf>:<sha256 dos bytes do zip, 16 hex>. Retry do MESMO pacote reusa
-    // a chave (replay inofensivo lá); pacote novo = chave nova; o sal só entra
-    // se o Corvo devolver 409 (chave reusada com conteúdo diferente).
-    const sal = anterior?.salDaChave ?? 0;
+    // lead:<cpf>:<sha256 dos bytes do zip, 16 hex>.
+    //   • RETRY de falha (estado != ENVIADO) reusa a MESMA chave — replay
+    //     inofensivo lá;
+    //   • REENVIO deliberado de pacote IDÊNTICO ao último ENVIADO ganha sufixo
+    //     :rN — sem isso a chave repetida cairia na janela de replay de 24h e o
+    //     Corvo NÃO dispararia nada (o POST-sinal viraria silêncio);
+    //   • 409 (chave reusada com conteúdo diferente) também incrementa o sal.
     const hashZip16 = createHash('sha256').update(zip).digest('hex').slice(0, 16);
-    const idempotencyKey = `lead:${cpf}:${hashZip16}${sal > 0 ? `:r${String(sal)}` : ''}`;
+    const base = `lead:${cpf}:${hashZip16}`;
+    const baseAnterior = anterior?.idempotencyKey.replace(/:r\d+$/, '') ?? null;
+    let sal = anterior?.salDaChave ?? 0;
+    if (baseAnterior === base && anterior?.estado === 'ENVIADO') sal += 1;
+    const idempotencyKey = sal > 0 ? `${base}:r${String(sal)}` : base;
     const resultado = await this.deps.client.enviarZip(zip, idempotencyKey);
     if (resultado.ok) {
       const cliente = resultado.corpo.clientes[0] ?? null;

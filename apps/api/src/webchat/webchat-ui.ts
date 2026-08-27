@@ -26,6 +26,13 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
   .ahri { background: #fff; align-self: flex-start; border-top-left-radius: 2px; }
   .cliente { background: #d9fdd3; align-self: flex-end; border-top-right-radius: 2px; }
   .aviso { align-self: center; background: #fdf3c7; color: #5b4a12; font-size: 12px; padding: 6px 12px; border-radius: 8px; text-align: center; }
+  /* "digitando…" (2026-08-26): aparece logo após o cliente enviar — a espera
+     pela AHRI deixa de parecer silêncio. Três pontos pulsando, WhatsApp-like. */
+  #digitando { align-self: flex-start; background: #fff; border-radius: 10px; border-top-left-radius: 2px; padding: 12px 16px; box-shadow: 0 1px 1px rgba(0,0,0,.12); margin: 0 12px 6px; flex-shrink: 0; }
+  #digitando span { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; background: #9ab; animation: pulsar 1.2s infinite ease-in-out; }
+  #digitando span:nth-child(2) { animation-delay: .2s; }
+  #digitando span:nth-child(3) { animation-delay: .4s; margin-right: 0; }
+  @keyframes pulsar { 0%, 80%, 100% { opacity: .3; transform: scale(.8); } 40% { opacity: 1; transform: scale(1); } }
   footer { flex-shrink: 0; padding: 8px; display: flex; gap: 8px; align-items: flex-end; background: #f0f0f0; }
   footer textarea { flex: 1; resize: none; border: none; border-radius: 20px; padding: 11px 14px; font-size: 15px; font-family: inherit; max-height: 110px; outline: none; }
   .btn { border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 19px; flex-shrink: 0; }
@@ -67,6 +74,7 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
 </div>
 
 <main id="chat" class="oculto"></main>
+<div id="digitando" class="oculto"><span></span><span></span><span></span></div>
 <footer id="rodape" class="oculto">
   <button class="btn btn-anexo" id="anexar" title="Enviar o HISCON em PDF">&#128206;</button>
   <input type="file" id="arquivo" accept="application/pdf" class="oculto">
@@ -82,6 +90,36 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
   var entrada = document.getElementById('entrada');
   var rodape = document.getElementById('rodape');
   var texto = document.getElementById('texto');
+  var digitando = document.getElementById('digitando');
+  // AGILIDADE (2026-08-26): depois que o cliente envia, o polling ACELERA
+  // (800ms) até a resposta da AHRI chegar (ou 90s), e o balão "digitando…"
+  // preenche a espera. Fora disso, cadência normal de 2,5s.
+  var aguardandoDesde = 0;   // 0 = não esperando resposta
+  var ahriAoEnviar = 0;      // quantas mensagens da AHRI existiam quando enviamos
+  var ultimoAhri = 0;        // contagem corrente de mensagens da AHRI
+
+  function contarAhri(mensagens) {
+    var n = 0;
+    for (var i = 0; i < mensagens.length; i += 1) if (mensagens[i].de === 'ahri') n += 1;
+    return n;
+  }
+  function esperarResposta() {
+    aguardandoDesde = Date.now();
+    ahriAoEnviar = ultimoAhri;
+    digitando.classList.remove('oculto');
+    chat.scrollTop = chat.scrollHeight;
+    rajada();
+  }
+  function rajada() {
+    if (aguardandoDesde === 0) return;
+    if (Date.now() - aguardandoDesde > 90000) { pararEspera(); return; }
+    atualizar();
+    setTimeout(rajada, 800);
+  }
+  function pararEspera() {
+    aguardandoDesde = 0;
+    digitando.classList.add('oculto');
+  }
 
   function post(caminho, corpo) {
     return fetch(caminho, {
@@ -135,7 +173,10 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (!j || j.ok !== true) return;
-        desenhar(j.mensagens || []);
+        var mensagens = j.mensagens || [];
+        desenhar(mensagens);
+        ultimoAhri = contarAhri(mensagens);
+        if (aguardandoDesde > 0 && ultimoAhri > ahriAoEnviar) pararEspera();
       })
       .catch(function () { /* rede oscilou: o próximo polling tenta de novo */ });
   }
@@ -164,8 +205,9 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
     post('/webchat/mensagem', { token: token, texto: t }).then(function (j) {
       if (j && j.ok === false && j.error) {
         if (String(j.error).indexOf('sess') >= 0) { localStorage.removeItem('wcToken'); location.reload(); }
+        return;
       }
-      setTimeout(atualizar, 400);
+      esperarResposta();
     });
   }
   document.getElementById('enviar').addEventListener('click', enviarTexto);
@@ -184,8 +226,8 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
     leitor.onload = function () {
       post('/webchat/anexo', { token: token, base64: String(leitor.result), fileName: f.name })
         .then(function (j) {
-          if (j && j.ok === false && j.error) alert(j.error);
-          setTimeout(atualizar, 400);
+          if (j && j.ok === false && j.error) { alert(j.error); return; }
+          esperarResposta();
         });
     };
     leitor.readAsDataURL(f);

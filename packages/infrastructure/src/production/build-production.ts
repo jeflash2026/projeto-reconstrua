@@ -1278,6 +1278,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     memory: convMemory,
     clock,
     policy,
+    // Webchat (2026-08-26, "resposta lenta"): a página não mostra "digitando" —
+    // a encenação ler/pensar/digitar (até ~6s por mensagem + pausa entre elas)
+    // era atraso puro. No canal web a resposta sai na hora; WhatsApp intocado.
+    entregaImediata: ehChatWeb,
   });
   const conversation = new ConversationRuntimeClass({
     perception: llm.perception,

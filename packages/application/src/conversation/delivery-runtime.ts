@@ -37,6 +37,11 @@ export interface DeliveryRuntimeDeps {
   readonly memory: ConversationMemoryRuntime;
   readonly clock: Clock;
   readonly policy: HumanizationPolicy;
+  /** ENTREGA IMEDIATA por CANAL (2026-08-26, "webchat lento"): no canal web não
+   *  existe indicador de "digitando" — a encenação humana (ler/pensar/digitar)
+   *  vira atraso puro. O predicado é injetado pela montagem (o canal decide);
+   *  ausente ⇒ cadência humana normal (WhatsApp segue como sempre). */
+  readonly entregaImediata?: (chatId: string) => boolean;
 }
 
 export class DeliveryRuntime {
@@ -72,12 +77,17 @@ export class DeliveryRuntime {
     }
 
     const inboundLength = context.lastPercept?.envelope.text?.length ?? 0;
-    const plan = timing.compute(inboundLength, msg.text.length);
+    const imediata = this.deps.entregaImediata?.(msg.chatId) === true;
+    const plan: DeliveryTiming = imediata
+      ? { readingDelayMs: 0, thinkingDelayMs: 0, typingDurationMs: 0, totalMs: 0 }
+      : timing.compute(inboundLength, msg.text.length);
 
-    // 1) Lê e pensa (com a AHRI ainda sem "digitando").
-    await delay.wait(plan.readingDelayMs + plan.thinkingDelayMs);
-    // 2) Digita visivelmente pela duração calculada.
-    await typing.typeFor(msg.chatId, plan.typingDurationMs, clock.now());
+    if (!imediata) {
+      // 1) Lê e pensa (com a AHRI ainda sem "digitando").
+      await delay.wait(plan.readingDelayMs + plan.thinkingDelayMs);
+      // 2) Digita visivelmente pela duração calculada.
+      await typing.typeFor(msg.chatId, plan.typingDurationMs, clock.now());
+    }
     // 3) Envia.
     const receipt = await gateway.sendText(msg.chatId, msg.text);
     // 4) Registra e atualiza estado.
@@ -105,7 +115,7 @@ export class DeliveryRuntime {
       for (;;) {
         const next = await queue.nextPending(context.chatId);
         if (!next) break;
-        if (!first) {
+        if (!first && this.deps.entregaImediata?.(context.chatId) !== true) {
           await delay.wait(policy.interMessageMs);
         }
         first = false;

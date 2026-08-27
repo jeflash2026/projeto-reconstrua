@@ -23,10 +23,7 @@ function clientCom(status: number, corpo: unknown = CORPO_OK): CorvoClient {
       json: () => Promise.resolve(corpo),
       text: () => Promise.resolve(JSON.stringify(corpo)),
     } as unknown as Response);
-  return new CorvoClient(
-    { baseUrl: 'https://corvo.teste', apiKey: 'k' },
-    fetchFalso as unknown as typeof fetch,
-  );
+  return new CorvoClient({ baseUrl: 'https://corvo.teste', apiKey: 'k' }, fetchFalso);
 }
 
 describe('CorvoClient.enviarZip — status do contrato', () => {

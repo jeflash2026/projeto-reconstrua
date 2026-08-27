@@ -5,7 +5,11 @@
 // seguem o cliente: voltam para quem o perdeu, saem de quem o recebeu.
 // Nenhuma mensagem é enviada — avisar os advogados é do dono.
 import { useState, type ReactElement } from 'react';
-import { buscarClienteParaTransferir, transferirClienteDeAdvogado } from '../lib/actions';
+import {
+  buscarClienteParaTransferir,
+  devolverClienteDoAdvogado,
+  transferirClienteDeAdvogado,
+} from '../lib/actions';
 
 export interface ClienteAchado {
   chatId: string;
@@ -70,6 +74,29 @@ export default function TransferirAdvogado(): ReactElement {
     }
     setAviso(
       `${c.nome} agora é de ${nomeDestino}. Créditos: ${String(r.estornados ?? 0)} devolvido(s) ao advogado anterior, ${String(r.abatidos ?? 0)} debitado(s) do novo.`,
+    );
+    await buscar();
+  }
+
+  // DEVOLUÇÃO (caso Candida, 2026-08-27): cliente entregue SEM a documentação
+  // completa volta à operação — sai do painel do advogado, créditos estornados.
+  async function devolver(c: ClienteAchado): Promise<void> {
+    if (
+      !window.confirm(
+        `Devolver ${c.nome} para a operação? O cliente SAI do painel de ${c.advogado ?? 'ninguém'}, os créditos são estornados e ele volta à mesa do Humanizado para completar a documentação. Nenhuma mensagem é enviada — avise o advogado.`,
+      )
+    )
+      return;
+    setErro(null);
+    setBusy(true);
+    const r = await devolverClienteDoAdvogado(c.chatId);
+    setBusy(false);
+    if (!r.ok) {
+      setErro(r.error ?? 'falha na devolução');
+      return;
+    }
+    setAviso(
+      `${c.nome} voltou para a operação. Créditos: ${String(r.estornados ?? 0)} devolvido(s) ao advogado.`,
     );
     await buscar();
   }
@@ -156,13 +183,24 @@ export default function TransferirAdvogado(): ReactElement {
                         </select>
                       </td>
                       <td>
-                        <button
-                          className="primary"
-                          disabled={busy || (destino[c.chatId] ?? '') === ''}
-                          onClick={() => void transferir(c)}
-                        >
-                          Transferir
-                        </button>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button
+                            className="primary"
+                            disabled={busy || (destino[c.chatId] ?? '') === ''}
+                            onClick={() => void transferir(c)}
+                          >
+                            Transferir
+                          </button>
+                          {c.advogadoId !== null ? (
+                            <button
+                              disabled={busy}
+                              title="Sai do painel do advogado (créditos estornados) e volta à mesa para completar a documentação"
+                              onClick={() => void devolver(c)}
+                            >
+                              Devolver
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ))}

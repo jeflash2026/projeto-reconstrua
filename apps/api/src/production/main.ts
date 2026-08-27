@@ -121,6 +121,8 @@ async function main(): Promise<void> {
     diagnosticoDoCliente: prod.diagnosticoDoCliente,
     // Decreto 2026-08-12: corrigir um encaminhamento para o advogado errado.
     transferirAdvogado: prod.transferirAdvogado,
+    // 2026-08-27 (caso Candida): devolver cliente entregue sem documentação.
+    devolverAdvogado: prod.devolverAdvogado,
     // Integração 2026-08-25: notificação de bancos por correspondência (Corvo).
     corvo: prod.corvo,
     // Decreto 2026-08-08: o PAINEL JURÍDICO (2º painel — dono + sócio).

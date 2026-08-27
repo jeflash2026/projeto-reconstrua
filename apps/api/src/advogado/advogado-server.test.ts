@@ -449,4 +449,16 @@ describe('Portal do Advogado', () => {
     });
     expect(zipB.statusCode).toBe(403);
   });
+
+  it('DEVOLUÇÃO (caso Candida, 2026-08-27): unassign tira a missão do painel do advogado', async () => {
+    await op.work.assign('missao-devolver', advogadoB, 'admin-1', CHAT);
+    expect(
+      (await op.work.myMissions(advogadoB)).some((a) => a.missionId === 'missao-devolver'),
+    ).toBe(true);
+    await op.work.unassign('missao-devolver');
+    expect(
+      (await op.work.myMissions(advogadoB)).some((a) => a.missionId === 'missao-devolver'),
+    ).toBe(false);
+    expect(await op.work.assignedTo('missao-devolver')).toBe(null);
+  });
 });

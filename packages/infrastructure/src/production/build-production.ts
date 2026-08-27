@@ -350,6 +350,12 @@ export interface AssembledProduction {
     | { ok: true; de: string | null; para: string; estornados: number; abatidos: number }
     | { ok: false; error: string }
   >;
+  /** DEVOLUÇÃO (2026-08-27, caso Candida): o cliente entregue sem documentação
+   *  completa sai do painel do advogado, os créditos voltam e ele retorna à
+   *  operação para terminar a coleta. */
+  readonly devolverAdvogado: (
+    chatId: string,
+  ) => Promise<{ ok: true; de: string; estornados: number } | { ok: false; error: string }>;
   /** Decreto 2026-08-08: PAINEL JURÍDICO — gestão do pós-protocolo (clientes,
    *  processos judiciais, guias e perícias), o 2º painel do dono + sócio. */
   readonly juridico: JuridicoService;
@@ -2284,6 +2290,49 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     };
   };
 
+  // DEVOLUÇÃO (2026-08-27, caso Candida): o cliente foi entregue ao advogado
+  // SEM a documentação completa — ele sai do painel do advogado, os créditos
+  // voltam e o cliente retorna à operação (mesa do Humanizado) para terminar a
+  // coleta. TODAS as atribuições do chat caem (cliente com duas missões — caso
+  // Cornélio — não pode sobrar meio-devolvido). Nenhuma mensagem sai daqui.
+  const devolverAdvogado = async (
+    chatId: string,
+  ): Promise<{ ok: true; de: string; estornados: number } | { ok: false; error: string }> => {
+    const cliente = (await clientes.list()).find((c) => c.chatId === chatId) ?? null;
+    if (cliente === null) return { ok: false, error: 'cliente não encontrado' };
+    if (cliente.missionId === null)
+      return { ok: false, error: 'cliente ainda não tem caso aberto' };
+    const atual = await work.assignedTo(cliente.missionId).catch(() => null);
+    if (atual === null) return { ok: false, error: 'o cliente não está com nenhum advogado' };
+
+    // Remove TODA atribuição deste advogado que aponte para o mesmo chat
+    // (missão principal + eventuais missões duplicadas do mesmo cliente).
+    const doAdvogado = await work.myMissions(atual.advogadoId).catch(() => []);
+    const missoesDoChat = new Set<string>([cliente.missionId]);
+    for (const a of doAdvogado) {
+      if (a.chatId === chatId) missoesDoChat.add(a.missionId);
+    }
+    for (const missionId of missoesDoChat) await work.unassign(missionId);
+    await humanizado.marcarAdvogado(chatId, null);
+
+    const r = await creditosAdvogado
+      .estornarPorCliente(
+        atual.advogadoId,
+        cliente.clienteId,
+        `devolvido pela operação (documentação incompleta) em ${clock.now().toISOString().slice(0, 10)}`,
+      )
+      .catch(() => ({ estornados: 0 }));
+
+    observability.event(
+      'advogado',
+      'cliente-devolvido',
+      clock.now(),
+      `cliente=${cliente.quem} de=${atual.advogadoId} estornados=${String(r.estornados)}`,
+    );
+    mesaHumanizada.invalidar();
+    return { ok: true, de: atual.advogadoId, estornados: r.estornados };
+  };
+
   // ATRIBUIÇÃO DE CAMPANHA (decreto 2026-08-12): a página "Campanhas" mostrava
   // "sem fonte de dados" porque o campo campaignAttribution nunca foi escrito
   // por ninguém. A fonte sempre esteve na PRIMEIRA MENSAGEM do cliente — a
@@ -2853,6 +2902,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     paradosPosHiscon,
     diagnosticoDoCliente,
     transferirAdvogado,
+    devolverAdvogado,
     juridico,
     // 2026-08-09: cada disparo oficial é PERSISTIDO (ns 'disparos-oficial') e
     // registrado na memória da conversa — a AHRI fica ciente e o painel

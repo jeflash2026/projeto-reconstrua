@@ -299,6 +299,11 @@ export function buildAdminServer(
       | { ok: true; de: string | null; para: string; estornados: number; abatidos: number }
       | { ok: false; error: string }
     >;
+    /** DEVOLUÇÃO (2026-08-27, caso Candida): sai do painel do advogado com
+     *  estorno e volta à mesa do Humanizado para completar a documentação. */
+    readonly devolverAdvogado?: (
+      chatId: string,
+    ) => Promise<{ ok: true; de: string; estornados: number } | { ok: false; error: string }>;
     /** TRANSFERÊNCIA DE NÚMERO (2026-08-11): o cliente trocou de chip e continua
      *  o MESMO atendimento pelo número novo. */
     readonly transferenciaNumero?: {
@@ -2761,6 +2766,22 @@ export function buildAdminServer(
     if (body.confirmar !== true)
       return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
     const r = await opts.transferirAdvogado(body.chatId, body.advogadoId);
+    if (!r.ok) return reply.code(400).send(r);
+    return r;
+  });
+
+  // DEVOLUÇÃO (2026-08-27, caso Candida): cliente entregue SEM a documentação
+  // completa sai do painel do advogado (créditos estornados) e volta à mesa do
+  // Humanizado para a equipe terminar a coleta. Nenhuma mensagem é enviada.
+  app.post('/admin/advogados/transferencia/devolver', async (request, reply) => {
+    if (!opts.devolverAdvogado)
+      return reply.code(503).send({ error: 'devolução indisponível nesta montagem' });
+    const body = (request.body ?? {}) as { chatId?: string; confirmar?: boolean };
+    if (typeof body.chatId !== 'string')
+      return reply.code(400).send({ error: 'informe o cliente' });
+    if (body.confirmar !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
+    const r = await opts.devolverAdvogado(body.chatId);
     if (!r.ok) return reply.code(400).send(r);
     return r;
   });

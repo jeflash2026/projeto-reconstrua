@@ -316,6 +316,9 @@ export class JsonAssignmentStore implements AssignmentStore {
       .map((a) => revive<CaseAssignment>(a))
       .filter((a) => a.advogadoId === advogadoId);
   }
+  remove(missionId: string): Promise<void> {
+    return this.store.del('assignments', missionId);
+  }
 }
 
 export class JsonJuridicalWorkStore implements JuridicalWorkStore {

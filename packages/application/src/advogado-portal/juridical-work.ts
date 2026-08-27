@@ -64,6 +64,9 @@ export interface AssignmentStore {
   save(assignment: CaseAssignment): Promise<void>;
   byMission(missionId: string): Promise<CaseAssignment | null>;
   byAdvogado(advogadoId: string): Promise<readonly CaseAssignment[]>;
+  /** DEVOLUÇÃO (2026-08-27, caso Candida): desfaz a atribuição — o cliente sai
+   *  do painel do advogado e volta à operação. Opcional (stores antigos). */
+  remove?(missionId: string): Promise<void>;
 }
 
 export interface JuridicalWorkStore {
@@ -129,6 +132,12 @@ export class AdvogadoWorkRuntime {
    *  — o cliente aparece em "Clientes prontos p/ Advogado" no painel admin). */
   async assignedTo(missionId: string): Promise<CaseAssignment | null> {
     return this.assignments.byMission(missionId);
+  }
+
+  /** DEVOLUÇÃO (2026-08-27): desfaz a atribuição da missão. O registro de
+   *  atividades jurídicas NÃO é apagado (histórico); só a posse muda. */
+  async unassign(missionId: string): Promise<void> {
+    await this.assignments.remove?.(missionId);
   }
 
   // ── Atividades do advogado ──────────────────────────────────────────────────

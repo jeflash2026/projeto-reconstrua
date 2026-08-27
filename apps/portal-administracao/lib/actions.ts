@@ -1433,3 +1433,17 @@ export async function atualizarDossieCorvo(
   if (r === null) return { ok: false, erro: 'falha na API' };
   return { ok: r.ok === true, novo: r.novo, erro: r.erro };
 }
+
+/** Devolução (caso Candida, 2026-08-27): o cliente sai do painel do advogado
+ *  (créditos estornados) e volta à mesa para completar a documentação. */
+export async function devolverClienteDoAdvogado(
+  chatId: string,
+): Promise<{ ok: boolean; estornados?: number; error?: string }> {
+  const r = await sendJson<{ ok?: boolean; estornados?: number; error?: string }>(
+    'POST',
+    '/admin/advogados/transferencia/devolver',
+    { chatId, confirmar: true },
+  );
+  if (r === null) return { ok: false, error: 'falha na API' };
+  return { ok: r.ok === true, estornados: r.estornados, error: r.error };
+}

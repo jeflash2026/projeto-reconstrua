@@ -26,6 +26,10 @@ export class InMemoryAssignmentStore implements AssignmentStore {
       [...this.byMissionId.values()].filter((a) => a.advogadoId === advogadoId),
     );
   }
+  remove(missionId: string): Promise<void> {
+    this.byMissionId.delete(missionId);
+    return Promise.resolve();
+  }
 }
 
 /** GO-LIVE-04: credenciais individuais (Auth Runtime compartilhado). */

@@ -61,6 +61,15 @@ describe('montarZipDoLead — o formato que o Corvo classifica', () => {
     }
   });
 
+  it('REGRESSÃO (400 do Corvo, 2026-08-27): a coluna "Código banco" existe e sai preenchida', () => {
+    // O validador do Corvo recusava a planilha inteira: "colunas ausentes:
+    // Código banco." — o formato deles separa o código do nome do banco.
+    const zip = montarZipDoLead('ANA', '01795790881', [CONTRATO_BASE], DOCS);
+    const conteudo = zip.toString('utf8');
+    expect(conteudo).toContain('Código banco');
+    expect(conteudo).toContain('>033<'); // o código como célula própria (texto)
+  });
+
   it('CPF com zero à esquerda sai como TEXTO no xlsx (inlineStr, nunca número)', () => {
     const zip = montarZipDoLead('ANA', '01795790881', [CONTRATO_BASE], DOCS);
     // O xlsx é STORE (sem compressão): o XML da planilha está legível no zip.

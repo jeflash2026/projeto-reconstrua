@@ -50,6 +50,10 @@ export const COLUNAS_PLANILHA_CORVO = [
   'CPF do cliente',
   'Nome do cliente',
   'Banco',
+  // Exigida pelo VALIDADOR do Corvo (400 em produção, 2026-08-27: "colunas
+  // ausentes: Código banco") — o leitor deles herdou o formato da planilha do
+  // perito, que separa o código do nome.
+  'Código banco',
   'Contrato',
   'Modalidade',
   'Valor emprestado',
@@ -100,6 +104,7 @@ export function montarZipDoLead(
         cpf, // string ⇒ célula de TEXTO no xlsx (zeros à esquerda preservados)
         nomeCliente,
         banco,
+        c.bancoCodigo === null ? '' : c.bancoCodigo.padStart(3, '0'),
         c.contrato,
         c.modalidade,
         c.valorEmprestado,

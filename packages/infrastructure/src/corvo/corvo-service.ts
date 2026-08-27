@@ -299,13 +299,14 @@ export class CorvoService {
 
     // Assinatura de conteúdo: contratos + refs dos documentos. Igual à última
     // enviada ⇒ nada novo, não reenviar (o modo mesclar é para conteúdo NOVO).
-    // `versao` = FORMATO do ZIP/planilha: quando o nosso gerador muda (v2:
-    // coluna "Código banco" exigida pelo validador do Corvo), a assinatura muda
-    // junto e TODOS os leads — inclusive os parados em ERRO — reenviam sozinhos.
+    // `versao` = FORMATO/PROTOCOLO do envio: quando o nosso lado muda (v2:
+    // coluna "Código banco"; v3: HTTP 200 do remerge aceito como sucesso), a
+    // assinatura muda junto e TODOS os leads — inclusive os parados em ERRO
+    // pela versão anterior — reenviam sozinhos no próximo ciclo.
     const assinatura = createHash('sha256')
       .update(
         JSON.stringify({
-          versao: 2,
+          versao: 3,
           cpf,
           contratos: contratos
             .map((c) => `${c.contrato}|${c.bancoCodigo ?? ''}|${c.situacao ?? ''}`)

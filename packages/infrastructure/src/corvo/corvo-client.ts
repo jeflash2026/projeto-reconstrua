@@ -93,7 +93,10 @@ export class CorvoClient {
           signal: AbortSignal.timeout(120_000), // ZIP pode ter dezenas de MB
         },
       );
-      if (res.status === 201) return { ok: true, corpo: (await res.json()) as RespostaImportacao };
+      // A spec dizia "201" — mas o remerge de cliente JÁ EXISTENTE responde 200
+      // com o MESMO corpo de sucesso (visto em produção 2026-08-27: marcávamos
+      // ERRO num envio que deu certo). Qualquer 2xx com corpo válido é sucesso.
+      if (res.ok) return { ok: true, corpo: (await res.json()) as RespostaImportacao };
       const texto = await res.text().catch(() => '');
       return {
         ok: false,

@@ -1,8 +1,11 @@
 'use client';
 // Navegação lateral (client: marca o item ativo pela rota).
+// MOBILE (2026-08-27, print do dono no iOS): 45 itens viravam uma PAREDE de
+// chips ocupando a tela inteira antes do conteúdo. No celular o menu vira um
+// hambúrguer — barra fina no topo, lista completa (com os grupos) só ao tocar.
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 
 const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = [
   { href: '/', label: 'Centro de Comando' },
@@ -57,6 +60,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
 
 const Nav = (): ReactElement => {
   const pathname = usePathname();
+  const [aberto, setAberto] = useState(false);
   // O item ativo é o de prefixo MAIS LONGO que casa com a rota — assim
   // "/clientes/hoje" acende só "Clientes Hoje" (e não "Clientes" junto).
   const ativo = ITEMS.reduce<string>((melhor, item) => {
@@ -65,20 +69,41 @@ const Nav = (): ReactElement => {
       pathname === item.href || (item.href !== '/' && pathname.startsWith(`${item.href}/`));
     return casa && item.href.length > melhor.length ? item.href : melhor;
   }, '');
+  const rotuloAtivo = ITEMS.find((i) => 'href' in i && i.href === ativo);
   return (
-    <nav className="nav">
-      {ITEMS.map((item, i) =>
-        'sep' in item ? (
-          <div key={`sep-${String(i)}`} className="sep">
-            {item.sep}
-          </div>
-        ) : (
-          <Link key={item.href} href={item.href} className={item.href === ativo ? 'active' : ''}>
-            {item.label}
-          </Link>
-        ),
-      )}
-    </nav>
+    <>
+      <button
+        className="nav-toggle"
+        aria-expanded={aberto}
+        onClick={() => {
+          setAberto((v) => !v);
+        }}
+      >
+        {aberto
+          ? '✕ Fechar'
+          : `☰ ${rotuloAtivo && 'label' in rotuloAtivo ? rotuloAtivo.label : 'Menu'}`}
+      </button>
+      <nav className={aberto ? 'nav nav-aberto' : 'nav'}>
+        {ITEMS.map((item, i) =>
+          'sep' in item ? (
+            <div key={`sep-${String(i)}`} className="sep">
+              {item.sep}
+            </div>
+          ) : (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={item.href === ativo ? 'active' : ''}
+              onClick={() => {
+                setAberto(false);
+              }}
+            >
+              {item.label}
+            </Link>
+          ),
+        )}
+      </nav>
+    </>
   );
 };
 

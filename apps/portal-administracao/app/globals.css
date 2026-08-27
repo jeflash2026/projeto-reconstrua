@@ -100,6 +100,11 @@ a {
   opacity: 0.7;
 }
 
+/* Hambúrguer do mobile (2026-08-27) — invisível no desktop. */
+.nav-toggle {
+  display: none;
+}
+
 .main {
   flex: 1;
   padding: 24px 28px;
@@ -366,6 +371,9 @@ button:hover {
 }
 
 /* ── Responsivo ── */
+/* MOBILE (2026-08-27, print do dono no iOS): o menu de 45 itens virava uma
+   PAREDE de chips antes do conteúdo. Agora: barra fina fixa no topo (marca +
+   hambúrguer + tema + sair); a lista completa — com os grupos — abre ao tocar. */
 @media (max-width: 860px) {
   .shell {
     flex-direction: column;
@@ -373,24 +381,60 @@ button:hover {
   .sidebar {
     width: 100%;
     height: auto;
-    position: static;
+    position: sticky;
+    top: 0;
+    z-index: 30;
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 8px;
+    padding: 10px 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow: visible;
   }
   .sidebar .brand {
-    width: 100%;
+    width: auto;
+    padding: 0;
+    font-size: 14px;
+    white-space: nowrap;
+    margin-right: auto;
+  }
+  /* Tema e Sair viram botões compactos na barra (o width 100% deles é inline). */
+  .sidebar > button {
+    width: auto !important;
+    margin-top: 0 !important;
+    padding: 6px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    max-width: 46vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .nav .sep {
     display: none;
+    width: 100%;
+    order: 10;
+    max-height: 72vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    margin-top: 2px;
+  }
+  .nav.nav-aberto {
+    display: block;
+  }
+  .nav a {
+    padding: 10px 12px; /* alvo de toque confortável */
   }
   .main {
-    padding: 16px;
+    padding: 16px 14px;
   }
   .kv {
     grid-template-columns: 1fr;
@@ -1606,42 +1650,8 @@ details[open] > .lab-explica-body,
   }
 }
 @media (max-width: 720px) {
-  .shell {
-    flex-direction: column;
-  }
-  .sidebar {
-    width: 100%;
-    height: auto;
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    overflow-x: auto;
-  }
-  .brand {
-    padding: 4px 8px;
-    white-space: nowrap;
-    font-size: 14px;
-  }
-  .nav {
-    display: flex;
-    gap: 2px;
-    flex: 1 1 auto;
-    overflow-x: auto;
-  }
-  .nav a {
-    white-space: nowrap;
-    margin-bottom: 0;
-    padding: 6px 10px;
-  }
-  .nav .sep {
-    display: none;
-  }
+  /* O regime do menu mobile (hambúrguer) vive no bloco de 860px — aqui só o
+     que é específico de telas bem pequenas. */
   .main {
     padding: 16px 14px;
   }

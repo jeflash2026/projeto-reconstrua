@@ -72,7 +72,7 @@ describe('AnthropicCompletion — erro HTTP vira causa LITERAL (nunca texto vazi
 // ── RETENTATIVA COM PAUSA (2026-08-27, "instabilidade rapidinha") ────────────
 import { CompletionComRetentativa, type LlmCompletion } from './llm-adapters.js';
 
-function completionRoteirizada(roteiro: (string | 'ok')[]): {
+function completionRoteirizada(roteiro: string[]): {
   llm: LlmCompletion;
   chamadas: () => number;
 } {

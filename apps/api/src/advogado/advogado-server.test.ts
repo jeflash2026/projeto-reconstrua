@@ -402,4 +402,51 @@ describe('Portal do Advogado', () => {
     const lista: unknown[] = processos.json();
     expect(lista).toHaveLength(1); // e a mais RECENTE das atribuições prevalece
   });
+
+  it('DOSSIÊ CORVO (2026-08-27): o advogado da missão lista e baixa; outro advogado recebe 403', async () => {
+    const appCorvo = buildAdvogadoServer(op, {
+      accessSecret: ADVOGADO_SECRET,
+      corvoDossies: {
+        dossiesDoChat: () => Promise.resolve({ cpf: '01795790881', dossies: [{ hashRaiz: 'h1' }] }),
+        zipDoDossie: (_cpf: string, hash: string) =>
+          Promise.resolve(
+            hash === 'h1' ? { nomeArquivo: 'dossie-jose.zip', bytes: Buffer.from('PK...') } : null,
+          ),
+      },
+    });
+    const cab = (quem: string) => ({
+      authorization: `Bearer ${ADVOGADO_SECRET}`,
+      'x-advogado-id': quem,
+    });
+    const lista = await appCorvo.inject({
+      method: 'GET',
+      url: `/advogado/processos/${missionId}/dossie-corvo`,
+      headers: cab(advogadoA),
+    });
+    expect(lista.statusCode).toBe(200);
+    const corpoLista: { dossies: unknown[] } = lista.json();
+    expect(corpoLista.dossies).toHaveLength(1);
+
+    const zip = await appCorvo.inject({
+      method: 'GET',
+      url: `/advogado/processos/${missionId}/dossie-corvo/h1/zip`,
+      headers: cab(advogadoA),
+    });
+    expect(zip.statusCode).toBe(200);
+    expect(zip.headers['content-type']).toBe('application/zip');
+
+    // ISOLAMENTO: o processo não é do B — nem a lista, nem o ZIP.
+    const deB = await appCorvo.inject({
+      method: 'GET',
+      url: `/advogado/processos/${missionId}/dossie-corvo`,
+      headers: cab(advogadoB),
+    });
+    expect(deB.statusCode).toBe(403);
+    const zipB = await appCorvo.inject({
+      method: 'GET',
+      url: `/advogado/processos/${missionId}/dossie-corvo/h1/zip`,
+      headers: cab(advogadoB),
+    });
+    expect(zipB.statusCode).toBe(403);
+  });
 });

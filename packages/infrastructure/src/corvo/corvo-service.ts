@@ -988,6 +988,17 @@ export class CorvoService {
     return { ok: true, novo: true };
   }
 
+  /** Portal do ADVOGADO (2026-08-27): as versões do dossiê do cliente da
+   *  missão dele — resolvidas pelo chat (o isolamento por atribuição é do
+   *  chamador). null = cliente sem CPF na jornada. */
+  async dossiesDoChat(
+    chatId: string,
+  ): Promise<{ cpf: string; dossies: readonly DossieCorvo[] } | null> {
+    const cpf = ((await this.deps.cpfDe(chatId)) ?? '').replace(/\D/g, '');
+    if (cpf.length !== 11) return null;
+    return { cpf, dossies: await this.dossiesDe(cpf) };
+  }
+
   /** Versões do dossiê de um CPF, mais recente primeiro. */
   async dossiesDe(cpf: string): Promise<readonly DossieCorvo[]> {
     const limpo = cpf.replace(/\D/g, '');

@@ -31,6 +31,16 @@ interface DocEquipe {
   em: string;
 }
 
+/** Dossiê de integridade do Corvo (2026-08-27) — prova da cadeia de envio aos
+ *  bancos (.eml originais + hashes), para juntar ao processo. */
+interface DossieCorvoVersao {
+  hashRaiz: string;
+  geradoEm: string;
+  nomeArquivo: string;
+  tamanho: number;
+  resumo: { envios: number | null; respostas: number | null };
+}
+
 // ── DOSSIÊ DE AÇÕES (decreto 2026-08-04): o guia de classificação e
 //    agrupamento aplicado — cada ação com a REGRA que a formou, legível. ──────
 interface ContratoDaAcao {
@@ -113,11 +123,15 @@ const ClienteDestinadoPage = async ({
   // Timeouts (caso Gracielle, 2026-08-05): estudo e ações parseiam o HISCON —
   // folga de 45s no pior caso frio; o resto é leve. A página SEMPRE abre; a
   // seção que expirar mostra "indisponível" e volta no refresh.
-  const [data, estudo, equipe, acoes] = await Promise.all([
+  const [data, estudo, equipe, acoes, dossieCorvo] = await Promise.all([
     getJson<ProcessDetail>(`/advogado/processos/${params.missionId}`, 20000),
     getJson<Estudo>(`/advogado/processos/${params.missionId}/estudo`, 45000),
     getJson<{ docs: DocEquipe[] }>(`/advogado/processos/${params.missionId}/docs-equipe`, 20000),
     getJson<DossieAcoes>(`/advogado/processos/${params.missionId}/acoes`, 45000),
+    getJson<{ dossies: DossieCorvoVersao[] }>(
+      `/advogado/processos/${params.missionId}/dossie-corvo`,
+      20000,
+    ),
   ]);
   const nome = (searchParams.nome ?? '').trim() || estudo?.quem || 'Cliente';
   if (!data) {
@@ -290,6 +304,63 @@ const ClienteDestinadoPage = async ({
                         {v === null || v === '' ? '—' : String(v)}
                       </td>
                     ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── DOSSIÊ DE INTEGRIDADE (Corvo, 2026-08-27) — o pacote de PROVA da
+          cadeia de notificação extrajudicial aos bancos (.eml originais com
+          anexos + hashes), para juntar ao processo. Cada versão é preservada:
+          o dossiê cresce conforme os bancos respondem. ─────────────────────── */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 4 }}>
+          Dossiê de integridade — notificações aos bancos
+        </h2>
+        <p className="page-sub" style={{ marginTop: 0 }}>
+          Pacote de prova da correspondência extrajudicial (e-mails originais enviados a cada banco,
+          respostas recebidas e hashes de integridade). O RELATORIO.html dentro do ZIP é imprimível
+          para anexar ao processo; o hash-raiz certifica que nada foi alterado.
+        </p>
+        {(dossieCorvo?.dossies ?? []).length === 0 ? (
+          <div className="empty">
+            Ainda sem dossiê — ele aparece aqui quando os bancos deste cliente são notificados.
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Gerado em</th>
+                  <th>Envios / respostas</th>
+                  <th>Hash-raiz (integridade)</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(dossieCorvo?.dossies ?? []).map((d, i) => (
+                  <tr key={d.hashRaiz}>
+                    <td style={{ fontWeight: i === 0 ? 600 : 400 }}>
+                      {d.geradoEm !== '' ? formatDate(d.geradoEm) : '—'}
+                      {i === 0 ? ' · atual' : ''}
+                    </td>
+                    <td>
+                      {d.resumo.envios ?? '—'} / {d.resumo.respostas ?? '—'}
+                    </td>
+                    <td className="mono" style={{ fontSize: 11 }}>
+                      {d.hashRaiz}
+                    </td>
+                    <td>
+                      <a
+                        className="btn"
+                        href={`/advogado/api/dossie-corvo/${encodeURIComponent(params.missionId)}/${encodeURIComponent(d.hashRaiz)}`}
+                      >
+                        Baixar ZIP ({Math.round(d.tamanho / 1024)} KB)
+                      </a>
+                    </td>
                   </tr>
                 ))}
               </tbody>

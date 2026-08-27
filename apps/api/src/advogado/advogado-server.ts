@@ -125,6 +125,15 @@ export function buildAdvogadoServer(
         id: string,
       ): Promise<{ nome: string; mime: string; bytes: Uint8Array } | null>;
     };
+    /** Dossiê de integridade do Corvo (2026-08-27): o pacote de prova da
+     *  cadeia de envio aos bancos, para o advogado juntar ao processo. */
+    readonly corvoDossies?: {
+      dossiesDoChat(chatId: string): Promise<{ cpf: string; dossies: readonly unknown[] } | null>;
+      zipDoDossie(
+        cpf: string,
+        hashRaiz: string,
+      ): Promise<{ nomeArquivo: string; bytes: Buffer } | null>;
+    };
   } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: false });
@@ -752,6 +761,50 @@ export function buildAdvogadoServer(
       .header('content-type', plan.mime)
       .header('content-disposition', `attachment; filename="${plan.nomeArquivo.replace(/"/g, '')}"`)
       .send(plan.conteudo);
+  });
+
+  // ── DOSSIÊ DE INTEGRIDADE do Corvo (2026-08-27, pedido do dono) — o pacote
+  //    de prova da cadeia de envio aos bancos, para o advogado JUNTAR AO
+  //    PROCESSO. Mesmo isolamento por atribuição das demais telas do cliente. ─
+  app.get('/advogado/processos/:missionId/dossie-corvo', async (request, reply) => {
+    if (!opts.corvoDossies)
+      return reply.code(503).send({ error: 'integração Corvo indisponível nesta montagem' });
+    const { missionId } = request.params as { missionId: string };
+    const r = await chatDaMissaoAtribuida(request, missionId);
+    if ('erro' in r) {
+      if (r.erro === 'auth') return reply.code(401).send({ error: 'advogado não identificado' });
+      if (r.erro === 'atribuicao')
+        return reply.code(403).send({ error: 'processo não atribuído a você' });
+      return reply.code(404).send({ error: 'conversa do processo não encontrada' });
+    }
+    const dossies = await opts.corvoDossies.dossiesDoChat(r.chatId);
+    return dossies ?? { cpf: null, dossies: [] };
+  });
+
+  app.get('/advogado/processos/:missionId/dossie-corvo/:hashRaiz/zip', async (request, reply) => {
+    if (!opts.corvoDossies)
+      return reply.code(503).send({ error: 'integração Corvo indisponível nesta montagem' });
+    const { missionId, hashRaiz } = request.params as { missionId: string; hashRaiz: string };
+    const r = await chatDaMissaoAtribuida(request, missionId);
+    if ('erro' in r) {
+      if (r.erro === 'auth') return reply.code(401).send({ error: 'advogado não identificado' });
+      if (r.erro === 'atribuicao')
+        return reply.code(403).send({ error: 'processo não atribuído a você' });
+      return reply.code(404).send({ error: 'conversa do processo não encontrada' });
+    }
+    // O CPF vem SEMPRE do chat da missão atribuída — o advogado nunca baixa
+    // dossiê de cliente que não é dele, mesmo chutando hashes.
+    const doCliente = await opts.corvoDossies.dossiesDoChat(r.chatId);
+    if (doCliente === null) return reply.code(404).send({ error: 'cliente sem CPF registrado' });
+    const zip = await opts.corvoDossies.zipDoDossie(doCliente.cpf, hashRaiz);
+    if (zip === null) return reply.code(404).send({ error: 'dossiê indisponível' });
+    return reply
+      .header('content-type', 'application/zip')
+      .header(
+        'content-disposition',
+        `attachment; filename="${zip.nomeArquivo.replace(/[^\w. \-()]/g, '_')}"`,
+      )
+      .send(zip.bytes);
   });
 
   app.get('/advogado/processos/:missionId/docs-equipe', async (request, reply) => {

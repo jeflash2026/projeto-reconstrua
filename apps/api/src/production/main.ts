@@ -271,6 +271,12 @@ async function main(): Promise<void> {
       listar: (chatId) => prod.docsEquipe.listar(chatId),
       baixar: (chatId, id) => prod.docsEquipe.baixar(chatId, id),
     },
+    // Dossiê de integridade do Corvo (2026-08-27): prova da cadeia de envio
+    // aos bancos, para o advogado juntar ao processo do cliente dele.
+    corvoDossies: {
+      dossiesDoChat: (chatId) => prod.corvo.dossiesDoChat(chatId),
+      zipDoDossie: (cpf, hashRaiz) => prod.corvo.zipDoDossie(cpf, hashRaiz),
+    },
   });
   const lx = buildLawyerExperienceServer(prod.lxView, {
     advogadoSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',

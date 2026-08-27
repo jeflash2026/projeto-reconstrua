@@ -959,9 +959,30 @@ export function buildAdvogadoServer(
         .some((d) => d.documentId === documentId && d.missionId === missionId);
       if (!belongs)
         return reply.code(404).send({ error: 'documento não pertence a este processo' });
-      const content = op.documentContent ? await op.documentContent.byDocumentId(documentId) : null;
-      if (content === null)
-        return reply.code(404).send({ error: 'documento sem conteúdo disponível' });
+      const content = op.documentContent
+        ? await op.documentContent.byDocumentId(documentId).catch(() => null)
+        : null;
+      if (content === null) {
+        // DIAGNÓSTICO (caso Cynthia, 2026-08-27): "não baixa" sem motivo não
+        // conserta nada — o elo quebrado sai na resposta E no log do servidor.
+        const motivo = op.documentContent
+          ? await op.documentContent.motivoIndisponivel(documentId)
+          : 'servico-ausente';
+        op.observability.error(
+          'advogado',
+          'download-documento',
+          new Date(),
+          `doc=${documentId} missao=${missionId} motivo=${motivo ?? 'desconhecido'}`,
+        );
+        return reply.code(404).send({
+          error:
+            motivo === 'sem-vinculo'
+              ? 'o arquivo deste documento não foi capturado no recebimento (sem vínculo de mídia) — acione o suporte citando este cliente'
+              : motivo === 'sem-arquivo'
+                ? 'o arquivo saiu do acervo (vínculo existe, mídia ausente) — acione o suporte citando este cliente'
+                : 'documento sem conteúdo disponível',
+        });
+      }
       return reply.header('content-type', content.mime).send(Buffer.from(content.bytes));
     },
   );

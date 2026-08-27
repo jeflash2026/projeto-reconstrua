@@ -26,4 +26,14 @@ export class DocumentContentService {
     if (blob === null) return null;
     return { bytes: blob.bytes, mime: blob.mime, size: blob.size };
   }
+
+  /** DIAGNÓSTICO (2026-08-27, caso Cynthia "não baixa"): QUAL elo quebrou —
+   *  'sem-vinculo' (a captura nunca ligou documento→arquivo) ou 'sem-arquivo'
+   *  (vínculo existe, o blob sumiu do acervo). null = está tudo lá. */
+  async motivoIndisponivel(documentId: string): Promise<'sem-vinculo' | 'sem-arquivo' | null> {
+    const link = await this.links.byDocumentId(documentId).catch(() => null);
+    if (link === null) return 'sem-vinculo';
+    const blob = await this.store.read(link.sha256).catch(() => null);
+    return blob === null ? 'sem-arquivo' : null;
+  }
 }

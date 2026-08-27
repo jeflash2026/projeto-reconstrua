@@ -50,3 +50,39 @@ describe('DocumentContentService (CAT-02C)', () => {
     ).toBeNull();
   });
 });
+
+// ── DIAGNÓSTICO (caso Cynthia, 2026-08-27): qual elo quebrou? ────────────────
+import { describe as descreva, it as caso, expect as espere } from 'vitest';
+import { InMemoryJsonStore as JsonMem } from '../production/json-store.js';
+import { JsonDocumentLinkStore as Links } from './document-link-store.js';
+import { InMemoryMediaStore as MediaMem } from './in-memory-media-store.js';
+import { DocumentContentService as Servico } from './document-content-service.js';
+
+descreva('motivoIndisponivel — o elo quebrado tem nome', () => {
+  caso('sem vínculo ⇒ sem-vinculo; vínculo sem blob ⇒ sem-arquivo; completo ⇒ null', async () => {
+    const json = new JsonMem();
+    const links = new Links(json);
+    const media = new MediaMem();
+    const svc = new Servico(links, media);
+
+    espere(await svc.motivoIndisponivel('DOC-FANTASMA')).toBe('sem-vinculo');
+
+    await links.save({
+      documentId: 'DOC-ORFAO',
+      messageId: 'M1',
+      sha256: 'sha-sumido',
+      mime: 'image/jpeg',
+    });
+    espere(await svc.motivoIndisponivel('DOC-ORFAO')).toBe('sem-arquivo');
+
+    const bytes = new Uint8Array([1, 2, 3]);
+    await media.put({ sha256: 'sha-ok', mime: 'application/pdf', size: 3, bytes });
+    await links.save({
+      documentId: 'DOC-OK',
+      messageId: 'M2',
+      sha256: 'sha-ok',
+      mime: 'application/pdf',
+    });
+    espere(await svc.motivoIndisponivel('DOC-OK')).toBe(null);
+  });
+});

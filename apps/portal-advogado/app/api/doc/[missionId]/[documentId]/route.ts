@@ -22,7 +22,12 @@ export async function GET(
       headers: { authorization: `Bearer ${token}`, 'x-advogado-id': id },
     },
   );
-  if (!res.ok) return new Response('documento indisponível', { status: res.status });
+  if (!res.ok) {
+    // O MOTIVO real da API chega ao advogado (caso Cynthia, 2026-08-27): antes
+    // qualquer falha virava "documento indisponível" e ninguém sabia o porquê.
+    const corpo = (await res.json().catch(() => null)) as { error?: string } | null;
+    return new Response(corpo?.error ?? 'documento indisponível', { status: res.status });
+  }
 
   // Nome do arquivo (?f=) saneado — só ASCII seguro no content-disposition.
   const nomeBruto = new URL(request.url).searchParams.get('f') ?? `documento-${params.documentId}`;

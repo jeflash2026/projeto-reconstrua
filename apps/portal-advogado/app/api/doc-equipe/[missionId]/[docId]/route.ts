@@ -22,7 +22,10 @@ export async function GET(
       headers: { authorization: `Bearer ${token}`, 'x-advogado-id': id },
     },
   );
-  if (!res.ok) return new Response('documento indisponível', { status: res.status });
+  if (!res.ok) {
+    const corpo = (await res.json().catch(() => null)) as { error?: string } | null;
+    return new Response(corpo?.error ?? 'documento indisponível', { status: res.status });
+  }
 
   const conteudo = await res.arrayBuffer();
   return new Response(conteudo, {

@@ -1422,6 +1422,31 @@ export function buildAdminServer(
       )
       .send(anexo.bytes);
   });
+  // ── Dossiê de integridade (2026-08-26): versões por CPF, atualização manual
+  //    e o ZIP probatório do storage privado (sempre atrás do Bearer). ────────
+  app.get('/admin/corvo/dossies/:cpf', async (request, reply) => {
+    if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
+    const { cpf } = request.params as { cpf: string };
+    return { dossies: await opts.corvo.dossiesDe(cpf) };
+  });
+  app.post('/admin/corvo/dossies/:cpf/atualizar', async (request, reply) => {
+    if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
+    const { cpf } = request.params as { cpf: string };
+    return opts.corvo.baixarEGuardarDossie(cpf, null);
+  });
+  app.get('/admin/corvo/dossies/:cpf/:hashRaiz/zip', async (request, reply) => {
+    if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
+    const { cpf, hashRaiz } = request.params as { cpf: string; hashRaiz: string };
+    const zip = await opts.corvo.zipDoDossie(cpf, hashRaiz);
+    if (zip === null) return reply.code(404).send({ error: 'dossiê indisponível' });
+    return reply
+      .header('content-type', 'application/zip')
+      .header(
+        'content-disposition',
+        `attachment; filename="${zip.nomeArquivo.replace(/[^\w. \-()]/g, '_')}"`,
+      )
+      .send(zip.bytes);
+  });
 
   // Decreto 2026-08-04: o DOSSIÊ DE AÇÕES de UM cliente — o guia de
   // classificação/agrupamento aplicado ao HISCON dele. O Admin imprime esta

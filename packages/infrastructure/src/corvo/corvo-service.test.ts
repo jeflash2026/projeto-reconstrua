@@ -408,3 +408,153 @@ describe('varrerEEnviar — idempotência e retry do envio', () => {
     expect(svc.ativa).toBe(false);
   });
 });
+
+// ── DOSSIÊ DE INTEGRIDADE (2026-08-26) ───────────────────────────────────────
+import { createHash } from 'node:crypto';
+import { zipStore } from '../util/zip.js';
+
+function zipDossie(sums: string, relatorio?: object): { zip: Buffer; hashRaiz: string } {
+  const arquivos = [
+    { name: 'SHA256SUMS.txt', content: sums },
+    { name: 'RELATORIO.html', content: '<html>ok</html>' },
+    ...(relatorio !== undefined
+      ? [{ name: 'relatorio.json', content: JSON.stringify(relatorio) }]
+      : []),
+  ];
+  return {
+    zip: zipStore(arquivos),
+    hashRaiz: createHash('sha256').update(sums).digest('hex'),
+  };
+}
+
+function mediaFake(): {
+  has(s: string): Promise<boolean>;
+  put(b: { sha256: string; mime: string; size: number; bytes: Uint8Array }): Promise<void>;
+  read(
+    s: string,
+  ): Promise<{ sha256: string; mime: string; size: number; bytes: Uint8Array } | null>;
+  guardados(): number;
+} {
+  const blobs = new Map<
+    string,
+    { sha256: string; mime: string; size: number; bytes: Uint8Array }
+  >();
+  return {
+    has: (s) => Promise.resolve(blobs.has(s)),
+    put: (b) => {
+      blobs.set(b.sha256, b);
+      return Promise.resolve();
+    },
+    read: (s) => Promise.resolve(blobs.get(s) ?? null),
+    guardados: () => blobs.size,
+  };
+}
+
+describe('dossiê de integridade — debounce, verificação e versões', () => {
+  const CPF = '01795790881';
+
+  function bancadaDossie(respostas: { zip: Buffer; hashRaiz: string }[]) {
+    const json = new InMemoryJsonStore();
+    let t = AGORA.getTime();
+    const relogio = { now: (): Date => new Date(t) };
+    const media = mediaFake();
+    const { client } = clienteFalso([]);
+    const clientComDossie = Object.assign(client, {
+      baixarDossie: (cpf: string) => {
+        const r = respostas.shift();
+        if (r === undefined)
+          return Promise.resolve({ ok: false as const, status: 404, erro: 'sem dossiê' });
+        return Promise.resolve({
+          ok: true as const,
+          bytes: r.zip,
+          hashRaiz: r.hashRaiz,
+          cpf,
+          geradoEm: relogio.now().toISOString(),
+          nomeArquivo: `dossie-jose-${cpf}.zip`,
+        });
+      },
+    });
+    const svc = new CorvoService({
+      json,
+      clock: relogio,
+      client: clientComDossie,
+      webhookSecret: SEGREDO,
+      chaveCredencial: 'chave-de-teste',
+      observability: obs,
+      mesa: () => Promise.resolve([NA_MESA]),
+      cpfDe: () => Promise.resolve(CPF),
+      contratosDe: () => Promise.resolve([CONTRATO]),
+      documentosDe: () => Promise.resolve([DOC]),
+      media,
+    });
+    return { svc, json, media, avancar: (ms: number) => (t += ms) };
+  }
+
+  it('evento com dados.dossie enfileira; o download espera a rajada ASSENTAR (2 min)', async () => {
+    const { zip, hashRaiz } = zipDossie('abc  a.eml\n', { envios: [1, 2], respostas: [1] });
+    const b = bancadaDossie([{ zip, hashRaiz }]);
+    await b.svc.varrerEEnviar(); // importação liga o CPF ao clienteId
+    await b.svc.processarEvento({
+      id: 'e-d1',
+      tipo: 'banco.resposta',
+      ocorridoEm: '',
+      dados: {
+        respostaId: 'r-d1',
+        tipo: 'RESPOSTA',
+        cliente: { nome: 'JOSÉ', cpf: CPF },
+        dossie: { cpf: CPF, url: 'https://corvo/api/integracao/dossie/' + CPF },
+      },
+    });
+    // Ainda dentro da rajada: NÃO baixa.
+    expect(await b.svc.processarFilaDeDossies()).toEqual({ baixados: 0 });
+    // 2 min de silêncio: baixa, verifica e grava LIGADO ao cliente.
+    b.avancar(2 * 60_000 + 1);
+    expect(await b.svc.processarFilaDeDossies()).toEqual({ baixados: 1 });
+    const versoes = await b.svc.dossiesDe(CPF);
+    expect(versoes).toHaveLength(1);
+    expect(versoes[0]?.clienteId).toBe('cli-1');
+    expect(versoes[0]?.hashRaiz).toBe(hashRaiz);
+    expect(versoes[0]?.resumo).toEqual({ envios: 2, respostas: 1, bancos: [], documentos: null });
+    expect(b.media.guardados()).toBe(1); // o ZIP está no storage privado
+    // O ZIP volta ÍNTEGRO para o download autenticado.
+    const baixado = await b.svc.zipDoDossie(CPF, hashRaiz);
+    expect(baixado?.bytes.equals(zip)).toBe(true);
+    // A fila esvaziou.
+    expect(await b.svc.processarFilaDeDossies()).toEqual({ baixados: 0 });
+  });
+
+  it('hash-raiz divergente ⇒ dossiê DESCARTADO: nada gravado, nada no storage', async () => {
+    const { zip } = zipDossie('conteudo-real\n');
+    const b = bancadaDossie([{ zip, hashRaiz: 'f'.repeat(64) }]); // header mentiroso
+    const r = await b.svc.baixarEGuardarDossie(CPF, null);
+    expect(r.ok).toBe(false);
+    expect(await b.svc.dossiesDe(CPF)).toHaveLength(0);
+    expect(b.media.guardados()).toBe(0);
+  });
+
+  it('mesma versão de novo ⇒ 1 linha (idempotência por cpf+hash-raiz); versão nova ⇒ 2 linhas', async () => {
+    const v1 = zipDossie('v1  a.eml\n');
+    const v2 = zipDossie('v1  a.eml\nv2  b.eml\n');
+    const b = bancadaDossie([v1, v1, v2]);
+    expect((await b.svc.baixarEGuardarDossie(CPF, null)).novo).toBe(true);
+    expect((await b.svc.baixarEGuardarDossie(CPF, null)).novo).toBe(false); // não mudou
+    expect(await b.svc.dossiesDe(CPF)).toHaveLength(1);
+    expect((await b.svc.baixarEGuardarDossie(CPF, null)).novo).toBe(true); // cresceu
+    expect(await b.svc.dossiesDe(CPF)).toHaveLength(2); // histórico preservado
+  });
+
+  it('CPF sem cliente ⇒ grava mesmo assim com clienteId null (conciliação manual)', async () => {
+    const v = zipDossie('x  a.eml\n');
+    const b = bancadaDossie([v]);
+    // SEM varrerEEnviar: nenhuma importação liga o CPF a um cliente.
+    expect((await b.svc.baixarEGuardarDossie(CPF, null)).ok).toBe(true);
+    expect((await b.svc.dossiesDe(CPF))[0]?.clienteId).toBe(null);
+  });
+
+  it('sem SHA256SUMS.txt no ZIP ⇒ descartado', async () => {
+    const semSums = zipStore([{ name: 'RELATORIO.html', content: '<html>' }]);
+    const b = bancadaDossie([{ zip: semSums, hashRaiz: 'a'.repeat(64) }]);
+    expect((await b.svc.baixarEGuardarDossie(CPF, null)).ok).toBe(false);
+    expect(await b.svc.dossiesDe(CPF)).toHaveLength(0);
+  });
+});

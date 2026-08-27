@@ -162,6 +162,47 @@ export class CorvoClient {
     }
   }
 
+  /** GET /api/integracao/dossie/{cpf} — o DOSSIÊ DE INTEGRIDADE (ZIP com os
+   *  .eml, SHA256SUMS.txt e relatorio.json), gerado na hora pelo Corvo. */
+  async baixarDossie(cpf: string): Promise<
+    | {
+        readonly ok: true;
+        readonly bytes: Buffer;
+        readonly hashRaiz: string;
+        readonly cpf: string;
+        readonly geradoEm: string;
+        readonly nomeArquivo: string;
+      }
+    | { readonly ok: false; readonly status: number | null; readonly erro: string }
+  > {
+    try {
+      const res = await this.fetchFn(
+        `${this.config.baseUrl}/api/integracao/dossie/${encodeURIComponent(cpf)}`,
+        {
+          headers: { 'X-Api-Key': this.config.apiKey },
+          signal: AbortSignal.timeout(90_000), // 5–20 MB com .eml e anexos
+        },
+      );
+      if (!res.ok) {
+        const texto = await res.text().catch(() => '');
+        return { ok: false, status: res.status, erro: texto.slice(0, 300) };
+      }
+      const bytes = Buffer.from(await res.arrayBuffer());
+      const disposicao = res.headers.get('content-disposition') ?? '';
+      const nome = /filename="([^"]+)"/.exec(disposicao)?.[1] ?? `dossie-${cpf}.zip`;
+      return {
+        ok: true,
+        bytes,
+        hashRaiz: (res.headers.get('x-dossie-hash-raiz') ?? '').toLowerCase(),
+        cpf: res.headers.get('x-dossie-cpf') ?? cpf,
+        geradoEm: res.headers.get('x-dossie-gerado-em') ?? '',
+        nomeArquivo: nome,
+      };
+    } catch (e) {
+      return { ok: false, status: null, erro: e instanceof Error ? e.message : 'falha de rede' };
+    }
+  }
+
   /** GET <url do anexo> com X-Api-Key — a URL do Corvo não é pública. */
   async baixarAnexo(url: string): Promise<{ bytes: Buffer; mime: string } | null> {
     try {

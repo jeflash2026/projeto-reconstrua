@@ -3,7 +3,10 @@
 // Explorer do Windows, macOS, 7-Zip) sem dependência externa. Suficiente para
 // empacotar N arquivos CSV de texto (um por cliente). CRC32 tabelado; nomes em
 // UTF-8 (bit 11 do flag). Não faz ZIP64 — ok para dezenas de CSVs pequenos.
+// 2026-08-26: ganhou também a LEITURA (lerArquivoDoZip) para abrir o dossiê
+// de integridade do Corvo — STORE e DEFLATE (zlib), sem dependência externa.
 // ─────────────────────────────────────────────────────────────────────────────
+import { inflateRawSync } from 'node:zlib';
 
 const CRC_TABLE: readonly number[] = (() => {
   const t: number[] = [];
@@ -89,6 +92,51 @@ export function zipStore(arquivos: readonly ArquivoZip[]): Buffer {
   fim.writeUInt16LE(0, 20); // comentário
 
   return Buffer.concat([locaisBuf, centraisBuf, fim]);
+}
+
+/** LÊ um arquivo de dentro de um ZIP alheio (dossiê do Corvo, 2026-08-26) —
+ *  varre o diretório central a partir do EOCD e devolve os bytes do arquivo
+ *  pedido. Suporta STORE (0) e DEFLATE (8, via zlib). null = não achou ou zip
+ *  malformado — quem chama decide o que fazer (nunca explode). */
+export function lerArquivoDoZip(zip: Buffer, nome: string): Buffer | null {
+  try {
+    // EOCD: assinatura 0x06054b50, varrendo do fim (comentário pode existir).
+    let eocd = -1;
+    for (let i = zip.length - 22; i >= 0 && i >= zip.length - 22 - 65_536; i--) {
+      if (zip.readUInt32LE(i) === 0x06054b50) {
+        eocd = i;
+        break;
+      }
+    }
+    if (eocd < 0) return null;
+    const totalEntradas = zip.readUInt16LE(eocd + 10);
+    let pos = zip.readUInt32LE(eocd + 16); // offset do diretório central
+    for (let n = 0; n < totalEntradas; n++) {
+      if (zip.readUInt32LE(pos) !== 0x02014b50) return null;
+      const metodo = zip.readUInt16LE(pos + 10);
+      const comprimido = zip.readUInt32LE(pos + 20);
+      const tamanhoNome = zip.readUInt16LE(pos + 28);
+      const tamanhoExtra = zip.readUInt16LE(pos + 30);
+      const tamanhoComentario = zip.readUInt16LE(pos + 32);
+      const offsetLocal = zip.readUInt32LE(pos + 42);
+      const nomeEntrada = zip.subarray(pos + 46, pos + 46 + tamanhoNome).toString('utf8');
+      if (nomeEntrada === nome) {
+        // O cabeçalho LOCAL tem nome/extra próprios (podem diferir do central).
+        if (zip.readUInt32LE(offsetLocal) !== 0x04034b50) return null;
+        const nomeLocal = zip.readUInt16LE(offsetLocal + 26);
+        const extraLocal = zip.readUInt16LE(offsetLocal + 28);
+        const inicio = offsetLocal + 30 + nomeLocal + extraLocal;
+        const dados = zip.subarray(inicio, inicio + comprimido);
+        if (metodo === 0) return Buffer.from(dados);
+        if (metodo === 8) return inflateRawSync(dados);
+        return null; // método desconhecido
+      }
+      pos += 46 + tamanhoNome + tamanhoExtra + tamanhoComentario;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /** Nome de arquivo seguro para dentro do ZIP (sem separadores/《reservados》). */

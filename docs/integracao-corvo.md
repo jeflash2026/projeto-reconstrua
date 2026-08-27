@@ -97,6 +97,26 @@ e anexos.
 | `corvo-webhook-entregas` | id do evento | dedupe do webhook + reconciliação |
 | `corvo-estado` | 'reconciliacao' | cursor temporal do feed |
 
+## Dossiê de integridade (2026-08-26)
+
+Pacote de prova (ZIP com .eml + `SHA256SUMS.txt` + `relatorio.json`) que o
+Corvo gera por CPF em `GET /api/integracao/dossie/{cpf}` (X-Api-Key).
+
+- **Gatilho**: `banco.envio`/`banco.resposta` com `dados.dossie != null` →
+  fila com **debounce por CPF** (2 min de silêncio; teto 10 min) — nunca
+  baixado dentro do webhook. Botão "Atualizar dossiê" na ficha dispara na hora.
+- **Verificação obrigatória**: `sha256(SHA256SUMS.txt) == X-Dossie-Hash-Raiz`;
+  divergiu ⇒ descartado e registrado (nada gravado).
+- **Persistência**: ns `corvo-dossies` (chave `cpf:hashRaiz`) — uma linha por
+  VERSÃO, nunca sobrescrita; `clienteId` resolvido pelo CPF (null = conciliação
+  manual, fica visível); ZIP no **media store** privado (content-addressed por
+  `hashZip`); idempotência por (cpf, hash-raiz) só atualiza `baixadoEm`.
+- **Ficha do cliente** (timeline Corvo): geração, hash-raiz com copiar,
+  envios/respostas, Baixar ZIP (autenticado, via proxy do portal), Atualizar
+  dossiê, versões anteriores.
+- Rotas Admin: `GET /admin/corvo/dossies/:cpf`, `POST .../:cpf/atualizar`,
+  `GET .../:cpf/:hashRaiz/zip`.
+
 ## Código
 
 - `packages/infrastructure/src/corvo/` — `corvo-zip.ts` (formato do ZIP),

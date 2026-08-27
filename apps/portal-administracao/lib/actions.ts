@@ -1419,3 +1419,17 @@ export async function revelarSenhaCorvo(
     { quem: 'admin (portal)' },
   );
 }
+
+/** Dossiê de integridade (2026-08-26): baixa a versão atual no Corvo, verifica
+ *  o hash-raiz e guarda como NOVA versão (nada é sobrescrito). */
+export async function atualizarDossieCorvo(
+  cpf: string,
+): Promise<{ ok: boolean; novo?: boolean; erro?: string }> {
+  const r = await sendJson<{ ok?: boolean; novo?: boolean; erro?: string }>(
+    'POST',
+    `/admin/corvo/dossies/${encodeURIComponent(cpf)}/atualizar`,
+    {},
+  );
+  if (r === null) return { ok: false, erro: 'falha na API' };
+  return { ok: r.ok === true, novo: r.novo, erro: r.erro };
+}

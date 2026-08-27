@@ -457,6 +457,18 @@ async function main(): Promise<void> {
     };
     setTimeout(enviarAoCorvo, 2 * 60_000); // primeiro envio 2 min após o boot
     setInterval(enviarAoCorvo, 5 * 60_000);
+    // Dossiê de integridade (2026-08-26): a fila com debounce assenta a rajada
+    // de eventos por CPF e baixa UMA vez; o tick só confere quem já assentou.
+    setInterval(() => {
+      void prod.corvo.processarFilaDeDossies().catch((error: unknown) => {
+        prod.observability.error(
+          'corvo',
+          'dossie-fila',
+          clock.now(),
+          error instanceof Error ? error.message : 'falha na fila de dossiês',
+        );
+      });
+    }, 60_000);
     setInterval(() => {
       void prod.corvo.reconciliar().catch((error: unknown) => {
         prod.observability.error(

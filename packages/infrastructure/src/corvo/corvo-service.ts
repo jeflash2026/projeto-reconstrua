@@ -23,6 +23,7 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
 import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
+import { lerArquivoDoZip } from '../util/zip.js';
 import type { CorvoClient, BancoDoLead, EventoCorvo } from './corvo-client.js';
 import { montarZipDoLead, type ContratoDoLead, type DocumentoDoLead } from './corvo-zip.js';
 
@@ -33,6 +34,13 @@ const NS_RESPOSTAS = 'corvo-respostas'; // chave: respostaId
 const NS_ENTREGAS = 'corvo-webhook-entregas'; // chave: id do evento (dedupe)
 const NS_ANEXOS = 'corvo-anexos'; // chave: `${respostaId}:${indice}`
 const NS_ESTADO = 'corvo-estado'; // chave: 'reconciliacao'
+const NS_DOSSIES = 'corvo-dossies'; // chave: `${cpf}:${hashRaiz}` (uma linha por VERSÃO)
+const NS_DOSSIE_FILA = 'corvo-dossie-fila'; // chave: cpf (debounce do download)
+
+/** Debounce do dossiê: vários eventos do mesmo CPF em sequência ⇒ UM download
+ *  ao final da rajada (2 min de silêncio) — com teto de 10 min de espera. */
+const DOSSIE_SILENCIO_MS = 2 * 60_000;
+const DOSSIE_TETO_ESPERA_MS = 10 * 60_000;
 
 /** Backoff dos envios transitórios (a partir daí, repete o último). */
 const BACKOFF_MS = [60_000, 300_000, 1_800_000] as const;
@@ -150,6 +158,26 @@ export interface RespostaCorvo {
   readonly anexos: readonly AnexoResposta[];
 }
 
+/** Uma VERSÃO do dossiê de integridade — nunca sobrescrita (histórico probatório). */
+export interface DossieCorvo {
+  readonly cpf: string;
+  /** Resolvido pelo CPF na hora do download; null = conciliação manual. */
+  readonly clienteId: string | null;
+  readonly hashRaiz: string;
+  readonly hashZip: string;
+  readonly geradoEm: string;
+  readonly nomeArquivo: string;
+  readonly tamanho: number;
+  readonly resumo: {
+    readonly envios: number | null;
+    readonly respostas: number | null;
+    readonly bancos: readonly string[];
+    readonly documentos: number | null;
+  };
+  readonly eventoOrigemId: string | null;
+  readonly baixadoEm: string;
+}
+
 // ── Dependências (o build-production liga cada uma às fontes reais) ───────────
 
 export interface MesaParaCorvo {
@@ -185,6 +213,16 @@ export interface CorvoDeps {
   /** Contratos SELECIONADOS pelo guia (os que viram processo). null = ilegível. */
   readonly contratosDe: (chatId: string) => Promise<readonly ContratoDoLead[] | null>;
   readonly documentosDe: (chatId: string) => Promise<readonly DocumentoColetado[]>;
+  /** Storage PRIVADO dos ZIPs do dossiê (content-addressed por sha256) — o
+   *  media store da produção. Ausente ⇒ dossiês desligados (metadata nunca
+   *  aponta para um blob que não existe). */
+  readonly media?: {
+    has(sha256: string): Promise<boolean>;
+    put(blob: { sha256: string; mime: string; size: number; bytes: Uint8Array }): Promise<void>;
+    read(
+      sha256: string,
+    ): Promise<{ sha256: string; mime: string; size: number; bytes: Uint8Array } | null>;
+  };
 }
 
 function uuidDe(hex: string): string {
@@ -528,6 +566,7 @@ export class CorvoService {
           enviadoEm: (dados['enviadoEm'] as string | undefined) ?? evento.ocorridoEm,
           messageId: (dados['messageId'] as string | undefined) ?? null,
         } satisfies EnvioCorvo);
+        await this.agendarDossie(dados['dossie'], evento.id);
         break;
       }
       case 'banco.resposta': {
@@ -548,6 +587,7 @@ export class CorvoService {
           corpoTexto: (dados['corpoTexto'] as string | undefined) ?? null,
           anexos: (dados['anexos'] as readonly AnexoResposta[] | undefined) ?? [],
         } satisfies RespostaCorvo);
+        await this.agendarDossie(dados['dossie'], evento.id);
         const tipo = (dados['tipo'] as string | undefined) ?? 'RESPOSTA';
         if (tipo === 'BOUNCE')
           this.deps.observability.error(
@@ -721,6 +761,7 @@ export class CorvoService {
     caixa: (Omit<CaixaCorvo, 'senha'> & { temSenha: boolean }) | null;
     envios: readonly EnvioCorvo[];
     respostas: readonly RespostaCorvo[];
+    dossies: readonly DossieCorvo[];
   } | null> {
     const importacao = (await this.deps.json.get(
       NS_IMPORTACOES,
@@ -758,6 +799,7 @@ export class CorvoService {
       respostas: todasRespostas
         .filter((r) => doCliente(r.cpf, r.caixaEmail))
         .sort((a, b) => (a.recebidaEm ?? '').localeCompare(b.recebidaEm ?? '')),
+      dossies: cpf !== null ? await this.dossiesDe(cpf) : [],
     };
   }
 
@@ -783,6 +825,188 @@ export class CorvoService {
   async pedirReenvioDeCredencial(cpf: string): Promise<{ ok: boolean; erro?: string }> {
     if (this.deps.client === null) return { ok: false, erro: 'integração desligada' };
     return this.deps.client.reenviarCredencial(cpf.replace(/\D/g, ''));
+  }
+
+  // ── E. Dossiê de integridade (2026-08-26) ───────────────────────────────────
+  // O Corvo empacota a cadeia de envio aos bancos (.eml + SHA256SUMS.txt +
+  // relatorio.json). Aqui: DEBOUNCE por CPF (nunca dentro do webhook), download
+  // com VERIFICAÇÃO obrigatória (hash-raiz), versão nova = linha nova (histórico
+  // probatório, nada sobrescrito), ZIP no storage privado content-addressed.
+
+  /** Chamado pelos handlers de banco.envio/banco.resposta (dados.dossie). */
+  private async agendarDossie(dossieBruto: unknown, eventoId: string): Promise<void> {
+    const dossie = dossieBruto as { cpf?: string } | null | undefined;
+    const cpf = (dossie?.cpf ?? '').replace(/\D/g, '');
+    if (cpf.length !== 11) return;
+    const agora = this.deps.clock.now().toISOString();
+    const anterior = (await this.deps.json.get(NS_DOSSIE_FILA, cpf)) as {
+      primeiroEm?: string;
+    } | null;
+    await this.deps.json.put(NS_DOSSIE_FILA, cpf, {
+      cpf,
+      primeiroEm: anterior?.primeiroEm ?? agora,
+      ultimoEm: agora,
+      eventoOrigemId: eventoId,
+    });
+  }
+
+  /** Job periódico (60s): baixa os CPFs cuja rajada de eventos assentou
+   *  (2 min de silêncio) ou que esperam além do teto (10 min). */
+  async processarFilaDeDossies(): Promise<{ baixados: number }> {
+    if (this.deps.client === null || this.deps.media === undefined) return { baixados: 0 };
+    const agora = this.deps.clock.now().getTime();
+    const fila = (await this.deps.json.list(NS_DOSSIE_FILA)) as readonly {
+      cpf: string;
+      primeiroEm: string;
+      ultimoEm: string;
+      eventoOrigemId: string | null;
+    }[];
+    let baixados = 0;
+    for (const pedido of fila) {
+      const silencio = agora - new Date(pedido.ultimoEm).getTime();
+      const espera = agora - new Date(pedido.primeiroEm).getTime();
+      if (silencio < DOSSIE_SILENCIO_MS && espera < DOSSIE_TETO_ESPERA_MS) continue;
+      const r = await this.baixarEGuardarDossie(pedido.cpf, pedido.eventoOrigemId);
+      if (r.ok) {
+        await this.deps.json.del(NS_DOSSIE_FILA, pedido.cpf);
+        baixados += 1;
+      } else {
+        // Falha (rede/404): recomeça a contagem — nova tentativa em 2 min,
+        // sem martelar o Corvo a cada tick.
+        const carimbo = this.deps.clock.now().toISOString();
+        await this.deps.json.put(NS_DOSSIE_FILA, pedido.cpf, {
+          ...pedido,
+          primeiroEm: carimbo,
+          ultimoEm: carimbo,
+        });
+      }
+    }
+    return { baixados };
+  }
+
+  /** Download + verificação + gravação. Público: o botão "Atualizar dossiê"
+   *  da ficha chama direto (sem debounce). */
+  async baixarEGuardarDossie(
+    cpfBruto: string,
+    eventoOrigemId: string | null,
+  ): Promise<{ ok: boolean; novo?: boolean; erro?: string }> {
+    const cpf = cpfBruto.replace(/\D/g, '');
+    if (this.deps.client === null || this.deps.media === undefined)
+      return { ok: false, erro: 'integração desligada' };
+    const agora = this.deps.clock.now();
+    const r = await this.deps.client.baixarDossie(cpf);
+    if (!r.ok) {
+      this.deps.observability.error(
+        'corvo',
+        'dossie-download',
+        agora,
+        `cpf=***${cpf.slice(-4)} HTTP ${String(r.status ?? 'rede')}: ${r.erro}`,
+      );
+      return { ok: false, erro: r.erro };
+    }
+    // VERIFICAÇÃO OBRIGATÓRIA: sha256(SHA256SUMS.txt) === X-Dossie-Hash-Raiz.
+    // Diverge ⇒ download corrompido/adulterado: DESCARTA, nada é gravado.
+    const sums = lerArquivoDoZip(r.bytes, 'SHA256SUMS.txt');
+    const hashSums = sums === null ? '' : createHash('sha256').update(sums).digest('hex');
+    if (sums === null || r.hashRaiz === '' || hashSums !== r.hashRaiz) {
+      this.deps.observability.error(
+        'corvo',
+        'dossie-integridade',
+        agora,
+        `cpf=***${cpf.slice(-4)} hash-raiz não confere (${sums === null ? 'sem SHA256SUMS.txt' : 'divergente'}) — dossiê DESCARTADO`,
+      );
+      return { ok: false, erro: 'hash-raiz não confere' };
+    }
+    const hashZip = createHash('sha256').update(r.bytes).digest('hex');
+    const chave = `${cpf}:${r.hashRaiz}`;
+    const existente = (await this.deps.json.get(NS_DOSSIES, chave)) as DossieCorvo | null;
+    if (existente !== null) {
+      // Idempotência por CONTEÚDO: mesma versão ⇒ só o carimbo de conferência.
+      await this.deps.json.put(NS_DOSSIES, chave, {
+        ...existente,
+        baixadoEm: agora.toISOString(),
+      } satisfies DossieCorvo);
+      return { ok: true, novo: false };
+    }
+    // relatorio.json = índice estruturado (metadados sem parsear os .eml).
+    let resumo: DossieCorvo['resumo'] = {
+      envios: null,
+      respostas: null,
+      bancos: [],
+      documentos: null,
+    };
+    const relatorioBruto = lerArquivoDoZip(r.bytes, 'relatorio.json');
+    if (relatorioBruto !== null) {
+      try {
+        const rel = JSON.parse(relatorioBruto.toString('utf8')) as Record<string, unknown>;
+        const contar = (x: unknown): number | null => (Array.isArray(x) ? x.length : null);
+        const bancos = new Set<string>();
+        for (const e of Array.isArray(rel['envios']) ? (rel['envios'] as unknown[]) : []) {
+          const banco = (e as { banco?: { nome?: string } | string }).banco;
+          const nome = typeof banco === 'string' ? banco : banco?.nome;
+          if (typeof nome === 'string' && nome !== '') bancos.add(nome);
+        }
+        resumo = {
+          envios: contar(rel['envios']),
+          respostas: contar(rel['respostas']),
+          bancos: [...bancos],
+          documentos: contar(rel['documentos']),
+        };
+      } catch {
+        // relatório ilegível não invalida o dossiê (o hash já conferiu)
+      }
+    }
+    const clienteId = (await this.importacaoPorCpf(cpf))?.clienteId ?? null;
+    await this.deps.media.put({
+      sha256: hashZip,
+      mime: 'application/zip',
+      size: r.bytes.length,
+      bytes: new Uint8Array(r.bytes),
+    });
+    await this.deps.json.put(NS_DOSSIES, chave, {
+      cpf,
+      clienteId,
+      hashRaiz: r.hashRaiz,
+      hashZip,
+      geradoEm: r.geradoEm,
+      nomeArquivo: r.nomeArquivo,
+      tamanho: r.bytes.length,
+      resumo,
+      eventoOrigemId,
+      baixadoEm: agora.toISOString(),
+    } satisfies DossieCorvo);
+    this.deps.observability.event(
+      'corvo',
+      clienteId === null ? 'dossie-sem-cliente' : 'dossie-guardado',
+      agora,
+      `cpf=***${cpf.slice(-4)} versao=${r.hashRaiz.slice(0, 12)}${clienteId === null ? ' — CONCILIAÇÃO MANUAL (CPF sem cliente)' : ''}`,
+    );
+    return { ok: true, novo: true };
+  }
+
+  /** Versões do dossiê de um CPF, mais recente primeiro. */
+  async dossiesDe(cpf: string): Promise<readonly DossieCorvo[]> {
+    const limpo = cpf.replace(/\D/g, '');
+    const todos = (await this.deps.json.list(NS_DOSSIES)) as readonly DossieCorvo[];
+    return todos
+      .filter((d) => d.cpf === limpo)
+      .sort((a, b) => (b.geradoEm || b.baixadoEm).localeCompare(a.geradoEm || a.baixadoEm));
+  }
+
+  /** O ZIP de uma versão, do storage privado (download autenticado no Admin). */
+  async zipDoDossie(
+    cpf: string,
+    hashRaiz: string,
+  ): Promise<{ nomeArquivo: string; bytes: Buffer } | null> {
+    if (this.deps.media === undefined) return null;
+    const registro = (await this.deps.json.get(
+      NS_DOSSIES,
+      `${cpf.replace(/\D/g, '')}:${hashRaiz}`,
+    )) as DossieCorvo | null;
+    if (registro === null) return null;
+    const blob = await this.deps.media.read(registro.hashZip);
+    if (blob === null) return null;
+    return { nomeArquivo: registro.nomeArquivo, bytes: Buffer.from(blob.bytes) };
   }
 
   // ── Cifra da credencial (AES-256-GCM; chave derivada de env por sha256) ─────

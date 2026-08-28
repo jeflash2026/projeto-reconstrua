@@ -465,6 +465,45 @@ async function main(): Promise<void> {
     };
     setTimeout(enviarAoCorvo, 2 * 60_000); // primeiro envio 2 min após o boot
     setInterval(enviarAoCorvo, 5 * 60_000);
+    // PERÍCIA AUTOMÁTICA (decisão do dono, 2026-08-28): o setor HUMANIZADO é o
+    // único portão manual — ele confere documento por documento e conclui o
+    // cadastro. Dali em diante ninguém clica nada: cliente 100% completo entra
+    // em perícia SOZINHO (relógio dos 10 dias) e o lead vai ao Corvo (que
+    // dispara as notificações extrajudiciais). O perito vira supervisor: baixa
+    // o pacote quando quiser e acompanha as respostas. `iniciar` é idempotente
+    // (quem já está em fluxo não reinicia o prazo) — o laço pode repetir à
+    // vontade. Só roda com o Corvo ATIVO: iniciar o prazo sem notificação
+    // sair seria um relógio correndo no vazio.
+    const iniciarPericiasAutomaticas = async (): Promise<void> => {
+      const emFluxo = new Set(await prod.periciaFluxo.chatsEmFluxo());
+      const completos = (await prod.humanizado.clientes()).filter(
+        (c) => c.completo && c.descartado !== true && !emFluxo.has(c.chatId),
+      );
+      for (const c of completos) {
+        await prod.periciaFluxo.iniciar(
+          c.chatId,
+          c.clienteId,
+          'automático — documentação completa (humanizado)',
+        );
+        await prod.corvo.agendarEnvio(c.clienteId, c.chatId, c.nome);
+        prod.observability.event(
+          'pericia',
+          'auto-iniciada',
+          clock.now(),
+          `cliente=${c.nome} — perícia + Corvo sem clique (portão: humanizado)`,
+        );
+      }
+    };
+    setInterval(() => {
+      void iniciarPericiasAutomaticas().catch((error: unknown) => {
+        prod.observability.error(
+          'pericia',
+          'auto-iniciar',
+          clock.now(),
+          error instanceof Error ? error.message : 'falha na perícia automática',
+        );
+      });
+    }, 5 * 60_000);
     // Dossiê de integridade (2026-08-26): a fila com debounce assenta a rajada
     // de eventos por CPF e baixa UMA vez; o tick só confere quem já assentou.
     setInterval(() => {

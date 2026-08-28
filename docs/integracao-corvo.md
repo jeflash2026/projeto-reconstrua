@@ -30,12 +30,16 @@ destino do `/webhook/meta`, nos DOIS hosts (www e sem-www).
 
 ## A. Envio do lead (nós → Corvo)
 
-- **Gatilho (acerto 2026-08-27)**: o lead sai quando a **perícia inicia**
-  (Aguardando → Em perícia, botões "Baixar pacote e iniciar" / "iniciar todos")
-  — a notificação extrajudicial É o pedido administrativo, e o Corvo dispara
-  sozinho ao receber. O clique alimenta uma **fila** (`corvo-envio-fila`);
-  o job de 5 min só processa a fila — **nunca varre a base inteira**.
-  Reenvio manual: botão "Reenviar" na tela Bancos (Corvo).
+- **Gatilho (decisão do dono, 2026-08-28 — 100% automático)**: o único portão
+  manual é o **setor humanizado**, que confere os documentos e conclui o
+  cadastro. Cliente 100% completo entra **sozinho** em perícia (job de 5 min:
+  `iniciarPericiasAutomaticas` no main.ts — relógio dos 10 dias) e o lead vai
+  à **fila** (`corvo-envio-fila`) → POST ao Corvo → notificações disparam lá.
+  Os botões do perito ("Baixar pacote e iniciar" / "iniciar todos") continuam
+  funcionando e também alimentam a fila (idempotente). **Nunca** se varre a
+  base inteira. Reenvio manual: botão "Reenviar" na tela Bancos (Corvo).
+  O POST é o **sinal de disparo**: item da fila sempre envia — pacote idêntico
+  ao último ENVIADO ganha sufixo `:rN` na key (fora da janela de replay).
 - **ZIP** (`CorvoService.varrerEEnviar` → `montarZipDoLead`):
   - `Contratos - <NOME>.xlsx` na raiz — colunas `CPF do cliente` (texto, 11
     dígitos), `Nome do cliente`, `Banco` (`033 - BANCO SANTANDER`), `Contrato`,

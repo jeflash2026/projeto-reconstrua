@@ -476,15 +476,31 @@ async function main(): Promise<void> {
     // sair seria um relógio correndo no vazio.
     const iniciarPericiasAutomaticas = async (): Promise<void> => {
       const emFluxo = new Set(await prod.periciaFluxo.chatsEmFluxo());
-      const completos = (await prod.humanizado.clientes()).filter(
-        (c) => c.completo && c.descartado !== true && !emFluxo.has(c.chatId),
-      );
-      for (const c of completos) {
-        await prod.periciaFluxo.iniciar(
-          c.chatId,
-          c.clienteId,
-          'automático — documentação completa (humanizado)',
-        );
+      const mesa = await prod.humanizado.clientes();
+      for (const c of mesa) {
+        if (!c.completo || c.descartado === true) continue;
+        if (emFluxo.has(c.chatId)) {
+          // AUTOCURA (2026-08-28): a 1ª versão gravou o MARCADOR no campo
+          // `quem` e o card do perito exibia "automático — documentação
+          // completa" como NOME do cliente. Repara os registros afetados.
+          await prod.periciaFluxo.corrigirQuem(c.chatId, c.nome).catch(() => undefined);
+          continue;
+        }
+        // TRAVA DE CPF (2026-08-28): sem CPF o Corvo recusa o lead — iniciar a
+        // perícia aqui seria o relógio dos 10 dias correndo com a notificação
+        // presa. A equipe colhe o CPF e o próximo ciclo inicia sozinho.
+        const cpf = (await prod.jornadaComercial.fatos(c.chatId).catch(() => null))?.registro.cpf;
+        if (cpf === null || cpf === undefined || cpf.replace(/\D/g, '').length !== 11) {
+          prod.observability.error(
+            'pericia',
+            'auto-bloqueado-sem-cpf',
+            clock.now(),
+            `cliente=${c.nome} — documentação completa mas SEM CPF na jornada; a equipe precisa colher o CPF`,
+          );
+          continue;
+        }
+        // `quem` é o NOME DO CLIENTE (é o título do card do perito).
+        await prod.periciaFluxo.iniciar(c.chatId, c.clienteId, c.nome);
         await prod.corvo.agendarEnvio(c.clienteId, c.chatId, c.nome);
         prod.observability.event(
           'pericia',

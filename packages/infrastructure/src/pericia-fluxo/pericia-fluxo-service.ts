@@ -79,6 +79,16 @@ export class PericiaFluxoService {
     return { ok: true, jaEstava: false };
   }
 
+  /** AUTOCURA (2026-08-28): o laço automático gravou o MARCADOR no lugar do
+   *  nome do cliente ("automático — documentação completa" virou o título do
+   *  card do perito). Corrige o `quem` de um registro existente — nada mais. */
+  async corrigirQuem(chatId: string, quem: string): Promise<void> {
+    if (quem.trim() === '') return;
+    const existente = await this.recordDe(chatId);
+    if (existente === null || existente.quem === quem) return;
+    await this.deps.json.put(NS, chatId, { ...existente, quem });
+  }
+
   /** Inicia em lote (o "baixar todos"): retorna quantos ENTRARAM agora (novos). */
   async iniciarVarios(
     itens: readonly { chatId: string; clienteId: string; quem: string }[],

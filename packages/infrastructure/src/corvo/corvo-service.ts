@@ -213,6 +213,13 @@ export interface CorvoDeps {
   /** Contratos SELECIONADOS pelo guia (os que viram processo). null = ilegível. */
   readonly contratosDe: (chatId: string) => Promise<readonly ContratoDoLead[] | null>;
   readonly documentosDe: (chatId: string) => Promise<readonly DocumentoColetado[]>;
+  /** PONTE COM A PERÍCIA (2026-08-28): a credencial da caixa recém-chegada é
+   *  propagada ao registro do fluxo (o card "Credenciais do pedido" do perito
+   *  e do advogado) — só preenche quando vazio; falha nunca derruba o webhook. */
+  readonly aoReceberCredencial?: (
+    chatId: string,
+    cred: { email: string; senha: string },
+  ) => Promise<void>;
   /** Storage PRIVADO dos ZIPs do dossiê (content-addressed por sha256) — o
    *  media store da produção. Ausente ⇒ dossiês desligados (metadata nunca
    *  aponta para um blob que não existe). */
@@ -568,11 +575,25 @@ export class CorvoService {
           criadaEm: (dados['criadaEm'] as string | undefined) ?? anterior?.criadaEm ?? null,
         } satisfies CaixaCorvo);
         const imp = await this.importacaoPorCpf(cpf);
-        if (imp !== null)
+        if (imp !== null) {
           await this.deps.json.put(NS_IMPORTACOES, imp.clienteId, {
             ...imp,
             caixaStatus: 'CRIADA',
           } satisfies ImportacaoCorvo);
+          // PONTE COM A PERÍCIA (2026-08-28): a credencial vai NA HORA ao card
+          // do perito/advogado quando o cliente já está em perícia (o caso
+          // caixa-depois-da-perícia). Best-effort; a varredura de 5 min cobre
+          // a ordem inversa e o retroativo.
+          const senhaParaPericia =
+            senhaCrua ??
+            (anterior?.senha !== null && anterior !== null ? this.decifrar(anterior.senha) : null);
+          const emailCaixa = (dados['email'] as string | undefined) ?? anterior?.email ?? '';
+          if (senhaParaPericia !== null && emailCaixa !== '') {
+            await this.deps
+              .aoReceberCredencial?.(imp.chatId, { email: emailCaixa, senha: senhaParaPericia })
+              .catch(() => undefined);
+          }
+        }
         this.deps.observability.event('corvo', 'caixa-criada', agora, `cpf=***${cpf.slice(-4)}`);
         break;
       }
@@ -844,6 +865,19 @@ export class CorvoService {
       `cpf=***${caixa.cpf.slice(-4)} por=${quem}`,
     );
     return { email: caixa.email, senha };
+  }
+
+  /** PONTE COM A PERÍCIA (2026-08-28): a credencial decifrada da caixa de um
+   *  CHAT — consumo interno do sistema (propagação ao card do perito), não
+   *  revelação a humano: por isso sem a trilha do revelarSenha. null = sem
+   *  caixa, sem senha guardada ou cliente sem CPF. */
+  async credencialDoChat(chatId: string): Promise<{ email: string; senha: string } | null> {
+    const cpf = ((await this.deps.cpfDe(chatId)) ?? '').replace(/\D/g, '');
+    if (cpf.length !== 11) return null;
+    const caixa = (await this.deps.json.get(NS_CAIXAS, cpf)) as CaixaCorvo | null;
+    if (caixa === null || caixa.senha === null || caixa.email === '') return null;
+    const senha = this.decifrar(caixa.senha);
+    return senha === null ? null : { email: caixa.email, senha };
   }
 
   /** Perdeu a credencial (ou a reconciliação trouxe senha null): pede reenvio. */

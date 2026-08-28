@@ -2788,6 +2788,16 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     webhookSecret: env['CORVO_WEBHOOK_SECRET'] ?? '',
     chaveCredencial: env['CORVO_CRED_KEY'] ?? env['CORVO_WEBHOOK_SECRET'] ?? '',
     observability,
+    // PONTE COM A PERÍCIA (2026-08-28): a credencial da caixa preenche o card
+    // "Credenciais do pedido" do perito/advogado — só quando vazio (credencial
+    // digitada à mão nunca é sobrescrita).
+    aoReceberCredencial: async (chatId, cred) => {
+      await periciaFluxo.preencherCredenciaisSeVazio(chatId, {
+        email: cred.email,
+        senha: cred.senha,
+        provedor: 'Caixa do pedido (Corvo/webmail)',
+      });
+    },
     // Dossiê de integridade (2026-08-26): o ZIP probatório vai ao MESMO media
     // store content-addressed dos documentos (storage privado; nunca público).
     media: mediaStore,

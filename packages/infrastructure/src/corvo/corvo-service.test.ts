@@ -571,3 +571,43 @@ describe('dossiê de integridade — debounce, verificação e versões', () => 
     expect(await b.svc.dossiesDe(CPF)).toHaveLength(0);
   });
 });
+
+// ── PONTE COM A PERÍCIA (2026-08-28): a credencial da caixa vai ao card ──────
+describe('caixa.criada — ponte da credencial para o card do pedido', () => {
+  it('cliente conhecido ⇒ propaga chatId + email + senha (em claro, para o card)', async () => {
+    const { client } = clienteFalso([]);
+    const propagadas: { chatId: string; email: string; senha: string }[] = [];
+    const { svc } = servico({
+      client,
+      aoReceberCredencial: (chatId, cred) => {
+        propagadas.push({ chatId, ...cred });
+        return Promise.resolve();
+      },
+    });
+    await agendar(svc);
+    await svc.varrerEEnviar(); // a importação liga o CPF ao chatId
+    await svc.processarEvento({
+      id: 'e-cx-ponte',
+      tipo: 'caixa.criada',
+      ocorridoEm: '',
+      dados: {
+        cliente: { nome: 'JOSÉ', cpf: '01795790881' },
+        email: 'jose@corvo.mail',
+        senha: 'S3nh@-da-caixa',
+      },
+    });
+    expect(propagadas).toEqual([
+      { chatId: '5531999@c.us', email: 'jose@corvo.mail', senha: 'S3nh@-da-caixa' },
+    ]);
+    // E a leitura por CHAT (varredura retroativa) decifra a mesma credencial.
+    expect(await svc.credencialDoChat('5531999@c.us')).toEqual({
+      email: 'jose@corvo.mail',
+      senha: 'S3nh@-da-caixa',
+    });
+  });
+
+  it('sem senha guardada ⇒ credencialDoChat devolve null (nunca inventa)', async () => {
+    const { svc } = servico();
+    expect(await svc.credencialDoChat('5531999@c.us')).toBe(null);
+  });
+});

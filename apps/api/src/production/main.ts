@@ -509,6 +509,32 @@ async function main(): Promise<void> {
           `cliente=${c.nome} — perícia + Corvo sem clique (portão: humanizado)`,
         );
       }
+      // PONTE RETROATIVA (2026-08-28, "credenciais: ainda não informadas"): as
+      // caixas do Corvo sempre foram gravadas (cifradas), mas o card do perito
+      // lia só o que era digitado à mão. Toda perícia SEM credencial ganha a
+      // da caixa aqui — cobre os 16 casos históricos e a ordem caixa-antes-da-
+      // perícia; depois de preenchido, este laço não toca mais no registro.
+      const fluxos = [
+        ...(await prod.periciaFluxo.emAndamento()),
+        ...(await prod.periciaFluxo.concluidas()),
+      ];
+      for (const f of fluxos) {
+        if (f.credenciais !== null) continue;
+        const cred = await prod.corvo.credencialDoChat(f.chatId).catch(() => null);
+        if (cred === null) continue;
+        const r = await prod.periciaFluxo.preencherCredenciaisSeVazio(f.chatId, {
+          email: cred.email,
+          senha: cred.senha,
+          provedor: 'Caixa do pedido (Corvo/webmail)',
+        });
+        if (r.preencheu)
+          prod.observability.event(
+            'pericia',
+            'credencial-propagada',
+            clock.now(),
+            `cliente=${f.quem} — credencial da caixa Corvo no card do pedido`,
+          );
+      }
     };
     setInterval(() => {
       void iniciarPericiasAutomaticas().catch((error: unknown) => {

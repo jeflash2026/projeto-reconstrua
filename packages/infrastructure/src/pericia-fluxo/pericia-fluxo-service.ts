@@ -111,6 +111,20 @@ export class PericiaFluxoService {
     return { ok: true };
   }
 
+  /** PONTE CORVO (2026-08-28): a caixa do cliente chega pelo webhook e o card
+   *  "Credenciais do pedido" lia SÓ o que o perito digitava — dois cofres, zero
+   *  ponte. Preenche APENAS quando vazio: credencial digitada à mão nunca é
+   *  sobrescrita pela automática. */
+  async preencherCredenciaisSeVazio(
+    chatId: string,
+    cred: CredenciaisCliente,
+  ): Promise<{ preencheu: boolean }> {
+    const r = await this.recordDe(chatId);
+    if (r === null || r.credenciais !== null) return { preencheu: false };
+    await this.deps.json.put(NS, chatId, { ...r, credenciais: cred } satisfies PericiaFluxoRecord);
+    return { preencheu: true };
+  }
+
   async salvarRespostaBanco(
     chatId: string,
     texto: string,

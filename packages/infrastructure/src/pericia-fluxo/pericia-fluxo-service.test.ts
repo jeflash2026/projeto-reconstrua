@@ -83,3 +83,25 @@ describe('PericiaFluxoService', () => {
     expect(await json.get('pericia-fluxo-backup', 'c1@w|2026-07-27T12:00:00.000Z')).not.toBe(null);
   });
 });
+
+// ── PONTE CORVO (2026-08-28): preencher SÓ quando vazio ──────────────────────
+describe('preencherCredenciaisSeVazio — a credencial manual nunca é sobrescrita', () => {
+  it('vazio preenche; preenchido (manual ou automático) fica intacto; sem registro não cria', async () => {
+    const svc = new PericiaFluxoService({
+      json: new InMemoryJsonStore(),
+      clock: clockDe({ now: new Date('2026-08-28T12:00:00.000Z') }),
+    });
+    const CRED = { email: 'caixa@corvo.mail', senha: 's', provedor: 'Corvo' };
+    // Sem registro em fluxo: não cria nada do nada.
+    expect(await svc.preencherCredenciaisSeVazio('chat-x', CRED)).toEqual({ preencheu: false });
+    await svc.iniciar('chat-x', 'cli-x', 'JOSÉ');
+    // Vazio ⇒ preenche.
+    expect(await svc.preencherCredenciaisSeVazio('chat-x', CRED)).toEqual({ preencheu: true });
+    // Já preenchido ⇒ intacto (inclusive contra outra credencial).
+    expect(await svc.preencherCredenciaisSeVazio('chat-x', { ...CRED, senha: 'outra' })).toEqual({
+      preencheu: false,
+    });
+    const [p] = await svc.emAndamento();
+    expect(p?.credenciais?.senha).toBe('s');
+  });
+});

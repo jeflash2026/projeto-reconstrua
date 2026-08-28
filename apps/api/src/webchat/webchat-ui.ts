@@ -4,7 +4,10 @@
 // O dono envia o link; o cliente se identifica (nome + WhatsApp com DDD) e
 // conversa com a MESMA AHRI do WhatsApp — texto e HISCON em PDF.
 // Vanilla HTML/CSS/JS, mobile-first; mensagens sempre via textContent (XSS-safe);
-// o token da sessão fica no localStorage (mesmo aparelho ⇒ mesma conversa).
+// Token no sessionStorage (2026-08-28, pedido do dono): a sessão vive só
+// enquanto a ABA está aberta — fechou, a próxima visita começa no cadastro
+// (novo lead no mesmo aparelho). Quem informar o MESMO WhatsApp retoma a
+// mesma conversa de sempre: a identidade é o telefone, não o navegador.
 // ─────────────────────────────────────────────────────────────────────────────
 export const WEBCHAT_UI_HTML = `<!doctype html>
 <html lang="pt-BR">
@@ -84,7 +87,7 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
 
 <script>
 (function () {
-  var token = localStorage.getItem('wcToken') || '';
+  var token = sessionStorage.getItem('wcToken') || '';
   var ultimaQtd = -1;
   var chat = document.getElementById('chat');
   var entrada = document.getElementById('entrada');
@@ -189,7 +192,7 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
     post('/webchat/sessao', { nome: nome, telefone: fone }).then(function (j) {
       if (j && j.ok === true) {
         token = j.token;
-        localStorage.setItem('wcToken', token);
+        sessionStorage.setItem('wcToken', token);
         mostrarChat();
       } else {
         erro.textContent = (j && j.error) || 'Não foi possível iniciar. Tente de novo.';
@@ -204,7 +207,7 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
     texto.value = '';
     post('/webchat/mensagem', { token: token, texto: t }).then(function (j) {
       if (j && j.ok === false && j.error) {
-        if (String(j.error).indexOf('sess') >= 0) { localStorage.removeItem('wcToken'); location.reload(); }
+        if (String(j.error).indexOf('sess') >= 0) { sessionStorage.removeItem('wcToken'); location.reload(); }
         return;
       }
       esperarResposta();
@@ -238,7 +241,7 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok === true) mostrarChat();
-        else { token = ''; localStorage.removeItem('wcToken'); }
+        else { token = ''; sessionStorage.removeItem('wcToken'); }
       })
       .catch(function () { /* sem rede: fica na tela de entrada */ });
   }

@@ -138,3 +138,95 @@ describe('CompletionComRetentativa — só o transitório repete, com pausa', ()
     expect(chamadas()).toBe(3); // 1 + 2 retentativas, nunca infinito
   });
 });
+
+// ── MODELO RÁPIDO na percepção (2026-08-28, "webchat lento") ─────────────────
+import { createLlmBundle } from './llm-adapters.js';
+import { ObservabilityRuntime, DEFAULT_PRODUCTION_CONFIG } from '@reconstrua/application';
+import type { InboundEnvelope } from '@reconstrua/application';
+
+describe('createLlmBundle — percepção no modelo rápido, expressão no principal', () => {
+  it('understand() chama o modelo rápido; phrase() chama o principal', async () => {
+    const modelosChamados: string[] = [];
+    const http = {
+      postJson: (_url: string, _headers: Record<string, string>, body: unknown) => {
+        modelosChamados.push(String((body as { model?: string }).model));
+        return Promise.resolve({
+          status: 200,
+          body: {
+            content: [{ type: 'text', text: '{"summary":"ok","perceivedPurpose":"greeting"}' }],
+            usage: { input_tokens: 1, output_tokens: 1 },
+          },
+        });
+      },
+    };
+    const bundle = createLlmBundle({
+      config: {
+        ...DEFAULT_PRODUCTION_CONFIG,
+        llm: {
+          ...DEFAULT_PRODUCTION_CONFIG.llm,
+          provider: 'anthropic',
+          anthropicApiKey: 'k',
+          anthropicModel: 'modelo-principal',
+        },
+      },
+      http,
+      observability: new ObservabilityRuntime(),
+      clock: { now: () => new Date('2026-08-28T12:00:00.000Z') },
+      modeloRapido: 'modelo-rapido',
+    });
+    const envelope = {
+      kind: 'text',
+      text: 'oi',
+      editedText: null,
+      fileName: null,
+    } as InboundEnvelope;
+    await bundle.perception.understand(envelope, { recentSummary: null });
+    await bundle.expression.phrase({
+      intent: { directive: 'responder', speechAct: null, topic: null, references: [] },
+      context: { lastPercept: null },
+      styleGuidance: 'ágil',
+      avoidPhrases: [],
+    } as never);
+    expect(modelosChamados[0]).toBe('modelo-rapido'); // percepção
+    expect(modelosChamados[1]).toBe('modelo-principal'); // expressão (texto ao cliente)
+  });
+
+  it('sem modeloRapido (ou igual ao principal) ⇒ tudo no principal', async () => {
+    const modelosChamados: string[] = [];
+    const http = {
+      postJson: (_url: string, _headers: Record<string, string>, body: unknown) => {
+        modelosChamados.push(String((body as { model?: string }).model));
+        return Promise.resolve({
+          status: 200,
+          body: {
+            content: [{ type: 'text', text: '{"summary":"ok"}' }],
+            usage: { input_tokens: 1, output_tokens: 1 },
+          },
+        });
+      },
+    };
+    const bundle = createLlmBundle({
+      config: {
+        ...DEFAULT_PRODUCTION_CONFIG,
+        llm: {
+          ...DEFAULT_PRODUCTION_CONFIG.llm,
+          provider: 'anthropic',
+          anthropicApiKey: 'k',
+          anthropicModel: 'modelo-principal',
+        },
+      },
+      http,
+      observability: new ObservabilityRuntime(),
+      clock: { now: () => new Date('2026-08-28T12:00:00.000Z') },
+      modeloRapido: 'modelo-principal',
+    });
+    const envelope = {
+      kind: 'text',
+      text: 'oi',
+      editedText: null,
+      fileName: null,
+    } as InboundEnvelope;
+    await bundle.perception.understand(envelope, { recentSummary: null });
+    expect(modelosChamados[0]).toBe('modelo-principal');
+  });
+});

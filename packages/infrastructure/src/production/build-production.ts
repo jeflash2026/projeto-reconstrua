@@ -658,7 +658,16 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // turno/chatId via Ingress) e leitura de documentos (por documentId). Só
   // registra; nunca decide nem bloqueia.
   const custos = new MedidorDeCusto({ json, clock });
-  const llm = createLlmBundle({ config, http: resilientHttp, observability, clock, custo: custos });
+  const llm = createLlmBundle({
+    config,
+    http: resilientHttp,
+    observability,
+    clock,
+    custo: custos,
+    // AGILIDADE (2026-08-28): percepção no modelo rápido — metade do turno.
+    // Sobrescrevível por env; vazio desliga (tudo no modelo principal).
+    modeloRapido: env['ANTHROPIC_MODEL_RAPIDO'] ?? 'claude-haiku-4-5-20251001',
+  });
 
   // ── CAT-02A: captura dos bytes reais de documentos (assíncrona, best-effort) ──
   // CAT-02B: referência messageId→sha256 e vínculo definitivo documentId→link

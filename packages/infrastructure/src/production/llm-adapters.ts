@@ -481,6 +481,11 @@ export interface LlmFactoryDeps {
       tokensOut: number | null;
     }): Promise<void>;
   };
+  /** AGILIDADE (2026-08-28, "webchat lento"): a PERCEPÇÃO é classificação
+   *  estruturada — não precisa do modelo grande. Com este modelo definido
+   *  (provider anthropic), a percepção roda nele e o turno perde uma chamada
+   *  lenta; expressão/narração/extração seguem no modelo principal. */
+  readonly modeloRapido?: string;
 }
 
 /** Seleciona o provedor configurado; 'offline' usa os doubles determinísticos. */
@@ -535,31 +540,49 @@ export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
   const meter = new TokensMeter(completion.name);
   // Transitórios (429/529/rede) repetem com pausa ANTES de qualquer degrade —
   // vale para percepção, expressão, narração e extração de uma vez só.
-  const inner: LlmCompletion = new CompletionComRetentativa(completion);
-  const metered: LlmCompletion = {
-    name: inner.name,
-    async complete(system: string, user: string): Promise<CompletionResult> {
-      const result = await inner.complete(system, user);
-      meter.record(result.tokensIn, result.tokensOut);
-      // Medidor de Custo: registro persistido por chamada (nunca derruba o turno).
-      if (custo) {
-        await custo
-          .registrarConversa({
-            provider: inner.name,
-            model: modelo,
-            tokensIn: result.tokensIn,
-            tokensOut: result.tokensOut,
-          })
-          .catch(() => undefined);
-      }
-      return result;
-    },
+  const medir = (interno: LlmCompletion, nomeModelo: string): LlmCompletion => {
+    const comRetry = new CompletionComRetentativa(interno);
+    return {
+      name: interno.name,
+      async complete(system: string, user: string): Promise<CompletionResult> {
+        const result = await comRetry.complete(system, user);
+        meter.record(result.tokensIn, result.tokensOut);
+        // Medidor de Custo: registro persistido por chamada (nunca derruba o turno).
+        if (custo) {
+          await custo
+            .registrarConversa({
+              provider: interno.name,
+              model: nomeModelo,
+              tokensIn: result.tokensIn,
+              tokensOut: result.tokensOut,
+            })
+            .catch(() => undefined);
+        }
+        return result;
+      },
+    };
   };
+  const metered = medir(completion, modelo);
+
+  // AGILIDADE (2026-08-28): a percepção (classificação estruturada) roda no
+  // MODELO RÁPIDO quando configurado — o turno do cliente perde uma chamada
+  // lenta; a expressão (o texto que o cliente lê) segue no modelo principal.
+  const rapido =
+    deps.modeloRapido !== undefined &&
+    deps.modeloRapido !== '' &&
+    deps.modeloRapido !== modelo &&
+    config.llm.provider === 'anthropic' &&
+    config.llm.anthropicApiKey !== ''
+      ? medir(
+          new AnthropicCompletion(http, config.llm.anthropicApiKey, deps.modeloRapido),
+          deps.modeloRapido,
+        )
+      : metered;
 
   return {
     completion: metered,
     provider: metered.name,
-    perception: new LlmPerception(metered, config, track, clock),
+    perception: new LlmPerception(rapido, config, track, clock),
     expression: new LlmExpression(metered, config, track, clock),
     narration: new LlmNarration(metered, config, track, clock),
     extractor: new LlmExtractor(metered, config, track, clock),

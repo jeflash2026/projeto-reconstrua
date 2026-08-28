@@ -87,6 +87,9 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      # Percepção no modelo RÁPIDO (2026-08-28): metade do turno do webchat.
+      # Vazio = desliga (percepção volta ao modelo principal).
+      ANTHROPIC_MODEL_RAPIDO: ${ANTHROPIC_MODEL_RAPIDO:-claude-haiku-4-5-20251001}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ALLOW_DEGRADED: ${ALLOW_DEGRADED:-false}

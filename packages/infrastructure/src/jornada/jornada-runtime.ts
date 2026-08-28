@@ -144,19 +144,42 @@ export class JornadaComercialRuntime {
    *  Roda ANTES do turno; a resposta (governada) já enxerga o capturado. */
   async aoReceberTexto(chatId: string, texto: string, now: Date): Promise<void> {
     try {
+      // ANTES de qualquer gravação: esta é a primeira mensagem da conversa?
+      const primeiraMensagem = !(await this.jaExiste(chatId));
       const fatos = await this.fatos(chatId);
       const etapa = derivarEtapa(fatos);
-      const r = fatos.registro;
+      let r = fatos.registro;
 
       // CPF (decreto 2026-07-26) — capturado em QUALQUER etapa, inclusive na
       // ANÁLISE: quem já entregou o HISCON recebe o follow-up de CPF e responde
       // com o número; sem esta captura fora da triagem, a resposta se perderia.
+      // Caso REAL Geisebel (2026-08-28): a PRIMEIRA mensagem trouxe nome +
+      // cidade + CPF + interesse de uma vez — o return daqui engolia o resto e
+      // a AHRI chamava a cliente de "mais" e repedia o CPF no fim. Na
+      // identificação/consentimento a captura SEGUE lendo a mesma mensagem.
+      let cpfCapturadoAgora = false;
       if (r.cpf === null) {
         const cpf = capturarCpf(texto);
         if (cpf !== null) {
-          await this.salvar({ ...r, cpf, ultimaCaptura: 'cpf', atualizadoEm: now });
+          r = { ...r, cpf, ultimaCaptura: 'cpf', atualizadoEm: now };
+          await this.salvar(r);
           this.deps.observability.event('jornada', `cpf capturado chat=${chatId}`, now);
-          return;
+          if (etapa !== 'IDENTIFICACAO' && etapa !== 'CONSENTIMENTO') return;
+          cpfCapturadoAgora = true;
+        }
+      }
+      /** Nada mais capturado no turno ⇒ preserva a nuance do CPF deste turno. */
+      const semCaptura = (): JornadaRecord['ultimaCaptura'] => (cpfCapturadoAgora ? 'cpf' : null);
+
+      // CORREÇÃO EXPLÍCITA DE NOME em qualquer etapa (caso Geisebel: "meu nome
+      // é Geisebel Amancio dos Santos" na etapa de consentimento era ignorado
+      // e ela seguia registrada como "mais"). Só com marcador explícito.
+      if (etapa !== 'IDENTIFICACAO' && /\b(me\s+chamo|meu\s+nome)\b/i.test(texto)) {
+        const correcao = capturarIdentificacao(texto, { nome: null, cidade: r.cidade });
+        if (correcao.nome !== null && correcao.nome !== r.nome) {
+          r = { ...r, nome: correcao.nome, atualizadoEm: now };
+          await this.salvar(r);
+          this.deps.observability.event('jornada', `nome corrigido chat=${chatId}`, now);
         }
       }
 
@@ -170,7 +193,7 @@ export class JornadaComercialRuntime {
       if (r.cidade !== null && r.estado === null) {
         const uf = capturarEstado(texto);
         if (uf !== null) {
-          await this.salvar({ ...r, estado: uf, ultimaCaptura: null, atualizadoEm: now });
+          await this.salvar({ ...r, estado: uf, ultimaCaptura: semCaptura(), atualizadoEm: now });
           this.deps.observability.event('jornada', `estado capturado (${uf}) chat=${chatId}`, now);
           return;
         }
@@ -181,9 +204,8 @@ export class JornadaComercialRuntime {
         // informações?") chega ANTES de qualquer pergunta — nada nela é nome/
         // cidade, salvo apresentação explícita ("me chamo…"). Sem este guarda,
         // a pergunta do cliente virava o nome ("Prazer, Olá! Posso ter…!").
-        const primeiraMensagem = !(await this.jaExiste(chatId));
         if (primeiraMensagem && !/\b(me\s+chamo|meu\s+nome)\b/i.test(texto)) {
-          await this.salvar({ ...r, ultimaCaptura: null, atualizadoEm: now });
+          await this.salvar({ ...r, ultimaCaptura: semCaptura(), atualizadoEm: now });
           return;
         }
         const capturado = capturarIdentificacao(texto, { nome: r.nome, cidade: r.cidade });
@@ -212,7 +234,7 @@ export class JornadaComercialRuntime {
           });
           this.deps.observability.event('jornada', `captura ${ultimaCaptura} chat=${chatId}`, now);
         } else {
-          await this.salvar({ ...r, ultimaCaptura: null, atualizadoEm: now });
+          await this.salvar({ ...r, ultimaCaptura: semCaptura(), atualizadoEm: now });
         }
         return;
       }
@@ -231,7 +253,7 @@ export class JornadaComercialRuntime {
         } else if (interesse === 'nao') {
           await this.salvar({ ...r, recusou: true, ultimaCaptura: null, atualizadoEm: now });
         } else {
-          await this.salvar({ ...r, ultimaCaptura: null, atualizadoEm: now });
+          await this.salvar({ ...r, ultimaCaptura: semCaptura(), atualizadoEm: now });
         }
         return;
       }

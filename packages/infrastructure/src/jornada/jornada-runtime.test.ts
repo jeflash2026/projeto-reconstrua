@@ -404,3 +404,48 @@ describe('caso REAL Oracio — prazo proibido; a missão é converter no SIM', (
     expect(await jornada.revisarFalaPosHiscon(CHAT, boa)).toBe(boa);
   });
 });
+
+// ── Caso REAL Geisebel (2026-08-28): tudo numa mensagem; "mais" virou nome;
+// CPF registrado foi repedido; "tudo certo, em análise" sem HISCON nenhum. ────
+describe('caso Geisebel — captura completa da 1ª mensagem e triagem sem repedir CPF', () => {
+  const APRESENTACAO =
+    'Oi boa tarde me chamo Geisebel Amancio dos Santos, sou de Santa ernestina, meu cpf é 331.510.938-92 e quero fazer';
+
+  it('1ª mensagem com nome+cidade+CPF ⇒ captura os TRÊS e não mente "em análise"', async () => {
+    const h = harness();
+    const r1 = await h.turno(APRESENTACAO, { turns: 1 });
+    const fatos = await h.jornada.fatos(CHAT);
+    expect(fatos.registro.nome).toBe('Geisebel Amancio dos Santos');
+    expect((fatos.registro.cidade ?? '').toLowerCase()).toBe('santa ernestina');
+    expect(fatos.registro.cpf).toBe('33151093892');
+    // A resposta segue o funil (explicação + interesse) — nunca "seu caso
+    // segue em análise" (não existe análise sem HISCON).
+    expect(r1).toContain('interesse');
+    expect(r1).not.toContain('segue em análise');
+  });
+
+  it('"mais ainda n mandei o hiscon" JAMAIS vira nome', async () => {
+    const h = harness();
+    await h.turno('Boa tarde', { turns: 1 });
+    await h.turno('mais ainda n mandei o hiscon');
+    expect((await h.jornada.fatos(CHAT)).registro.nome).toBe(null);
+  });
+
+  it('"meu nome é …" corrige o nome mesmo FORA da identificação', async () => {
+    const h = harness();
+    await h.turno('Boa tarde', { turns: 1 });
+    await h.turno('Isabel');
+    await h.turno('Santa Ernestina - SP'); // identificação completa ⇒ consentimento
+    await h.turno('meu nome é Geisebel Amancio dos Santos');
+    expect((await h.jornada.fatos(CHAT)).registro.nome).toBe('Geisebel Amancio dos Santos');
+  });
+
+  it('CPF adiantado ⇒ o SIM abre a triagem DIRETO no HISCON (sem repedir CPF)', async () => {
+    const h = harness();
+    await h.turno(APRESENTACAO, { turns: 1 });
+    const inicio = await h.turno('sim');
+    expect(inicio).toContain('CPF eu já tenho registrado');
+    expect(inicio).toContain('HISCON');
+    expect(inicio).not.toContain('pode me informar o número do seu CPF');
+  });
+});

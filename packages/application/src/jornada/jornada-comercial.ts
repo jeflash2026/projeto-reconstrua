@@ -266,6 +266,12 @@ export function capturarIdentificacao(
 
   const limparCidade = (s: string): string =>
     s
+      // Caso Geisebel (2026-08-28): "Santa ernestina, meu cpf é 331… e quero
+      // fazer" — a cidade termina na vírgula/no CPF/no "e quero"; o resto é
+      // outra oração, nunca parte do nome da cidade.
+      .split(',')[0]!
+      .replace(/\s+(?:e\s+)?(?:o\s+)?(?:meu\s+)?cpf\b[\s\S]*$/i, '')
+      .replace(/\s+e\s+(?:quero|gostaria)\b[\s\S]*$/i, '')
       .replace(/^(sou\s+de|moro\s+em|de|da|do|em)\s+/i, '')
       .replace(/\s*[-–]\s*[A-Z]{2}$/u, (m) => m)
       .trim();
@@ -623,8 +629,11 @@ export function pareceNome(s: string): boolean {
   if (t === '' || t.length > 60) return false;
   if (/[?!0-9@#/\\]/.test(t)) return false;
   if (t.split(/\s+/).length > 6) return false;
+  // Caso REAL Geisebel (2026-08-28): "mais ainda n mandei o hiscon" virou o
+  // NOME ("Prazer, mais") — palavras de conversa sobre documentos/envio jamais
+  // compõem um nome de pessoa.
   if (
-    /\b(posso|pode|informa[cç][ãa]o|informa[cç][õo]es|an[áa]lise|consignado|benef[íi]cio|d[úu]vida|ajuda|documento|como\s+funciona|quero\s+saber|sobre\s+isso|gostaria)\b/i.test(
+    /\b(posso|pode|informa[cç][ãa]o|informa[cç][õo]es|an[áa]lise|consignado|benef[íi]cio|d[úu]vida|ajuda|documento|como\s+funciona|quero\s+saber|sobre\s+isso|gostaria|hiscon|extrato|cpf|pdf|anexo|mandei|enviei|mandar|enviar|ainda|n[ãa]o)\b/i.test(
       t,
     )
   )
@@ -729,6 +738,13 @@ export const MENSAGENS_JORNADA = {
     'Ótimo, vamos começar.\n\n' +
     'Para a análise eu preciso de apenas duas coisas: o número do seu CPF e o seu extrato de empréstimos consignados do INSS (o HISCON), em PDF.\n\n' +
     'Vamos pela primeira: pode me informar o número do seu CPF, por favor?',
+  /** Caso Geisebel (2026-08-28): o CPF veio ANTES do consentimento — a triagem
+   *  abre direto no HISCON, nunca repedindo o que já está registrado. */
+  iniciarTriagemSoHiscon: (proximo: string): string =>
+    'Ótimo, vamos começar.\n\n' +
+    `O seu CPF eu já tenho registrado — falta só uma coisa: ${proximo}. Você emite pelo aplicativo ou site Meu INSS, na opção "Extrato de Empréstimos Consignados".\n\n` +
+    'Precisa ser o ARQUIVO em PDF, com todos os contratos — é só baixar e me enviar aqui como anexo.\n\n' +
+    'Se precisar de ajuda para localizar essa opção, me avise que eu te explico o passo a passo, com calma.',
   // Pedido do CPF isolado (quando a triagem já começou e ele ainda falta).
   pedirCpf: (nome: string | null): string =>
     `${nome !== null && nome !== '' ? `${primeiroNome(nome)}, para` : 'Para'} eu registrar o seu atendimento e podermos solicitar os contratos junto aos bancos, preciso do número do seu CPF. Pode digitar aqui, por favor?`,
@@ -969,6 +985,20 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
   // respondeu "não consegui entender a que ele se refere" a um CPF que NÓS
   // acabáramos de pedir. Nunca mais: quem responde ao pedido é a jornada.
   if (r.ultimaCaptura === 'cpf' && etapa !== 'TRIAGEM') {
+    // Caso Geisebel (2026-08-28): CPF ADIANTADO na identificação/consentimento
+    // ganhava "tudo certo por aqui, seu caso segue em análise" — mentira: sem
+    // HISCON não há análise nenhuma. Agradece e SEGUE o roteiro da etapa.
+    if (etapa === 'IDENTIFICACAO' || etapa === 'CONSENTIMENTO') {
+      const seguir =
+        etapa === 'CONSENTIMENTO'
+          ? MENSAGENS_JORNADA.reforcoConsentimento
+          : r.nome !== null && r.cidade === null
+            ? MENSAGENS_JORNADA.pedirCidade(r.nome)
+            : r.nome === null && r.cidade !== null
+              ? MENSAGENS_JORNADA.pedirNome
+              : MENSAGENS_JORNADA.pedirNomeECidade;
+      return `CPF registrado, obrigada!\n\n${seguir}`;
+    }
     return MENSAGENS_JORNADA.cpfRegistradoEmAnalise;
   }
 
@@ -1022,9 +1052,16 @@ export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): stri
         return `${MENSAGENS_JORNADA.tranquilizarCustoCurto}\n\n${passo}`;
       }
       // Decreto 2026-07-26 (CPF): a triagem tem DUAS partes — CPF e depois o
-      // HISCON. O consentimento abre anunciando as duas e pedindo o CPF.
+      // HISCON. O consentimento abre anunciando as duas e pedindo o CPF —
+      // SALVO quando o CPF já veio antes (caso Geisebel: repedir o que está
+      // registrado é conversa de robô): aí só falta o HISCON.
       if (r.ultimaCaptura === 'consentimento')
-        return prefixoDireito + MENSAGENS_JORNADA.iniciarTriagem();
+        return (
+          prefixoDireito +
+          (r.cpf !== null
+            ? MENSAGENS_JORNADA.iniciarTriagemSoHiscon(proximo)
+            : MENSAGENS_JORNADA.iniciarTriagem())
+        );
       // CPF acabou de ser capturado ⇒ confirma e emenda o pedido do HISCON.
       if (r.ultimaCaptura === 'cpf')
         return prefixoDireito + MENSAGENS_JORNADA.cpfRegistradoPedirHiscon(proximo);

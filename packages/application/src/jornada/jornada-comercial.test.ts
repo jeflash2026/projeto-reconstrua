@@ -151,8 +151,27 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
     expect(r).toContain('interesse em fazer essa análise');
     expect(r).not.toMatch(/garant|promet/i);
   });
-  it('consentiu ⇒ inicia a triagem anunciando CPF + HISCON (decreto 2026-07-26)', () => {
-    const r = responderTurno(
+  it('consentiu SEM CPF ⇒ triagem anuncia as duas coisas; COM CPF ⇒ só HISCON (caso Geisebel)', () => {
+    // CPF ainda não dado ⇒ abertura clássica: anuncia as duas, pede o CPF.
+    const semCpf = responderTurno(
+      fatos(
+        {
+          nome: 'Isabel',
+          cidade: 'Santa Ernestina',
+          consentiu: true,
+          cpf: null,
+          ultimaCaptura: 'consentimento',
+        },
+        { proximoDocumento: 'HISCON (histórico de empréstimos consignados do INSS)' },
+      ),
+      texto('sim'),
+    );
+    expect(semCpf).toContain('duas coisas');
+    expect(semCpf).toContain('CPF');
+    expect(semCpf).toContain('HISCON');
+    // CPF ADIANTADO (caso Geisebel, 2026-08-28): repedir o que está registrado
+    // é conversa de robô — a triagem abre direto no HISCON.
+    const comCpf = responderTurno(
       fatos(
         {
           nome: 'Isabel',
@@ -164,10 +183,9 @@ describe('respostas AUTORADAS por etapa (a LLM não participa)', () => {
       ),
       texto('sim'),
     );
-    // A abertura da triagem agora anuncia as DUAS coisas e pede o CPF primeiro.
-    expect(r).toContain('duas coisas');
-    expect(r).toContain('CPF');
-    expect(r).toContain('HISCON');
+    expect(comCpf).toContain('CPF eu já tenho registrado');
+    expect(comCpf).toContain('HISCON');
+    expect(comCpf).not.toContain('pode me informar o número do seu CPF');
   });
   it('recusa ⇒ despedida gentil, sem insistência', () => {
     const r = responderTurno(

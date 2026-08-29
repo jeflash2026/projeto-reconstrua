@@ -481,10 +481,11 @@ export interface LlmFactoryDeps {
       tokensOut: number | null;
     }): Promise<void>;
   };
-  /** AGILIDADE (2026-08-28, "webchat lento"): a PERCEPÇÃO é classificação
-   *  estruturada — não precisa do modelo grande. Com este modelo definido
-   *  (provider anthropic), a percepção roda nele e o turno perde uma chamada
-   *  lenta; expressão/narração/extração seguem no modelo principal. */
+  /** AGILIDADE (2026-08-28, "webchat lento"): PERCEPÇÃO e EXTRAÇÃO DE MEMÓRIA
+   *  são classificação/extração estruturada — não precisam do modelo grande.
+   *  Com este modelo definido (provider anthropic), ambas rodam nele e o turno
+   *  perde DUAS chamadas lentas em série; expressão (o texto que o cliente lê)
+   *  e narração seguem no modelo principal. */
   readonly modeloRapido?: string;
 }
 
@@ -547,9 +548,10 @@ export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
       async complete(system: string, user: string): Promise<CompletionResult> {
         const result = await comRetry.complete(system, user);
         meter.record(result.tokensIn, result.tokensOut);
-        // Medidor de Custo: registro persistido por chamada (nunca derruba o turno).
+        // Medidor de Custo: registro persistido por chamada, best-effort e FORA
+        // do caminho crítico (o cliente não espera a escrita do custo no banco).
         if (custo) {
-          await custo
+          void custo
             .registrarConversa({
               provider: interno.name,
               model: nomeModelo,
@@ -564,9 +566,13 @@ export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
   };
   const metered = medir(completion, modelo);
 
-  // AGILIDADE (2026-08-28): a percepção (classificação estruturada) roda no
-  // MODELO RÁPIDO quando configurado — o turno do cliente perde uma chamada
-  // lenta; a expressão (o texto que o cliente lê) segue no modelo principal.
+  // AGILIDADE (2026-08-28): percepção E extração de memória (classificação/
+  // extração estruturada) rodam no MODELO RÁPIDO quando configurado. A extração
+  // era a chamada LENTA escondida do turno: roda DENTRO do brain.decide
+  // (ingestTurn→observeText) em TODO turno de texto, em série, e o cliente
+  // esperava o modelo grande extrair "nome/cidade/profissão" — dado que nem é
+  // usado no turno atual. A expressão (o texto que o cliente lê) segue no
+  // modelo principal.
   const rapido =
     deps.modeloRapido !== undefined &&
     deps.modeloRapido !== '' &&
@@ -585,7 +591,7 @@ export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
     perception: new LlmPerception(rapido, config, track, clock),
     expression: new LlmExpression(metered, config, track, clock),
     narration: new LlmNarration(metered, config, track, clock),
-    extractor: new LlmExtractor(metered, config, track, clock),
+    extractor: new LlmExtractor(rapido, config, track, clock),
     meter,
   };
 }

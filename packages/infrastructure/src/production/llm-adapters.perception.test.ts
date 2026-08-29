@@ -191,6 +191,45 @@ describe('createLlmBundle — percepção no modelo rápido, expressão no princ
     expect(modelosChamados[1]).toBe('modelo-principal'); // expressão (texto ao cliente)
   });
 
+  it('extract() TAMBÉM chama o modelo rápido — era a chamada lenta escondida do turno', async () => {
+    const modelosChamados: string[] = [];
+    const http = {
+      postJson: (_url: string, _headers: Record<string, string>, body: unknown) => {
+        modelosChamados.push(String((body as { model?: string }).model));
+        return Promise.resolve({
+          status: 200,
+          body: {
+            content: [
+              {
+                type: 'text',
+                text: '{"attributes":[{"key":"nome","value":"Maria","confidence":0.9}]}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1 },
+          },
+        });
+      },
+    };
+    const bundle = createLlmBundle({
+      config: {
+        ...DEFAULT_PRODUCTION_CONFIG,
+        llm: {
+          ...DEFAULT_PRODUCTION_CONFIG.llm,
+          provider: 'anthropic',
+          anthropicApiKey: 'k',
+          anthropicModel: 'modelo-principal',
+        },
+      },
+      http,
+      observability: new ObservabilityRuntime(),
+      clock: { now: () => new Date('2026-08-29T12:00:00.000Z') },
+      modeloRapido: 'modelo-rapido',
+    });
+    const atributos = await bundle.extractor?.extract('me chamo Maria');
+    expect(modelosChamados[0]).toBe('modelo-rapido'); // extração de memória
+    expect(atributos?.[0]?.value).toBe('Maria'); // e o parse segue intacto
+  });
+
   it('sem modeloRapido (ou igual ao principal) ⇒ tudo no principal', async () => {
     const modelosChamados: string[] = [];
     const http = {

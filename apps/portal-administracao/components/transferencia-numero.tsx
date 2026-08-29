@@ -85,7 +85,9 @@ export default function TransferenciaNumero(): ReactElement {
         <p className="page-sub">
           Use o número completo com DDI e DDD, como aparece no painel (ex.: 553182232880). Tudo o
           que era do número antigo — conversa, CPF, HISCON, documentos, confirmação e cadastro —
-          passa a ser do novo.
+          passa a ser do novo. Cliente que entrou pelo WEBCHAT tem um segundo registro com o sufixo
+          @webchat (ex.: 5517996332346@webchat) — para fundir os dois atendimentos, informe o JID
+          completo com o sufixo no campo correspondente.
         </p>
         <div className="form-row" style={{ flexWrap: 'wrap', gap: 8 }}>
           <input

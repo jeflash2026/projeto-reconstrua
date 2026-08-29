@@ -26,12 +26,18 @@ import type { JsonStore, JsonStoreVarredura, LinhaDocumento } from '../productio
 
 const NS_BACKUP = 'transferencia-numero-backup';
 const SUFIXO_JID = '@s.whatsapp.net';
+const SUFIXO_WEBCHAT = '@webchat';
 
-/** Aceita "553182232880", "+55 31 8223-2880" ou o JID completo. */
+/** Aceita "553182232880", "+55 31 8223-2880" ou o JID completo. CASO ISABEL
+ *  (2026-08-29): o MESMO telefone pode existir DUAS vezes — a conversa antiga
+ *  do WhatsApp e a nova do webchat (`@webchat`) — e a fusão das duas é
+ *  exatamente esta ferramenta. O sufixo `@webchat` é PRESERVADO quando vem na
+ *  entrada; sem sufixo (ou qualquer outro), normaliza para o JID do WhatsApp. */
 export function comoJid(entrada: string): string {
   const bruto = entrada.trim();
+  const dominio = bruto.includes('@') ? (bruto.split('@')[1] ?? '') : '';
   const digitos = (bruto.includes('@') ? (bruto.split('@')[0] ?? '') : bruto).replace(/\D/g, '');
-  return `${digitos}${SUFIXO_JID}`;
+  return `${digitos}${dominio === 'webchat' ? SUFIXO_WEBCHAT : SUFIXO_JID}`;
 }
 
 export interface GrupoAfetado {
@@ -243,7 +249,8 @@ function instante(mensagem: Record<string, unknown>): string {
   return typeof em === 'string' ? em : '';
 }
 
-/** Reescreve QUALQUER jid presente no texto para o número informado. */
+/** Reescreve QUALQUER jid presente no texto para o número informado —
+ *  WhatsApp OU webchat (caso Isabel, 2026-08-29). */
 function trocarJid(texto: string, destino: string): string {
-  return texto.replace(/\d+@s\.whatsapp\.net/g, destino);
+  return texto.replace(/\d+@(?:s\.whatsapp\.net|webchat)/g, destino);
 }

@@ -163,4 +163,66 @@ describe('TransferenciaDeNumero', () => {
     // Origem (6) + o que o destino já tinha (1).
     expect(backup?.linhas.length).toBe(7);
   });
+
+  // ── CASO ISABEL (2026-08-29): o MESMO telefone existe duas vezes — a conversa
+  // antiga do WhatsApp (HISCON lido, dossiê enviado, aguardando o SIM) e a nova
+  // do webchat (funil zerado). A fusão dos dois atendimentos é ESTA ferramenta;
+  // antes, comoJid forçava @s.whatsapp.net e recusava ("os dois são o mesmo"). ──
+  describe('fusão WhatsApp ↔ webchat (mesmo telefone)', () => {
+    const WEBCHAT = '5517996332346@webchat';
+    const WHATSAPP = '5517996332346@s.whatsapp.net';
+
+    it('comoJid preserva o sufixo @webchat (e segue normalizando o resto)', () => {
+      expect(comoJid(WEBCHAT)).toBe(WEBCHAT);
+      expect(comoJid(' 5517996332346@webchat ')).toBe(WEBCHAT);
+      expect(comoJid('5517996332346')).toBe(WHATSAPP);
+      expect(comoJid(WHATSAPP)).toBe(WHATSAPP);
+    });
+
+    it('funde o atendimento do WhatsApp no chat do webchat (HISCON e parecer vão junto)', async () => {
+      const json = new InMemoryJsonStore();
+      // O lado rico (WhatsApp): identidade, jornada com CPF, parecer enviado.
+      await json.put('identities', WHATSAPP, {
+        chatId: WHATSAPP,
+        clienteId: 'cli-isabel',
+        missionId: 'm-1',
+      });
+      await json.put('jornada', WHATSAPP, { chatId: WHATSAPP, cpf: '16392961828' });
+      await json.put('parecer-enviado', 'cli-isabel', {
+        clienteId: 'cli-isabel',
+        chatId: WHATSAPP,
+        enviadoEm: '2026-07-31T12:00:00.000Z',
+        confirmadoEm: null,
+      });
+      // O lado novo (webchat): identidade paralela criada pela nova jornada.
+      await json.put('identities', WEBCHAT, {
+        chatId: WEBCHAT,
+        clienteId: 'cli-dup',
+        missionId: 'm-2',
+      });
+
+      const t = new TransferenciaDeNumero({ json, clock });
+      const previa = await t.previa(WHATSAPP, WEBCHAT);
+      expect(previa.podeTransferir).toBe(true); // antes: "os dois números são o mesmo"
+
+      await t.transferir(WHATSAPP, WEBCHAT);
+      // A identidade do webchat agora é o cadastro REAL (o da origem prevalece).
+      expect(await json.get('identities', WEBCHAT)).toEqual({
+        chatId: WEBCHAT,
+        clienteId: 'cli-isabel',
+        missionId: 'm-1',
+      });
+      expect(await json.get('identities', WHATSAPP)).toBeNull();
+      // O parecer aponta ao chat do webchat — a AHRI pede o SIM no canal ativo.
+      expect(await json.get('parecer-enviado', 'cli-isabel')).toMatchObject({
+        chatId: WEBCHAT,
+        confirmadoEm: null,
+      });
+      // A jornada (com o CPF) viaja junto.
+      expect(await json.get('jornada', WEBCHAT)).toEqual({
+        chatId: WEBCHAT,
+        cpf: '16392961828',
+      });
+    });
+  });
 });

@@ -218,6 +218,68 @@ export function interpretarComandoCobrancaCpf(texto: string): boolean {
   return VERBO_COBRAR_CPF.test(t);
 }
 
+// ── Comando de CADASTRO DE PROCESSOS no Painel Jurídico (decreto 2026-08-31):
+// o dono cola no Jarvis o bloco "Nome do Cliente:" seguido de linhas
+// "BANCO X - 0000000-00.0000.0.00.0000" (cada banco = 1 processo, a regra do
+// negócio) e a AHRI cadastra tudo no Painel Jurídico automaticamente.
+// Reconhecimento 100% determinístico: o nº CNJ de 20 dígitos é a assinatura
+// inconfundível do comando — nenhuma LLM decide nada aqui. ───────────────────
+export interface ProcessoDitado {
+  /** O réu/banco como escrito na linha (ex.: "BANCO ITAU"). */
+  readonly banco: string;
+  /** O nº CNJ como escrito (pontuação preservada para exibição). */
+  readonly numero: string;
+}
+
+export interface ClienteComProcessos {
+  readonly nome: string;
+  readonly processos: readonly ProcessoDitado[];
+}
+
+export interface ComandoProcessosJuridico {
+  /** Grupos na ordem do texto — cada "Nome:" abre um grupo. */
+  readonly clientes: readonly ClienteComProcessos[];
+  /** Linhas de processo SEM um "Nome do cliente:" acima (erro de formato). */
+  readonly semCliente: number;
+}
+
+// "BANCO X -/–/—/: 0000000-00.0000.0.00.0000" (espaços/TAB livres em volta).
+const RE_LINHA_PROCESSO = /^(.{2,120}?)\s*[-–—:]\s*(\d{7}-?\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})\s*$/u;
+// "Nome Completo:" — linha só com o nome e dois-pontos (mín. 2 palavras).
+const RE_LINHA_CLIENTE = /^([\p{L}][\p{L}' .-]{2,118}[\p{L}.]):\s*$/u;
+
+/** Reconhece o bloco de cadastro de processos. null = nenhum nº CNJ no texto. */
+export function interpretarComandoProcessosJuridico(
+  texto: string,
+): ComandoProcessosJuridico | null {
+  const linhas = texto.split(/\r?\n/);
+  const clientes: { nome: string; processos: ProcessoDitado[] }[] = [];
+  let atual: { nome: string; processos: ProcessoDitado[] } | null = null;
+  let semCliente = 0;
+  let algumProcesso = false;
+  for (const bruta of linhas) {
+    const linha = bruta.trim();
+    if (linha === '') continue;
+    const processo = RE_LINHA_PROCESSO.exec(linha);
+    if (processo !== null) {
+      algumProcesso = true;
+      const banco = (processo[1] ?? '').trim().replace(/\s+/g, ' ');
+      const numero = (processo[2] ?? '').trim();
+      if (atual === null) semCliente += 1;
+      else atual.processos.push({ banco, numero });
+      continue;
+    }
+    const cliente = RE_LINHA_CLIENTE.exec(linha);
+    if (cliente !== null && (cliente[1] ?? '').trim().includes(' ')) {
+      atual = { nome: (cliente[1] ?? '').trim().replace(/\s+/g, ' '), processos: [] };
+      clientes.push(atual);
+    }
+    // Qualquer outra linha (preâmbulo "add os seguintes processos…") é ignorada.
+  }
+  if (!algumProcesso) return null;
+  return { clientes: clientes.filter((c) => c.processos.length > 0), semCliente };
+}
+
 /** Casa o nome citado no comando com o cadastro (contains, sem acentos). */
 export function casarAdvogadoPorNome<T extends { readonly name: string }>(
   citado: string | null,

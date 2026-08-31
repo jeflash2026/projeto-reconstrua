@@ -196,3 +196,68 @@ describe('JarvisRuntime · mensagem ditada (decreto 2026-07-30)', () => {
     expect(r.cobranca).toBeUndefined();
   });
 });
+
+// ── CADASTRO DE PROCESSOS no Painel Jurídico (decreto 2026-08-31): o dono cola
+// o bloco "Nome:" + "BANCO - nº CNJ" e a AHRI cadastra DIRETO (entrada de dados
+// do próprio dono — nenhuma mensagem a cliente, nenhuma confirmação a mais). ──
+
+describe('JarvisRuntime · cadastro de processos no Painel Jurídico', () => {
+  function runtimeComJuridico(): {
+    jarvis: JarvisRuntime;
+    cadastrados: { nome: string; processos: readonly { banco: string; numero: string }[] }[];
+  } {
+    const cadastrados: {
+      nome: string;
+      processos: readonly { banco: string; numero: string }[];
+    }[] = [];
+    const deps: JarvisDeps = {
+      json: new InMemoryJsonStore(),
+      clock: { now: () => new Date('2026-08-31T12:00:00Z') },
+      elegiveis: () => Promise.resolve([]),
+      dossier: () => Promise.resolve({}),
+      advogados: () => Promise.resolve([]),
+      fichaPorTermo: () => Promise.resolve(null),
+      atribuir: () => Promise.resolve({ ok: true }),
+      pendentesCpf: () => Promise.resolve([]),
+      cobrarCpf: () => Promise.resolve({ ok: true }),
+      resolverDestinatario: () => Promise.resolve(null),
+      relatorioClientes: () => Promise.resolve([]),
+      enviarAoCliente: () => Promise.resolve(),
+      retomarAtendimento: () => Promise.resolve({ ok: false, motivo: 'n/a' }),
+      narrar: null,
+      cadastrarProcessosJuridico: (nome, processos) => {
+        cadastrados.push({ nome, processos });
+        return Promise.resolve({
+          clienteNovo: true,
+          criados: processos.length,
+          jaExistiam: 0,
+          erros: [],
+        });
+      },
+    };
+    return { jarvis: new JarvisRuntime(deps), cadastrados };
+  }
+
+  it('o bloco colado cadastra os processos e responde o resumo exato', async () => {
+    const { jarvis, cadastrados } = runtimeComJuridico();
+    const r = await jarvis.perguntar(
+      'Add os seguintes processos ao perfil do cliente\n\n' +
+        'Taís Regina Caetano da Silva:\n' +
+        'BANCO PAN -  4005195-40.2026.8.26.0533\n' +
+        'BANCO SAFRA -\t4005202-32.2026.8.26.0533',
+    );
+    expect(cadastrados).toHaveLength(1);
+    expect(cadastrados[0]?.nome).toBe('Taís Regina Caetano da Silva');
+    expect(cadastrados[0]?.processos.map((p) => p.banco)).toEqual(['BANCO PAN', 'BANCO SAFRA']);
+    expect(r.resposta).toContain('Taís Regina Caetano da Silva');
+    expect(r.resposta).toContain('2 processo(s) cadastrado(s)');
+    expect(r.resposta).toContain('cliente criado agora no painel');
+  });
+
+  it('processos SEM nome de cliente ⇒ orientação de formato, nada é cadastrado', async () => {
+    const { jarvis, cadastrados } = runtimeComJuridico();
+    const r = await jarvis.perguntar('BANCO PAN - 4005195-40.2026.8.26.0533');
+    expect(cadastrados).toHaveLength(0);
+    expect(r.resposta).toContain('dois-pontos');
+  });
+});

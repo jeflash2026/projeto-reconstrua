@@ -21,9 +21,11 @@ import {
   interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
   interpretarComandoMensagem,
+  interpretarComandoProcessosJuridico,
   interpretarComandoRelatorio,
   planejarDistribuicao,
   type ClienteElegivel,
+  type ComandoProcessosJuridico,
   type PlanoDistribuicao,
   type RecorteRelatorio,
 } from '@reconstrua/application';
@@ -138,6 +140,19 @@ export interface JarvisDeps {
   ) => Promise<{ ok: boolean; texto?: string; motivo?: string }>;
   /** Narração pela LLM (system, user) → texto. null = offline (determinístico). */
   readonly narrar: ((system: string, user: string) => Promise<string>) | null;
+  /** CADASTRO DE PROCESSOS no Painel Jurídico (decreto 2026-08-31): o dono cola
+   *  "Nome do Cliente:" + linhas "BANCO - nº CNJ" e a AHRI cadastra direto —
+   *  find-or-create do cliente por nome, um processo por linha, idempotente
+   *  (nº CNJ repetido do mesmo cliente é pulado). Opcional na montagem. */
+  readonly cadastrarProcessosJuridico?: (
+    nome: string,
+    processos: readonly { banco: string; numero: string }[],
+  ) => Promise<{
+    clienteNovo: boolean;
+    criados: number;
+    jaExistiam: number;
+    erros: readonly string[];
+  }>;
 }
 
 function resumoDoPlanoTexto(p: PlanoDistribuicao, advogadoNome: string | null): string {
@@ -181,6 +196,13 @@ export class JarvisRuntime {
           : `Não consegui retomar: ${r.motivo ?? 'nada a reprocessar'}.`,
       };
     }
+    // CADASTRO DE PROCESSOS no Painel Jurídico (decreto 2026-08-31): o nº CNJ de
+    // 20 dígitos é assinatura inconfundível — checa ANTES de tudo (o bloco tem
+    // "Nome:" e poderia ser confundido com mensagem ditada).
+    const processosJuridico = interpretarComandoProcessosJuridico(pergunta);
+    if (processosJuridico !== null && this.deps.cadastrarProcessosJuridico !== undefined) {
+      return this.cadastrarProcessos(processosJuridico);
+    }
     // MENSAGEM DITADA primeiro: "mande a mensagem para Maria: seus 20 contratos…"
     // não pode cair na distribuição nem na cobrança pelo conteúdo do texto.
     const mensagem = interpretarComandoMensagem(pergunta);
@@ -223,6 +245,47 @@ export class JarvisRuntime {
       }
     }
     return { resposta: this.respostaDeterministica(fatos) };
+  }
+
+  /** CADASTRO DE PROCESSOS no Painel Jurídico (decreto 2026-08-31): execução
+   *  DIRETA — é entrada de dados no painel do próprio dono (nenhuma mensagem a
+   *  cliente), e o cadastro é idempotente (nº CNJ repetido é pulado). */
+  private async cadastrarProcessos(cmd: ComandoProcessosJuridico): Promise<JarvisResposta> {
+    const cadastrar = this.deps.cadastrarProcessosJuridico;
+    if (cadastrar === undefined || cmd.clientes.length === 0) {
+      return {
+        resposta:
+          'Encontrei números de processo no texto, mas não consegui ver de qual CLIENTE eles são. ' +
+          'Cole assim — a linha do nome termina com dois-pontos e cada processo vem numa linha:\n\n' +
+          'Nome Completo do Cliente:\nBANCO X - 0000000-00.0000.0.00.0000\nBANCO Y - 0000000-00.0000.0.00.0000',
+      };
+    }
+    const partes: string[] = [];
+    for (const c of cmd.clientes) {
+      const r = await cadastrar(c.nome, c.processos).catch((e: unknown) => ({
+        clienteNovo: false,
+        criados: 0,
+        jaExistiam: 0,
+        erros: [e instanceof Error ? e.message : 'falha no cadastro'],
+      }));
+      const pedacos = [
+        `${String(r.criados)} processo(s) cadastrado(s)`,
+        ...(r.jaExistiam > 0 ? [`${String(r.jaExistiam)} já existia(m) — pulado(s)`] : []),
+        ...(r.clienteNovo ? ['cliente criado agora no painel'] : ['cliente já cadastrado']),
+      ];
+      partes.push(`• ${c.nome}: ${pedacos.join(', ')}.`);
+      for (const erro of r.erros) partes.push(`  ⚠ ${erro}`);
+    }
+    if (cmd.semCliente > 0) {
+      partes.push(
+        `⚠ ${String(cmd.semCliente)} linha(s) de processo vieram ANTES de qualquer nome de cliente e foram ignoradas — cole o nome (terminado em dois-pontos) acima das linhas.`,
+      );
+    }
+    return {
+      resposta:
+        `Feito — cadastro no Painel Jurídico concluído:\n\n${partes.join('\n')}\n\n` +
+        'Os andamentos do DataJud entram na próxima atualização automática (ou na hora, pelo botão "Atualizar andamentos" do painel).',
+    };
   }
 
   /** Monta o plano de COBRANÇA DE CPF: lista nominal dos clientes com HISCON

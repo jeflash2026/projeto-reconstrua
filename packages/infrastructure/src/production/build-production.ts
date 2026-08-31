@@ -1594,6 +1594,23 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // Os FATOS do modelo comercial para o dossiê do narrador (procuração
   // assinada + processos por UF + carteiras) — ligados adiante, após a mesa.
   let resumoComercialRef: () => Promise<Record<string, unknown>> = () => Promise.resolve({});
+  // CADASTRO DE PROCESSOS no Painel Jurídico via Jarvis (decreto 2026-08-31) —
+  // o JuridicoService nasce ADIANTE na composição; ref tardio, ligado lá.
+  let cadastrarProcessosJuridicoRef: (
+    nome: string,
+    processos: readonly { banco: string; numero: string }[],
+  ) => Promise<{
+    clienteNovo: boolean;
+    criados: number;
+    jaExistiam: number;
+    erros: readonly string[];
+  }> = () =>
+    Promise.resolve({
+      clienteNovo: false,
+      criados: 0,
+      jaExistiam: 0,
+      erros: ['Painel Jurídico indisponível nesta montagem'],
+    });
   const jarvisCompletion = llm.completion;
   const jarvis = new JarvisRuntime({
     json,
@@ -1606,6 +1623,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // (procuração ASSINADA), ligada adiante na composição (ref tardio — a mesa
     // nasce depois). Com advogado citado, só os clientes MARCADOS para ele.
     elegiveis: (advogadoId) => poolProcuracaoRef(advogadoId),
+    cadastrarProcessosJuridico: (nome, processos) => cadastrarProcessosJuridicoRef(nome, processos),
     advogados: async () => {
       const advs = await staffStore.byRole('advogado');
       const out = [];
@@ -2387,6 +2405,56 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     clock,
     datajud: new DatajudClient(env['DATAJUD_API_KEY'] || undefined),
   });
+  // CADASTRO DE PROCESSOS via Jarvis (decreto 2026-08-31): o dono cola o bloco
+  // "Nome:" + "BANCO - nº CNJ" no chat da AHRI e o Painel Jurídico é preenchido
+  // na hora. Find-or-create do cliente por NOME (sem acentos/caixa); um processo
+  // por linha (cada banco = 1 processo, a regra do negócio); IDEMPOTENTE — nº
+  // CNJ que o cliente já tem é pulado, nunca duplicado. Autor: 'AHRI (Jarvis)'.
+  cadastrarProcessosJuridicoRef = async (nome, processos) => {
+    const norm = (s: string): string =>
+      s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+    const erros: string[] = [];
+    const existentes = await juridico.listarClientes();
+    let clienteId = existentes.find((c) => norm(c.nome) === norm(nome))?.id ?? null;
+    let clienteNovo = false;
+    if (clienteId === null) {
+      const criado = await juridico.criarCliente({ nome }, 'AHRI (Jarvis)');
+      if (!criado.ok)
+        return { clienteNovo: false, criados: 0, jaExistiam: 0, erros: [criado.error] };
+      clienteId = criado.valor;
+      clienteNovo = true;
+    }
+    const contratos = await juridico.listarContratos();
+    const jaTem = new Set(
+      contratos
+        .filter((c) => c.clienteId === clienteId)
+        .map((c) => c.processoNumero.replace(/\D/g, '')),
+    );
+    let criados = 0;
+    let jaExistiam = 0;
+    for (const p of processos) {
+      const digitos = p.numero.replace(/\D/g, '');
+      if (jaTem.has(digitos)) {
+        jaExistiam += 1;
+        continue;
+      }
+      const r = await juridico.criarProcesso(
+        {
+          clienteId,
+          numero: p.numero,
+          bancos: [{ banco: p.banco, contratos: [{ numero: 's/nº' }] }],
+        },
+        'AHRI (Jarvis)',
+      );
+      if (r.ok) {
+        criados += 1;
+        jaTem.add(digitos);
+      } else {
+        erros.push(`${p.banco} ${p.numero}: ${r.error}`);
+      }
+    }
+    return { clienteNovo, criados, jaExistiam, erros };
+  };
   const metaCanal =
     metaGateway === null
       ? null

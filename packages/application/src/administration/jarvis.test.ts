@@ -197,3 +197,58 @@ describe('casarAdvogadoPorNome', () => {
     expect(casarAdvogadoPorNome(null, advs)).toBe(null);
   });
 });
+
+// ── CADASTRO DE PROCESSOS no Painel Jurídico (decreto 2026-08-31) — o dono
+// cola "Nome:" + linhas "BANCO - nº CNJ" no Jarvis; parse 100% determinístico.
+import { interpretarComandoProcessosJuridico } from './jarvis.js';
+
+describe('interpretarComandoProcessosJuridico', () => {
+  it('lê o bloco REAL do dono (Taís): 12 bancos, TAB e espaços variados', () => {
+    const texto = [
+      'Add os seguintes processos ao perfil do cliente',
+      '',
+      'Taís Regina Caetano da Silva: ',
+      '',
+      'BANCO ABIGANK -  4005177-19.2026.8.26.0533',
+      'BANCO BRB - 4005179-86.2026.8.26.0533',
+      'BANCO C6 -\t4005180-71.2026.8.26.0533',
+      'BANCO ITAU -  4005194-55.2026.8.26.0533',
+    ].join('\n');
+    const cmd = interpretarComandoProcessosJuridico(texto);
+    expect(cmd).not.toBeNull();
+    expect(cmd?.clientes).toHaveLength(1);
+    expect(cmd?.clientes[0]?.nome).toBe('Taís Regina Caetano da Silva');
+    expect(cmd?.clientes[0]?.processos).toHaveLength(4);
+    expect(cmd?.clientes[0]?.processos[0]).toEqual({
+      banco: 'BANCO ABIGANK',
+      numero: '4005177-19.2026.8.26.0533',
+    });
+    expect(cmd?.clientes[0]?.processos[2]?.banco).toBe('BANCO C6');
+    expect(cmd?.semCliente).toBe(0);
+  });
+
+  it('vários clientes no mesmo texto: cada "Nome:" abre um grupo', () => {
+    const cmd = interpretarComandoProcessosJuridico(
+      'Maria da Silva Santos:\nBANCO PAN - 4005195-40.2026.8.26.0533\n\n' +
+        'João Pereira Souza:\nBANCO SAFRA - 4005202-32.2026.8.26.0533',
+    );
+    expect(cmd?.clientes.map((c) => c.nome)).toEqual([
+      'Maria da Silva Santos',
+      'João Pereira Souza',
+    ]);
+    expect(cmd?.clientes[1]?.processos[0]?.banco).toBe('BANCO SAFRA');
+  });
+
+  it('processo sem nome de cliente acima conta em semCliente (nada é chutado)', () => {
+    const cmd = interpretarComandoProcessosJuridico('BANCO PAN - 4005195-40.2026.8.26.0533');
+    expect(cmd?.clientes).toHaveLength(0);
+    expect(cmd?.semCliente).toBe(1);
+  });
+
+  it('texto sem nº CNJ NÃO é comando (pergunta livre segue ao narrador)', () => {
+    expect(interpretarComandoProcessosJuridico('quantos clientes temos hoje?')).toBeNull();
+    expect(
+      interpretarComandoProcessosJuridico('mande a mensagem para Maria: seu processo avançou'),
+    ).toBeNull();
+  });
+});

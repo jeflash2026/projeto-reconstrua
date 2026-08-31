@@ -243,40 +243,69 @@ export interface ComandoProcessosJuridico {
   readonly semCliente: number;
 }
 
-// "BANCO X -/–/—/: 0000000-00.0000.0.00.0000" (espaços/TAB livres em volta).
-const RE_LINHA_PROCESSO = /^(.{2,120}?)\s*[-–—:]\s*(\d{7}-?\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})\s*$/u;
-// "Nome Completo:" — linha só com o nome e dois-pontos (mín. 2 palavras).
-const RE_LINHA_CLIENTE = /^([\p{L}][\p{L}' .-]{2,118}[\p{L}.]):\s*$/u;
+// O nº CNJ completo — a âncora do tokenizador (global).
+const RE_CNJ = /\d{7}-?\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/gu;
+// Nome de cliente plausível: 2+ palavras de letras, tamanho humano.
+const RE_NOME = /^[\p{L}][\p{L}' .-]{2,118}[\p{L}.]$/u;
 
-/** Reconhece o bloco de cadastro de processos. null = nenhum nº CNJ no texto. */
+/** Limpa um pedaço de banco/nome: separadores nas bordas, espaços colapsados. */
+function limparPedaco(bruto: string): string {
+  return bruto
+    .replace(/^[\s\-–—:;,.]+/u, '')
+    .replace(/[\s\-–—:;,]+$/u, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Reconhece o bloco de cadastro de processos — em LINHAS SEPARADAS ou TUDO
+ *  NUMA LINHA SÓ (caso real 2026-08-31: o dono colou inline e o parser por
+ *  linha não reconheceu; o texto caiu no narrador, que inventou confirmação).
+ *  Tokeniza pelos nº CNJ: o trecho entre um CNJ e o próximo é o BANCO; um
+ *  "Nome:" dentro do trecho abre um grupo novo (a ÚLTIMA linha antes dos
+ *  dois-pontos é o nome — preâmbulos com ':' próprios são descartados).
+ *  null = nenhum nº CNJ no texto (pergunta livre segue ao narrador). */
 export function interpretarComandoProcessosJuridico(
   texto: string,
 ): ComandoProcessosJuridico | null {
-  const linhas = texto.split(/\r?\n/);
+  const matches = [...texto.matchAll(RE_CNJ)];
+  if (matches.length === 0) return null;
   const clientes: { nome: string; processos: ProcessoDitado[] }[] = [];
   let atual: { nome: string; processos: ProcessoDitado[] } | null = null;
   let semCliente = 0;
-  let algumProcesso = false;
-  for (const bruta of linhas) {
-    const linha = bruta.trim();
-    if (linha === '') continue;
-    const processo = RE_LINHA_PROCESSO.exec(linha);
-    if (processo !== null) {
-      algumProcesso = true;
-      const banco = (processo[1] ?? '').trim().replace(/\s+/g, ' ');
-      const numero = (processo[2] ?? '').trim();
-      if (atual === null) semCliente += 1;
-      else atual.processos.push({ banco, numero });
+  let cursor = 0;
+  for (const m of matches) {
+    const trecho = texto.slice(cursor, m.index);
+    cursor = m.index + m[0].length;
+    // Um "Nome:" no trecho abre um grupo: o nome é a ÚLTIMA LINHA do que vem
+    // antes do último ':' (o preâmbulo "adicione no jurídico:" fica para trás).
+    const ultimaLinhaCheia = (bloco: string): string => {
+      const linhas = bloco
+        .split(/\r?\n/)
+        .map(limparPedaco)
+        .filter((l) => l !== '');
+      return linhas.pop() ?? '';
+    };
+    const doisPontos = trecho.lastIndexOf(':');
+    let pedacoBanco = trecho;
+    if (doisPontos !== -1) {
+      const ultimaLinha = ultimaLinhaCheia(trecho.slice(0, doisPontos));
+      // O nome pode dividir a linha com outro ':' (inline: "jurídico: Taís…").
+      const candidato = limparPedaco(ultimaLinha.split(':').pop() ?? '');
+      if (RE_NOME.test(candidato) && candidato.includes(' ')) {
+        atual = { nome: candidato, processos: [] };
+        clientes.push(atual);
+      }
+      pedacoBanco = trecho.slice(doisPontos + 1);
+    }
+    // O banco é a última linha CHEIA do pedaço (o CNJ pode estar na linha de
+    // baixo do banco) — inline, é o pedaço inteiro entre um CNJ e o próximo.
+    const banco = ultimaLinhaCheia(pedacoBanco).slice(0, 120);
+    if (atual === null) {
+      semCliente += 1;
       continue;
     }
-    const cliente = RE_LINHA_CLIENTE.exec(linha);
-    if (cliente !== null && (cliente[1] ?? '').trim().includes(' ')) {
-      atual = { nome: (cliente[1] ?? '').trim().replace(/\s+/g, ' '), processos: [] };
-      clientes.push(atual);
-    }
-    // Qualquer outra linha (preâmbulo "add os seguintes processos…") é ignorada.
+    atual.processos.push({ banco: banco === '' ? 'BANCO (não informado)' : banco, numero: m[0] });
   }
-  if (!algumProcesso) return null;
   return { clientes: clientes.filter((c) => c.processos.length > 0), semCliente };
 }
 

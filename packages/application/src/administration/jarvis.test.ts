@@ -252,3 +252,48 @@ describe('interpretarComandoProcessosJuridico', () => {
     ).toBeNull();
   });
 });
+
+// Caso REAL 2026-08-31: o dono colou TUDO NUMA LINHA SÓ e o parser por linha
+// não reconheceu — o texto caiu no narrador, que inventou uma "confirmação".
+describe('interpretarComandoProcessosJuridico — colagem INLINE (uma linha só)', () => {
+  it('lê a colagem real da Taís: preâmbulo + nome + 12 bancos na mesma linha', () => {
+    const texto =
+      'adicione no jurídico: Taís Regina Caetano da Silva:   BANCO ABIGANK -  4005177-19.2026.8.26.0533 ' +
+      'BANCO BRB - 4005179-86.2026.8.26.0533 BANCO C6 -      4005180-71.2026.8.26.0533 ' +
+      'BANCO CETELEM -  4005182-41.2026.8.26.0533 BANCO DAYCOVAL -  4005192-85.2026.8.26.0533 ' +
+      'BANCO FACTA -   4005193-70.2026.8.26.0533 BANCO ITAU -  4005194-55.2026.8.26.0533 ' +
+      'BANCO PAN -  4005195-40.2026.8.26.0533 BANCO PARATI -    4005199-77.2026.8.26.0533 ' +
+      'BANCO PICPAY -  4005201-47.2026.8.26.0533 BANCO SAFRA - 4005202-32.2026.8.26.0533 ' +
+      'BANCO SEGURO - 4005203-17.2026.8.26.0533';
+    const cmd = interpretarComandoProcessosJuridico(texto);
+    expect(cmd?.clientes).toHaveLength(1);
+    expect(cmd?.clientes[0]?.nome).toBe('Taís Regina Caetano da Silva');
+    expect(cmd?.clientes[0]?.processos).toHaveLength(12);
+    expect(cmd?.clientes[0]?.processos.map((p) => p.banco)).toEqual([
+      'BANCO ABIGANK',
+      'BANCO BRB',
+      'BANCO C6',
+      'BANCO CETELEM',
+      'BANCO DAYCOVAL',
+      'BANCO FACTA',
+      'BANCO ITAU',
+      'BANCO PAN',
+      'BANCO PARATI',
+      'BANCO PICPAY',
+      'BANCO SAFRA',
+      'BANCO SEGURO',
+    ]);
+    expect(cmd?.clientes[0]?.processos[11]?.numero).toBe('4005203-17.2026.8.26.0533');
+    expect(cmd?.semCliente).toBe(0);
+  });
+
+  it('banco numa linha e o nº CNJ na linha de baixo — o banco não se perde', () => {
+    const cmd = interpretarComandoProcessosJuridico(
+      'Maria da Silva Santos:\nBANCO PAN -\n4005195-40.2026.8.26.0533',
+    );
+    expect(cmd?.clientes[0]?.processos[0]).toEqual({
+      banco: 'BANCO PAN',
+      numero: '4005195-40.2026.8.26.0533',
+    });
+  });
+});

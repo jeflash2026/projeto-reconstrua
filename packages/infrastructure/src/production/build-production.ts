@@ -29,6 +29,7 @@ import {
   PROMPT_TRADUCAO_CLIENTE,
   TraducaoClienteRuntime,
   emitirTokenCliente,
+  validarTokenCliente,
   pacoteDeEstado,
   AdvogadoAhriBridge,
   AdvogadoAuthRuntime,
@@ -195,6 +196,7 @@ import {
   JsonStaffStore,
 } from './document-stores.js';
 import { ResilientHttpClient } from './resilient-http.js';
+import { zipStore, type ArquivoZip } from '../util/zip.js';
 import { createLlmBundle, type LlmBundle } from './llm-adapters.js';
 import { ProductionIngress } from './production-ingress.js';
 import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
@@ -478,6 +480,33 @@ export interface AssembledProduction {
   /** Integração Corvo (2026-08-25): envio do lead completo + credencial da caixa
    *  e respostas dos bancos via webhook verificado. Sem CORVO_API_KEY = inerte. */
   readonly corvo: CorvoService;
+  /** HISCON EM LOTE por advogado (2026-08-31): o ZIP com o HISCON de TODOS os
+   *  clientes JÁ ATRIBUÍDOS a um advogado + link público tokenizado (7 dias)
+   *  para o dono repassar. Nada circula sem o token assinado. */
+  readonly hisconLote: HisconLote;
+}
+
+export interface HisconLote {
+  /** Advogados ativos com a contagem de clientes atribuídos (o dropdown). */
+  advogados(): Promise<readonly { id: string; nome: string; clientes: number }[]>;
+  /** Monta o ZIP: um `HISCON - NOME.pdf` por cliente atribuído + LEIA-ME. */
+  gerar(advogadoId: string): Promise<
+    | {
+        ok: true;
+        zip: Buffer;
+        nomeArquivo: string;
+        total: number;
+        comHiscon: number;
+        faltantes: readonly string[];
+      }
+    | { ok: false; error: string }
+  >;
+  /** Link público tokenizado (7 dias) para o mesmo ZIP. */
+  emitirLink(
+    advogadoId: string,
+  ): { ok: true; url: string; validadeDias: number } | { ok: false; error: string };
+  /** Valida o token do link público — devolve o advogadoId ou null. */
+  validarLink(token: string): string | null;
 }
 
 export function assembleProduction(wiring: ProductionWiring): AssembledProduction {
@@ -1546,6 +1575,110 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     documentRequestAnexos,
     notificationChannels,
     clientes,
+  };
+
+  // ── HISCON EM LOTE por advogado (2026-08-31) — o dono gera o ZIP (ou um link
+  //    tokenizado de 7 dias) com o HISCON de TODOS os clientes já ATRIBUÍDOS a
+  //    um advogado. A atribuição real (work.myMissions) é a régua; o PDF é o
+  //    MESMO original da contabilidade documental (código CNIS). ──────────────
+  const hisconLote: HisconLote = {
+    advogados: async () => {
+      const advs = (await staffStore.byRole('advogado')).filter((a) => a.active);
+      const out: { id: string; nome: string; clientes: number }[] = [];
+      for (const a of advs) {
+        const atribuicoes = await work.myMissions(a.id).catch(() => []);
+        out.push({ id: a.id, nome: a.name, clientes: atribuicoes.length });
+      }
+      return out.sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
+    },
+    gerar: async (advogadoId) => {
+      const adv = (await staffStore.byRole('advogado')).find((a) => a.id === advogadoId);
+      if (adv === undefined) return { ok: false, error: 'advogado não encontrado' };
+      await projector.refresh().catch(() => undefined);
+      const missoes = projector.missions();
+      const atribuicoes = await work.myMissions(advogadoId).catch(() => []);
+      const chats: string[] = [];
+      for (const a of atribuicoes) {
+        const chatId = a.chatId ?? missoes.find((m) => m.missionId === a.missionId)?.chatId ?? null;
+        if (chatId !== null && !chats.includes(chatId)) chats.push(chatId);
+      }
+      if (chats.length === 0)
+        return { ok: false, error: 'nenhum cliente atribuído a este advogado' };
+      const nomes = new Map((await clientes.list().catch(() => [])).map((c) => [c.chatId, c.quem]));
+      const arquivos: ArquivoZip[] = [];
+      const faltantes: string[] = [];
+      const usados = new Set<string>();
+      for (const chatId of chats) {
+        const nome = (nomes.get(chatId) ?? chatId.split('@')[0] ?? chatId).trim();
+        const onboarding = (await json.get('onboarding-documental', chatId).catch(() => null)) as {
+          recebidos?: readonly { codigo: string; documentId: string }[];
+        } | null;
+        const cnis = onboarding?.recebidos?.find((r) => r.codigo === 'CNIS');
+        const conteudo =
+          cnis !== undefined
+            ? await documentContent.byDocumentId(cnis.documentId).catch(() => null)
+            : null;
+        if (conteudo === null) {
+          faltantes.push(nome);
+          continue;
+        }
+        // Nome de arquivo seguro e ÚNICO (dois clientes homônimos não se engolem).
+        let base = `HISCON - ${nome.replace(/[^\w À-ÿ.'-]/g, '').slice(0, 80) || 'cliente'}`;
+        for (let n = 2; usados.has(base.toLowerCase()); n += 1)
+          base = `HISCON - ${nome.slice(0, 76)} (${String(n)})`;
+        usados.add(base.toLowerCase());
+        arquivos.push({ name: `${base}.pdf`, content: Buffer.from(conteudo.bytes) });
+      }
+      if (arquivos.length === 0)
+        return {
+          ok: false,
+          error: `nenhum HISCON disponível — ${String(chats.length)} cliente(s) atribuídos, todos sem o PDF legível`,
+        };
+      const comHiscon = arquivos.length;
+      arquivos.push({
+        name: 'LEIA-ME.txt',
+        content:
+          `HISCONs dos clientes atribuídos a ${adv.name}\n` +
+          `Gerado em ${clock.now().toISOString()}\n` +
+          `Clientes atribuídos: ${String(chats.length)} · com HISCON neste pacote: ${String(comHiscon)}\n` +
+          (faltantes.length > 0
+            ? `SEM HISCON disponível (${String(faltantes.length)}): ${faltantes.join('; ')}\n`
+            : 'Todos os clientes têm o HISCON neste pacote.\n'),
+      });
+      return {
+        ok: true,
+        zip: zipStore(arquivos),
+        nomeArquivo: `HISCONs - ${adv.name.replace(/[^\w À-ÿ.'-]/g, '').slice(0, 60)}.zip`,
+        total: chats.length,
+        comHiscon,
+        faltantes,
+      };
+    },
+    emitirLink: (advogadoId) => {
+      if (clientePortalSecret === '')
+        return {
+          ok: false,
+          error: 'CLIENTE_PORTAL_SECRET ausente no .env — o link não pode ser assinado',
+        };
+      const token = emitirTokenCliente(
+        `hiscon-lote:${advogadoId}`,
+        7,
+        clock.now(),
+        clientePortalSecret,
+      );
+      return {
+        ok: true,
+        url: `${config.publicUrl.replace(/\/+$/, '')}/download/hiscons?t=${token}`,
+        validadeDias: 7,
+      };
+    },
+    validarLink: (token) => {
+      if (clientePortalSecret === '') return null;
+      const sujeito = validarTokenCliente(token, clock.now(), clientePortalSecret);
+      return sujeito !== null && sujeito.startsWith('hiscon-lote:')
+        ? sujeito.slice('hiscon-lote:'.length)
+        : null;
+    },
   };
 
   // ── Conexão WhatsApp (Portal Admin) — administração de instâncias Evolution ───
@@ -2955,6 +3088,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     gateway,
     adminView,
     advogadoView,
+    hisconLote,
     lxView,
     health,
     observability,

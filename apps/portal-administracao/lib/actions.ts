@@ -1447,3 +1447,54 @@ export async function devolverClienteDoAdvogado(
   if (r === null) return { ok: false, error: 'falha na API' };
   return { ok: r.ok === true, estornados: r.estornados, error: r.error };
 }
+
+// ── HISCON EM LOTE por advogado (2026-08-31): o dono baixa o ZIP com o HISCON
+// de todos os clientes já atribuídos a um advogado, ou gera um link tokenizado
+// (7 dias) para repassar ao advogado. ────────────────────────────────────────
+export interface AdvogadoHisconLote {
+  id: string;
+  nome: string;
+  clientes: number;
+}
+
+export async function listarAdvogadosHisconLote(): Promise<AdvogadoHisconLote[]> {
+  const r = await getJson<{ advogados?: AdvogadoHisconLote[] }>('/admin/hiscon-lote');
+  return r?.advogados ?? [];
+}
+
+export interface LinkHisconsResultado {
+  ok: boolean;
+  url?: string;
+  validadeDias?: number;
+  total?: number;
+  comHiscon?: number;
+  faltantes?: string[];
+  error?: string;
+}
+
+export async function gerarLinkHiscons(advogadoId: string): Promise<LinkHisconsResultado> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/admin/hiscon-lote/${encodeURIComponent(advogadoId)}/link`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
+        },
+        body: '{}',
+        cache: 'no-store',
+      },
+    );
+    const corpo = (await res.json().catch(() => ({}))) as LinkHisconsResultado & {
+      error?: string;
+    };
+    if (!res.ok) return { ok: false, error: corpo.error ?? `HTTP ${String(res.status)}` };
+    return { ...corpo, ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? `API inacessível: ${error.message}` : 'API inacessível',
+    };
+  }
+}

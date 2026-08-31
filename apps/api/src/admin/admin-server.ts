@@ -322,6 +322,25 @@ export function buildAdminServer(
     readonly juridico?: JuridicoService;
     /** Integração Corvo (2026-08-25): envio do lead + caixa/respostas dos bancos. */
     readonly corvo?: CorvoService;
+    /** HISCON EM LOTE por advogado (2026-08-31): o ZIP com o HISCON de todos os
+     *  clientes já ATRIBUÍDOS a um advogado + link público tokenizado (7 dias). */
+    readonly hisconLote?: {
+      advogados(): Promise<readonly { id: string; nome: string; clientes: number }[]>;
+      gerar(advogadoId: string): Promise<
+        | {
+            ok: true;
+            zip: Buffer;
+            nomeArquivo: string;
+            total: number;
+            comHiscon: number;
+            faltantes: readonly string[];
+          }
+        | { ok: false; error: string }
+      >;
+      emitirLink(
+        advogadoId: string,
+      ): { ok: true; url: string; validadeDias: number } | { ok: false; error: string };
+    };
     /** REAQUECIMENTO FASE 1 (2026-08-07): template aprovado pelo número
      *  OFICIAL da AHRI — reabre lead frio; a resposta cai na entrada única e
      *  o funil retoma sozinho de onde parou. */
@@ -2803,6 +2822,46 @@ export function buildAdminServer(
     if (!opts.dossieInvestidor)
       return reply.code(503).send({ error: 'dossiê indisponível nesta montagem' });
     return opts.dossieInvestidor.gerar();
+  });
+
+  // ── HISCON EM LOTE por advogado (2026-08-31) — o dono baixa o ZIP com o
+  //    HISCON de TODOS os clientes já atribuídos a um advogado, ou gera um
+  //    link tokenizado (7 dias) para repassar. Nada circula sem token/Bearer. ─
+  app.get('/admin/hiscon-lote', async (_request, reply) => {
+    if (!opts.hisconLote)
+      return reply.code(503).send({ error: 'HISCON em lote indisponível nesta montagem' });
+    return { advogados: await opts.hisconLote.advogados() };
+  });
+
+  app.get('/admin/hiscon-lote/:advogadoId/zip', async (request, reply) => {
+    if (!opts.hisconLote)
+      return reply.code(503).send({ error: 'HISCON em lote indisponível nesta montagem' });
+    const { advogadoId } = request.params as { advogadoId: string };
+    const r = await opts.hisconLote.gerar(advogadoId);
+    if (!r.ok) return reply.code(404).send({ error: r.error });
+    return reply
+      .type('application/zip')
+      .header('content-disposition', `attachment; filename="${r.nomeArquivo}"`)
+      .send(r.zip);
+  });
+
+  app.post('/admin/hiscon-lote/:advogadoId/link', async (request, reply) => {
+    if (!opts.hisconLote)
+      return reply.code(503).send({ error: 'HISCON em lote indisponível nesta montagem' });
+    const { advogadoId } = request.params as { advogadoId: string };
+    // O ZIP é montado AGORA só para validar (advogado existe? há HISCONs?) —
+    // o link não pode nascer apontando para um pacote vazio.
+    const previa = await opts.hisconLote.gerar(advogadoId);
+    if (!previa.ok) return reply.code(404).send({ error: previa.error });
+    const link = opts.hisconLote.emitirLink(advogadoId);
+    if (!link.ok) return reply.code(503).send({ error: link.error });
+    return {
+      url: link.url,
+      validadeDias: link.validadeDias,
+      total: previa.total,
+      comHiscon: previa.comHiscon,
+      faltantes: previa.faltantes,
+    };
   });
 
   // ── TRANSFERÊNCIA DE NÚMERO (2026-08-11) — o cliente trocou de chip e quer

@@ -111,6 +111,23 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
   app.get('/webchat', (_request, reply) => {
     void reply.type('text/html').send(WEBCHAT_UI_HTML);
   });
+
+  // ── HISCON EM LOTE por advogado (2026-08-31) — o link que o DONO gera no
+  //    Admin e repassa: token assinado de 7 dias, escopado a UM advogado; o
+  //    ZIP é montado na hora com os clientes atribuídos NAQUELE momento.
+  //    Token inválido/vencido ⇒ 404 (nada vaza, nem a existência do recurso).
+  app.get('/download/hiscons', async (request, reply) => {
+    const { t } = request.query as { t?: string };
+    const advogadoId = prod.hisconLote.validarLink(t ?? '');
+    if (advogadoId === null)
+      return reply.code(404).type('text/plain').send('Link inválido ou vencido.');
+    const r = await prod.hisconLote.gerar(advogadoId);
+    if (!r.ok) return reply.code(404).type('text/plain').send(r.error);
+    return reply
+      .type('application/zip')
+      .header('content-disposition', `attachment; filename="${r.nomeArquivo}"`)
+      .send(r.zip);
+  });
   app.post('/webchat/sessao', async (request, reply) => {
     const body = request.body as { nome?: string; telefone?: string };
     const r = await prod.webchat.abrirSessao(body.nome ?? '', body.telefone ?? '');

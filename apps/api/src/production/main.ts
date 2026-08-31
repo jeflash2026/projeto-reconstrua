@@ -125,6 +125,8 @@ async function main(): Promise<void> {
     devolverAdvogado: prod.devolverAdvogado,
     // Integração 2026-08-25: notificação de bancos por correspondência (Corvo).
     corvo: prod.corvo,
+    // 2026-08-31: HISCON em lote por advogado (ZIP + link tokenizado de 7 dias).
+    hisconLote: prod.hisconLote,
     // Decreto 2026-08-08: o PAINEL JURÍDICO (2º painel — dono + sócio).
     juridico: prod.juridico,
     // Reaquecimento FASE 1 (2026-08-07): template pelo número OFICIAL da AHRI.

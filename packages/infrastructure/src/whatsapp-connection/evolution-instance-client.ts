@@ -247,7 +247,7 @@ export class EvolutionInstanceClient {
     for (const raw of list) {
       const inst = pick(raw, ['instance']) ?? raw;
       const ownerJid = asStr(pick(inst, ['ownerJid', 'owner', 'wuid']));
-      if (numberFromOwnerJid(ownerJid) === number) {
+      if (mesmoNumeroWhatsApp(numberFromOwnerJid(ownerJid), number)) {
         return {
           name: asStr(pick(inst, ['name', 'instanceName', 'id'])) ?? '',
           ownerJid,
@@ -283,4 +283,19 @@ export function numberFromOwnerJid(ownerJid: string | null): string {
   const at = ownerJid.indexOf('@');
   const raw = at === -1 ? ownerJid : ownerJid.slice(0, at);
   return raw.replace(/\D/g, '');
+}
+
+/** NONO DÍGITO (2026-08-31, número 41 9802-8530): no Brasil o MESMO telefone
+ *  circula com e sem o 9 extra — o JID do WhatsApp costuma vir SEM o 9 em
+ *  números antigos, enquanto o dono digita COM. Forma canônica: sem o 9. */
+function canonicoBr(numero: string): string {
+  const d = numero.replace(/\D/g, '');
+  if (d.startsWith('55') && d.length === 13 && d[4] === '9') return d.slice(0, 4) + d.slice(5);
+  return d;
+}
+
+/** O mesmo telefone, tolerante ao nono dígito brasileiro. Vazio nunca casa. */
+export function mesmoNumeroWhatsApp(a: string, b: string): boolean {
+  const ca = canonicoBr(a);
+  return ca !== '' && ca === canonicoBr(b);
 }

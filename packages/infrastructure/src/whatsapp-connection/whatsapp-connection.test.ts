@@ -101,6 +101,17 @@ describe('EvolutionInstanceClient — parse defensivo', () => {
     expect(await new EvolutionInstanceClient(http, cfg).findInstanceByNumber('000')).toBeNull();
   });
 
+  it('findInstanceByNumber casa número COM e SEM o nono dígito brasileiro', async () => {
+    const semNono = '554198028530'; // como o JID costuma vir
+    const http = new FakeEvoHttp(() => ({
+      status: 200,
+      body: [{ name: 'nova', ownerJid: `${semNono}@s.whatsapp.net`, connectionStatus: 'open' }],
+    }));
+    // Procurando pela forma COM o 9 (como o dono digita no .env):
+    const snap = await new EvolutionInstanceClient(http, cfg).findInstanceByNumber('5541998028530');
+    expect(snap).toMatchObject({ name: 'nova', state: 'open' });
+  });
+
   it('logout/delete usam DELETE nos endpoints certos', async () => {
     const http = new FakeEvoHttp(() => ({ status: 200, body: {} }));
     const c = new EvolutionInstanceClient(http, cfg);
@@ -173,6 +184,26 @@ describe('WhatsAppConnectionRuntime', () => {
       error: null,
     });
     expect((await store.load())?.evolution.whatsappNumber).toBe(OFFICIAL);
+  });
+
+  // NONO DÍGITO (2026-08-31, número 41 9802-8530): o JID do WhatsApp costuma vir
+  // SEM o 9 do celular brasileiro, e o dono configura COM — o mesmo telefone.
+  it('confirm aceita o ownerJid COM o nono dígito quando o oficial está sem (mesmo telefone)', async () => {
+    const comNono = `${OFFICIAL.slice(0, 4)}9${OFFICIAL.slice(4)}`; // 5541 9 37989737
+    const { rt, store } = runtime(() => ({
+      status: 200,
+      body: [
+        {
+          name: 'reconstrua-prod',
+          ownerJid: `${comNono}@s.whatsapp.net`,
+          connectionStatus: 'open',
+        },
+      ],
+    }));
+    const r = await rt.confirm('reconstrua-prod', { role: 'admin' });
+    expect(r).toMatchObject({ connected: true, matchesOfficial: true, error: null });
+    // Persiste o número REAL do JID (a forma que a Evolution enxerga).
+    expect((await store.load())?.evolution.whatsappNumber).toBe(comNono);
   });
 
   it('confirm com número DIVERGENTE → NÃO ativa e devolve o erro exato', async () => {

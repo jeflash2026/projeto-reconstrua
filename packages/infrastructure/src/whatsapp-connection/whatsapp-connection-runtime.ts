@@ -13,7 +13,7 @@ import type { ConfigStore, ProductionConfig } from '@reconstrua/application';
 import { DEFAULT_PRODUCTION_CONFIG } from '@reconstrua/application';
 import type { ObservabilityRuntime } from '@reconstrua/application';
 import type { EvolutionInstanceClient } from './evolution-instance-client.js';
-import { numberFromOwnerJid } from './evolution-instance-client.js';
+import { mesmoNumeroWhatsApp, numberFromOwnerJid } from './evolution-instance-client.js';
 
 export interface WhatsAppActor {
   /** Perfil que executa a ação (para auditoria e gate). */
@@ -156,7 +156,7 @@ export class WhatsAppConnectionRuntime {
     // GO-LIVE-06 (BUG 2): se a instância configurada não está conectada ao número
     // oficial, DESCOBRE a instância real pelo número (o nome configurado pode estar
     // errado no .env/config). A aplicação passa a refletir a instância correta.
-    if (live === null || live.number !== this.deps.officialNumber) {
+    if (live === null || !mesmoNumeroWhatsApp(live.number, this.deps.officialNumber)) {
       const byNumber = await this.deps.client.findInstanceByNumber(this.deps.officialNumber);
       if (byNumber !== null) {
         this.lastSyncAt = this.deps.clock.now();
@@ -181,8 +181,11 @@ export class WhatsAppConnectionRuntime {
       pending: hasPendingApply ? { instance: pendingInstance, number: pendingNumber } : null,
       hasPendingApply,
       live,
+      // NONO DÍGITO (2026-08-31): o JID pode vir sem o 9 do celular brasileiro.
       matchesOfficial:
-        live !== null && live.number === this.deps.officialNumber && live.state === 'open',
+        live !== null &&
+        mesmoNumeroWhatsApp(live.number, this.deps.officialNumber) &&
+        live.state === 'open',
       officialNumber: this.deps.officialNumber,
       webhookUrl: this.deps.webhookUrl,
       lastSyncAt: this.lastSyncAt?.toISOString() ?? null,
@@ -190,7 +193,9 @@ export class WhatsAppConnectionRuntime {
       // GO-LIVE-06 (BUG 2): a instância REALMENTE detectada pelo número oficial
       // (pode diferir da configurada). null quando não há nenhuma conectada ao número.
       resolvedInstance:
-        live !== null && live.number === this.deps.officialNumber ? resolvedInstance : null,
+        live !== null && mesmoNumeroWhatsApp(live.number, this.deps.officialNumber)
+          ? resolvedInstance
+          : null,
     };
   }
 
@@ -223,7 +228,9 @@ export class WhatsAppConnectionRuntime {
     const ownerJid = snap?.ownerJid ?? null;
     const number = numberFromOwnerJid(ownerJid);
     const open = snap?.state === 'open';
-    const matchesOfficial = open && number === this.deps.officialNumber;
+    // NONO DÍGITO (2026-08-31): '5541998028530' (digitado) e '554198028530'
+    // (JID) são o MESMO telefone — a igualdade estrita rejeitava a conexão.
+    const matchesOfficial = open && mesmoNumeroWhatsApp(number, this.deps.officialNumber);
 
     if (!matchesOfficial) {
       this.audit(

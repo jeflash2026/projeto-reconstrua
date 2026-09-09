@@ -1406,7 +1406,49 @@ export function buildAdminServer(
   //    SENHA da caixa nunca sai em lista: só no POST de revelar, com trilha. ──
   app.get('/admin/corvo', async (_request, reply) => {
     if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
-    return opts.corvo.visaoAdmin();
+    const visao = await opts.corvo.visaoAdmin();
+    // POR ADVOGADO (2026-09-09): quantos CONTRATOS estão nos envios de cada
+    // advogado — a atribuição real (work.myMissions) liga cliente→advogado, e
+    // a contagem vem do registro do envio (registros antigos: contagem viva).
+    const advogados = await op.staff.list('advogado').catch(() => []);
+    const listaClientes = op.clientes ? await op.clientes.list().catch(() => []) : [];
+    const chatPorMissao = new Map<string, string>();
+    for (const c of listaClientes)
+      if (c.missionId !== null) chatPorMissao.set(c.missionId, c.chatId);
+    const advogadoPorChat = new Map<string, string>();
+    for (const a of advogados) {
+      const atribuicoes = op.work ? await op.work.myMissions(a.id).catch(() => []) : [];
+      for (const t of atribuicoes) {
+        const chatId = t.chatId ?? chatPorMissao.get(t.missionId) ?? null;
+        if (chatId !== null && !advogadoPorChat.has(chatId)) advogadoPorChat.set(chatId, a.name);
+      }
+    }
+    const importacoes = [];
+    for (const i of visao.importacoes) {
+      const contratosEnviados =
+        i.contratosEnviados ??
+        (i.estado === 'ENVIADO'
+          ? await opts.corvo.contratosPrevistos(i.chatId).catch(() => null)
+          : null);
+      importacoes.push({
+        ...i,
+        contratosEnviados,
+        advogado: advogadoPorChat.get(i.chatId) ?? null,
+      });
+    }
+    const porAdvogadoMapa = new Map<string, { clientes: number; contratos: number }>();
+    for (const i of importacoes) {
+      if (i.estado !== 'ENVIADO') continue;
+      const nome = i.advogado ?? 'Sem advogado atribuído';
+      const atual = porAdvogadoMapa.get(nome) ?? { clientes: 0, contratos: 0 };
+      atual.clientes += 1;
+      atual.contratos += i.contratosEnviados ?? 0;
+      porAdvogadoMapa.set(nome, atual);
+    }
+    const porAdvogado = [...porAdvogadoMapa.entries()]
+      .map(([advogado, v]) => ({ advogado, clientes: v.clientes, contratos: v.contratos }))
+      .sort((a, b) => b.contratos - a.contratos);
+    return { ...visao, importacoes, porAdvogado };
   });
   app.get('/admin/corvo/cliente/:clienteId', async (request, reply) => {
     if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });

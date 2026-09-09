@@ -105,6 +105,9 @@ export interface ImportacaoCorvo {
   readonly bancos: readonly BancoDoLead[];
   readonly caixaStatus: string | null;
   readonly recebidoPeloCorvoEm: string | null;
+  /** Quantas LINHAS DE CONTRATO foram na planilha deste envio (2026-09-09).
+   *  Ausente em registros antigos — a tela cai na contagem viva. */
+  readonly contratosEnviados?: number | null;
 }
 
 interface SenhaCifrada {
@@ -210,8 +213,13 @@ export interface CorvoDeps {
   readonly chaveCredencial: string;
   readonly observability: CorvoObservabilidade;
   readonly cpfDe: (chatId: string) => Promise<string | null>;
-  /** Contratos SELECIONADOS pelo guia (os que viram processo). null = ilegível. */
+  /** Contratos do PEDIDO ADMINISTRATIVO — decreto 2026-09-09 (caso ADONIRAM):
+   *  TODOS os da janela de 5 anos, não só os selecionados pelo guia. null = ilegível. */
   readonly contratosDe: (chatId: string) => Promise<readonly ContratoDoLead[] | null>;
+  /** CRONÔMETRO DO PEDIDO (decreto 2026-09-09): um envio CONCLUÍDO ao Corvo
+   *  refaz o pedido administrativo — o prazo de 10 dias do card do perito
+   *  reinicia a contar deste envio. Best-effort: falha nunca derruba o envio. */
+  readonly aoEnviar?: (chatId: string, em: Date) => Promise<void>;
   readonly documentosDe: (chatId: string) => Promise<readonly DocumentoColetado[]>;
   /** PONTE COM A PERÍCIA (2026-08-28): a credencial da caixa recém-chegada é
    *  propagada ao registro do fluxo (o card "Credenciais do pedido" do perito
@@ -381,6 +389,7 @@ export class CorvoService {
         bancos: cliente?.bancos ?? [],
         caixaStatus: cliente?.caixa.status ?? null,
         recebidoPeloCorvoEm: anterior?.recebidoPeloCorvoEm ?? null,
+        contratosEnviados: contratos.length,
       } satisfies ImportacaoCorvo);
       this.deps.observability.event(
         'corvo',
@@ -388,6 +397,9 @@ export class CorvoService {
         agora,
         `cliente=${m.nome} bancos=${String(cliente?.bancos.length ?? 0)} contratos=${String(contratos.length)}`,
       );
+      // CRONÔMETRO DO PEDIDO (2026-09-09): o prazo de 10 dias reinicia a contar
+      // DESTE envio — o pedido administrativo acabou de ser (re)feito aos bancos.
+      await this.deps.aoEnviar?.(m.chatId, agora).catch(() => undefined);
       return 'enviado';
     }
 
@@ -766,6 +778,13 @@ export class CorvoService {
   }
 
   // ── D. Leituras do Admin (tela) + credencial ────────────────────────────────
+
+  /** Quantas linhas de contrato o pedido de HOJE teria (2026-09-09) — a
+   *  contagem viva para registros antigos sem `contratosEnviados`. */
+  async contratosPrevistos(chatId: string): Promise<number | null> {
+    const contratos = await this.deps.contratosDe(chatId).catch(() => null);
+    return contratos === null ? null : contratos.length;
+  }
 
   async visaoAdmin(): Promise<{
     ativa: boolean;

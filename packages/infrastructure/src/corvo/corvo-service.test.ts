@@ -339,6 +339,34 @@ describe('fila de envio (gatilho: perícia iniciada) — idempotência e retry',
     const imp = (await json.get('corvo-importacoes', 'cli-1')) as ImportacaoCorvo;
     expect(imp.estado).toBe('ENVIADO');
     expect(imp.importacaoId).toBe('imp-1');
+    // 2026-09-09: o registro guarda quantas linhas de contrato foram na planilha.
+    expect(imp.contratosEnviados).toBe(1);
+  });
+
+  // ── CRONÔMETRO DO PEDIDO (decreto 2026-09-09): todo envio CONCLUÍDO dispara
+  // aoEnviar (o prazo de 10 dias do card do perito reinicia a contar dali). ──
+  it('envio concluído chama aoEnviar com o chat e o instante; falha do gancho não derruba', async () => {
+    const { client } = clienteFalso([]);
+    const chamadas: { chatId: string; em: string }[] = [];
+    const { svc } = servico({
+      client,
+      aoEnviar: (chatId, em) => {
+        chamadas.push({ chatId, em: em.toISOString() });
+        return Promise.reject(new Error('gancho quebrado')); // nunca derruba o envio
+      },
+    });
+    await agendar(svc);
+    expect(await svc.varrerEEnviar()).toEqual({ enviados: 1, erros: 0 });
+    expect(chamadas).toHaveLength(1);
+    expect(chamadas[0]?.chatId).toBe(O_PEDIDO.chatId);
+    expect(chamadas[0]?.em).toBe(AGORA.toISOString());
+  });
+
+  it('contratosPrevistos devolve a contagem viva do pedido (e null sem HISCON)', async () => {
+    const { svc } = servico();
+    expect(await svc.contratosPrevistos(O_PEDIDO.chatId)).toBe(1);
+    const { svc: semHiscon } = servico({ contratosDe: () => Promise.resolve(null) });
+    expect(await semHiscon.contratosPrevistos(O_PEDIDO.chatId)).toBe(null);
   });
 
   it('documento NOVO muda a assinatura ⇒ reenvia (modo mesclar) com key nova', async () => {

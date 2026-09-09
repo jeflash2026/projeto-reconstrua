@@ -2999,6 +2999,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         provedor: 'Caixa do pedido (Corvo/webmail)',
       });
     },
+    // CRONÔMETRO DO PEDIDO (decreto 2026-09-09): todo envio concluído ao Corvo
+    // reinicia o prazo de 10 dias do card do perito — o pedido administrativo
+    // acabou de ser (re)feito aos bancos, a espera conta dali.
+    aoEnviar: async (chatId, em) => {
+      await periciaFluxo.reiniciarPrazo(chatId, em);
+    },
     // Dossiê de integridade (2026-08-26): o ZIP probatório vai ao MESMO media
     // store content-addressed dos documentos (storage privado; nunca público).
     media: mediaStore,

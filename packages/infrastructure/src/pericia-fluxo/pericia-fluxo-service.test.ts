@@ -105,3 +105,26 @@ describe('preencherCredenciaisSeVazio — a credencial manual nunca é sobrescri
     expect(p?.credenciais?.senha).toBe('s');
   });
 });
+
+// ── CRONÔMETRO DO PEDIDO (2026-09-09): o prazo de 10 dias conta do ÚLTIMO
+// envio ao Corvo — reenvio em massa reabre a contagem, e perícia CONCLUÍDA
+// volta a "em andamento" (o prazo é derivação pura de iniciadaEm). ───────────
+describe('reiniciarPrazo — o relógio conta do último envio ao Corvo', () => {
+  it('reinicia o prazo e traz a perícia vencida de volta a EM ANDAMENTO', async () => {
+    const agora = { now: new Date('2026-08-01T12:00:00.000Z') };
+    const svc = new PericiaFluxoService({ json: new InMemoryJsonStore(), clock: clockDe(agora) });
+    await svc.iniciar('chat-r', 'cli-r', 'MARIA');
+    // 20 dias depois: prazo de 10 dias VENCIDO (concluída).
+    agora.now = new Date('2026-08-21T12:00:00.000Z');
+    expect((await svc.concluidas()).map((p) => p.chatId)).toEqual(['chat-r']);
+    // Reenvio ao Corvo hoje ⇒ o relógio reinicia deste instante.
+    expect(await svc.reiniciarPrazo('chat-r', agora.now)).toEqual({ ok: true });
+    const [p] = await svc.emAndamento();
+    expect(p?.chatId).toBe('chat-r');
+    expect(p?.iniciadaEm).toBe('2026-08-21T12:00:00.000Z');
+    expect(p?.expirado).toBe(false);
+    expect(p?.diasRestantes).toBe(10); // prazo cheio de novo
+    // Sem registro em fluxo: nada a reiniciar.
+    expect(await svc.reiniciarPrazo('chat-inexistente', agora.now)).toEqual({ ok: false });
+  });
+});

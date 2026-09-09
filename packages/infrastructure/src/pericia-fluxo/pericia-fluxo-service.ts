@@ -89,6 +89,20 @@ export class PericiaFluxoService {
     await this.deps.json.put(NS, chatId, { ...existente, quem });
   }
 
+  /** CRONÔMETRO DO PEDIDO (decreto 2026-09-09, reenvio em massa ao Corvo):
+   *  cada envio CONCLUÍDO ao Corvo REFAZ o pedido administrativo — o prazo de
+   *  10 dias passa a contar do ÚLTIMO envio. Perícia já CONCLUÍDA volta a
+   *  "em andamento" naturalmente (o prazo é derivação pura de iniciadaEm). */
+  async reiniciarPrazo(chatId: string, em: Date): Promise<{ ok: boolean }> {
+    const r = await this.recordDe(chatId);
+    if (r === null) return { ok: false };
+    await this.deps.json.put(NS, chatId, {
+      ...r,
+      iniciadaEm: em.toISOString(),
+    } satisfies PericiaFluxoRecord);
+    return { ok: true };
+  }
+
   /** Inicia em lote (o "baixar todos"): retorna quantos ENTRARAM agora (novos). */
   async iniciarVarios(
     itens: readonly { chatId: string; clienteId: string; quem: string }[],

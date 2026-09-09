@@ -17,12 +17,18 @@ export interface ImportacaoCorvoView {
   bancos: { codigo: string; nome: string }[];
   caixaStatus: string | null;
   recebidoPeloCorvoEm: string | null;
+  /** 2026-09-09: linhas de contrato do último envio (antigos: contagem viva). */
+  contratosEnviados?: number | null;
+  /** 2026-09-09: advogado a quem o cliente está atribuído (atribuição real). */
+  advogado?: string | null;
 }
 
 export interface VisaoCorvo {
   ativa: boolean;
   importacoes: ImportacaoCorvoView[];
   totais: { enviados: number; pendentes: number; erros: number; caixas: number; respostas: number };
+  /** 2026-09-09: contratos nos envios, somados por advogado atribuído. */
+  porAdvogado?: { advogado: string; clientes: number; contratos: number }[];
 }
 
 const ROTULO_ESTADO: Record<ImportacaoCorvoView['estado'], string> = {
@@ -84,6 +90,36 @@ export default function CorvoBancos({ visao }: { visao: VisaoCorvo }): ReactElem
         </div>
       </div>
 
+      {visao.porAdvogado !== undefined && visao.porAdvogado.length > 0 ? (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3>Contratos enviados, por advogado</h3>
+          <p className="page-sub">
+            Soma das linhas de contrato dos envios ENVIADOS, agrupada pelo advogado a quem cada
+            cliente está atribuído.
+          </p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Advogado</th>
+                  <th>Clientes enviados</th>
+                  <th>Contratos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visao.porAdvogado.map((l) => (
+                  <tr key={l.advogado}>
+                    <td style={{ fontWeight: 600 }}>{l.advogado}</td>
+                    <td>{l.clientes}</td>
+                    <td>{l.contratos}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
       <div className="card">
         <h3>Clientes na correspondência ({visao.importacoes.length})</h3>
         {visao.importacoes.length === 0 ? (
@@ -97,8 +133,10 @@ export default function CorvoBancos({ visao }: { visao: VisaoCorvo }): ReactElem
               <thead>
                 <tr>
                   <th>Cliente</th>
+                  <th>Advogado</th>
                   <th>Estado</th>
                   <th>Bancos</th>
+                  <th>Contratos</th>
                   <th>Caixa</th>
                   <th>Enviado em</th>
                   <th />
@@ -110,6 +148,7 @@ export default function CorvoBancos({ visao }: { visao: VisaoCorvo }): ReactElem
                     <td style={{ fontWeight: 600 }}>
                       <Link href={`/corvo/${encodeURIComponent(i.clienteId)}`}>{i.nome}</Link>
                     </td>
+                    <td>{i.advogado ?? '—'}</td>
                     <td>
                       <span
                         className={
@@ -130,6 +169,7 @@ export default function CorvoBancos({ visao }: { visao: VisaoCorvo }): ReactElem
                       ) : null}
                     </td>
                     <td>{i.bancos.length > 0 ? i.bancos.map((b) => b.nome).join(', ') : '—'}</td>
+                    <td>{i.contratosEnviados ?? '—'}</td>
                     <td>{i.caixaStatus ?? '—'}</td>
                     <td>
                       {i.enviadoEm === null ? '—' : new Date(i.enviadoEm).toLocaleString('pt-BR')}

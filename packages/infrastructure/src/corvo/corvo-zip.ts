@@ -13,6 +13,7 @@
 // UTF-8 (o zipStore liga o bit 11). A planilha é .xlsx REAL (nunca CSV) com o
 // CPF como TEXTO (zeros à esquerda preservados) e linha em branco entre bancos.
 // ─────────────────────────────────────────────────────────────────────────────
+import { contratosDaJanela, type ContratoHiscon } from '@reconstrua/application';
 import { zipStore, nomeArquivoSeguro, type ArquivoZip } from '../util/zip.js';
 import { xlsxDePlanilha } from '../util/xlsx.js';
 
@@ -44,6 +45,38 @@ export interface ContratoDoLead {
   readonly inicio: string | null;
   readonly fim: string | null;
   readonly situacao: string | null;
+}
+
+/** DECRETO 2026-09-09 (caso ADONIRAM: perfil com 70 contratos/16 bancos e o
+ *  e-mail do Corvo com ~30/5): o PEDIDO ADMINISTRATIVO cobre TODOS os
+ *  contratos da JANELA de 5 anos. A seleção do guia (trios completos, teto de
+ *  15 por banco, sobras fora) serve para CONTAR PROCESSOS do modelo comercial
+ *  — não para decidir o que os bancos são notificados a responder. Dedupe por
+ *  contrato+banco (o mesmo número nunca vira duas linhas). */
+export function contratosDoPedidoAdministrativo(
+  contratos: readonly ContratoHiscon[],
+  hoje: Date,
+): ContratoDoLead[] {
+  const vistos = new Set<string>();
+  const out: ContratoDoLead[] = [];
+  for (const c of contratosDaJanela(contratos, hoje)) {
+    const chave = `${c.contrato}|${c.bancoCodigo ?? ''}`;
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    out.push({
+      bancoCodigo: c.bancoCodigo,
+      bancoNome: c.bancoNome,
+      contrato: c.contrato,
+      modalidade: c.modalidade === 'EMPRESTIMO' ? 'EMPRÉSTIMO CONSIGNADO' : c.modalidade,
+      valorEmprestado: c.valorEmprestado,
+      qtdeParcelas: c.qtdeParcelas,
+      valorParcela: c.valorParcela,
+      inicio: c.competenciaInicio,
+      fim: c.competenciaFim,
+      situacao: c.situacao,
+    });
+  }
+  return out;
 }
 
 export const COLUNAS_PLANILHA_CORVO = [

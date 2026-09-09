@@ -233,7 +233,7 @@ import { JuridicoService } from '../juridico/juridico-service.js';
 import { DatajudClient } from '../juridico/datajud-client.js';
 import { CorvoClient } from '../corvo/corvo-client.js';
 import { CorvoService, type DocumentoColetado } from '../corvo/corvo-service.js';
-import type { ContratoDoLead } from '../corvo/corvo-zip.js';
+import { contratosDoPedidoAdministrativo } from '../corvo/corvo-zip.js';
 import { PericiaFluxoService } from '../pericia-fluxo/index.js';
 import { MapaClientesService } from '../mapa-clientes/index.js';
 import { CreditosAdvogadoService } from '../advogado/creditos-advogado.js';
@@ -3007,33 +3007,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       const r = (await json.get('jornada', chatId)) as { cpf?: string | null } | null;
       return r?.cpf ?? null;
     },
-    // Os contratos do ZIP são os SELECIONADOS pelo guia (os que viram processo)
-    // — exatamente o que os bancos serão notificados a responder.
+    // DECRETO 2026-09-09 (caso ADONIRAM: perfil com 70 contratos/16 bancos e o
+    // e-mail do Corvo com ~30/5): o PEDIDO ADMINISTRATIVO cobre TODOS os
+    // contratos da JANELA de 5 anos — a seleção do guia (trios completos, teto
+    // de 15 por banco, sobras fora) vale para CONTAR PROCESSOS do modelo
+    // comercial, não para decidir o que os bancos são notificados a responder.
+    // Banco cujos contratos eram só "sobra de trio" voltou a aparecer no envio.
     contratosDe: async (chatId) => {
-      const acoes = await pericia.acoesDe(chatId);
-      if (acoes === null) return null;
-      const vistos = new Set<string>();
-      const out: ContratoDoLead[] = [];
-      for (const acao of acoes.agrupamento.acoes) {
-        for (const c of acao.contratos) {
-          const chave = `${c.contrato}|${c.bancoCodigo ?? ''}`;
-          if (vistos.has(chave)) continue;
-          vistos.add(chave);
-          out.push({
-            bancoCodigo: c.bancoCodigo,
-            bancoNome: c.bancoNome,
-            contrato: c.contrato,
-            modalidade: c.modalidade === 'EMPRESTIMO' ? 'EMPRÉSTIMO CONSIGNADO' : c.modalidade,
-            valorEmprestado: c.valorEmprestado,
-            qtdeParcelas: c.qtdeParcelas,
-            valorParcela: c.valorParcela,
-            inicio: c.competenciaInicio,
-            fim: c.competenciaFim,
-            situacao: c.situacao,
-          });
-        }
-      }
-      return out;
+      const extraido = await pericia.hisconDe(chatId);
+      if (extraido === null || extraido.contratos.length === 0) return null;
+      const out = contratosDoPedidoAdministrativo(extraido.contratos, clock.now());
+      return out.length === 0 ? null : out;
     },
     documentosDe: async (chatId) => {
       const out: DocumentoColetado[] = [];

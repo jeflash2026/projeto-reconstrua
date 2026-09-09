@@ -94,3 +94,83 @@ describe('montarZipDoLead — o formato que o Corvo classifica', () => {
     expect(conteudo.match(/<row /g)?.length).toBe(4);
   });
 });
+
+// ── DECRETO 2026-09-09 (caso ADONIRAM): o pedido administrativo cobre TODOS os
+// contratos da JANELA de 5 anos — a seleção do guia (trios/teto/sobras) conta
+// PROCESSOS do modelo comercial, não decide o que os bancos respondem. ────────
+import { contratosDoPedidoAdministrativo } from './corvo-zip.js';
+import type { ContratoHiscon } from '@reconstrua/application';
+
+function contratoHiscon(parcial: Partial<ContratoHiscon>): ContratoHiscon {
+  return {
+    contrato: 'C-1',
+    bancoCodigo: '341',
+    bancoNome: 'ITAU',
+    situacao: 'Ativo',
+    origemAverbacao: null,
+    migrado: false,
+    migradoDoContrato: null,
+    migradoDoCbc: null,
+    modalidade: 'EMPRESTIMO',
+    dataInclusao: new Date('2025-03-10T00:00:00Z'),
+    competenciaInicio: '04/2025',
+    competenciaFim: null,
+    qtdeParcelas: 84,
+    valorParcela: 100,
+    valorEmprestado: 5000,
+    valorLiberado: null,
+    iof: null,
+    cetMensal: null,
+    cetAnual: null,
+    taxaJurosMensal: null,
+    taxaJurosAnual: null,
+    valorPago: null,
+    dataPrimeiroDesconto: null,
+    ...parcial,
+  };
+}
+
+describe('contratosDoPedidoAdministrativo — a janela INTEIRA, não a seleção do guia', () => {
+  const HOJE = new Date('2026-09-09T12:00:00Z');
+
+  it('sobra de trio ENTRA: 4 não-ativos do mesmo banco/ano = 4 linhas (o guia mandaria 3)', () => {
+    const naoAtivo = (n: string): ContratoHiscon =>
+      contratoHiscon({ contrato: n, situacao: 'EXCLUÍDO', competenciaFim: '01/2025' });
+    const linhas = contratosDoPedidoAdministrativo(
+      [naoAtivo('A'), naoAtivo('B'), naoAtivo('C'), naoAtivo('D')],
+      HOJE,
+    );
+    expect(linhas.map((l) => l.contrato).sort()).toEqual(['A', 'B', 'C', 'D']);
+  });
+
+  it('banco só com sobras APARECE; fora da janela de 5 anos fica FORA; RMC entra', () => {
+    const linhas = contratosDoPedidoAdministrativo(
+      [
+        // Banco 623 com UM não-ativo (sobra pura — o guia zeraria o banco):
+        contratoHiscon({
+          contrato: 'SOBRA',
+          bancoCodigo: '623',
+          bancoNome: 'PAN',
+          situacao: 'EXCLUÍDO',
+          competenciaFim: '02/2024',
+        }),
+        // Fora da janela (encerrado há mais de 5 anos):
+        contratoHiscon({ contrato: 'VELHO', situacao: 'EXCLUÍDO', competenciaFim: '01/2019' }),
+        // RMC ativo:
+        contratoHiscon({ contrato: 'CARTAO', modalidade: 'RMC' }),
+      ],
+      HOJE,
+    );
+    expect(linhas.map((l) => l.contrato).sort()).toEqual(['CARTAO', 'SOBRA']);
+    expect(linhas.find((l) => l.contrato === 'CARTAO')?.modalidade).toBe('RMC');
+  });
+
+  it('dedupe por contrato+banco e modalidade EMPRESTIMO vira o rótulo do Corvo', () => {
+    const linhas = contratosDoPedidoAdministrativo(
+      [contratoHiscon({ contrato: 'X' }), contratoHiscon({ contrato: 'X' })],
+      HOJE,
+    );
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0]?.modalidade).toBe('EMPRÉSTIMO CONSIGNADO');
+  });
+});

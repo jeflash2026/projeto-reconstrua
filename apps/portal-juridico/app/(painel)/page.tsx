@@ -7,12 +7,20 @@ import { getJson, moeda, dataBr, ROTULO_SITUACAO, type DashboardJuridico } from 
 
 export const dynamic = 'force-dynamic';
 
+const dois = (n: number): string => String(n).padStart(2, '0');
+
+/** Data e hora em BRASÍLIA (UTC-3 fixo). O servidor do painel roda em UTC:
+ *  toLocale* sem fuso mostrava a hora 3h adiantada. */
 function horaBr(iso: string | null): string {
   if (iso === null) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? '—'
-    : `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '—';
+  const d = new Date(t - 3 * 60 * 60 * 1000);
+  return `${dois(d.getUTCDate())}/${dois(d.getUTCMonth() + 1)}/${String(d.getUTCFullYear())} ${dois(d.getUTCHours())}:${dois(d.getUTCMinutes())}`;
+}
+
+function soHoraBr(iso: string): string {
+  return horaBr(iso).slice(-5);
 }
 
 export default async function DashboardPage(): Promise<ReactElement> {
@@ -121,6 +129,14 @@ export default async function DashboardPage(): Promise<ReactElement> {
                 abrir a fila →
               </div>
             </a>
+            <div className="card ok">
+              <div className="rotulo">Distribuídos hoje</div>
+              <div className="valor">{dados.distribuidosHoje?.processos ?? 0}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', fontWeight: 600 }}>
+                {dados.distribuidosHoje?.clientes ?? 0} cliente(s) ·{' '}
+                {dataBr(dados.distribuidosHoje?.dia ?? null)}
+              </div>
+            </div>
             <div className="card">
               <div className="rotulo">Clientes</div>
               <div className="valor">{dados.clientes}</div>
@@ -149,6 +165,41 @@ export default async function DashboardPage(): Promise<ReactElement> {
               <div className="valor">{dados.periciasProximas.length}</div>
             </div>
           </div>
+
+          {/* ── PROCESSOS DISTRIBUÍDOS HOJE (2026-09-10) ─────────────────── */}
+          {dados.distribuidosHoje !== undefined && dados.distribuidosHoje.itens.length > 0 ? (
+            <section style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: '1.05rem' }}>
+                Processos distribuídos hoje ({dados.distribuidosHoje.processos})
+              </h2>
+              <div className="tabela-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Cliente</th>
+                      <th>Banco</th>
+                      <th>Processo</th>
+                      <th>Cadastrado às</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dados.distribuidosHoje.itens.map((p) => (
+                      <tr key={p.processo}>
+                        <td style={{ fontWeight: 600 }}>{p.clienteNome}</td>
+                        <td>{p.banco}</td>
+                        <td className="mono" style={{ fontSize: 12.5 }}>
+                          <a href={`/juridico/processos?q=${encodeURIComponent(p.processo)}`}>
+                            {p.processo}
+                          </a>
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{soHoraBr(p.em)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
 
           <div className="grade-2">
             <section>

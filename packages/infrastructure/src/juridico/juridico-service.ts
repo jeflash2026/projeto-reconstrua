@@ -235,6 +235,57 @@ function valorNumerico(v: unknown): number | null {
   return null;
 }
 
+/** PROCESSOS DISTRIBUÍDOS NO DIA (2026-09-10) — o card do dashboard. */
+export interface DistribuidosNoDia {
+  /** O dia civil em Brasília (AAAA-MM-DD). */
+  readonly dia: string;
+  readonly processos: number;
+  readonly clientes: number;
+  readonly itens: readonly {
+    readonly processo: string;
+    readonly banco: string;
+    readonly clienteNome: string;
+    readonly em: string;
+  }[];
+}
+
+/** Dia civil em Brasília (UTC-3 fixo — sem horário de verão desde 2019). */
+export function diaEmBrasilia(d: Date): string {
+  return new Date(d.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** Processo = nº CNJ. Conta no dia em que o PRIMEIRO contrato dele foi
+ *  cadastrado — contrato novo num processo antigo não conta de novo; os
+ *  excluídos ficam fora. */
+export function distribuidosNoDia(
+  contratos: readonly ContratoJuridico[],
+  nomePorCliente: ReadonlyMap<string, string>,
+  agora: Date,
+): DistribuidosNoDia {
+  const hoje = diaEmBrasilia(agora);
+  const primeiro = new Map<string, ContratoJuridico>();
+  for (const c of contratos) {
+    if (c.status === 'excluido') continue;
+    const chave = c.processoNumero.replace(/\D/g, '');
+    const atual = primeiro.get(chave);
+    if (atual === undefined || c.em < atual.em) primeiro.set(chave, c);
+  }
+  const doDia = [...primeiro.values()]
+    .filter((c) => diaEmBrasilia(new Date(c.em)) === hoje)
+    .sort((a, b) => b.em.localeCompare(a.em));
+  return {
+    dia: hoje,
+    processos: doDia.length,
+    clientes: new Set(doDia.map((c) => c.clienteId)).size,
+    itens: doDia.map((c) => ({
+      processo: c.processoNumero,
+      banco: c.banco,
+      clienteNome: nomePorCliente.get(c.clienteId) ?? '—',
+      em: c.em,
+    })),
+  };
+}
+
 export class JuridicoService {
   constructor(private readonly deps: JuridicoDeps) {}
 
@@ -1054,6 +1105,7 @@ export class JuridicoService {
     recentes: readonly (ContratoJuridico & { clienteNome: string })[];
     porBanco: readonly { banco: string; total: number }[];
     historico: readonly EventoHistorico[];
+    distribuidosHoje: DistribuidosNoDia;
   }> {
     const [clientes, contratos, eventos, guias, pericias, andamentos] = await Promise.all([
       this.listarClientes(),
@@ -1150,6 +1202,7 @@ export class JuridicoService {
         .sort((a, b) => b.total - a.total)
         .slice(0, 8),
       historico: eventos,
+      distribuidosHoje: distribuidosNoDia(contratos, nomePorCliente, this.deps.clock.now()),
     };
   }
 }

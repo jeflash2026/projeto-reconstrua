@@ -150,6 +150,14 @@ export interface DashboardJuridico {
   recentes: (ContratoJuridico & { clienteNome: string })[];
   porBanco: { banco: string; total: number }[];
   historico: { texto: string; detalhe: string; autor: string; em: string }[];
+  /** 2026-09-10: processos (nº CNJ) cujo 1º contrato foi cadastrado hoje (Brasília).
+   *  Opcional: API anterior ao deploy não manda — o card mostra 0. */
+  distribuidosHoje?: {
+    dia: string;
+    processos: number;
+    clientes: number;
+    itens: { processo: string; banco: string; clienteNome: string; em: string }[];
+  };
 }
 
 export function moeda(valor: number | null): string {

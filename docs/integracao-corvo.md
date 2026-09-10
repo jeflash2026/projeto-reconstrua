@@ -136,3 +136,26 @@ Corvo gera por CPF em `GET /api/integracao/dossie/{cpf}` (X-Api-Key).
   `apps/api/src/production/main.ts`, webhook em `production-server.ts`, rotas
   Admin em `admin-server.ts` (`/admin/corvo*`), tela em
   `apps/portal-administracao/app/(painel)/corvo/`.
+
+## Relay do DJEN (2026-09-10)
+
+O Painel Jurídico acompanha os processos pelo número CNJ. O DataJud (CNJ) deixou
+de receber os processos novos do TJSP depois da migração para o eproc; a fonte
+que traz as publicações (lista de distribuição, intimações com o texto do
+despacho) é a API pública do DJEN — `https://comunicaapi.pje.jus.br/api/v1/comunicacao`.
+Essa API só responde a IP do Brasil (403 fora), e a nossa VPS está nos EUA.
+
+Por isso a consulta passa por um **relay no servidor do Corvo** (Brasil):
+
+- `GET {CORVO_BASE_URL}/api/integracao/djen/comunicacao?numeroProcesso=<20 dígitos>`
+- autenticado com a MESMA `X-Api-Key` da integração (sem env nova);
+- o relay repassa só parâmetros permitidos (`numeroProcesso`, `numeroOab`, `ufOab`,
+  `siglaTribunal`, `dataDisponibilizacaoInicio`, `dataDisponibilizacaoFim`,
+  `pagina`, `itensPorPagina`) e devolve o JSON do CNJ **tal como veio**.
+
+Do nosso lado: `DjenClient` (`packages/infrastructure/src/juridico/djen-client.ts`)
+e a mesclagem em `JuridicoService.atualizarAndamentos` (job de 6 em 6 horas e o
+botão "Atualizar andamentos"): cada publicação vira movimento `DJEN · <tipo>` com
+o texto limpo e o link do eproc; intimação vira alerta 📬 no Dashboard. Falha do
+relay aparece literal na tela do processo (ex.: `DJEN respondeu HTTP 404` enquanto
+o relay não existir).

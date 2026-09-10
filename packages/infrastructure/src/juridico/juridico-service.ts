@@ -14,6 +14,7 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
 import type { MediaStorePort } from '../media/media-store-port.js';
+import type { PublicacaoDjen } from './djen-client.js';
 
 const NS_USUARIOS = 'juridico-usuarios';
 const NS_CLIENTES = 'juridico-clientes';
@@ -160,6 +161,47 @@ export interface JuridicoDeps {
   readonly datajud?: {
     consultar(numeroCnj: string): Promise<AndamentoDatajud | null>;
   };
+  /** DJEN (2026-09-10) — as COMUNICAÇÕES publicadas (distribuição, intimações
+   *  com o texto do despacho). O eproc do TJSP não chega ao DataJud; o DJEN é
+   *  quem traz os processos novos. Lança em falha (o erro vai literal à tela). */
+  readonly djen?: {
+    consultar(numeroCnj: string): Promise<readonly PublicacaoDjen[]>;
+  };
+}
+
+/** Um ato do processo: movimentação (DataJud) ou comunicação publicada (DJEN). */
+export interface MovimentoProcesso {
+  readonly nome: string;
+  readonly dataHora: string;
+  /** DJEN: o texto da comunicação (despacho/decisão), já limpo. */
+  readonly texto?: string;
+  readonly link?: string | null;
+  /** Ausente em registros antigos (= DataJud). */
+  readonly fonte?: 'DATAJUD' | 'DJEN';
+}
+
+function chaveMovimento(m: MovimentoProcesso): string {
+  return `${m.nome}|${m.dataHora}|${(m.texto ?? '').slice(0, 120)}`;
+}
+
+/** Junta as fontes: mais recentes primeiro, sem repetir o mesmo ato. */
+function mesclarMovimentos(
+  ...listas: readonly (readonly MovimentoProcesso[])[]
+): MovimentoProcesso[] {
+  const vistos = new Set<string>();
+  const out: MovimentoProcesso[] = [];
+  for (const m of listas.flat()) {
+    const k = chaveMovimento(m);
+    if (vistos.has(k)) continue;
+    vistos.add(k);
+    out.push(m);
+  }
+  return out.sort((a, b) => b.dataHora.localeCompare(a.dataHora)).slice(0, 40);
+}
+
+/** O primeiro texto não-vazio (capa: DataJud manda; DJEN completa). */
+function primeiroTexto(...valores: readonly (string | null | undefined)[]): string {
+  return valores.find((v): v is string => typeof v === 'string' && v !== '') ?? '';
 }
 
 /** O retrato de UM processo no DataJud (persistido em ns 'juridico-andamentos'). */
@@ -172,7 +214,7 @@ export interface AndamentoProcesso {
   readonly grau: string;
   readonly dataAjuizamento: string;
   readonly ultimoMovimento: { readonly nome: string; readonly dataHora: string } | null;
-  readonly movimentos: readonly { readonly nome: string; readonly dataHora: string }[];
+  readonly movimentos: readonly MovimentoProcesso[];
   /** A classe indica fase de EXECUÇÃO (cumprimento de sentença)? */
   readonly emExecucao: boolean;
   /** O último movimento é MAIS NOVO que o da consulta anterior? */
@@ -908,91 +950,133 @@ export class JuridicoService {
     }
   }
 
-  /** Consulta TODOS os processos com contrato não-excluído no DataJud e grava
-   *  o retrato de cada um. Ritmo suave (pausa entre consultas — API pública). */
+  /** Consulta TODOS os processos com contrato não-excluído — DataJud (capa e
+   *  movimentações) + DJEN (publicações: distribuição e intimações com o texto)
+   *  — e grava o retrato de cada um. O eproc do TJSP não chega ao DataJud
+   *  (2026-09-10): o DJEN é quem traz os processos novos. Ritmo suave. */
   async atualizarAndamentos(): Promise<
     | { ok: true; consultados: number; encontrados: number; novidades: number; erros: number }
     | { ok: false; error: string }
   > {
-    const datajud = this.deps.datajud;
-    if (datajud === undefined)
-      return { ok: false, error: 'DataJud não configurado nesta montagem' };
+    const { datajud, djen } = this.deps;
+    if (datajud === undefined && djen === undefined)
+      return { ok: false, error: 'acompanhamento (DataJud/DJEN) não configurado nesta montagem' };
     const contratos = await this.listarContratos();
     const numeros = [
       ...new Set(contratos.filter((c) => c.status !== 'excluido').map((c) => c.processoNumero)),
     ];
+    const mensagem = (e: unknown): string => (e instanceof Error ? e.message : String(e));
     let encontrados = 0;
     let novidades = 0;
     let erros = 0;
     for (const numero of numeros) {
       const chave = numero.replace(/\D/g, '');
       const anterior = (await this.deps.json.get(NS_ANDAMENTOS, chave)) as AndamentoProcesso | null;
-      try {
-        const retrato = await datajud.consultar(numero);
-        if (retrato === null) {
-          await this.deps.json.put(NS_ANDAMENTOS, chave, {
-            numero,
-            tribunal: '',
-            classe: '',
-            orgaoJulgador: '',
-            assunto: '',
-            grau: '',
-            dataAjuizamento: '',
-            ultimoMovimento: anterior?.ultimoMovimento ?? null,
-            movimentos: anterior?.movimentos ?? [],
-            emExecucao: anterior?.emExecucao ?? false,
-            novidade: false,
-            consultadoEm: this.agora(),
-            erro: 'processo não encontrado no DataJud (pode levar dias para indexar)',
-            vistoAte: anterior?.vistoAte ?? null,
-            vistoPor: anterior?.vistoPor ?? null,
-          } satisfies AndamentoProcesso);
-          continue;
+
+      let retrato: AndamentoDatajud | null = null;
+      let erroDatajud: string | null = null;
+      if (datajud !== undefined) {
+        try {
+          retrato = await datajud.consultar(numero);
+        } catch (e) {
+          erroDatajud = mensagem(e);
         }
-        encontrados += 1;
-        const anteriorEm = anterior?.ultimoMovimento?.dataHora ?? null;
-        const novidade =
-          anteriorEm !== null &&
-          retrato.ultimoMovimento !== null &&
-          retrato.ultimoMovimento.dataHora > anteriorEm;
-        if (novidade) novidades += 1;
+      }
+      // null = o DJEN não respondeu nesta rodada (mantém o que já estava guardado).
+      let publicacoes: readonly PublicacaoDjen[] | null = null;
+      let erroDjen: string | null = null;
+      if (djen !== undefined) {
+        try {
+          publicacoes = await djen.consultar(numero);
+        } catch (e) {
+          erroDjen = mensagem(e);
+        }
+      }
+
+      const anteriores = anterior?.movimentos ?? [];
+      const doDatajud: readonly MovimentoProcesso[] =
+        retrato !== null
+          ? retrato.movimentos.map((m) => ({ ...m, fonte: 'DATAJUD' as const }))
+          : anteriores.filter((m) => m.fonte !== 'DJEN');
+      const doDjen: readonly MovimentoProcesso[] =
+        publicacoes !== null
+          ? publicacoes.map((p) => ({
+              nome: `DJEN · ${p.tipo}`,
+              dataHora: `${p.data}T12:00:00.000Z`,
+              texto: p.texto,
+              link: p.link,
+              fonte: 'DJEN' as const,
+            }))
+          : anteriores.filter((m) => m.fonte === 'DJEN');
+      const movimentos = mesclarMovimentos(doDatajud, doDjen);
+
+      const achou = retrato !== null || (publicacoes !== null && publicacoes.length > 0);
+      if (!achou) {
+        const falhas = [
+          erroDatajud !== null ? `DataJud: ${erroDatajud}` : null,
+          erroDjen !== null ? `DJEN: ${erroDjen}` : null,
+        ].filter((f): f is string => f !== null);
+        if (falhas.length > 0) erros += 1;
         await this.deps.json.put(NS_ANDAMENTOS, chave, {
-          ...retrato,
-          emExecucao: /cumprimento de senten|execu[çc][ãa]o/i.test(retrato.classe),
+          numero,
+          tribunal: anterior?.tribunal ?? '',
+          classe: anterior?.classe ?? '',
+          orgaoJulgador: anterior?.orgaoJulgador ?? '',
+          assunto: anterior?.assunto ?? '',
+          grau: anterior?.grau ?? '',
+          dataAjuizamento: anterior?.dataAjuizamento ?? '',
+          ultimoMovimento: anterior?.ultimoMovimento ?? null,
+          movimentos,
+          emExecucao: anterior?.emExecucao ?? false,
+          novidade: false,
+          consultadoEm: this.agora(),
+          erro:
+            falhas.length > 0
+              ? falhas.join(' · ')
+              : 'ainda sem registro: não indexado no DataJud e sem publicação no DJEN',
+          vistoAte: anterior?.vistoAte ?? null,
+          vistoPor: anterior?.vistoPor ?? null,
+        } satisfies AndamentoProcesso);
+      } else {
+        encontrados += 1;
+        // Novidade = qualquer ato que ainda não estava registrado (duas
+        // publicações no MESMO dia também contam).
+        const jaTinha = new Set(anteriores.map(chaveMovimento));
+        const novidade =
+          anterior !== null && movimentos.some((m) => !jaTinha.has(chaveMovimento(m)));
+        if (novidade) novidades += 1;
+        const capaDjen = publicacoes?.[0] ?? null;
+        const classe = primeiroTexto(retrato?.classe, capaDjen?.classe, anterior?.classe);
+        const topo = movimentos[0] ?? null;
+        await this.deps.json.put(NS_ANDAMENTOS, chave, {
+          numero,
+          tribunal: primeiroTexto(retrato?.tribunal, capaDjen?.tribunal, anterior?.tribunal),
+          classe,
+          orgaoJulgador: primeiroTexto(
+            retrato?.orgaoJulgador,
+            capaDjen?.orgao,
+            anterior?.orgaoJulgador,
+          ),
+          assunto: primeiroTexto(retrato?.assunto, anterior?.assunto),
+          grau: primeiroTexto(retrato?.grau, anterior?.grau),
+          dataAjuizamento: primeiroTexto(retrato?.dataAjuizamento, anterior?.dataAjuizamento),
+          ultimoMovimento: topo === null ? null : { nome: topo.nome, dataHora: topo.dataHora },
+          movimentos,
+          emExecucao: /cumprimento de senten|execu[çc][ãa]o/i.test(classe),
           novidade,
           consultadoEm: this.agora(),
           erro: null,
           vistoAte: anterior?.vistoAte ?? null,
           vistoPor: anterior?.vistoPor ?? null,
         } satisfies AndamentoProcesso);
-      } catch (e) {
-        erros += 1;
-        await this.deps.json.put(NS_ANDAMENTOS, chave, {
-          ...(anterior ?? {
-            numero,
-            tribunal: '',
-            classe: '',
-            orgaoJulgador: '',
-            assunto: '',
-            grau: '',
-            dataAjuizamento: '',
-            ultimoMovimento: null,
-            movimentos: [],
-            emExecucao: false,
-            novidade: false,
-          }),
-          numero,
-          consultadoEm: this.agora(),
-          erro: e instanceof Error ? e.message : String(e),
-        } satisfies AndamentoProcesso);
       }
-      // Ritmo suave com a API pública do CNJ.
+      // Ritmo suave com as APIs públicas do CNJ.
       await new Promise((r) => setTimeout(r, 400));
     }
     await this.registrarHistorico(
-      'Andamentos atualizados pelo DataJud.',
+      'Andamentos atualizados (DataJud + DJEN).',
       `${String(numeros.length)} processo(s) consultado(s), ${String(novidades)} com novidade`,
-      'DataJud',
+      'Acompanhamento',
     );
     return { ok: true, consultados: numeros.length, encontrados, novidades, erros };
   }
@@ -1009,7 +1093,7 @@ export class JuridicoService {
       orgaoJulgador: string;
       ultimoMovimento: { nome: string; dataHora: string };
       /** Movimentos AINDA NÃO vistos (mais novos que o último visto). */
-      naoVistos: readonly { nome: string; dataHora: string }[];
+      naoVistos: readonly MovimentoProcesso[];
       pendente: boolean;
       vistoPor: string | null;
       vistoAte: string | null;
@@ -1081,6 +1165,8 @@ export class JuridicoService {
     [/senten[çc]a|julgamento|procedente/i, '⚖ Sentença'],
     [/penhora|bloqueio|arresto|indisponibilidade/i, '🔒 Constrição'],
     [/acordo|homologa[çc][ãa]o/i, '🤝 Acordo'],
+    // DJEN (2026-09-10): intimação publicada = prazo correndo para o advogado.
+    [/^DJEN · Intima[çc][ãa]o/i, '📬 Intimação'],
   ];
 
   async dashboard(): Promise<{

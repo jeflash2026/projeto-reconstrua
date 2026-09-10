@@ -13,8 +13,9 @@ export default async function MovimentacoesPage(): Promise<ReactElement> {
     <>
       <h1 className="titulo">Movimentações</h1>
       <p className="subtitulo">
-        Todo processo que se movimentou entra aqui e espera o seu visto — qualquer ato conta. O
-        acompanhamento é automático (DataJud, a cada 6 horas).
+        Todo processo que se movimentou entra aqui e espera o seu visto — qualquer ato conta,
+        inclusive as intimações publicadas no DJEN (com o texto do despacho). O acompanhamento é
+        automático (DataJud + DJEN, a cada 6 horas).
       </p>
       {dados === null ? (
         <div className="erro-box">API indisponível.</div>

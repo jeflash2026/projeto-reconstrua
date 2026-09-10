@@ -24,7 +24,7 @@ export default function AtualizarAndamentos({ processos }: { processos: number }
         return;
       }
       setResultado(
-        `${String(data.consultados ?? 0)} consultado(s) · ${String(data.encontrados ?? 0)} encontrado(s) no DataJud · ${String(data.novidades ?? 0)} com novidade${(data.erros ?? 0) > 0 ? ` · ${String(data.erros)} erro(s)` : ''}.`,
+        `${String(data.consultados ?? 0)} consultado(s) · ${String(data.encontrados ?? 0)} encontrado(s) · ${String(data.novidades ?? 0)} com novidade${(data.erros ?? 0) > 0 ? ` · ${String(data.erros)} erro(s)` : ''}.`,
       );
       setTimeout(() => window.location.reload(), 1200);
     } catch {
@@ -39,12 +39,12 @@ export default function AtualizarAndamentos({ processos }: { processos: number }
       <button
         className="btn"
         disabled={ocupado}
-        title="Consulta a classe e as movimentações de cada processo na API pública do CNJ (DataJud)"
+        title="Consulta cada processo no DataJud (capa e movimentações) e no DJEN (publicações e intimações)"
         onClick={() => void atualizar()}
       >
         {ocupado
           ? `Consultando ${String(processos)} processo(s)…`
-          : '⚖ Atualizar andamentos (DataJud)'}
+          : '⚖ Atualizar andamentos (DataJud + DJEN)'}
       </button>
       {resultado !== null ? (
         <span style={{ fontSize: 13, color: 'var(--ink-dim)', fontWeight: 600 }}>{resultado}</span>

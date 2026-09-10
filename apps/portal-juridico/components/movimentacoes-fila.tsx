@@ -4,13 +4,21 @@
 import { useState, type ReactElement } from 'react';
 import { dataBr } from '../lib/api';
 
+/** Um ato do processo. Publicação do DJEN traz o texto do despacho e o link. */
+export interface MovimentoFila {
+  nome: string;
+  dataHora: string;
+  texto?: string;
+  link?: string | null;
+}
+
 export interface ItemFila {
   numero: string;
   clienteNome: string;
   classe: string;
   orgaoJulgador: string;
-  ultimoMovimento: { nome: string; dataHora: string };
-  naoVistos: { nome: string; dataHora: string }[];
+  ultimoMovimento: MovimentoFila;
+  naoVistos: MovimentoFila[];
   pendente: boolean;
   vistoPor: string | null;
   vistoAte: string | null;
@@ -91,6 +99,26 @@ export default function MovimentacoesFila({ fila }: { fila: ItemFila[] }): React
             }}
           >
             <strong>{dataBr(m.dataHora)}</strong> — {m.nome}
+            {m.texto !== undefined && m.texto !== '' ? (
+              <details style={{ marginTop: 4 }}>
+                <summary
+                  style={{
+                    cursor: 'pointer',
+                    fontSize: 12.5,
+                    color: 'var(--ink-dim)',
+                    fontWeight: 600,
+                  }}
+                >
+                  ler o texto publicado
+                </summary>
+                <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, marginTop: 6 }}>{m.texto}</div>
+                {m.link !== undefined && m.link !== null ? (
+                  <a href={m.link} target="_blank" rel="noreferrer" style={{ fontSize: 12.5 }}>
+                    abrir no sistema do tribunal →
+                  </a>
+                ) : null}
+              </details>
+            ) : null}
           </div>
         ))}
       </div>

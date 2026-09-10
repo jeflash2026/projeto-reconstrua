@@ -111,7 +111,7 @@ export interface PericiaJuridica {
   em: string;
 }
 
-/** Acompanhamento automático (DataJud/CNJ) de um processo. */
+/** Acompanhamento automático (DataJud + DJEN, CNJ) de um processo. */
 export interface AndamentoProcesso {
   numero: string;
   tribunal: string;
@@ -121,7 +121,14 @@ export interface AndamentoProcesso {
   grau: string;
   dataAjuizamento: string;
   ultimoMovimento: { nome: string; dataHora: string } | null;
-  movimentos: { nome: string; dataHora: string }[];
+  /** Publicação do DJEN traz o texto do despacho e o link do eproc. */
+  movimentos: {
+    nome: string;
+    dataHora: string;
+    texto?: string;
+    link?: string | null;
+    fonte?: 'DATAJUD' | 'DJEN';
+  }[];
   emExecucao: boolean;
   novidade: boolean;
   consultadoEm: string;

@@ -197,6 +197,7 @@ import {
 } from './document-stores.js';
 import { ResilientHttpClient } from './resilient-http.js';
 import { zipStore, type ArquivoZip } from '../util/zip.js';
+import { DjenClient } from '../juridico/djen-client.js';
 import { createLlmBundle, type LlmBundle } from './llm-adapters.js';
 import { ProductionIngress } from './production-ingress.js';
 import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
@@ -2537,6 +2538,17 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     media: mediaStore,
     clock,
     datajud: new DatajudClient(env['DATAJUD_API_KEY'] || undefined),
+    // DJEN (2026-09-10): as publicações do eproc do TJSP (o DataJud não as
+    // recebe). A API do CNJ só responde a IP do Brasil e a VPS está nos EUA:
+    // passa pelo relay do Corvo (BR) com a MESMA X-Api-Key — sem env nova.
+    djen: new DjenClient(
+      (env['CORVO_API_KEY'] ?? '') !== ''
+        ? {
+            url: `${(env['CORVO_BASE_URL'] ?? 'https://corvo.clsolucoes.com').replace(/\/+$/, '')}/api/integracao/djen/comunicacao`,
+            headers: { 'X-Api-Key': env['CORVO_API_KEY'] ?? '' },
+          }
+        : { url: 'https://comunicaapi.pje.jus.br/api/v1/comunicacao', headers: {} },
+    ),
   });
   // CADASTRO DE PROCESSOS via Jarvis (decreto 2026-08-31): o dono cola o bloco
   // "Nome:" + "BANCO - nº CNJ" no chat da AHRI e o Painel Jurídico é preenchido

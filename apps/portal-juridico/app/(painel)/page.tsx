@@ -34,7 +34,7 @@ export default async function DashboardPage(): Promise<ReactElement> {
         </h1>
         {dados !== null ? (
           <span style={{ fontSize: 12.5, color: 'var(--ink-dim)', fontWeight: 600 }}>
-            Acompanhamento automático (DataJud) · última consulta:{' '}
+            Acompanhamento automático (DataJud + DJEN) · última consulta:{' '}
             {horaBr(dados.ultimaConsultaDatajud)} · próxima em até 6h
           </span>
         ) : null}

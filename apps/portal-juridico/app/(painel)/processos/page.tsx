@@ -148,7 +148,7 @@ export default async function ProcessosPage({
                       {andamento.dataAjuizamento !== ''
                         ? `ajuizado em ${dataBr(andamento.dataAjuizamento)} · `
                         : ''}
-                      consultado no DataJud em {dataBr(andamento.consultadoEm)}
+                      consultado (DataJud + DJEN) em {dataBr(andamento.consultadoEm)}
                     </div>
                     {andamento.movimentos.length === 0 ? (
                       <div style={{ color: 'var(--ink-dim)' }}>Sem movimentações registradas.</div>
@@ -165,6 +165,26 @@ export default async function ProcessosPage({
                           }}
                         >
                           <strong>{dataBr(m.dataHora)}</strong> — {m.nome}
+                          {m.texto !== undefined && m.texto !== '' ? (
+                            <details style={{ marginTop: 4 }}>
+                              <summary
+                                style={{
+                                  cursor: 'pointer',
+                                  fontSize: 12.5,
+                                  color: 'var(--ink-dim)',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                ler o texto publicado
+                              </summary>
+                              <div style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>{m.texto}</div>
+                              {m.link !== undefined && m.link !== null ? (
+                                <a href={m.link} target="_blank" rel="noreferrer">
+                                  abrir no sistema do tribunal →
+                                </a>
+                              ) : null}
+                            </details>
+                          ) : null}
                         </div>
                       ))
                     )}
@@ -172,7 +192,7 @@ export default async function ProcessosPage({
                 </details>
               ) : andamento !== null && andamento.erro !== null ? (
                 <div style={{ fontSize: 13, color: 'var(--ambar, #8a6100)', marginBottom: 4 }}>
-                  DataJud: {andamento.erro}
+                  Acompanhamento: {andamento.erro}
                 </div>
               ) : null}
               <div style={{ color: 'var(--ink-dim)', fontSize: 13, marginBottom: 10 }}>

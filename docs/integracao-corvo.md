@@ -86,6 +86,7 @@ Job a cada 15 min: `GET /api/integracao/eventos?desde=<último − 1h>` paginado
 qualquer `id` fora de `corvo-webhook-entregas` passa pelo MESMO handler. A senha
 vem `null` no feed — nunca sobrescreve a guardada; se faltar, o botão "Pedir
 reenvio da credencial" chama `/api/integracao/caixas/{cpf}/reenviar-credencial`.
+Botão "Redisparar notificações" (2026-09-10) chama `POST /api/integracao/clientes/{cpf}/disparar`: o Corvo notifica os bancos que ficaram para trás sem reenviar o ZIP (do lado deles nunca repete envio). O evento `banco.envio` também reinicia o prazo de 10 dias do card do perito pela data real do disparo (só avança).
 Envio sem `lead.recebido` aparece na tela como selo "sem confirmação".
 
 ## Tela do Admin

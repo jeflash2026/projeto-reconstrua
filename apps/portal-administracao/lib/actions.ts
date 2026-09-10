@@ -1498,3 +1498,17 @@ export async function gerarLinkHiscons(advogadoId: string): Promise<LinkHisconsR
     };
   }
 }
+
+// ── REDISPARO NO CORVO (2026-09-10): pede ao Corvo que notifique os bancos que
+// ficaram para trás, sem reenviar o ZIP — o lado deles nunca repete envio. ───
+export async function redispararCorvo(
+  clienteId: string,
+): Promise<{ ok: boolean; corpo?: unknown; erro?: string }> {
+  const r = await sendJson<{ ok?: boolean; corpo?: unknown; erro?: string }>(
+    'POST',
+    `/admin/corvo/redisparar/${encodeURIComponent(clienteId)}`,
+    {},
+  );
+  if (r === null) return { ok: false, erro: 'falha na API' };
+  return { ok: r.ok === true, corpo: r.corpo, erro: r.erro };
+}

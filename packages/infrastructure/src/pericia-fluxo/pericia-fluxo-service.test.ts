@@ -128,3 +128,15 @@ describe('reiniciarPrazo — o relógio conta do último envio ao Corvo', () => 
     expect(await svc.reiniciarPrazo('chat-inexistente', agora.now)).toEqual({ ok: false });
   });
 });
+
+describe('reiniciarPrazo — só AVANÇA (eventos do Corvo chegam fora de ordem)', () => {
+  it('data anterior ao início atual é ignorada e o prazo fica intacto', async () => {
+    const agora = { now: new Date('2026-09-10T12:00:00.000Z') };
+    const svc = new PericiaFluxoService({ json: new InMemoryJsonStore(), clock: clockDe(agora) });
+    await svc.iniciar('chat-o', 'cli-o', 'ANA');
+    expect(await svc.reiniciarPrazo('chat-o', new Date('2026-09-09T08:00:00.000Z'))).toEqual({
+      ok: false,
+    });
+    expect((await svc.registro('chat-o'))?.iniciadaEm).toBe('2026-09-10T12:00:00.000Z');
+  });
+});

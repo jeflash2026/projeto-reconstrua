@@ -482,6 +482,28 @@ export class CorvoService {
     return { ok: true };
   }
 
+  /** Ação do Admin (2026-09-10): pede ao Corvo que REDISPARE as notificações
+   *  do cliente sem reenviar o ZIP — o lado deles nunca repete o que já saiu.
+   *  Útil quando o pacote já foi aceito mas algum disparo ficou para trás. */
+  async redisparar(clienteId: string): Promise<{ ok: boolean; corpo?: unknown; erro?: string }> {
+    if (this.deps.client === null) return { ok: false, erro: 'integração desligada' };
+    const imp = (await this.deps.json.get(NS_IMPORTACOES, clienteId)) as ImportacaoCorvo | null;
+    if (imp === null) return { ok: false, erro: 'cliente nunca enviado ao Corvo' };
+    if (imp.cpf === null || imp.cpf.length !== 11)
+      return { ok: false, erro: 'cliente sem CPF registrado na importação' };
+    const r = await this.deps.client.disparar(imp.cpf);
+    const agora = this.deps.clock.now();
+    if (r.ok) this.deps.observability.event('corvo', 'redisparo', agora, `cliente=${imp.nome}`);
+    else
+      this.deps.observability.error(
+        'corvo',
+        'redisparo',
+        agora,
+        `cliente=${imp.nome} erro=${r.erro ?? 'desconhecido'}`,
+      );
+    return r;
+  }
+
   // ── B. Webhook (Corvo → cá) ─────────────────────────────────────────────────
 
   /** Verificação + dedupe + processamento. O corpo chega BRUTO (bytes). */
@@ -625,6 +647,16 @@ export class CorvoService {
           messageId: (dados['messageId'] as string | undefined) ?? null,
         } satisfies EnvioCorvo);
         await this.agendarDossie(dados['dossie'], evento.id);
+        // CRONÔMETRO PELO DISPARO REAL (2026-09-10): o Corvo notifica os bancos
+        // em LOTES espaçados, às vezes um dia depois do ZIP aceito — o prazo de
+        // 10 dias conta do ÚLTIMO e-mail que saiu ao banco (só avança).
+        const disparadoEm = new Date(
+          (dados['enviadoEm'] as string | undefined) ?? evento.ocorridoEm,
+        );
+        const impDoEnvio = await this.importacaoPorCpf(cliente.cpf ?? '');
+        if (impDoEnvio !== null && !Number.isNaN(disparadoEm.getTime())) {
+          await this.deps.aoEnviar?.(impDoEnvio.chatId, disparadoEm).catch(() => undefined);
+        }
         break;
       }
       case 'banco.resposta': {

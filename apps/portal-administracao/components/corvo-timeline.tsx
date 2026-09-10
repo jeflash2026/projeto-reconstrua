@@ -4,7 +4,12 @@
 // (a API grava a trilha de quem revelou).
 import { useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
-import { atualizarDossieCorvo, reenviarCredencialCorvo, revelarSenhaCorvo } from '../lib/actions';
+import {
+  atualizarDossieCorvo,
+  reenviarCredencialCorvo,
+  redispararCorvo,
+  revelarSenhaCorvo,
+} from '../lib/actions';
 
 export interface TimelineCorvoView {
   importacao: {
@@ -65,6 +70,7 @@ export default function CorvoTimeline({ timeline }: { timeline: TimelineCorvoVie
   const [credencial, setCredencial] = useState<{ email: string; senha: string } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [avisoDossie, setAvisoDossie] = useState<string | null>(null);
+  const [avisoEnvios, setAvisoEnvios] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const caixa = timeline.caixa;
   const cpfDossie = timeline.importacao.cpf;
@@ -116,6 +122,20 @@ export default function CorvoTimeline({ timeline }: { timeline: TimelineCorvoVie
     );
   }
 
+  // REDISPARO (2026-09-10): o Corvo notifica os bancos que ficaram para trás
+  // sem reenviar o ZIP — do lado deles nunca repete um e-mail já enviado.
+  async function redisparar(): Promise<void> {
+    setBusy(true);
+    const r = await redispararCorvo(timeline.importacao.clienteId);
+    setBusy(false);
+    setAvisoEnvios(
+      r.ok
+        ? 'Redisparo pedido ao Corvo — as notificações novas chegam aqui pelo webhook, em lotes.'
+        : `Falha no redisparo: ${r.erro ?? 'erro desconhecido'}`,
+    );
+    router.refresh();
+  }
+
   return (
     <>
       <div className="card" style={{ marginBottom: 16 }}>
@@ -164,6 +184,22 @@ export default function CorvoTimeline({ timeline }: { timeline: TimelineCorvoVie
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h3>Notificações enviadas aos bancos ({timeline.envios.length})</h3>
+        <div className="form-row" style={{ gap: 8, marginBottom: 8 }}>
+          <button
+            disabled={busy || timeline.importacao.cpf === null}
+            onClick={() => void redisparar()}
+          >
+            Redisparar notificações
+          </button>
+          <span className="page-sub">
+            Pede ao Corvo os e-mails que faltam aos bancos — nunca repete os já enviados.
+          </span>
+        </div>
+        {avisoEnvios !== null ? (
+          <p className="page-sub" style={{ marginBottom: 8 }}>
+            {avisoEnvios}
+          </p>
+        ) : null}
         {timeline.envios.length === 0 ? (
           <div className="empty">Nenhuma notificação enviada ainda.</div>
         ) : (

@@ -639,3 +639,62 @@ describe('caixa.criada — ponte da credencial para o card do pedido', () => {
     expect(await svc.credencialDoChat('5531999@c.us')).toBe(null);
   });
 });
+
+// ── CRONÔMETRO PELO DISPARO REAL + REDISPARO (2026-09-10): o Corvo notifica os
+// bancos em lotes espaçados; o prazo conta do e-mail que saiu, não do ZIP. ───
+describe('banco.envio acerta o cronômetro; redisparar chama o endpoint do Corvo', () => {
+  it('banco.envio de cliente conhecido chama aoEnviar com a data do disparo', async () => {
+    const { client } = clienteFalso([]);
+    const chamadas: { chatId: string; em: string }[] = [];
+    const { svc } = servico({
+      client,
+      aoEnviar: (chatId, em) => {
+        chamadas.push({ chatId, em: em.toISOString() });
+        return Promise.resolve();
+      },
+    });
+    await agendar(svc);
+    await svc.varrerEEnviar(); // 1ª chamada: o ZIP aceito (AGORA)
+    await svc.processarEvento({
+      id: 'e-lote',
+      tipo: 'banco.envio',
+      ocorridoEm: '2026-08-26T09:00:00.000Z',
+      dados: {
+        envioId: 'env-lote',
+        cliente: { nome: 'JOSÉ', cpf: '017.957.908-81' },
+        enviadoEm: '2026-08-26T09:00:00.000Z',
+      },
+    });
+    expect(chamadas).toHaveLength(2);
+    expect(chamadas[1]).toEqual({ chatId: O_PEDIDO.chatId, em: '2026-08-26T09:00:00.000Z' });
+    // CPF que nunca foi enviado por nós: nada a acertar.
+    await svc.processarEvento({
+      id: 'e-estranho',
+      tipo: 'banco.envio',
+      ocorridoEm: '2026-08-26T10:00:00.000Z',
+      dados: { envioId: 'env-x', cliente: { nome: 'OUTRO', cpf: '11122233344' } },
+    });
+    expect(chamadas).toHaveLength(2);
+  });
+
+  it('redisparar usa o CPF da importação; cliente desconhecido é recusado', async () => {
+    const { client } = clienteFalso([]);
+    const cpfs: string[] = [];
+    const comDisparo = {
+      ...client,
+      disparar: (cpf: string) => {
+        cpfs.push(cpf);
+        return Promise.resolve({ ok: true, corpo: { bancosNotificados: 2 } });
+      },
+    } as unknown as CorvoClient;
+    const { svc } = servico({ client: comDisparo });
+    await agendar(svc);
+    await svc.varrerEEnviar();
+    expect(await svc.redisparar(O_PEDIDO.clienteId)).toEqual({
+      ok: true,
+      corpo: { bancosNotificados: 2 },
+    });
+    expect(cpfs).toEqual(['01795790881']);
+    expect((await svc.redisparar('cli-inexistente')).ok).toBe(false);
+  });
+});

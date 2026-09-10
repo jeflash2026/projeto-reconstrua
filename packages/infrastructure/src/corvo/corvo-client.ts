@@ -134,6 +134,27 @@ export class CorvoClient {
     }
   }
 
+  /** POST /api/integracao/clientes/:cpf/disparar (Corvo, 2026-09-10) — redispara
+   *  as notificações de UM cliente; do lado deles nunca repete o que já saiu.
+   *  O corpo da resposta é repassado opaco para a tela/log. */
+  async disparar(cpf: string): Promise<{ ok: boolean; corpo?: unknown; erro?: string }> {
+    try {
+      const res = await this.fetchFn(
+        `${this.config.baseUrl}/api/integracao/clientes/${encodeURIComponent(cpf)}/disparar`,
+        {
+          method: 'POST',
+          headers: { 'X-Api-Key': this.config.apiKey },
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+      const corpo: unknown = await res.json().catch(() => null);
+      if (res.ok) return { ok: true, corpo };
+      return { ok: false, erro: `HTTP ${String(res.status)}`, corpo };
+    } catch (e) {
+      return { ok: false, erro: e instanceof Error ? e.message : 'falha de rede' };
+    }
+  }
+
   /** GET /api/integracao/eventos — página da reconciliação. */
   async listarEventos(
     desdeIso: string,

@@ -1462,6 +1462,13 @@ export function buildAdminServer(
     const { clienteId } = request.params as { clienteId: string };
     return opts.corvo.forcarReenvio(clienteId);
   });
+  // REDISPARO (Corvo, 2026-09-10): notifica os bancos que ficaram para trás sem
+  // reenviar o ZIP — do lado deles nunca repete um e-mail já enviado.
+  app.post('/admin/corvo/redisparar/:clienteId', async (request, reply) => {
+    if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
+    const { clienteId } = request.params as { clienteId: string };
+    return opts.corvo.redisparar(clienteId);
+  });
   app.post('/admin/corvo/caixas/:cpf/reenviar-credencial', async (request, reply) => {
     if (!opts.corvo) return reply.code(503).send({ error: 'integração indisponível' });
     const { cpf } = request.params as { cpf: string };

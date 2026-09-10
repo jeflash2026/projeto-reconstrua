@@ -96,6 +96,9 @@ export class PericiaFluxoService {
   async reiniciarPrazo(chatId: string, em: Date): Promise<{ ok: boolean }> {
     const r = await this.recordDe(chatId);
     if (r === null) return { ok: false };
+    // Só AVANÇA: eventos do Corvo chegam fora de ordem (lotes, reconciliação).
+    if (Number.isNaN(em.getTime()) || em.getTime() <= new Date(r.iniciadaEm).getTime())
+      return { ok: false };
     await this.deps.json.put(NS, chatId, {
       ...r,
       iniciadaEm: em.toISOString(),

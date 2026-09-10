@@ -50,3 +50,15 @@ describe('CorvoClient.enviarZip — status do contrato', () => {
     expect(r500).toMatchObject({ ok: false, permanente: false, conflitoDeChave: false });
   });
 });
+
+// ── REDISPARO (Corvo, 2026-09-10): POST /clientes/:cpf/disparar — o lado deles
+// nunca repete o que já saiu; o corpo volta opaco para a tela/log. ───────────
+describe('CorvoClient.disparar', () => {
+  it('2xx ⇒ ok com o corpo; 404 ⇒ falha com o status literal', async () => {
+    const r = await clientCom(200, { bancosNotificados: 3 }).disparar('01795790881');
+    expect(r).toEqual({ ok: true, corpo: { bancosNotificados: 3 } });
+    const r404 = await clientCom(404, { error: 'cliente não encontrado' }).disparar('000');
+    expect(r404.ok).toBe(false);
+    expect(r404.erro).toBe('HTTP 404');
+  });
+});

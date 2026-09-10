@@ -202,3 +202,22 @@ export const MESES = [
   'Novembro',
   'Dezembro',
 ];
+
+/** PASTAS POR ADVOGADO (2026-09-10) — entregas do Admin × cadastro do jurídico. */
+export interface PastasJuridico {
+  pastas: {
+    advogadoId: string;
+    advogado: string;
+    entregues: number;
+    comProcesso: number;
+    aguardando: number;
+    clientes: {
+      nome: string;
+      chatId: string;
+      entregueEm: string | null;
+      juridicoClienteId: string | null;
+      processos: number;
+    }[];
+  }[];
+  semAdvogado: { clienteId: string; nome: string; processos: number }[];
+}

@@ -142,14 +142,14 @@ export default async function DashboardPage(): Promise<ReactElement> {
               <div className="valor">{dados.clientes}</div>
             </div>
             <div className="card ok">
-              <div className="rotulo">Contratos ativos</div>
+              <div className="rotulo">Processos ativos</div>
               <div className="valor">{dados.ativos}</div>
               <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', fontWeight: 600 }}>
                 {dados.encerrados} encerrados · {dados.excluidos} excluídos
               </div>
             </div>
             <div className="card">
-              <div className="rotulo">Valor em contratos ativos</div>
+              <div className="rotulo">Valor em processos ativos</div>
               <div className="valor" style={{ fontSize: 'clamp(1.1rem, 3vw, 1.5rem)' }}>
                 {moeda(dados.valorAtivos)}
               </div>
@@ -230,9 +230,9 @@ export default async function DashboardPage(): Promise<ReactElement> {
                 </>
               ) : null}
 
-              <h2 style={{ fontSize: '1.05rem' }}>Contratos recentes</h2>
+              <h2 style={{ fontSize: '1.05rem' }}>Processos recentes</h2>
               {dados.recentes.length === 0 ? (
-                <div className="vazio">Nenhum contrato cadastrado ainda.</div>
+                <div className="vazio">Nenhum processo cadastrado ainda.</div>
               ) : (
                 <div className="tabela-wrap">
                   <table>
@@ -271,9 +271,9 @@ export default async function DashboardPage(): Promise<ReactElement> {
             </section>
 
             <section>
-              <h2 style={{ fontSize: '1.05rem' }}>Contratos por banco</h2>
+              <h2 style={{ fontSize: '1.05rem' }}>Processos por banco</h2>
               {dados.porBanco.length === 0 ? (
-                <div className="vazio">Sem contratos ainda.</div>
+                <div className="vazio">Sem processos ainda.</div>
               ) : (
                 <div className="tabela-wrap" style={{ marginBottom: 20 }}>
                   <table>

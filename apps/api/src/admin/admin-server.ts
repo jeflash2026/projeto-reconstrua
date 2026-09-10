@@ -13,6 +13,8 @@ import {
   type AssembledAdminOperation,
   type CorvoService,
   type JuridicoService,
+  montarPastasPorAdvogado,
+  type EntregaAoAdvogado,
 } from '@reconstrua/infrastructure';
 import { zipStore, nomeArquivoSeguro } from '../util/zip.js';
 import { xlsxDePlanilha } from '../util/xlsx.js';
@@ -2558,6 +2560,42 @@ export function buildAdminServer(
   app.get('/admin/juridico/clientes', async (_request, reply) => {
     if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
     return { clientes: await opts.juridico.listarClientes() };
+  });
+
+  // ── PASTAS POR ADVOGADO (2026-09-10) — cada advogado com os clientes que o
+  //    Admin ENTREGOU a ele (a atribuição real, a mesma do painel do advogado)
+  //    × o que já tem processo distribuído cadastrado no jurídico. Só leitura.
+  app.get('/admin/juridico/pastas', async (_request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const advogados = await op.staff.list('advogado').catch(() => []);
+    const lista = op.clientes ? await op.clientes.list().catch(() => []) : [];
+    const nomePorChat = new Map<string, string>();
+    const chatPorMissao = new Map<string, string>();
+    for (const c of lista) {
+      nomePorChat.set(c.chatId, c.quem);
+      if (c.missionId !== null) chatPorMissao.set(c.missionId, c.chatId);
+    }
+    const entregas: EntregaAoAdvogado[] = [];
+    for (const a of advogados) {
+      const atribuicoes = op.work ? await op.work.myMissions(a.id).catch(() => []) : [];
+      for (const t of atribuicoes) {
+        const chatId = t.chatId ?? chatPorMissao.get(t.missionId) ?? null;
+        if (chatId === null) continue;
+        const em = new Date(t.assignedAt);
+        entregas.push({
+          advogadoId: a.id,
+          advogado: a.name,
+          chatId,
+          nome: nomePorChat.get(chatId) ?? chatId.split('@')[0] ?? chatId,
+          entregueEm: Number.isNaN(em.getTime()) ? null : em.toISOString(),
+        });
+      }
+    }
+    const [clientesJuridico, contratos] = await Promise.all([
+      opts.juridico.listarClientes(),
+      opts.juridico.listarContratos(),
+    ]);
+    return montarPastasPorAdvogado(entregas, clientesJuridico, contratos);
   });
 
   app.post('/admin/juridico/clientes', async (request, reply) => {

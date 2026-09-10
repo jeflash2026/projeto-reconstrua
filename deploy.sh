@@ -30,7 +30,7 @@ rollback() {
   fi
   warn "ROLLBACK: restaurando a imagem anterior (${PREV_IMG})"
   docker tag "${PREV_IMG}" "${IMG_NAME}" 2>/dev/null || true
-  dc up -d --force-recreate --no-build api >/dev/null 2>&1 || true
+  dc up -d --force-recreate --no-build --no-deps api >/dev/null 2>&1 || true
   warn "rollback aplicado — o container voltou ao estado anterior ao deploy"
 }
 
@@ -178,8 +178,16 @@ main() {
   ok "imagem reconstruída + migrations aplicadas"
 
   STEP="6/8 · subir apenas a api (força recriar do novo build)"
-  dc up -d --force-recreate api || die "docker compose up falhou"
+  # INCIDENTE (2026-08-27 e 2026-09-10, API fora do ar): a api depende do
+  # `migrate` no compose, então `up api` tentava RECRIAR o container do migrate
+  # e batia num órfão renomeado ("<hash>_reconstrua-migrate-1") — o up abortava
+  # DEPOIS de já ter derrubado a api antiga. As migrations já rodaram no passo
+  # 5: limpa qualquer migrate que sobrou e sobe SÓ a api (--no-deps).
+  { dc ps -a -q migrate 2>/dev/null; docker ps -aq --filter "name=reconstrua-migrate" 2>/dev/null; } \
+    | sort -u | xargs -r docker rm -f >/dev/null 2>&1 || true
+  # O up pode derrubar a api antiga antes de falhar: o rollback fica ARMADO já.
   DEPLOYED=1
+  dc up -d --force-recreate --no-deps api || die "docker compose up falhou"
   API_C="$(dc ps -q api 2>/dev/null | head -1)"
   [ -n "${API_C}" ] || die "container api não encontrado após o up"
   ok "container api recriado: ${API_C:0:19}…"

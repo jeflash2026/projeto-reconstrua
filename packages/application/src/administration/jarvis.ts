@@ -247,22 +247,55 @@ export interface ComandoProcessosJuridico {
 const RE_CNJ = /\d{7}-?\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/gu;
 // Nome de cliente plausível: 2+ palavras de letras, tamanho humano.
 const RE_NOME = /^[\p{L}][\p{L}' .-]{2,118}[\p{L}.]$/u;
+// Frase de ABERTURA nunca é cliente (caso real 2026-09-10: "Segue a lista dos
+// processos distribuídos:" virou cliente e engoliu 23 processos de 9 pessoas).
+const RE_PREAMBULO =
+  /\b(segue|seguem|lista|processos?|adicion\w*|add|cadastr\w*|seguintes?|abaixo|distribu\w*|jur[ií]dico|perfil|clientes?)\b/iu;
+// Instituição nunca é cliente ("BANCO X:" / "CEF ⇥ nº" são o RÉU do processo).
+const RE_INSTITUICAO = /\b(banco|bank|financeira|caixa|cef|cr[eé]dito)\b/iu;
 
-/** Limpa um pedaço de banco/nome: separadores nas bordas, espaços colapsados. */
+/** Limpa um pedaço de banco/nome: separadores, marcadores e negrito nas bordas. */
 function limparPedaco(bruto: string): string {
   return bruto
-    .replace(/^[\s\-–—:;,.]+/u, '')
-    .replace(/[\s\-–—:;,]+$/u, '')
+    .replace(/^[\s\-–—:;,.•*]+/u, '')
+    .replace(/[\s\-–—:;,•*]+$/u, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/** Reconhece o bloco de cadastro de processos — em LINHAS SEPARADAS ou TUDO
- *  NUMA LINHA SÓ (caso real 2026-08-31: o dono colou inline e o parser por
- *  linha não reconheceu; o texto caiu no narrador, que inventou confirmação).
- *  Tokeniza pelos nº CNJ: o trecho entre um CNJ e o próximo é o BANCO; um
- *  "Nome:" dentro do trecho abre um grupo novo (a ÚLTIMA linha antes dos
- *  dois-pontos é o nome — preâmbulos com ':' próprios são descartados).
+function ehNomeDeCliente(candidato: string): boolean {
+  return (
+    RE_NOME.test(candidato) &&
+    candidato.includes(' ') &&
+    !/\s[-–—]\s/u.test(candidato) &&
+    !RE_PREAMBULO.test(candidato) &&
+    !RE_INSTITUICAO.test(candidato)
+  );
+}
+
+/** "GILDETE DOS SANTOS" → "Gildete dos Santos" (só quando veio TODO em caixa alta). */
+function nomeApresentavel(nome: string): string {
+  if (nome !== nome.toUpperCase()) return nome;
+  const particulas = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+  return nome
+    .toLowerCase()
+    .split(' ')
+    .map((p, i) => (i > 0 && particulas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+    .join(' ');
+}
+
+function chaveDoNome(nome: string): string {
+  return nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+/** Reconhece o bloco de cadastro de processos nos formatos que o dono cola:
+ *   • "Nome:" + linhas "BANCO - nº" (em linhas separadas ou TUDO numa linha só);
+ *   • "*NOME*" em negrito (WhatsApp) + linhas "BANCO ⇥ nº";
+ *   • planilha colada: "NOME ⇥ BANCO ⇥ nº" — o nome na 1ª coluna abre o
+ *     cliente e as linhas seguintes sem nome continuam nele.
+ *  Tokeniza pelos nº CNJ (assinatura inconfundível); em cada trecho entre dois
+ *  números, o ÚLTIMO cabeçalho de cliente vence e o resto é o banco. Frase de
+ *  abertura e nome de instituição nunca viram cliente.
  *  null = nenhum nº CNJ no texto (pergunta livre segue ao narrador). */
 export function interpretarComandoProcessosJuridico(
   texto: string,
@@ -270,41 +303,64 @@ export function interpretarComandoProcessosJuridico(
   const matches = [...texto.matchAll(RE_CNJ)];
   if (matches.length === 0) return null;
   const clientes: { nome: string; processos: ProcessoDitado[] }[] = [];
+  const porChave = new Map<string, { nome: string; processos: ProcessoDitado[] }>();
   let atual: { nome: string; processos: ProcessoDitado[] } | null = null;
+  const abrir = (nomeBruto: string): void => {
+    const nome = nomeApresentavel(nomeBruto);
+    const chave = chaveDoNome(nome);
+    const existente = porChave.get(chave);
+    if (existente !== undefined) {
+      atual = existente;
+      return;
+    }
+    const novo = { nome, processos: [] as ProcessoDitado[] };
+    porChave.set(chave, novo);
+    clientes.push(novo);
+    atual = novo;
+  };
   let semCliente = 0;
   let cursor = 0;
   for (const m of matches) {
     const trecho = texto.slice(cursor, m.index);
     cursor = m.index + m[0].length;
-    // Um "Nome:" no trecho abre um grupo: o nome é a ÚLTIMA LINHA do que vem
-    // antes do último ':' (o preâmbulo "adicione no jurídico:" fica para trás).
-    const ultimaLinhaCheia = (bloco: string): string => {
-      const linhas = bloco
-        .split(/\r?\n/)
-        .map(limparPedaco)
-        .filter((l) => l !== '');
-      return linhas.pop() ?? '';
+
+    // Cabeçalhos no trecho: "*NOME*" (negrito) e "Nome:" (dois-pontos). O que
+    // termina MAIS ADIANTE vence — a abertura com ':' fica para trás.
+    let cabecalho: { nome: string; fim: number } | null = null;
+    const considerar = (bruto: string, fim: number): void => {
+      const nome = limparPedaco(bruto);
+      if (ehNomeDeCliente(nome) && (cabecalho === null || fim > cabecalho.fim))
+        cabecalho = { nome, fim };
     };
-    const doisPontos = trecho.lastIndexOf(':');
-    let pedacoBanco = trecho;
-    if (doisPontos !== -1) {
-      const ultimaLinha = ultimaLinhaCheia(trecho.slice(0, doisPontos));
-      // O nome pode dividir a linha com outro ':' (inline: "jurídico: Taís…").
-      const candidato = limparPedaco(ultimaLinha.split(':').pop() ?? '');
-      if (RE_NOME.test(candidato) && candidato.includes(' ')) {
-        atual = { nome: candidato, processos: [] };
-        clientes.push(atual);
-      }
-      pedacoBanco = trecho.slice(doisPontos + 1);
+    for (const b of trecho.matchAll(/\*([^*\n]{3,120})\*/gu))
+      considerar(b[1] ?? '', b.index + b[0].length);
+    for (let k = trecho.indexOf(':'); k !== -1; k = trecho.indexOf(':', k + 1)) {
+      const inicio = Math.max(trecho.lastIndexOf('\n', k - 1), trecho.lastIndexOf(':', k - 1)) + 1;
+      considerar(trecho.slice(inicio, k), k + 1);
     }
-    // O banco é a última linha CHEIA do pedaço (o CNJ pode estar na linha de
-    // baixo do banco) — inline, é o pedaço inteiro entre um CNJ e o próximo.
-    const banco = ultimaLinhaCheia(pedacoBanco).slice(0, 120);
-    if (atual === null) {
+    const achado = cabecalho as { nome: string; fim: number } | null;
+    if (achado !== null) abrir(achado.nome);
+    const pedacoBanco = achado !== null ? trecho.slice(achado.fim) : trecho;
+
+    // O banco é a última linha CHEIA do pedaço (o nº pode estar na linha de
+    // baixo). Colunas por TAB ou 2+ espaços: "NOME ⇥ BANCO" abre o cliente.
+    const linhas = pedacoBanco.split(/\r?\n/).filter((l) => limparPedaco(l) !== '');
+    const colunas = (linhas.pop() ?? '')
+      .split(/\t+| {2,}/)
+      .map(limparPedaco)
+      .filter((c) => c !== '');
+    let colunasBanco = colunas;
+    if (colunas.length >= 2 && ehNomeDeCliente(colunas[0] ?? '')) {
+      abrir(colunas[0] ?? '');
+      colunasBanco = colunas.slice(1);
+    }
+    const banco = colunasBanco.join(' - ').slice(0, 120);
+    const alvo = atual as { nome: string; processos: ProcessoDitado[] } | null;
+    if (alvo === null) {
       semCliente += 1;
       continue;
     }
-    atual.processos.push({ banco: banco === '' ? 'BANCO (não informado)' : banco, numero: m[0] });
+    alvo.processos.push({ banco: banco === '' ? 'BANCO (não informado)' : banco, numero: m[0] });
   }
   return { clientes: clientes.filter((c) => c.processos.length > 0), semCliente };
 }

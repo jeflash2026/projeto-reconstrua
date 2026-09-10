@@ -297,3 +297,103 @@ describe('interpretarComandoProcessosJuridico — colagem INLINE (uma linha só)
     });
   });
 });
+
+// Caso REAL 2026-09-10: o dono colou a planilha do WhatsApp — nomes em *negrito*
+// sem dois-pontos, colunas por TAB e nomes na 1ª coluna da linha do banco. A
+// abertura "Segue a lista dos processos distribuídos:" virou CLIENTE e engoliu
+// os 23 processos de 9 pessoas.
+describe('interpretarComandoProcessosJuridico — planilha do WhatsApp (negrito + TAB)', () => {
+  const TEXTO = [
+    'Segue a lista dos processos distribuídos:',
+    '',
+    '*GILDETE DOS SANTOS TEIXEIRA*',
+    '',
+    '\t- PICPAY BANK\t4002387-95.2026.8.26.0619',
+    '\t- CEF\t5001356-82.2026.4.03.6120',
+    '\t- PARANÁ BANCO\t4002386-13.2026.8.26.0619',
+    '',
+    '',
+    '*IVANI MARQUES CALDEIRA BARBOSA*',
+    '',
+    '',
+    '        PINE\t4002385-28.2026.8.26.0619',
+    '        JOSE LUIZ MALGRADI\tCEF\t5001367-14.2026.4.03.6120',
+    '\tBANCO CRUZEIRO DO SUL e C6\t4002400-94.2026.8.26.0619',
+    '\tBANCO INBURSA - ITAÚ - FACTA \t4002401-79.2026.8.26.0619',
+    '\tBANCO PAN - PINE\t4002405-19.2026.8.26.0619',
+    '',
+    '*Jucielia Gomes de Sousa*',
+    '',
+    '         PINE - BRB - DAYCOVAL\t4004251-73.2026.8.26.0198',
+    '        JUVENAL MOREIRA\tBANCO INBURSA - PINE\t4002420-85.2026.8.26.0619',
+    '\tFACTA FINANCEIRA -C6\t4002419-03.2026.8.26.0619',
+    '',
+    '',
+    '*ALICE KEYTH BARBOSA*',
+    '',
+    '\tC6 - PAN\t4002407-86.2026.8.26.0619',
+    '        JOSE RODRIGUES\tBRADESCO - BRB\t4002412-11.2026.8.26.0619',
+    '\tCG - DIGIO\t4002413-93.2026.8.26.0619',
+    '\tITAU - MERCANTIL\t4002414-78.2026.8.26.0619',
+    '\tPAN\t4002415-63.2026.8.26.0619',
+    '\tSANTANDER - AGIBANK\t4002416-48.2026.8.26.0619',
+    '',
+    '',
+    '*GEISEBEL AMANCIO DOS SANTOS*',
+    '',
+    '\tPINE - QI - BRB\t4002422-55.2026.8.26.0619',
+    '\tAGIBANK - BMG\t4002423-40.2026.8.26.0619',
+    '\tESTADO RIO GRANDE DO SUL - FACTA\t4002424-25.2026.8.26.0619',
+    '\tPARATY - PICPAY - \t4002425-10.2026.8.26.0619',
+    '',
+    '',
+    '*GERALDINO AMANCIO DOS SANTOS* ',
+    '',
+    'CAIXA ECONOMICA FEDERAL -\t5001387-05.2026.4.03.6120',
+    'AGIBANK - BMG - DAYCOVAL\t- 4002433-84.2026.8.26.0619',
+  ].join('\n');
+
+  it('9 clientes, 23 processos, cada banco no cliente certo — a abertura NÃO vira cliente', () => {
+    const cmd = interpretarComandoProcessosJuridico(TEXTO);
+    const resumo = cmd?.clientes.map((c) => [c.nome, c.processos.map((p) => p.banco)]);
+    expect(resumo).toEqual([
+      ['Gildete dos Santos Teixeira', ['PICPAY BANK', 'CEF', 'PARANÁ BANCO']],
+      ['Ivani Marques Caldeira Barbosa', ['PINE']],
+      [
+        'Jose Luiz Malgradi',
+        ['CEF', 'BANCO CRUZEIRO DO SUL e C6', 'BANCO INBURSA - ITAÚ - FACTA', 'BANCO PAN - PINE'],
+      ],
+      ['Jucielia Gomes de Sousa', ['PINE - BRB - DAYCOVAL']],
+      ['Juvenal Moreira', ['BANCO INBURSA - PINE', 'FACTA FINANCEIRA -C6']],
+      ['Alice Keyth Barbosa', ['C6 - PAN']],
+      [
+        'Jose Rodrigues',
+        ['BRADESCO - BRB', 'CG - DIGIO', 'ITAU - MERCANTIL', 'PAN', 'SANTANDER - AGIBANK'],
+      ],
+      [
+        'Geisebel Amancio dos Santos',
+        ['PINE - QI - BRB', 'AGIBANK - BMG', 'ESTADO RIO GRANDE DO SUL - FACTA', 'PARATY - PICPAY'],
+      ],
+      ['Geraldino Amancio dos Santos', ['CAIXA ECONOMICA FEDERAL', 'AGIBANK - BMG - DAYCOVAL']],
+    ]);
+    expect(cmd?.clientes.reduce((s, c) => s + c.processos.length, 0)).toBe(23);
+    expect(cmd?.clientes[2]?.processos[0]?.numero).toBe('5001367-14.2026.4.03.6120');
+    expect(cmd?.semCliente).toBe(0);
+  });
+
+  it('abertura com dois-pontos e SEM nenhum nome ⇒ nada é chutado (semCliente)', () => {
+    const cmd = interpretarComandoProcessosJuridico(
+      'Segue a lista dos processos distribuídos:\nPAN\t4002415-63.2026.8.26.0619',
+    );
+    expect(cmd?.clientes).toHaveLength(0);
+    expect(cmd?.semCliente).toBe(1);
+  });
+
+  it('"BANCO X:" antes do número nunca vira cliente', () => {
+    const cmd = interpretarComandoProcessosJuridico(
+      'Maria da Silva Santos:\nBANCO PAN: 4005195-40.2026.8.26.0533',
+    );
+    expect(cmd?.clientes.map((c) => c.nome)).toEqual(['Maria da Silva Santos']);
+    expect(cmd?.clientes[0]?.processos[0]?.banco).toBe('BANCO PAN');
+  });
+});

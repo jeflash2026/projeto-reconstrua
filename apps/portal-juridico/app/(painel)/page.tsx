@@ -3,7 +3,14 @@
 // números que importam (valor em contratos, guias, perícias próximas) e o
 // acompanhamento VIVO do DataJud (a api consulta sozinha a cada 6h).
 import type { ReactElement } from 'react';
-import { getJson, moeda, dataBr, ROTULO_SITUACAO, type DashboardJuridico } from '../../lib/api';
+import {
+  getJson,
+  moeda,
+  dataBr,
+  urlDoProcesso,
+  ROTULO_SITUACAO,
+  type DashboardJuridico,
+} from '../../lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,9 +95,7 @@ export default async function DashboardPage(): Promise<ReactElement> {
                         </td>
                         <td style={{ fontWeight: 600 }}>{a.clienteNome}</td>
                         <td className="mono" style={{ fontSize: 12.5 }}>
-                          <a href={`/juridico/processos?q=${encodeURIComponent(a.processo)}`}>
-                            {a.processo}
-                          </a>
+                          <a href={urlDoProcesso(a.processo)}>{a.processo}</a>
                         </td>
                         <td>{a.movimento}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{dataBr(a.dataHora)}</td>
@@ -188,9 +193,7 @@ export default async function DashboardPage(): Promise<ReactElement> {
                         <td style={{ fontWeight: 600 }}>{p.clienteNome}</td>
                         <td>{p.banco}</td>
                         <td className="mono" style={{ fontSize: 12.5 }}>
-                          <a href={`/juridico/processos?q=${encodeURIComponent(p.processo)}`}>
-                            {p.processo}
-                          </a>
+                          <a href={urlDoProcesso(p.processo)}>{p.processo}</a>
                         </td>
                         <td style={{ whiteSpace: 'nowrap' }}>{soHoraBr(p.em)}</td>
                       </tr>

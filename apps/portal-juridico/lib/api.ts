@@ -221,3 +221,62 @@ export interface PastasJuridico {
   }[];
   semAdvogado: { clienteId: string; nome: string; processos: number }[];
 }
+
+// ── ACOMPANHAMENTO PROCESSUAL (2026-09-11) — parecer da AHRI por intimação ────
+export interface DeterminacaoDoJuizo {
+  oQue: string;
+  responsavel: string;
+  prazoDias: number | null;
+  diasCorridos: boolean;
+}
+
+export interface DeterminacaoComVencimento extends DeterminacaoDoJuizo {
+  vencimentoEstimado: string | null;
+  diasRestantes: number | null;
+}
+
+export interface AnaliseDaComunicacao {
+  chave: string;
+  processo: string;
+  dataPublicacao: string;
+  tipo: string;
+  resumo: string;
+  determinacoes: DeterminacaoDoJuizo[];
+  exigeAcao: boolean;
+  proximoPasso: string;
+  tom: 'favoravel' | 'desfavoravel' | 'neutro';
+  geradoEm: string;
+}
+
+export type MovimentoDoProcesso = AndamentoProcesso['movimentos'][number];
+
+export interface MovimentoComParecer extends MovimentoDoProcesso {
+  chave: string | null;
+  analise: AnaliseDaComunicacao | null;
+  aguardandoParecer: boolean;
+}
+
+export interface AcompanhamentoDoProcesso {
+  hoje: string;
+  movimentos: MovimentoComParecer[];
+  atual: { analise: AnaliseDaComunicacao; determinacoes: DeterminacaoComVencimento[] } | null;
+  atualPendente: boolean;
+  aguardandoParecer: number;
+  parecerDisponivel: boolean;
+}
+
+/** A ficha de UM processo (GET /admin/juridico/processos/:numero). */
+export interface ProcessoDetalhe {
+  numero: string;
+  clienteId: string;
+  clienteNome: string;
+  contratos: ContratoJuridico[];
+  andamento: AndamentoProcesso | null;
+  /** null = parecer automático fora desta montagem. */
+  acompanhamento: AcompanhamentoDoProcesso | null;
+}
+
+/** URL da ficha do processo — só dígitos (o ponto do CNJ não entra na rota). */
+export function urlDoProcesso(numero: string): string {
+  return `/juridico/processos/${numero.replace(/\D/g, '')}`;
+}

@@ -6,6 +6,7 @@ import {
   dataBr,
   type ClienteJuridico,
   type ContratoJuridico,
+  urlDoProcesso,
 } from '../../../../lib/api';
 import AnexosBox from '../../../../components/anexos-box';
 
@@ -98,8 +99,12 @@ export default async function ClientePage({
         [...porProcesso.entries()].map(([processo, lista]) => (
           <div className="secao-form" key={processo}>
             <h3 className="mono" style={{ textTransform: 'none', fontSize: 14 }}>
-              {processo} — {lista.length} contrato(s)
+              <a href={urlDoProcesso(processo)}>{processo}</a> — {lista.length} contrato(s)
             </h3>
+            {/* 2026-09-11: a ficha do processo — andamentos e o parecer da AHRI. */}
+            <a className="btn primario" href={urlDoProcesso(processo)} style={{ marginBottom: 10 }}>
+              Ver andamento e parecer da AHRI
+            </a>
             <div className="tabela-wrap">
               <table>
                 <thead>

@@ -133,6 +133,8 @@ async function main(): Promise<void> {
     hisconLote: prod.hisconLote,
     // Decreto 2026-08-08: o PAINEL JURÍDICO (2º painel — dono + sócio).
     juridico: prod.juridico,
+    // 2026-09-11: o parecer da AHRI por intimação, na ficha do processo.
+    acompanhamentoProcessual: prod.acompanhamentoProcessual,
     // Reaquecimento FASE 1 (2026-08-07): template pelo número OFICIAL da AHRI.
     templateOficial: prod.enviarTemplateOficial,
     // 2026-08-09: disparos persistidos — o painel mostra quem interagiu.

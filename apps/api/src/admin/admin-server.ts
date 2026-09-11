@@ -13,6 +13,7 @@ import {
   type AssembledAdminOperation,
   type CorvoService,
   type JuridicoService,
+  type AcompanhamentoProcessual,
   montarPastasPorAdvogado,
   type EntregaAoAdvogado,
 } from '@reconstrua/infrastructure';
@@ -322,6 +323,9 @@ export function buildAdminServer(
     /** Decreto 2026-08-08: PAINEL JURÍDICO — o 2º painel (dono + sócio):
      *  clientes, processos judiciais, guias e perícias do pós-protocolo. */
     readonly juridico?: JuridicoService;
+    /** ACOMPANHAMENTO PROCESSUAL (2026-09-11): o parecer da AHRI de cada
+     *  intimação do DJEN, na ficha do processo do Painel Jurídico. */
+    readonly acompanhamentoProcessual?: AcompanhamentoProcessual;
     /** Integração Corvo (2026-08-25): envio do lead + caixa/respostas dos bancos. */
     readonly corvo?: CorvoService;
     /** HISCON EM LOTE por advogado (2026-08-31): o ZIP com o HISCON de todos os
@@ -2737,6 +2741,61 @@ export function buildAdminServer(
     const r = await opts.juridico.atualizarAndamentos();
     if (!r.ok) return reply.code(422).send(r);
     return r;
+  });
+
+  // FICHA DO PROCESSO (2026-09-11): capa, contratos e a linha do tempo com o
+  // PARECER da AHRI de cada intimação do DJEN — em destaque, o da publicação
+  // atual. Publicação sem parecer: o GET gera em segundo plano; o botão da
+  // tela (POST …/parecer) gera na hora.
+  app.get('/admin/juridico/processos/:numero', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const digitos = (request.params as { numero: string }).numero.replace(/\D/g, '');
+    const [contratos, clientes, andamentos] = await Promise.all([
+      opts.juridico.listarContratos(),
+      opts.juridico.listarClientes(),
+      opts.juridico.listarAndamentos(),
+    ]);
+    const doProcesso = contratos.filter((c) => c.processoNumero.replace(/\D/g, '') === digitos);
+    const primeiro = doProcesso[0];
+    if (primeiro === undefined) return reply.code(404).send({ error: 'processo não encontrado' });
+    const andamento = andamentos.find((a) => a.numero.replace(/\D/g, '') === digitos) ?? null;
+    const acompanhamentoProcessual = opts.acompanhamentoProcessual;
+    const acompanhamento =
+      acompanhamentoProcessual === undefined
+        ? null
+        : await acompanhamentoProcessual.processo(andamento);
+    if (
+      andamento !== null &&
+      acompanhamentoProcessual !== undefined &&
+      acompanhamento !== null &&
+      acompanhamento.aguardandoParecer > 0 &&
+      acompanhamento.parecerDisponivel
+    )
+      void acompanhamentoProcessual.analisarPendentes([andamento], 5).catch(() => undefined);
+    return {
+      numero: primeiro.processoNumero,
+      clienteId: primeiro.clienteId,
+      clienteNome: clientes.find((c) => c.id === primeiro.clienteId)?.nome ?? '—',
+      contratos: doProcesso,
+      andamento,
+      acompanhamento,
+    };
+  });
+
+  app.post('/admin/juridico/processos/:numero/parecer', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    if (!opts.acompanhamentoProcessual)
+      return reply.code(503).send({ error: 'parecer automático indisponível nesta montagem' });
+    const digitos = (request.params as { numero: string }).numero.replace(/\D/g, '');
+    const andamento =
+      (await opts.juridico.listarAndamentos()).find(
+        (a) => a.numero.replace(/\D/g, '') === digitos,
+      ) ?? null;
+    if (andamento === null)
+      return reply.code(404).send({
+        error: 'processo ainda sem acompanhamento — use "Atualizar andamentos" em Processos',
+      });
+    return opts.acompanhamentoProcessual.analisarPendentes([andamento], 3);
   });
 
   // FILA DE MOVIMENTAÇÕES (2026-08-08): processo que se mexeu espera o VISTO

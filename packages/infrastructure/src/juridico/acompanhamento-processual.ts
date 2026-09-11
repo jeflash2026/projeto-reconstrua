@@ -327,6 +327,36 @@ function dataBr(dia: string): string {
   return `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;
 }
 
+/** As ordens do parecer com o vencimento ESTIMADO e os dias que faltam. */
+function comVencimento(a: AnaliseMovimento, hoje: string): DeterminacaoComVencimento[] {
+  return a.determinacoes.map((d) => {
+    const vencimentoEstimado =
+      d.prazoDias === null
+        ? null
+        : estimarVencimento(a.dataPublicacao, d.prazoDias, d.diasCorridos);
+    return {
+      ...d,
+      vencimentoEstimado,
+      diasRestantes: vencimentoEstimado === null ? null : diasEntre(hoje, vencimentoEstimado),
+    };
+  });
+}
+
+/** Um processo no Painel Jurídico (ficha do processo). */
+export interface AcompanhamentoDoProcesso {
+  readonly hoje: string;
+  readonly movimentos: readonly MovimentoComParecer[];
+  /** O parecer da publicação ATUAL — a mais recente com texto no DJEN. */
+  readonly atual: {
+    readonly analise: AnaliseMovimento;
+    readonly determinacoes: readonly DeterminacaoComVencimento[];
+  } | null;
+  /** A publicação atual existe, mas ainda sem parecer. */
+  readonly atualPendente: boolean;
+  readonly aguardandoParecer: number;
+  readonly parecerDisponivel: boolean;
+}
+
 export class AcompanhamentoProcessual {
   /** Chaves em análise agora — duas rodadas não pagam o mesmo parecer. */
   private readonly emAnalise = new Set<string>();
@@ -558,6 +588,48 @@ export class AcompanhamentoProcessual {
     };
   }
 
+  /** A ficha de UM processo no Painel Jurídico: a linha do tempo com o parecer
+   *  de cada comunicação e, em destaque, o da publicação ATUAL. */
+  async processo(andamento: AndamentoProcesso | null): Promise<AcompanhamentoDoProcesso> {
+    const hoje = this.hoje();
+    const parecerDisponivel = this.deps.completar !== null;
+    if (andamento === null)
+      return {
+        hoje,
+        movimentos: [],
+        atual: null,
+        atualPendente: false,
+        aguardandoParecer: 0,
+        parecerDisponivel,
+      };
+    const desde = somarDias(hoje, -JANELA_DIAS);
+    const numero = andamento.numero;
+    const movimentos = await Promise.all(
+      andamento.movimentos.map(async (m): Promise<MovimentoComParecer> => {
+        if (!ehAnalisavel(m, desde))
+          return { ...m, chave: null, analise: null, aguardandoParecer: false };
+        const chave = chaveDaComunicacao(numero, m);
+        const registro = await this.deps.json.get(NS_ANALISES, chave);
+        const analise = ehAnalise(registro) ? registro : null;
+        return { ...m, chave, analise, aguardandoParecer: analise === null };
+      }),
+    );
+    // Os movimentos já vêm do mais recente para o mais antigo.
+    const publicacaoAtual = movimentos.find((m) => m.chave !== null) ?? null;
+    const analiseAtual = publicacaoAtual?.analise ?? null;
+    return {
+      hoje,
+      movimentos,
+      atual:
+        analiseAtual === null
+          ? null
+          : { analise: analiseAtual, determinacoes: comVencimento(analiseAtual, hoje) },
+      atualPendente: publicacaoAtual !== null && analiseAtual === null,
+      aguardandoParecer: movimentos.filter((m) => m.aguardandoParecer).length,
+      parecerDisponivel,
+    };
+  }
+
   /** A comunicação vira alerta quando exige ação: com prazo (até
    *  ALERTA_VENCIDO_DIAS depois de vencer) ou sem prazo escrito (por
    *  ALERTA_SEM_PRAZO_DIAS desde a publicação). */
@@ -566,17 +638,7 @@ export class AcompanhamentoProcessual {
     hoje: string,
   ): Omit<AlertaProcessual, 'cliente' | 'chatId' | 'ciente'> | null {
     if (!a.exigeAcao) return null;
-    const determinacoes = a.determinacoes.map((d): DeterminacaoComVencimento => {
-      const vencimentoEstimado =
-        d.prazoDias === null
-          ? null
-          : estimarVencimento(a.dataPublicacao, d.prazoDias, d.diasCorridos);
-      return {
-        ...d,
-        vencimentoEstimado,
-        diasRestantes: vencimentoEstimado === null ? null : diasEntre(hoje, vencimentoEstimado),
-      };
-    });
+    const determinacoes = comVencimento(a, hoje);
     const restantes = determinacoes
       .map((d) => d.diasRestantes)
       .filter((n): n is number => n !== null);

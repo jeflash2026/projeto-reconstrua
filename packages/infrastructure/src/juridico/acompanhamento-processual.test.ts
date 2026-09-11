@@ -356,4 +356,51 @@ describe('AcompanhamentoProcessual', () => {
     }).painelDoAdvogado('a-gra', dados);
     expect(saiu.alertas).toHaveLength(0);
   });
+
+  it('ficha do processo (Painel Jurídico): parecer da publicação atual em destaque, com vencimento', async () => {
+    const acompanhamento = new AcompanhamentoProcessual({
+      json: memoria(),
+      clock: relogio,
+      completar: () => Promise.resolve(PARECER_TAIS),
+    });
+    const tais = andamentos[0]!;
+    expect(await acompanhamento.processo(tais)).toMatchObject({
+      atual: null,
+      atualPendente: true,
+      aguardandoParecer: 1,
+    });
+    await acompanhamento.analisarPendentes([tais]);
+    const ficha = await acompanhamento.processo(tais);
+    expect(ficha.atualPendente).toBe(false);
+    expect(ficha.aguardandoParecer).toBe(0);
+    expect(ficha.atual?.analise.chave).toBe(chaveDaComunicacao(TAIS, intimacaoTais));
+    expect(ficha.atual?.determinacoes.map((d) => [d.vencimentoEstimado, d.diasRestantes])).toEqual([
+      ['2026-09-23', 12],
+      ['2026-09-23', 12],
+    ]);
+    // A linha do tempo inteira volta; parecer só onde há texto do DJEN.
+    expect(ficha.movimentos.map((m) => m.analise !== null)).toEqual([true, false, false]);
+  });
+
+  it('ficha do processo sem acompanhamento ou só com DataJud: sem parecer e sem pendência', async () => {
+    const acompanhamento = new AcompanhamentoProcessual({
+      json: memoria(),
+      clock: relogio,
+      completar: null,
+    });
+    expect(await acompanhamento.processo(null)).toMatchObject({
+      movimentos: [],
+      atual: null,
+      atualPendente: false,
+      parecerDisponivel: false,
+    });
+    const soDatajud = andamento(GILDETE, [
+      { nome: 'Conclusos para despacho', dataHora: '2026-09-01T12:00:00.000Z', fonte: 'DATAJUD' },
+    ]);
+    expect(await acompanhamento.processo(soDatajud)).toMatchObject({
+      atual: null,
+      atualPendente: false,
+      aguardandoParecer: 0,
+    });
+  });
 });

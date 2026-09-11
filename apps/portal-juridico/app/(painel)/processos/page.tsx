@@ -7,6 +7,7 @@ import {
   dataBr,
   type AndamentoProcesso,
   type ContratoJuridico,
+  urlDoProcesso,
 } from '../../../lib/api';
 import AtualizarAndamentos from '../../../components/atualizar-andamentos';
 
@@ -95,7 +96,7 @@ export default async function ProcessosPage({
             <div className="secao-form" key={`${g.clienteNome}-${g.processo}`}>
               <div style={{ fontWeight: 800 }}>{g.clienteNome}</div>
               <div className="mono" style={{ marginBottom: 4 }}>
-                {g.processo}{' '}
+                <a href={urlDoProcesso(g.processo)}>{g.processo}</a>{' '}
                 {andamento?.emExecucao === true ? (
                   <span className="selo-status encerrado">⚡ Em execução</span>
                 ) : null}{' '}
@@ -196,7 +197,10 @@ export default async function ProcessosPage({
                 </div>
               ) : null}
               <div style={{ color: 'var(--ink-dim)', fontSize: 13, marginBottom: 10 }}>
-                {g.itens.length} contrato(s) em {bancos.size} banco(s)
+                {g.itens.length} contrato(s) em {bancos.size} banco(s) ·{' '}
+                <a href={urlDoProcesso(g.processo)} style={{ fontWeight: 700 }}>
+                  abrir o processo e o parecer da AHRI →
+                </a>
               </div>
               <div className="tabela-wrap">
                 <table>

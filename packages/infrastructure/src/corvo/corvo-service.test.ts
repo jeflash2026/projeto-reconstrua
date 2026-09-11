@@ -698,3 +698,25 @@ describe('banco.envio acerta o cronômetro; redisparar chama o endpoint do Corvo
     expect((await svc.redisparar('cli-inexistente')).ok).toBe(false);
   });
 });
+
+// ── RECONCILIAÇÃO DO CRONÔMETRO (2026-09-11): o reenvio de 09/09 não reiniciou
+// o prazo de ninguém; o job passa a usar o e-mail MAIS RECENTE ao banco. ─────
+describe('ultimosEnviosAoBanco — a base da reconciliação do prazo', () => {
+  it('devolve, por chat, o e-mail mais recente ao banco do CPF dele', async () => {
+    const { svc } = servico({
+      cpfDe: (chatId) => Promise.resolve(chatId === O_PEDIDO.chatId ? '01795790881' : null),
+    });
+    const aviso = (id: string, cpf: string, enviadoEm: string) => ({
+      id,
+      tipo: 'banco.envio',
+      ocorridoEm: enviadoEm,
+      dados: { envioId: id, cliente: { nome: 'X', cpf }, enviadoEm },
+    });
+    await svc.processarEvento(aviso('e1', '017.957.908-81', '2026-09-01T10:00:00.000Z'));
+    await svc.processarEvento(aviso('e2', '01795790881', '2026-09-10T19:51:00.000Z'));
+    await svc.processarEvento(aviso('e3', '11122233344', '2026-09-11T08:00:00.000Z'));
+    const r = await svc.ultimosEnviosAoBanco([O_PEDIDO.chatId, 'chat-sem-cpf']);
+    expect(r.get(O_PEDIDO.chatId)?.toISOString()).toBe('2026-09-10T19:51:00.000Z');
+    expect(r.has('chat-sem-cpf')).toBe(false);
+  });
+});

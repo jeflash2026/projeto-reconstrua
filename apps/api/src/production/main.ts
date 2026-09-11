@@ -520,7 +520,25 @@ async function main(): Promise<void> {
         ...(await prod.periciaFluxo.emAndamento()),
         ...(await prod.periciaFluxo.concluidas()),
       ];
+      // CRONÔMETRO PELO ÚLTIMO E-MAIL AO BANCO (2026-09-11): o prazo de 10 dias
+      // de cada perícia conta do e-mail mais recente que o Corvo mandou ao
+      // banco — reconciliado aqui para os avisos que chegaram antes do gancho
+      // (o reenvio de 09/09 não reiniciou ninguém). reiniciarPrazo só avança.
+      const ultimosEnvios = await prod.corvo
+        .ultimosEnviosAoBanco(fluxos.map((f) => f.chatId))
+        .catch(() => new Map<string, Date>());
       for (const f of fluxos) {
+        const ultimoEnvio = ultimosEnvios.get(f.chatId);
+        if (ultimoEnvio !== undefined) {
+          const prazo = await prod.periciaFluxo.reiniciarPrazo(f.chatId, ultimoEnvio);
+          if (prazo.ok)
+            prod.observability.event(
+              'pericia',
+              'prazo-reconciliado',
+              clock.now(),
+              `cliente=${f.quem} — o prazo conta do último e-mail ao banco (${ultimoEnvio.toISOString().slice(0, 10)})`,
+            );
+        }
         if (f.credenciais !== null) continue;
         const cred = await prod.corvo.credencialDoChat(f.chatId).catch(() => null);
         if (cred === null) continue;

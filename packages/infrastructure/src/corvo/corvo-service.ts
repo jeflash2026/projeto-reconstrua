@@ -922,6 +922,29 @@ export class CorvoService {
    *  CHAT — consumo interno do sistema (propagação ao card do perito), não
    *  revelação a humano: por isso sem a trilha do revelarSenha. null = sem
    *  caixa, sem senha guardada ou cliente sem CPF. */
+  /** CRONÔMETRO PELO ÚLTIMO E-MAIL AO BANCO (2026-09-11): por chat, a data do
+   *  banco.envio MAIS RECENTE do CPF dele. A reconciliação do prazo de 10 dias
+   *  usa isto — inclusive para os avisos que chegaram antes de o gancho
+   *  existir (o reenvio de 09/09 não reiniciou o cronômetro de ninguém). Uma
+   *  única leitura dos envios para a lista inteira. */
+  async ultimosEnviosAoBanco(chatIds: readonly string[]): Promise<Map<string, Date>> {
+    const envios = (await this.deps.json.list(NS_ENVIOS)) as readonly EnvioCorvo[];
+    const ultimoPorCpf = new Map<string, number>();
+    for (const e of envios) {
+      const cpf = (e.cpf ?? '').replace(/\D/g, '');
+      const t = new Date(e.enviadoEm ?? '').getTime();
+      if (cpf.length !== 11 || Number.isNaN(t)) continue;
+      if (t > (ultimoPorCpf.get(cpf) ?? 0)) ultimoPorCpf.set(cpf, t);
+    }
+    const out = new Map<string, Date>();
+    for (const chatId of chatIds) {
+      const cpf = ((await this.deps.cpfDe(chatId).catch(() => null)) ?? '').replace(/\D/g, '');
+      const t = ultimoPorCpf.get(cpf);
+      if (t !== undefined) out.set(chatId, new Date(t));
+    }
+    return out;
+  }
+
   async credencialDoChat(chatId: string): Promise<{ email: string; senha: string } | null> {
     const cpf = ((await this.deps.cpfDe(chatId)) ?? '').replace(/\D/g, '');
     if (cpf.length !== 11) return null;

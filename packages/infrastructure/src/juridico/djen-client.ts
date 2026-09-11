@@ -11,6 +11,13 @@
 // MESMA X-Api-Key da integração. O relay só repassa GET /comunicacao com
 // parâmetros permitidos e devolve o JSON do CNJ tal como veio.
 // Somente LEITURA de dados públicos.
+//
+// RITMO (2026-09-11, nota do Corvo): o CNJ aceita 20 consultas/min por IP e
+// TODAS saem do IP do Corvo — o relay corta em 18/min e 2/s e responde 429
+// (ou 502 quando pausa após falhas) com Retry-After. Aqui: ~3,5 s entre
+// consultas; 429/502 com Retry-After curto ⇒ espera e repete o MESMO processo;
+// pausa longa ⇒ não insiste (o resto da rodada fica com o que já estava
+// guardado e a próxima rodada retoma).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface PublicacaoDjen {
@@ -32,6 +39,17 @@ export interface DjenConfig {
   /** URL do endpoint de comunicações (relay do Corvo ou a API do CNJ direto). */
   readonly url: string;
   readonly headers: Readonly<Record<string, string>>;
+}
+
+export interface DjenRitmo {
+  /** Intervalo mínimo entre consultas (recomendação do relay: ~3,5 s). */
+  readonly intervaloMs?: number;
+  /** 429/502 com Retry-After até este tempo: espera e repete o processo. */
+  readonly esperaMaximaMs?: number;
+  /** Quantas vezes repete o MESMO processo depois de um Retry-After. */
+  readonly repeticoes?: number;
+  readonly agora?: () => number;
+  readonly dormir?: (ms: number) => Promise<void>;
 }
 
 const ENTIDADES: Readonly<Record<string, string>> = {
@@ -120,13 +138,46 @@ export function publicacoesDoCorpo(corpo: unknown): PublicacaoDjen[] {
   return out.sort((a, b) => b.data.localeCompare(a.data));
 }
 
+/** Retry-After (segundos ou data HTTP) → milissegundos; null = ausente/ilegível. */
+export function esperaDoRetryAfter(valor: string | null, agoraMs: number): number | null {
+  const t = (valor ?? '').trim();
+  if (t === '') return null;
+  if (/^\d+$/.test(t)) return Number(t) * 1000;
+  const data = Date.parse(t);
+  return Number.isNaN(data) ? null : Math.max(0, data - agoraMs);
+}
+
+/** Hora de Brasília (UTC-3 fixo) para a mensagem de pausa. */
+function horaBrasilia(ms: number): string {
+  const d = new Date(ms - 3 * 60 * 60 * 1000);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
 type FetchFn = typeof fetch;
 
 export class DjenClient {
+  /** Quando a próxima consulta pode sair (ritmo entre consultas). */
+  private proximaConsulta = 0;
+  /** O relay mandou esperar mais do que vale segurar a rodada. */
+  private pausadoAte = 0;
+  private readonly intervaloMs: number;
+  private readonly esperaMaximaMs: number;
+  private readonly repeticoes: number;
+  private readonly agora: () => number;
+  private readonly dormir: (ms: number) => Promise<void>;
+
   constructor(
     private readonly config: DjenConfig,
     private readonly fetchFn: FetchFn = fetch,
-  ) {}
+    ritmo: DjenRitmo = {},
+  ) {
+    this.intervaloMs = ritmo.intervaloMs ?? 3_500;
+    this.esperaMaximaMs = ritmo.esperaMaximaMs ?? 90_000;
+    this.repeticoes = ritmo.repeticoes ?? 2;
+    this.agora = ritmo.agora ?? ((): number => Date.now());
+    this.dormir =
+      ritmo.dormir ?? ((ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)));
+  }
 
   /** Comunicações de UM processo (mais recentes primeiro). Lança em falha de
    *  transporte/HTTP — o chamador grava o erro literal na tela. */
@@ -134,11 +185,30 @@ export class DjenClient {
     const digitos = numeroCnj.replace(/\D/g, '');
     if (digitos.length !== 20) return [];
     const params = new URLSearchParams({ numeroProcesso: digitos, itensPorPagina: '50' });
-    const res = await this.fetchFn(`${this.config.url}?${params.toString()}`, {
-      headers: { accept: 'application/json', ...this.config.headers },
-      signal: AbortSignal.timeout(25_000),
-    });
-    if (!res.ok) throw new Error(`DJEN respondeu HTTP ${String(res.status)}`);
-    return publicacoesDoCorpo(await res.json());
+    for (let repeticao = 0; ; repeticao += 1) {
+      if (this.agora() < this.pausadoAte)
+        throw new Error(
+          `DJEN em pausa pelo relay até ${horaBrasilia(this.pausadoAte)} (limite de consultas do CNJ)`,
+        );
+      const espera = this.proximaConsulta - this.agora();
+      if (espera > 0) await this.dormir(espera);
+      this.proximaConsulta = this.agora() + this.intervaloMs;
+      const res = await this.fetchFn(`${this.config.url}?${params.toString()}`, {
+        headers: { accept: 'application/json', ...this.config.headers },
+        signal: AbortSignal.timeout(25_000),
+      });
+      if (res.ok) return publicacoesDoCorpo(await res.json());
+      const retry =
+        res.status === 429 || res.status === 502
+          ? esperaDoRetryAfter(res.headers.get('retry-after'), this.agora())
+          : null;
+      if (retry !== null && retry <= this.esperaMaximaMs && repeticao < this.repeticoes) {
+        await this.dormir(retry);
+        continue;
+      }
+      // Pausa longa do relay: não insiste até ela passar.
+      if (retry !== null && retry > this.esperaMaximaMs) this.pausadoAte = this.agora() + retry;
+      throw new Error(`DJEN respondeu HTTP ${String(res.status)}`);
+    }
   }
 }

@@ -78,3 +78,106 @@ describe('DjenClient', () => {
     await expect(negado.consultar('4005177-19.2026.8.26.0533')).rejects.toThrow('HTTP 403');
   });
 });
+
+// RITMO (2026-09-11, nota do Corvo): o CNJ aceita 20 consultas/min por IP e
+// todas saem do relay — ~3,5 s entre consultas; 429/502 com Retry-After curto
+// repete o MESMO processo; pausa longa não é insistida.
+describe('DjenClient — ritmo do relay', () => {
+  const PROCESSO = '4005177-19.2026.8.26.0533';
+  const ok = (): Response => new Response(JSON.stringify({ items: [ITEM_REAL] }), { status: 200 });
+  const alvo = (url: Parameters<typeof fetch>[0]): string =>
+    typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+
+  function relogio(): {
+    esperas: number[];
+    agora: () => number;
+    dormir: (ms: number) => Promise<void>;
+    avancar: (ms: number) => void;
+  } {
+    let t = 1_000_000;
+    const esperas: number[] = [];
+    return {
+      esperas,
+      agora: () => t,
+      dormir: (ms) => {
+        esperas.push(ms);
+        t += ms;
+        return Promise.resolve();
+      },
+      avancar: (ms) => {
+        t += ms;
+      },
+    };
+  }
+
+  it('espaça as consultas em 3,5 s (desconta o tempo que já passou)', async () => {
+    const r = relogio();
+    const cliente = new DjenClient(
+      { url: 'https://x', headers: {} },
+      () => Promise.resolve(ok()),
+      r,
+    );
+    await cliente.consultar(PROCESSO);
+    r.avancar(1_000); // DataJud e o resto da volta levaram 1 s
+    await cliente.consultar(PROCESSO);
+    expect(r.esperas).toEqual([2_500]);
+  });
+
+  it('429 com Retry-After curto: espera e repete o MESMO processo', async () => {
+    const r = relogio();
+    const respostas = [
+      new Response('{"erro":"limite"}', { status: 429, headers: { 'retry-after': '12' } }),
+      ok(),
+    ];
+    const urls: string[] = [];
+    const cliente = new DjenClient(
+      { url: 'https://x', headers: {} },
+      (url) => {
+        urls.push(alvo(url));
+        return Promise.resolve(respostas.shift() ?? ok());
+      },
+      r,
+    );
+    expect(await cliente.consultar(PROCESSO)).toHaveLength(1);
+    expect(urls).toHaveLength(2);
+    expect(urls[1]).toBe(urls[0]);
+    expect(r.esperas).toEqual([12_000]);
+  });
+
+  it('pausa longa do relay: não insiste até ela passar', async () => {
+    const r = relogio();
+    let chamadas = 0;
+    const cliente = new DjenClient(
+      { url: 'https://x', headers: {} },
+      () => {
+        chamadas += 1;
+        return Promise.resolve(
+          new Response('{"erro":"pausado"}', { status: 502, headers: { 'retry-after': '900' } }),
+        );
+      },
+      r,
+    );
+    await expect(cliente.consultar(PROCESSO)).rejects.toThrow('HTTP 502');
+    await expect(cliente.consultar(PROCESSO)).rejects.toThrow('em pausa pelo relay');
+    expect(chamadas).toBe(1);
+    r.avancar(900_000);
+    await expect(cliente.consultar(PROCESSO)).rejects.toThrow('HTTP 502');
+    expect(chamadas).toBe(2);
+  });
+
+  it('502 sem Retry-After (timeout do CNJ): erro na hora, sem repetir', async () => {
+    const r = relogio();
+    let chamadas = 0;
+    const cliente = new DjenClient(
+      { url: 'https://x', headers: {} },
+      () => {
+        chamadas += 1;
+        return Promise.resolve(new Response('{"erro":"timeout"}', { status: 502 }));
+      },
+      r,
+    );
+    await expect(cliente.consultar(PROCESSO)).rejects.toThrow('HTTP 502');
+    expect(chamadas).toBe(1);
+    expect(r.esperas).toEqual([]);
+  });
+});

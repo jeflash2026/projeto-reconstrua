@@ -159,3 +159,36 @@ botão "Atualizar andamentos"): cada publicação vira movimento `DJEN · <tipo>
 o texto limpo e o link do eproc; intimação vira alerta 📬 no Dashboard. Falha do
 relay aparece literal na tela do processo (ex.: `DJEN respondeu HTTP 404` enquanto
 o relay não existir).
+
+### Ritmo (2026-09-11, nota do Corvo)
+
+O CNJ aceita 20 consultas por minuto por IP, e todas as consultas saem do IP do
+Corvo. O relay corta em 18/min e 2/s, guarda cada consulta por 10 minutos e
+responde `429` (limite) ou `502` (timeout, falha ou pausa após falhas seguidas),
+com `Retry-After` quando manda esperar. O contrato deles está em
+`docs/integracao/DJEN-RELAY.md` (repositório do Corvo).
+
+Do nosso lado (`DjenClient`):
+
+- **3,5 s entre consultas**, descontando o tempo que já passou (a volta do
+  DataJud conta). A rodada de ~70 processos leva uns 4 minutos.
+- `429`/`502` com `Retry-After` de até 90 s: espera e repete o **mesmo** processo
+  (até 2 vezes). Pausa mais longa: não insiste; os processos seguintes da rodada
+  ficam com o que já estava guardado (erro literal "DJEN em pausa pelo relay até
+  HH:MM") e a rodada seguinte retoma.
+- `502` sem `Retry-After`: erro na hora, sem repetir.
+- **Uma rodada por vez** (`JuridicoService.atualizarAndamentos`): o job de 6 horas
+  e o botão "Atualizar andamentos" nunca rodam juntos. O botão só dispara a rodada
+  e a tela acompanha por `GET /admin/juridico/andamentos/status`.
+
+## Prova de entrega no dossiê (2026-09-11, nota do Corvo)
+
+O RELATORIO.html do dossiê de integridade passou a trazer, banco por banco, o
+resultado da entrega ao servidor de e-mail do banco (entregue, recusado,
+devolvido, tentativas esgotadas, aceito com devolução a conferir, ainda não
+entregue, sem registro), com data e hora de Brasília, o servidor que respondeu e
+a resposta literal. Nada muda no nosso código: o dossiê é guardado como veio
+(ZIP verificado pelo hash-raiz). As versões antigas guardadas aqui continuam no
+formato antigo; para ter o relatório novo de um cliente, use "Atualizar dossiê"
+na ficha dele no Admin (`POST /admin/corvo/dossies/:cpf/atualizar`) — a versão
+nova vira a "atual" na Central do Advogado.

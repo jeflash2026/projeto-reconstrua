@@ -197,4 +197,34 @@ describe('atualizarAndamentos — DataJud sem o processo, DJEN com as publicaç�
     const [a] = await svc.listarAndamentos();
     expect(a?.erro).toContain('HTTP 404');
   });
+
+  // 2026-09-11: o relay do DJEN limita as consultas do CNJ por IP — o job de
+  // 6h e o botão não podem rodar duas rodadas ao mesmo tempo.
+  it('uma rodada por vez: quem chama durante a rodada recebe a MESMA; o status acompanha', async () => {
+    let consultas = 0;
+    let liberar: () => void = () => undefined;
+    const trava = new Promise<void>((r) => {
+      liberar = r;
+    });
+    const svc = montar({
+      consultar: async () => {
+        consultas += 1;
+        await trava;
+        return PUBS;
+      },
+    });
+    await comProcesso(svc);
+    const primeira = svc.atualizarAndamentos();
+    const segunda = svc.atualizarAndamentos();
+    expect(segunda).toBe(primeira);
+    expect(svc.statusAtualizacao()).toMatchObject({ atualizando: true, ultima: null });
+    liberar();
+    expect(await primeira).toMatchObject({ ok: true, consultados: 1 });
+    expect(consultas).toBe(1);
+    expect(svc.statusAtualizacao()).toMatchObject({
+      atualizando: false,
+      iniciadaEm: null,
+      ultima: { ok: true, consultados: 1 },
+    });
+  });
 });

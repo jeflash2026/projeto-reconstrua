@@ -328,8 +328,20 @@ export function distribuidosNoDia(
   };
 }
 
+/** Resultado de uma rodada de atualização dos andamentos. */
+export type ResultadoAtualizacao =
+  | { ok: true; consultados: number; encontrados: number; novidades: number; erros: number }
+  | { ok: false; error: string };
+
 export class JuridicoService {
   constructor(private readonly deps: JuridicoDeps) {}
+
+  /** Rodada de atualização em curso — UMA por vez (2026-09-11): o job de 6h e
+   *  o botão "Atualizar andamentos" não disputam o relay do DJEN, que limita
+   *  as consultas do CNJ por IP. */
+  private rodada: Promise<ResultadoAtualizacao> | null = null;
+  private rodadaIniciadaEm: string | null = null;
+  private ultimaRodada: (ResultadoAtualizacao & { terminouEm: string }) | null = null;
 
   private agora(): string {
     return this.deps.clock.now().toISOString();
@@ -953,11 +965,38 @@ export class JuridicoService {
   /** Consulta TODOS os processos com contrato não-excluído — DataJud (capa e
    *  movimentações) + DJEN (publicações: distribuição e intimações com o texto)
    *  — e grava o retrato de cada um. O eproc do TJSP não chega ao DataJud
-   *  (2026-09-10): o DJEN é quem traz os processos novos. Ritmo suave. */
-  async atualizarAndamentos(): Promise<
-    | { ok: true; consultados: number; encontrados: number; novidades: number; erros: number }
-    | { ok: false; error: string }
-  > {
+   *  (2026-09-10): o DJEN é quem traz os processos novos. Ritmo suave.
+   *  Uma rodada por vez: quem chama durante uma rodada recebe a MESMA. */
+  atualizarAndamentos(): Promise<ResultadoAtualizacao> {
+    if (this.rodada !== null) return this.rodada;
+    this.rodadaIniciadaEm = this.agora();
+    this.rodada = this.executarAtualizacao()
+      .then((r) => {
+        this.ultimaRodada = { ...r, terminouEm: this.agora() };
+        return r;
+      })
+      .finally(() => {
+        this.rodada = null;
+        this.rodadaIniciadaEm = null;
+      });
+    return this.rodada;
+  }
+
+  /** Estado da atualização para a tela — a rodada leva minutos (o relay do
+   *  DJEN pede ~3,5 s entre processos). */
+  statusAtualizacao(): {
+    atualizando: boolean;
+    iniciadaEm: string | null;
+    ultima: (ResultadoAtualizacao & { terminouEm: string }) | null;
+  } {
+    return {
+      atualizando: this.rodada !== null,
+      iniciadaEm: this.rodadaIniciadaEm,
+      ultima: this.ultimaRodada,
+    };
+  }
+
+  private async executarAtualizacao(): Promise<ResultadoAtualizacao> {
     const { datajud, djen } = this.deps;
     if (datajud === undefined && djen === undefined)
       return { ok: false, error: 'acompanhamento (DataJud/DJEN) não configurado nesta montagem' };

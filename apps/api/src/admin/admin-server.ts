@@ -2736,11 +2736,33 @@ export function buildAdminServer(
     return { andamentos: await opts.juridico.listarAndamentos() };
   });
 
+  // 2026-09-11: o relay do DJEN (Corvo) pede ~3,5 s entre consultas — a rodada
+  // leva minutos. O botão só DISPARA (uma rodada por vez) e a tela acompanha
+  // pelo status; ao terminar, as intimações novas ganham o parecer da AHRI.
   app.post('/admin/juridico/andamentos/atualizar', async (_request, reply) => {
+    const juridico = opts.juridico;
+    if (!juridico) return reply.code(503).send(juridicoIndisponivel);
+    const jaRodando = juridico.statusAtualizacao().atualizando;
+    const acompanhamento = opts.acompanhamentoProcessual;
+    void juridico
+      .atualizarAndamentos()
+      .then(async (r) => {
+        // A rodada que já estava em curso (job de 6h) gera os pareceres dela.
+        if (r.ok && !jaRodando && acompanhamento !== undefined)
+          await acompanhamento.analisarPendentes(await juridico.listarAndamentos());
+      })
+      .catch(() => undefined);
+    const processos = new Set(
+      (await juridico.listarContratos())
+        .filter((c) => c.status !== 'excluido')
+        .map((c) => c.processoNumero),
+    ).size;
+    return { ok: true, iniciado: !jaRodando, processos, ...juridico.statusAtualizacao() };
+  });
+
+  app.get('/admin/juridico/andamentos/status', async (_request, reply) => {
     if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
-    const r = await opts.juridico.atualizarAndamentos();
-    if (!r.ok) return reply.code(422).send(r);
-    return r;
+    return opts.juridico.statusAtualizacao();
   });
 
   // FICHA DO PROCESSO (2026-09-11): capa, contratos e a linha do tempo com o

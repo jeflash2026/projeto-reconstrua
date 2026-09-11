@@ -198,6 +198,7 @@ import {
 import { ResilientHttpClient } from './resilient-http.js';
 import { zipStore, type ArquivoZip } from '../util/zip.js';
 import { DjenClient } from '../juridico/djen-client.js';
+import { AcompanhamentoProcessual } from '../juridico/acompanhamento-processual.js';
 import { createLlmBundle, type LlmBundle } from './llm-adapters.js';
 import { ProductionIngress } from './production-ingress.js';
 import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
@@ -362,6 +363,9 @@ export interface AssembledProduction {
   /** Decreto 2026-08-08: PAINEL JURÍDICO — gestão do pós-protocolo (clientes,
    *  processos judiciais, guias e perícias), o 2º painel do dono + sócio. */
   readonly juridico: JuridicoService;
+  /** ACOMPANHAMENTO PROCESSUAL (2026-09-11): o parecer de cada intimação do
+   *  DJEN e os alertas de prazo, no painel do advogado dos clientes DELE. */
+  readonly acompanhamentoProcessual: AcompanhamentoProcessual;
   /** REAQUECIMENTO FASE 1 (decreto 2026-08-07): envia um TEMPLATE aprovado
    *  pelo número OFICIAL da AHRI (o 16) — a única forma de reabrir lead frio
    *  no canal Meta. false = canal não configurado ou Meta recusou. */
@@ -3074,6 +3078,19 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
   });
 
+  // ACOMPANHAMENTO PROCESSUAL (2026-09-11): cada comunicação do DJEN com texto
+  // vira UM parecer (modelo principal, gerado uma vez e guardado) — o painel do
+  // advogado só lê. Sem LLM, o painel mostra o texto publicado, sem parecer.
+  const acompanhamentoCompletion = llm.completion;
+  const acompanhamentoProcessual = new AcompanhamentoProcessual({
+    json,
+    clock,
+    completar:
+      acompanhamentoCompletion === null
+        ? null
+        : async (system, user) => (await acompanhamentoCompletion.complete(system, user)).text,
+  });
+
   return {
     ingress: shadowMode ? shadow : plainIngress,
     shadow,
@@ -3119,6 +3136,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     transferirAdvogado,
     devolverAdvogado,
     juridico,
+    acompanhamentoProcessual,
     // 2026-08-09: cada disparo oficial é PERSISTIDO (ns 'disparos-oficial') e
     // registrado na memória da conversa — a AHRI fica ciente e o painel
     // consegue mostrar quem interagiu depois do template.

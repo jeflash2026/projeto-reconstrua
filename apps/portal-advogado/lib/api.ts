@@ -188,3 +188,85 @@ export interface Solicitacao {
   createdBy: string;
   history: SolicitacaoHistorico[];
 }
+
+// ── ACOMPANHAMENTO PROCESSUAL (2026-09-11) — processos judiciais dos clientes
+//    entregues: cada intimação do DJEN com o parecer da AHRI e os alertas. ─────
+export interface DeterminacaoDoJuizo {
+  oQue: string;
+  responsavel: string;
+  prazoDias: number | null;
+  diasCorridos: boolean;
+}
+
+export interface DeterminacaoComVencimento extends DeterminacaoDoJuizo {
+  vencimentoEstimado: string | null;
+  diasRestantes: number | null;
+}
+
+export interface AnaliseDaComunicacao {
+  chave: string;
+  processo: string;
+  dataPublicacao: string;
+  tipo: string;
+  resumo: string;
+  determinacoes: DeterminacaoDoJuizo[];
+  exigeAcao: boolean;
+  proximoPasso: string;
+  tom: 'favoravel' | 'desfavoravel' | 'neutro';
+  geradoEm: string;
+}
+
+export interface MovimentoAcompanhado {
+  nome: string;
+  dataHora: string;
+  texto?: string;
+  link?: string | null;
+  fonte?: 'DATAJUD' | 'DJEN';
+  chave: string | null;
+  analise: AnaliseDaComunicacao | null;
+  aguardandoParecer: boolean;
+}
+
+export interface ProcessoAcompanhado {
+  numero: string;
+  bancos: string[];
+  tribunal: string;
+  classe: string;
+  orgaoJulgador: string;
+  ultimoMovimento: { nome: string; dataHora: string } | null;
+  consultadoEm: string | null;
+  erro: string | null;
+  movimentos: MovimentoAcompanhado[];
+}
+
+export interface ClienteAcompanhado {
+  nome: string;
+  chatId: string;
+  juridicoClienteId: string | null;
+  processos: ProcessoAcompanhado[];
+  alertas: number;
+}
+
+export interface AlertaProcessual {
+  chave: string;
+  cliente: string;
+  chatId: string;
+  processo: string;
+  dataPublicacao: string;
+  tipo: string;
+  resumo: string;
+  proximoPasso: string;
+  determinacoes: DeterminacaoComVencimento[];
+  vencimentoEstimado: string | null;
+  diasRestantes: number | null;
+  vencido: boolean;
+  ciente: boolean;
+}
+
+export interface Acompanhamento {
+  hoje: string;
+  alertas: AlertaProcessual[];
+  clientes: ClienteAcompanhado[];
+  aguardandoParecer: number;
+  parecerDisponivel: boolean;
+}

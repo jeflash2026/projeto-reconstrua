@@ -42,6 +42,15 @@ function normalizarCanalCliente(bruto: string): string {
   return digitos.length >= 10 ? `${digitos}@s.whatsapp.net` : '';
 }
 
+/** Cliente entregue a um advogado (a mesma forma das pastas do jurídico). */
+interface EntregaDoAdvogado {
+  readonly advogadoId: string;
+  readonly advogado: string;
+  readonly chatId: string;
+  readonly nome: string;
+  readonly entregueEm: string | null;
+}
+
 export function buildAdvogadoServer(
   op: AssembledAdvogadoOperation,
   opts: {
@@ -133,6 +142,20 @@ export function buildAdvogadoServer(
         cpf: string,
         hashRaiz: string,
       ): Promise<{ nomeArquivo: string; bytes: Buffer } | null>;
+    };
+    /** ACOMPANHAMENTO PROCESSUAL (2026-09-11): os processos judiciais dos
+     *  clientes entregues, o parecer de cada intimação e os alertas de prazo. */
+    readonly acompanhamento?: {
+      painel(
+        advogadoId: string,
+        entregas: readonly EntregaDoAdvogado[],
+      ): Promise<{ readonly aguardandoParecer: number; readonly parecerDisponivel: boolean }>;
+      ciente(
+        advogadoId: string,
+        entregas: readonly EntregaDoAdvogado[],
+        chave: string,
+      ): Promise<{ ok: boolean; error?: string }>;
+      analisar(advogadoId: string, entregas: readonly EntregaDoAdvogado[]): Promise<void>;
     };
   } = {},
 ): FastifyInstance {
@@ -642,6 +665,77 @@ export function buildAdvogadoServer(
     const unicos = [...porCliente.values()];
     unicos.sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
     return { clientes: unicos };
+  });
+
+  // ── ACOMPANHAMENTO PROCESSUAL (2026-09-11) — os processos judiciais dos
+  //    clientes DELE (cadastrados no Painel Jurídico), cada intimação do DJEN
+  //    com o parecer da AHRI e os alertas de prazo. Só leitura + o "ciente". ──
+  async function entregasDe(advogadoId: string): Promise<EntregaDoAdvogado[]> {
+    // A atribuição mais recente vence (mesma regra de /advogado/meus-clientes).
+    const assignments = [...(await op.work.myMissions(advogadoId))].sort(
+      (x, y) => new Date(y.assignedAt).getTime() - new Date(x.assignedAt).getTime(),
+    );
+    const vistos = new Set<string>();
+    const out: EntregaDoAdvogado[] = [];
+    for (const a of assignments) {
+      const chatId = a.chatId ?? (await chatDaMissao(a.missionId));
+      if (chatId === null || vistos.has(chatId)) continue;
+      vistos.add(chatId);
+      const em = new Date(a.assignedAt);
+      out.push({
+        advogadoId,
+        advogado: '',
+        chatId,
+        nome: await nomeDoClientePorChat(chatId),
+        entregueEm: Number.isNaN(em.getTime()) ? null : em.toISOString(),
+      });
+    }
+    return out;
+  }
+
+  // O Painel do advogado recarrega a cada 8s e mostra os alertas de prazo:
+  // a leitura (jurídico inteiro + nomes) fica em memória curta por advogado;
+  // o "ciente" limpa a dele na hora.
+  const cacheAcompanhamento = new Map<string, { em: number; painel: object }>();
+
+  app.get('/advogado/acompanhamento', async (request, reply) => {
+    const acompanhamento = opts.acompanhamento;
+    if (!acompanhamento)
+      return reply
+        .code(503)
+        .send({ error: 'acompanhamento processual indisponível nesta montagem' });
+    const advogadoId = await advogadoOf(request);
+    if (!advogadoId) return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
+    const guardado = cacheAcompanhamento.get(advogadoId);
+    if (guardado !== undefined && Date.now() - guardado.em < 30_000) return guardado.painel;
+    const entregas = await entregasDe(advogadoId);
+    const painel = await acompanhamento.painel(advogadoId, entregas);
+    cacheAcompanhamento.set(advogadoId, { em: Date.now(), painel });
+    // Intimação nova ainda sem parecer nos processos DELE: gera em segundo
+    // plano (poucas por vez) — a próxima leitura já mostra.
+    if (painel.aguardandoParecer > 0 && painel.parecerDisponivel)
+      void acompanhamento
+        .analisar(advogadoId, entregas)
+        .then(() => cacheAcompanhamento.delete(advogadoId))
+        .catch(() => undefined);
+    return painel;
+  });
+
+  app.post('/advogado/acompanhamento/ciente', async (request, reply) => {
+    const acompanhamento = opts.acompanhamento;
+    if (!acompanhamento)
+      return reply
+        .code(503)
+        .send({ error: 'acompanhamento processual indisponível nesta montagem' });
+    const advogadoId = await advogadoOf(request);
+    if (!advogadoId) return reply.code(401).send({ error: 'advogado não identificado ou inativo' });
+    const chave = (request.body as { chave?: unknown } | null)?.chave;
+    if (typeof chave !== 'string' || chave === '')
+      return reply.code(400).send({ error: 'chave obrigatória' });
+    const r = await acompanhamento.ciente(advogadoId, await entregasDe(advogadoId), chave);
+    if (!r.ok) return reply.code(404).send(r);
+    cacheAcompanhamento.delete(advogadoId);
+    return r;
   });
 
   // ── ESTUDO DO CLIENTE DESTINADO (decreto 2026-07-30) — o advogado recebe o

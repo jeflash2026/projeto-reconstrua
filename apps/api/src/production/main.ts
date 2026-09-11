@@ -3,7 +3,11 @@
 // Monta a composição real, valida o GO-LIVE (qualquer item vermelho ⇒ NÃO SOBE),
 // e só então escuta as portas. Loop temporal (scheduler→percepção) incluso.
 // ─────────────────────────────────────────────────────────────────────────────
-import { assembleProduction, ProductionGoLive } from '@reconstrua/infrastructure';
+import {
+  assembleProduction,
+  ProductionGoLive,
+  type DadosDoJuridico,
+} from '@reconstrua/infrastructure';
 import { SystemClock, UuidV4Generator } from '@reconstrua/infrastructure';
 import { memoCurto, planilhaDeContratosDetalhada } from '@reconstrua/application';
 import { buildProductionServer } from './production-server.js';
@@ -194,6 +198,18 @@ async function main(): Promise<void> {
     const c = lista.find((x) => x.chatId === chatId);
     return c ? { clienteId: c.clienteId, quem: c.quem } : null;
   };
+  // ACOMPANHAMENTO PROCESSUAL (2026-09-11): o recorte do Painel Jurídico que o
+  // painel do advogado lê (clientes, processos e andamentos).
+  const dadosDoJuridico = async (
+    entregas: DadosDoJuridico['entregas'],
+  ): Promise<DadosDoJuridico> => {
+    const [clientes, contratos, andamentos] = await Promise.all([
+      prod.juridico.listarClientes(),
+      prod.juridico.listarContratos(),
+      prod.juridico.listarAndamentos(),
+    ]);
+    return { entregas, clientes, contratos, andamentos };
+  };
   const advogado = buildAdvogadoServer(prod.advogadoView, {
     accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',
     estudo: {
@@ -280,6 +296,25 @@ async function main(): Promise<void> {
     corvoDossies: {
       dossiesDoChat: (chatId) => prod.corvo.dossiesDoChat(chatId),
       zipDoDossie: (cpf, hashRaiz) => prod.corvo.zipDoDossie(cpf, hashRaiz),
+    },
+    // ACOMPANHAMENTO PROCESSUAL (2026-09-11): os processos dos clientes DELE,
+    // o parecer de cada intimação do DJEN e os alertas de prazo.
+    acompanhamento: {
+      painel: async (advogadoId, entregas) =>
+        prod.acompanhamentoProcessual.painelDoAdvogado(advogadoId, await dadosDoJuridico(entregas)),
+      ciente: async (advogadoId, entregas, chave) =>
+        prod.acompanhamentoProcessual.marcarCiente(
+          advogadoId,
+          chave,
+          await dadosDoJuridico(entregas),
+        ),
+      analisar: async (advogadoId, entregas) => {
+        const dados = await dadosDoJuridico(entregas);
+        await prod.acompanhamentoProcessual.analisarPendentes(
+          prod.acompanhamentoProcessual.andamentosDoAdvogado(advogadoId, dados),
+          8,
+        );
+      },
     },
   });
   const lx = buildLawyerExperienceServer(prod.lxView, {
@@ -437,15 +472,31 @@ async function main(): Promise<void> {
   // (leitura pública, nada de mensagens) para TODOS os processos ativos —
   // 3 min após o boot e a cada 6 horas. O dashboard mostra novidades e
   // alertas (execução, recebimento…) sem ninguém clicar em nada.
+  // 2026-09-11: depois da consulta, as intimações novas do DJEN ganham o
+  // PARECER do painel do advogado (uma vez cada; o painel só lê).
   const atualizarAndamentosJuridico = (): void => {
-    void prod.juridico.atualizarAndamentos().catch((error: unknown) => {
-      prod.observability.error(
-        'juridico',
-        'datajud',
-        clock.now(),
-        error instanceof Error ? error.message : 'falha na atualização de andamentos',
-      );
-    });
+    void prod.juridico
+      .atualizarAndamentos()
+      .then(async () => {
+        const r = await prod.acompanhamentoProcessual.analisarPendentes(
+          await prod.juridico.listarAndamentos(),
+        );
+        if (r.analisadas + r.erros > 0)
+          prod.observability.event(
+            'juridico',
+            'pareceres',
+            clock.now(),
+            `${String(r.analisadas)} parecer(es) gerado(s), ${String(r.erros)} erro(s), ${String(r.restantes)} na fila`,
+          );
+      })
+      .catch((error: unknown) => {
+        prod.observability.error(
+          'juridico',
+          'datajud',
+          clock.now(),
+          error instanceof Error ? error.message : 'falha na atualização de andamentos',
+        );
+      });
   };
   setTimeout(atualizarAndamentosJuridico, 3 * 60_000);
   setInterval(atualizarAndamentosJuridico, 6 * 60 * 60_000);

@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 const ITEMS: ReadonlyArray<{ href: string; label: string }> = [
   { href: '/', label: 'Painel' },
   { href: '/meus-clientes', label: 'Meus Clientes' },
+  { href: '/acompanhamento', label: 'Acompanhamento processual' },
   { href: '/processos', label: 'Meus Processos' },
   { href: '/pendencias', label: 'Pendências' },
   { href: '/solicitacoes', label: 'Solicitações' },

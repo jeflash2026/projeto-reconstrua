@@ -145,6 +145,16 @@ import { revalidatePath } from 'next/cache';
 import { advogadoId as advogadoIdAtual } from './api';
 import type { Solicitacao } from './api';
 
+/** ACOMPANHAMENTO PROCESSUAL (2026-09-11): "ciente" num alerta de prazo — o
+ *  alerta desce na lista e para de contar no painel. Só nos processos DELE
+ *  (a API confere). */
+export async function cienteAcompanhamento(chave: string): Promise<{ ok: boolean }> {
+  const r = await sendJson<{ ok: boolean }>('POST', '/advogado/acompanhamento/ciente', { chave });
+  revalidatePath('/acompanhamento');
+  revalidatePath('/');
+  return { ok: r?.ok === true };
+}
+
 export interface SolicitacaoActionResult {
   ok: boolean;
   error: string | null;

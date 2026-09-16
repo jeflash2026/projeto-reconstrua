@@ -132,7 +132,8 @@ export class InvestidoresService {
   }
 
   async listaAdmin(): Promise<readonly InvestidorResumoAdmin[]> {
-    const [investidores, dados] = await Promise.all([this.listar(), this.dados()]);
+    // A lista só soma valores: sem o advogado responsável (a leitura mais cara).
+    const [investidores, dados] = await Promise.all([this.listar(), this.dados(false)]);
     const linhas: InvestidorResumoAdmin[] = [];
     for (const inv of investidores) {
       const painel = this.painelDe(inv, dados, true);
@@ -223,7 +224,7 @@ export class InvestidoresService {
 
   // ── Carteira ────────────────────────────────────────────────────────────────
 
-  private async dados(): Promise<DadosDaCarteira> {
+  private async dados(comAdvogados = true): Promise<DadosDaCarteira> {
     const [contratos, clientes, andamentos, resultados, alocacoes, lotes, entregas] =
       await Promise.all([
         this.deps.juridico.listarContratos(),
@@ -232,7 +233,9 @@ export class InvestidoresService {
         this.deps.juridico.listarResultados(),
         this.deps.json.list(NS_ALOCACOES) as Promise<readonly AlocacaoProcesso[]>,
         this.deps.json.list(NS_LOTES) as Promise<readonly LoteCarteira[]>,
-        this.deps.entregas().catch(() => [] as readonly EntregaAoAdvogado[]),
+        comAdvogados
+          ? this.deps.entregas().catch(() => [] as readonly EntregaAoAdvogado[])
+          : Promise.resolve([] as readonly EntregaAoAdvogado[]),
       ]);
     const advogadoPorCliente = new Map<string, string>();
     for (const pasta of montarPastasPorAdvogado(entregas, clientes, contratos).pastas)

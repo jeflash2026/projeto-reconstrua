@@ -2606,12 +2606,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         : { url: 'https://comunicaapi.pje.jus.br/api/v1/comunicacao', headers: {} },
     ),
   });
+  const entregasMemo = memoCurto(entregasAosAdvogados, 120_000, { requentar: true });
   const investidores = new InvestidoresService({
     json,
     clock,
     secret: env['ADMIN_ACCESS_SECRET'] ?? '',
     juridico,
-    entregas: entregasAosAdvogados,
+    // Varre todos os clientes e as atribuições: memória de 2 min (requentada).
+    entregas: () => entregasMemo(),
   });
   investidoresRef = investidores;
   // CADASTRO DE PROCESSOS via Jarvis (decreto 2026-08-31): o dono cola o bloco

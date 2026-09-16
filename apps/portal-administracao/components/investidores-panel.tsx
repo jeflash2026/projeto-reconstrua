@@ -24,6 +24,8 @@ function formatarCpf(bruto: string): string {
 
 const InvestidoresPanel = (): ReactElement => {
   const [investidores, setInvestidores] = useState<InvestidorAdminView[] | null>(null);
+  // 'carregando' ≠ erro: antes a tela dizia "API indisponível" enquanto esperava.
+  const [carregando, setCarregando] = useState(true);
   const [nome, setNome] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
@@ -35,8 +37,10 @@ const InvestidoresPanel = (): ReactElement => {
   const [aviso, setAviso] = useState<string | null>(null);
 
   const carregar = useCallback(async (): Promise<void> => {
+    setCarregando(true);
     const r = await fetchInvestidores();
     setInvestidores(r?.investidores ?? null);
+    setCarregando(false);
   }, []);
 
   useEffect(() => {
@@ -177,8 +181,12 @@ const InvestidoresPanel = (): ReactElement => {
 
       <div className="card">
         <h3>Investidores cadastrados</h3>
-        {investidores === null ? (
-          <div className="error-box">API indisponível.</div>
+        {investidores === null && carregando ? (
+          <div className="empty">Carregando os investidores…</div>
+        ) : investidores === null ? (
+          <div className="error-box">
+            Não foi possível carregar a lista agora — atualize a página em instantes.
+          </div>
         ) : investidores.length === 0 ? (
           <div className="empty">Nenhum investidor cadastrado ainda.</div>
         ) : (

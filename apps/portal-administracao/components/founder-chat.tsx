@@ -68,9 +68,9 @@ const CarteiraCard = ({
   return (
     <div className="card" style={{ marginTop: 8 }}>
       <div style={{ fontSize: 13, marginBottom: 8 }}>
-        <strong>{n}</strong> processo(s) · {reais(n * carteira.valorReferenciaProcesso)} em
-        processos · parte da empresa (investidor):{' '}
-        <strong>{reais(n * carteira.valorReferenciaProcesso * carteira.parteDaEmpresa)}</strong>
+        Crédito <strong>{reais(carteira.credito)}</strong> = <strong>{n}</strong> processo(s) de{' '}
+        {reais(carteira.referenciaPorProcesso)} · o investidor recebe no máximo{' '}
+        <strong>{reais(carteira.limite)}</strong> (crédito + 20%)
       </div>
       <div className="table-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
         <table>

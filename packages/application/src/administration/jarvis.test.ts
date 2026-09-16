@@ -441,6 +441,18 @@ describe('interpretarComandoCarteiraInvestidor (2026-09-16)', () => {
     ).toBeNull();
   });
 
+  it('crédito ao investidor (a frase nova do dono)', () => {
+    expect(
+      interpretarComandoCarteiraInvestidor(
+        'ahri add 250 mil em crédito ao investidor Arthur Valim',
+      ),
+    ).toEqual({ valor: 250_000, processos: null, investidorNome: 'Arthur Valim' });
+    // Crédito sem investidor citado não é comando (evita "créditos do advogado").
+    expect(
+      interpretarComandoCarteiraInvestidor('adicione 50 mil de crédito ao advogado Rodrigo'),
+    ).toBeNull();
+  });
+
   it('lerValorEmReais', () => {
     expect(lerValorEmReais('250k')).toBe(250_000);
     expect(lerValorEmReais('uns 80 mil')).toBe(80_000);

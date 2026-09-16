@@ -27,6 +27,7 @@ import { montarPastasPorAdvogado, type EntregaAoAdvogado } from '../juridico/pas
 import {
   montarPainelInvestidor,
   numeroCnj,
+  REFERENCIA_DO_INVESTIDOR,
   selecionarProcessos,
   type AlocacaoProcesso,
   type Investidor,
@@ -65,8 +66,11 @@ export interface InvestidoresDeps {
 export interface InvestidorResumoAdmin extends Investidor {
   readonly temSenha: boolean;
   readonly processos: number;
+  readonly credito: number;
+  readonly limite: number;
   readonly valorAtual: number;
-  readonly realizado: number;
+  readonly recebido: number;
+  readonly apurado: number;
 }
 
 interface CredencialInvestidor {
@@ -141,8 +145,11 @@ export class InvestidoresService {
         ...inv,
         temSenha: (await this.deps.json.get(NS_CREDENCIAIS, inv.cpf)) !== null,
         processos: painel.totais.processos,
+        credito: painel.totais.credito,
+        limite: painel.totais.limite,
         valorAtual: painel.totais.valorAtual,
-        realizado: painel.totais.realizado,
+        recebido: painel.totais.recebido,
+        apurado: painel.totais.apurado,
       });
     }
     return linhas;
@@ -296,13 +303,14 @@ export class InvestidoresService {
     return { itens: selecionarProcessos(candidatos, quantidade), disponiveis: candidatos.length };
   }
 
-  /** EXECUÇÃO (após a confirmação do dono): aloca os processos ao investidor.
+  /** EXECUÇÃO (após a confirmação do dono): aloca os processos ao investidor
+   *  como UMA carteira com o crédito comprado (null ⇒ processos × R$ 5.000).
    *  Quem ficou indisponível entre a proposta e a confirmação (outra carteira,
    *  desfecho lançado) é pulado e listado. */
   async alocar(
     cpfBruto: string,
     numeros: readonly string[],
-    valorPedido: number | null,
+    credito: number | null,
     por: string,
   ): Promise<
     ResultadoInvestidores<{ loteId: string; alocados: number; indisponiveis: readonly string[] }>
@@ -344,7 +352,7 @@ export class InvestidoresService {
       cpf: inv.cpf,
       criadoEm: agora,
       criadoPor: por,
-      valorPedido,
+      credito: credito ?? alocados.length * REFERENCIA_DO_INVESTIDOR,
       processos: alocados,
       retirados: [],
     } satisfies LoteCarteira);

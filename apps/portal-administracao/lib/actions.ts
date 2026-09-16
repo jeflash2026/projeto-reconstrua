@@ -130,7 +130,8 @@ export interface JarvisMensagem {
 export interface JarvisCarteira {
   id: string;
   criadoEm: string;
-  valorPedido: number | null;
+  credito: number;
+  limite: number;
   quantidade: number;
   itens: {
     numero: string;
@@ -143,7 +144,7 @@ export interface JarvisCarteira {
   investidores: { cpf: string; nome: string }[];
   investidorSugeridoCpf: string | null;
   valorReferenciaProcesso: number;
-  parteDaEmpresa: number;
+  referenciaPorProcesso: number;
 }
 export interface JarvisResposta {
   resposta: string;
@@ -740,8 +741,11 @@ export interface InvestidorAdminView {
   criadoEm: string;
   temSenha: boolean;
   processos: number;
+  credito: number;
+  limite: number;
   valorAtual: number;
-  realizado: number;
+  recebido: number;
+  apurado: number;
 }
 export interface ProcessoCarteiraAdmin {
   numero: string;
@@ -751,9 +755,12 @@ export interface ProcessoCarteiraAdmin {
   advogado: string | null;
   fase: string;
   faseRotulo: string;
-  referencia: number;
-  realizado: number | null;
-  valorRecebido: number | null;
+  valor: {
+    tipo: 'referencia' | 'apurado' | 'recebido' | 'sem-exito';
+    parte: number;
+    valorDoProcesso: number | null;
+    em: string | null;
+  };
   alocadoEm: string;
 }
 export interface CarteiraAdmin {
@@ -761,12 +768,16 @@ export interface CarteiraAdmin {
   nome: string;
   totais: {
     processos: number;
+    credito: number;
+    limite: number;
     valorAtual: number;
-    realizado: number;
+    recebido: number;
+    apurado: number;
     aReceber: number;
-    ajuste: number;
+    apurados: number;
     pagos: number;
     perdidos: number;
+    excedenteEmpresa?: number;
   };
   processos: ProcessoCarteiraAdmin[];
 }

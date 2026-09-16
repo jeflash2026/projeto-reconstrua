@@ -267,7 +267,7 @@ export interface AcompanhamentoDoProcesso {
 
 /** RESULTADO DO PROCESSO (2026-09-16): pago/perdido lançado pelo escritório. */
 export interface ResultadoProcessoView {
-  situacao: 'em-andamento' | 'pago' | 'perdido';
+  situacao: 'em-andamento' | 'apurado' | 'pago' | 'perdido';
   valorRecebido: number | null;
   data: string | null;
   observacao: string;

@@ -46,10 +46,16 @@ const Barra = ({ nome }: { nome: string | null }): ReactElement => (
 );
 
 const Maturacao = ({ p, prazo }: { p: ProcessoNoPainel; prazo: number }): ReactElement => {
-  if (p.realizado !== null)
+  if (p.valor.tipo !== 'referencia')
     return (
       <div className="maturacao">
-        <div className="dim">Encerrado em {dataBr(p.desfechoEm)}</div>
+        <div className="dim">
+          {p.valor.tipo === 'apurado'
+            ? `Valor apurado em ${dataBr(p.valor.em)} · aguardando o pagamento`
+            : p.valor.tipo === 'recebido'
+              ? `Pago em ${dataBr(p.valor.em)}`
+              : `Encerrado em ${dataBr(p.valor.em)}`}
+        </div>
       </div>
     );
   const fracao = Math.min(1, p.mesesDecorridos / prazo);
@@ -65,26 +71,22 @@ const Maturacao = ({ p, prazo }: { p: ProcessoNoPainel; prazo: number }): ReactE
   );
 };
 
-const SuaParte = ({ p }: { p: ProcessoNoPainel }): ReactElement => {
-  if (p.realizado === null)
-    return (
-      <>
-        <div className="valor-parte">{moedaCurta(p.referencia)}</div>
-        <div className="etiqueta">referência</div>
-      </>
-    );
-  const ajuste = p.realizado - p.referencia;
-  return (
-    <>
-      <div className="valor-parte">{moedaCurta(p.realizado)}</div>
-      <div className={ajuste > 0 ? 'dim positivo' : ajuste < 0 ? 'dim negativo' : 'dim'}>
-        {p.fase === 'pago'
-          ? `pago ${moedaCurta(p.valorRecebido ?? 0)} · ${moedaComSinal(ajuste)}`
-          : `sem êxito · ${moedaComSinal(ajuste)}`}
-      </div>
-    </>
-  );
+const ROTULO_VALOR: Record<ProcessoNoPainel['valor']['tipo'], string> = {
+  referencia: 'referência',
+  apurado: 'apurado',
+  recebido: 'recebido',
+  'sem-exito': 'sem êxito',
 };
+
+const SuaParte = ({ p }: { p: ProcessoNoPainel }): ReactElement => (
+  <>
+    <div className="valor-parte">{moedaCurta(p.valor.parte)}</div>
+    <div className="etiqueta">{ROTULO_VALOR[p.valor.tipo]}</div>
+    {p.valor.valorDoProcesso !== null ? (
+      <div className="dim sem-quebra">{moedaCurta(p.valor.valorDoProcesso)} no processo</div>
+    ) : null}
+  </>
+);
 
 export default async function PainelPage(): Promise<ReactElement> {
   const cpf = investidorDaSessao(SEGREDO, cookies().get(INVESTIDOR_SESSION_COOKIE)?.value ?? '');
@@ -113,7 +115,8 @@ export default async function PainelPage(): Promise<ReactElement> {
 
   const { totais, premissas } = painel;
   const percentual = Math.round(premissas.parteDaEmpresa * 100);
-  const encerrados = totais.pagos + totais.perdidos;
+  const percentualLimite = Math.round(premissas.limiteSobreCredito * 100);
+  const usoDoLimite = totais.limite > 0 ? Math.min(1, totais.valorAtual / totais.limite) : 0;
 
   return (
     <>
@@ -127,30 +130,43 @@ export default async function PainelPage(): Promise<ReactElement> {
               <div className="hero-rotulo">Valor da sua carteira hoje</div>
               <div className="hero-valor">{moedaCurta(totais.valorAtual)}</div>
               <div className="hero-sub">
-                {totais.processos} {totais.processos === 1 ? 'processo' : 'processos'} ·{' '}
-                {moedaCurta(totais.valorDosProcessos)} em processos · a sua parte é a da empresa (
-                {percentual}%)
+                Crédito de {moedaCurta(totais.credito)} · {totais.processos}{' '}
+                {totais.processos === 1 ? 'processo' : 'processos'} · limite de recebimento{' '}
+                {moedaCurta(totais.limite)} (crédito + {percentualLimite}%)
               </div>
+              {totais.limite > 0 ? (
+                <div className="limite">
+                  <div className="limite-barra" aria-hidden>
+                    <i
+                      style={{ width: `${String(Math.max(1, Math.round(usoDoLimite * 100)))}%` }}
+                    />
+                  </div>
+                  <div className="limite-legenda">
+                    {Math.round(usoDoLimite * 100)}% do limite · {moedaCurta(totais.valorAtual)} de{' '}
+                    {moedaCurta(totais.limite)}
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="hero-tiles">
               <div className="tile">
-                <div className="tile-rotulo">Já realizado</div>
-                <div className="tile-valor">{moedaCurta(totais.realizado)}</div>
+                <div className="tile-rotulo">Recebido</div>
+                <div className="tile-valor">{moedaCurta(totais.recebido)}</div>
                 <div className="tile-sub">
-                  {encerrados} {encerrados === 1 ? 'processo encerrado' : 'processos encerrados'}
+                  {totais.pagos} {totais.pagos === 1 ? 'processo pago' : 'processos pagos'}
+                </div>
+              </div>
+              <div className="tile">
+                <div className="tile-rotulo">Apurado, aguardando pagamento</div>
+                <div className="tile-valor">{moedaCurta(totais.apurado)}</div>
+                <div className="tile-sub">
+                  {totais.apurados} {totais.apurados === 1 ? 'processo' : 'processos'} na execução
                 </div>
               </div>
               <div className="tile">
                 <div className="tile-rotulo">A receber (referência)</div>
                 <div className="tile-valor">{moedaCurta(totais.aReceber)}</div>
                 <div className="tile-sub">{totais.emCurso} em curso</div>
-              </div>
-              <div className="tile">
-                <div className="tile-rotulo">Ajuste sobre a referência</div>
-                <div className="tile-valor">
-                  {encerrados === 0 ? '—' : moedaComSinal(totais.ajuste)}
-                </div>
-                <div className="tile-sub">valor real dos encerrados</div>
               </div>
             </div>
           </section>
@@ -168,8 +184,9 @@ export default async function PainelPage(): Promise<ReactElement> {
             <section className="cartao">
               <h2>Composição por fase</h2>
               <p className="cartao-sub">
-                Processos da carteira em cada fase, do mais novo ao desfecho. O valor soma a
-                referência dos processos em curso e o valor real dos encerrados.
+                Processos da carteira em cada fase, do mais novo ao desfecho. O valor soma a sua
+                parte em cada processo: a referência enquanto corre, o valor real quando apurado ou
+                pago.
               </p>
               <ComposicaoCarteira porFase={painel.porFase} />
             </section>
@@ -268,35 +285,44 @@ export default async function PainelPage(): Promise<ReactElement> {
               <li>
                 <span className="n">1</span>
                 <span>
-                  Cada processo tem <b>{moeda(premissas.valorReferenciaProcesso)}</b> de referência
-                  — raramente o resultado é menor que isso.
+                  O seu crédito é coberto por processos que valem{' '}
+                  <b>{moeda(premissas.referenciaPorProcesso)}</b> cada para você: a parte da empresa
+                  ({percentual}%) em <b>{moeda(premissas.valorReferenciaProcesso)}</b> de referência
+                  por processo.
                 </span>
               </li>
               <li>
                 <span className="n">2</span>
                 <span>
-                  A sua parte é a da empresa: <b>{percentual}%</b> do resultado, ou{' '}
-                  <b>{moeda(premissas.referenciaPorProcesso)}</b> por processo enquanto ele corre.
+                  Na <b>execução</b>, o valor real do processo é apurado e já entra no seu painel —
+                  falta só o tempo processual até o pagamento.
                 </span>
               </li>
               <li>
                 <span className="n">3</span>
                 <span>
-                  Quando o processo é pago, vale o <b>valor real</b>: se passar da referência, a sua
-                  parte aumenta; se ficar abaixo, diminui.
+                  Vale sempre o <b>valor real</b>: se o processo render mais que a referência, a sua
+                  parte aumenta; se render menos, diminui.
                 </span>
               </li>
               <li>
                 <span className="n">4</span>
                 <span>
-                  Processo <b>encerrado sem êxito</b> não gera valor e sai do total.
+                  O seu recebimento tem limite de <b>crédito + {percentualLimite}%</b>
+                  {totais.limite > 0 ? <> ({moeda(totais.limite)})</> : null}.
                 </span>
               </li>
               <li>
                 <span className="n">5</span>
                 <span>
-                  O prazo estimado até o resultado é de <b>18 a 24 meses</b> desde a distribuição,
-                  mas depende do andamento de cada processo.
+                  Processo <b>encerrado sem êxito</b> não gera valor.
+                </span>
+              </li>
+              <li>
+                <span className="n">6</span>
+                <span>
+                  O prazo estimado até o pagamento é de <b>18 a 24 meses</b> desde a distribuição, e
+                  depende do andamento de cada processo.
                 </span>
               </li>
             </ul>

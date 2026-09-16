@@ -1783,10 +1783,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         investidoresRef === null
           ? Promise.resolve({ itens: [], disponiveis: 0 })
           : investidoresRef.propostaCarteira(quantidade),
-      alocar: (cpf, numeros, valorPedido, quem) =>
+      alocar: (cpf, numeros, credito, quem) =>
         investidoresRef === null
           ? Promise.resolve({ ok: false as const, error: 'painel de investidores indisponível' })
-          : investidoresRef.alocar(cpf, numeros, valorPedido, quem),
+          : investidoresRef.alocar(cpf, numeros, credito, quem),
     },
     advogados: async () => {
       const advs = await staffStore.byRole('advogado');

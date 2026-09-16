@@ -1,8 +1,9 @@
 'use client';
-// RESULTADO DO PROCESSO (2026-09-16) — o desfecho que o escritório lança quando
-// o processo termina: PAGO (valor total recebido, antes da divisão com o
-// cliente) ou ENCERRADO SEM ÊXITO. Se o processo está na carteira de um
-// investidor, o valor lançado aqui atualiza o painel dele na hora.
+// RESULTADO DO PROCESSO (2026-09-16) — o valor real que o escritório lança:
+// APURADO na execução (já se sabe quanto o processo vai pagar), PAGO (recebido)
+// — sempre o valor TOTAL, antes da divisão com o cliente — ou ENCERRADO SEM
+// ÊXITO. Se o processo está na carteira de um investidor, o valor lançado aqui
+// atualiza o painel dele na hora.
 import { useState, type ReactElement } from 'react';
 import type { ResultadoProcessoView } from '../lib/api';
 
@@ -23,9 +24,10 @@ export default function ResultadoProcesso({
 }): ReactElement {
   const encerrado = resultado !== null && resultado.situacao !== 'em-andamento';
   const [editando, setEditando] = useState(false);
-  const [situacao, setSituacao] = useState<'pago' | 'perdido' | 'em-andamento'>(
-    encerrado ? resultado.situacao : 'pago',
+  const [situacao, setSituacao] = useState<'apurado' | 'pago' | 'perdido' | 'em-andamento'>(
+    encerrado ? resultado.situacao : 'apurado',
   );
+  const comValor = situacao === 'apurado' || situacao === 'pago';
   const [valor, setValor] = useState(
     encerrado && resultado.valorRecebido !== null && resultado.valorRecebido > 0
       ? String(resultado.valorRecebido).replace('.', ',')
@@ -38,16 +40,18 @@ export default function ResultadoProcesso({
 
   async function salvar(): Promise<void> {
     setErro(null);
-    if (situacao === 'pago' && valor.trim() === '') {
-      setErro('Informe o valor total recebido no processo.');
+    if (comValor && valor.trim() === '') {
+      setErro('Informe o valor total do processo.');
       return;
     }
     const confirmacao =
-      situacao === 'pago'
-        ? `Lançar o processo como PAGO com ${valor} recebidos?`
-        : situacao === 'perdido'
-          ? 'Lançar o processo como ENCERRADO SEM ÊXITO?'
-          : 'Desfazer o desfecho e voltar o processo para EM ANDAMENTO?';
+      situacao === 'apurado'
+        ? `Lançar o VALOR APURADO de ${valor} (aguardando pagamento)?`
+        : situacao === 'pago'
+          ? `Lançar o processo como PAGO com ${valor} recebidos?`
+          : situacao === 'perdido'
+            ? 'Lançar o processo como ENCERRADO SEM ÊXITO?'
+            : 'Desfazer o desfecho e voltar o processo para EM ANDAMENTO?';
     if (
       !window.confirm(
         investidor !== null
@@ -88,23 +92,27 @@ export default function ResultadoProcesso({
       {encerrado && !editando ? (
         <>
           <div style={{ fontSize: 15, fontWeight: 700 }}>
-            {resultado.situacao === 'pago'
-              ? `Pago — ${moeda(resultado.valorRecebido ?? 0)} recebidos em ${dataBr(resultado.data)}`
-              : `Encerrado sem êxito em ${dataBr(resultado.data)}`}
+            {resultado.situacao === 'apurado'
+              ? `Valor apurado — ${moeda(resultado.valorRecebido ?? 0)} em ${dataBr(resultado.data)} · aguardando pagamento`
+              : resultado.situacao === 'pago'
+                ? `Pago — ${moeda(resultado.valorRecebido ?? 0)} recebidos em ${dataBr(resultado.data)}`
+                : `Encerrado sem êxito em ${dataBr(resultado.data)}`}
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', margin: '4px 0 10px' }}>
             Lançado por {resultado.autor}
             {resultado.observacao !== '' ? ` · ${resultado.observacao}` : ''}
           </div>
           <button className="btn" onClick={() => setEditando(true)}>
-            Corrigir o resultado
+            {resultado.situacao === 'apurado'
+              ? 'Lançar pagamento ou corrigir'
+              : 'Corrigir o resultado'}
           </button>
         </>
       ) : !editando ? (
         <>
           <p style={{ margin: '0 0 10px', color: 'var(--ink-dim)' }}>
-            Em andamento. Quando o processo terminar, lance aqui se foi pago (com o valor total
-            recebido) ou encerrado sem êxito.
+            Em andamento. Quando o valor for definido na execução, lance o valor apurado; quando for
+            pago, lance o pagamento; ou encerrado sem êxito.
           </p>
           <button className="btn" onClick={() => setEditando(true)}>
             Lançar resultado
@@ -120,14 +128,17 @@ export default function ResultadoProcesso({
                 onChange={(e) => setSituacao(e.target.value as typeof situacao)}
                 disabled={ocupado}
               >
+                <option value="apurado">Valor apurado (execução)</option>
                 <option value="pago">Pago</option>
                 <option value="perdido">Encerrado sem êxito</option>
                 {encerrado ? <option value="em-andamento">Voltar para em andamento</option> : null}
               </select>
             </label>
-            {situacao === 'pago' ? (
+            {comValor ? (
               <label>
-                Valor total recebido no processo (R$)
+                {situacao === 'apurado'
+                  ? 'Valor total apurado do processo (R$)'
+                  : 'Valor total recebido no processo (R$)'}
                 <input
                   inputMode="decimal"
                   placeholder="ex.: 14.000,00"

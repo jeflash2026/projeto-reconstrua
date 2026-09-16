@@ -1,13 +1,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CARTEIRA DO INVESTIDOR (2026-09-16) — a parte PURA do painel de investidores.
 //
-// O modelo (decisão do dono): o investidor compra, antecipado, a PARTE DA
-// EMPRESA no resultado de processos judiciais já distribuídos. Cada processo
-// vale R$ 10.000 de REFERÊNCIA (raramente paga menos); a empresa fica com 50%
-// e o cliente com 50% — a parte do investidor é a da empresa: R$ 5.000 por
-// processo enquanto ele corre. Quando o processo termina, o dono lança no
-// Jurídico o valor REAL recebido: a parte do investidor passa a ser 50% dele
-// (mais ou menos que a referência); encerrado sem êxito = zero.
+// O modelo (decisão do dono): o investidor compra, antecipado, um CRÉDITO sobre
+// a PARTE DA EMPRESA no resultado de processos judiciais já distribuídos. Cada
+// processo vale R$ 10.000 de REFERÊNCIA (raramente paga menos); a empresa fica
+// com 50% e o cliente com 50% — cada processo conta R$ 5.000 para o investidor.
+//
+//  • Um crédito de R$ 250.000 recebe EXATAMENTE o equivalente em processos:
+//    250.000 ÷ 5.000 = 50 processos.
+//  • TETO: o investidor recebe no máximo o crédito + 20% (R$ 300.000). Se os
+//    processos renderem mais, o excedente fica com a empresa. O teto vale por
+//    carteira (cada crédito adicionado).
+//  • O valor REAL entra pelo Jurídico: APURADO na execução (já se sabe quanto
+//    o processo vai pagar, falta só o tempo processual), PAGO quando recebido,
+//    ou encerrado SEM ÊXITO (zero).
 //
 // Regras fixas: cada processo pertence a UM investidor (nunca vendido duas
 // vezes); o investidor vê o cliente só pelas INICIAIS (LGPD), o nº do
@@ -22,8 +28,10 @@ import type {
 
 export const VALOR_REFERENCIA_PROCESSO = 10_000;
 export const PARTE_DA_EMPRESA = 0.5;
-/** Referência da parte do investidor por processo (R$ 5.000). */
+/** Quanto cada processo conta para o investidor (R$ 5.000). */
 export const REFERENCIA_DO_INVESTIDOR = VALOR_REFERENCIA_PROCESSO * PARTE_DA_EMPRESA;
+/** O investidor recebe no máximo o crédito + 20%. */
+export const LIMITE_SOBRE_CREDITO = 0.2;
 /** Prazo usado na régua de maturação (o dono estima 1 ano e meio a 2 anos). */
 export const PRAZO_ESTIMADO_MESES = 24;
 
@@ -31,6 +39,11 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 
 function centavos(v: number): number {
   return Math.round(v * 100) / 100;
+}
+
+/** O teto de recebimento de um crédito (crédito + 20%). */
+export function limiteDoCredito(credito: number): number {
+  return centavos(credito * (1 + LIMITE_SOBRE_CREDITO));
 }
 
 // ── Identidade ────────────────────────────────────────────────────────────────
@@ -67,9 +80,9 @@ export interface ProcessoCandidato {
   readonly cadastradoEm: string;
 }
 
-/** Quantos processos uma carteira de `valor` em processos pede (≥ 1). */
-export function processosParaValor(valor: number): number {
-  return Math.max(1, Math.round(valor / VALOR_REFERENCIA_PROCESSO));
+/** Quantos processos cobrem EXATAMENTE um crédito (R$ 5.000 cada, ≥ 1). */
+export function processosParaCredito(credito: number): number {
+  return Math.max(1, Math.round(credito / REFERENCIA_DO_INVESTIDOR));
 }
 
 /** Escolhe `quantidade` processos ESPALHANDO o risco: a cada escolha, o que
@@ -117,7 +130,7 @@ export function selecionarProcessos(
 // ── Fase do processo ──────────────────────────────────────────────────────────
 
 export type FaseProcesso =
-  'distribuido' | 'andamento' | 'sentenca' | 'execucao' | 'pago' | 'perdido';
+  'distribuido' | 'andamento' | 'sentenca' | 'execucao' | 'apurado' | 'pago' | 'perdido';
 
 /** Ordem da régua (do mais novo ao desfecho) — a mesma da composição. */
 export const FASES: readonly { readonly fase: FaseProcesso; readonly rotulo: string }[] = [
@@ -125,6 +138,7 @@ export const FASES: readonly { readonly fase: FaseProcesso; readonly rotulo: str
   { fase: 'andamento', rotulo: 'Em andamento' },
   { fase: 'sentenca', rotulo: 'Sentença' },
   { fase: 'execucao', rotulo: 'Execução' },
+  { fase: 'apurado', rotulo: 'Valor apurado' },
   { fase: 'pago', rotulo: 'Pago' },
   { fase: 'perdido', rotulo: 'Encerrado sem êxito' },
 ];
@@ -142,6 +156,7 @@ export function faseDoProcesso(
 ): FaseProcesso {
   if (resultado?.situacao === 'pago') return 'pago';
   if (resultado?.situacao === 'perdido') return 'perdido';
+  if (resultado?.situacao === 'apurado') return 'apurado';
   if (andamento === null) return 'distribuido';
   if (andamento.emExecucao) return 'execucao';
   const movimentos = andamento.movimentos.filter((m) => !/distribui/i.test(m.nome));
@@ -175,14 +190,14 @@ export interface AlocacaoProcesso {
   readonly alocadoEm: string;
 }
 
-/** Uma carteira adicionada (ns 'investidor-lotes'). */
+/** Uma carteira adicionada = um crédito (ns 'investidor-lotes'). */
 export interface LoteCarteira {
   readonly id: string;
   readonly cpf: string;
   readonly criadoEm: string;
   readonly criadoPor: string;
-  /** O valor pedido no comando ("250 mil em processos"); null = por quantidade. */
-  readonly valorPedido: number | null;
+  /** O crédito comprado (parte da empresa). Ausente ⇒ processos × R$ 5.000. */
+  readonly credito?: number;
   readonly processos: readonly string[];
   readonly retirados: readonly {
     readonly numero: string;
@@ -192,11 +207,14 @@ export interface LoteCarteira {
   }[];
 }
 
+export type TipoValor = 'referencia' | 'apurado' | 'recebido' | 'sem-exito';
+
 export interface ProcessoNoPainel {
   readonly numero: string;
   readonly iniciais: string;
   /** Só no painel do ADMIN (nomesCompletos); nunca vai ao investidor. */
   readonly clienteNome?: string;
+  readonly loteId: string;
   readonly bancos: readonly string[];
   readonly advogado: string | null;
   readonly tribunal: string;
@@ -207,22 +225,41 @@ export interface ProcessoNoPainel {
   /** AAAA-MM-DD — ajuizamento (DataJud) ou cadastro no Jurídico. */
   readonly desde: string;
   readonly mesesDecorridos: number;
-  readonly referencia: number;
-  /** Parte do investidor no valor real (pago/perdido); null = em curso. */
-  readonly realizado: number | null;
-  /** Valor total recebido no processo (antes da divisão). */
-  readonly valorRecebido: number | null;
-  readonly desfechoEm: string | null;
+  /** O que o processo vale para o investidor HOJE (antes do teto da carteira). */
+  readonly valor: {
+    readonly tipo: TipoValor;
+    /** Referência (R$ 5.000), 50% do valor apurado/recebido, ou zero. */
+    readonly parte: number;
+    /** Valor TOTAL do processo (apurado ou recebido); null = em curso. */
+    readonly valorDoProcesso: number | null;
+    /** Data do lançamento do valor (apuração, pagamento ou encerramento). */
+    readonly em: string | null;
+  };
   readonly alocadoEm: string;
 }
 
-export type TipoExtrato = 'carteira' | 'pago' | 'perdido' | 'correcao' | 'retirado';
+export interface CarteiraNoPainel {
+  readonly id: string;
+  readonly criadoEm: string;
+  readonly credito: number;
+  readonly limite: number;
+  readonly processos: number;
+  /** Totais JÁ com o teto (crédito + 20%) aplicado. */
+  readonly valorAtual: number;
+  readonly recebido: number;
+  readonly apurado: number;
+  readonly aReceber: number;
+  /** Só no painel do ADMIN: o que passou do teto e fica com a empresa. */
+  readonly excedenteEmpresa?: number;
+}
+
+export type TipoExtrato = 'carteira' | 'apurado' | 'pago' | 'perdido' | 'correcao' | 'retirado';
 
 export interface LinhaExtrato {
   readonly em: string;
   readonly tipo: TipoExtrato;
   readonly descricao: string;
-  /** Variação no valor da carteira (positivo = aumentou). */
+  /** Variação no valor da carteira, já com o teto (positivo = aumentou). */
   readonly valor: number;
 }
 
@@ -232,20 +269,26 @@ export interface PainelInvestidor {
   readonly geradoEm: string;
   readonly totais: {
     readonly processos: number;
-    /** Valor da carteira hoje: referência dos em curso + realizado dos encerrados. */
+    readonly credito: number;
+    /** Teto de recebimento (crédito + 20%). */
+    readonly limite: number;
+    /** Valor da carteira hoje (com o teto): recebido + apurado + a receber. */
     readonly valorAtual: number;
-    /** Referência original (R$ 5.000 × processos). */
-    readonly referencia: number;
-    readonly realizado: number;
+    readonly recebido: number;
+    /** Valor apurado na execução, aguardando o pagamento. */
+    readonly apurado: number;
+    /** Referência dos processos em curso. */
     readonly aReceber: number;
-    /** realizado − referência dos encerrados (quanto o real mexeu). */
-    readonly ajuste: number;
     readonly emCurso: number;
+    readonly apurados: number;
     readonly pagos: number;
     readonly perdidos: number;
     /** Valor total dos processos (R$ 10.000 de referência cada). */
     readonly valorDosProcessos: number;
+    /** Só no painel do ADMIN: o que passou do teto e fica com a empresa. */
+    readonly excedenteEmpresa?: number;
   };
+  readonly carteiras: readonly CarteiraNoPainel[];
   readonly porFase: readonly {
     readonly fase: FaseProcesso;
     readonly rotulo: string;
@@ -258,14 +301,23 @@ export interface PainelInvestidor {
     readonly valorReferenciaProcesso: number;
     readonly parteDaEmpresa: number;
     readonly referenciaPorProcesso: number;
+    readonly limiteSobreCredito: number;
     readonly prazoEstimadoMeses: number;
   };
 }
 
-function parteDoInvestidor(l: Pick<LancamentoResultado, 'situacao' | 'valorRecebido'>): number {
-  if (l.situacao === 'pago') return centavos((l.valorRecebido ?? 0) * PARTE_DA_EMPRESA);
-  if (l.situacao === 'perdido') return 0;
-  return REFERENCIA_DO_INVESTIDOR;
+type Situacao = LancamentoResultado['situacao'];
+
+function valorDoLancamento(l: Pick<LancamentoResultado, 'situacao' | 'valorRecebido'>): {
+  tipo: TipoValor;
+  parte: number;
+} {
+  if (l.situacao === 'pago')
+    return { tipo: 'recebido', parte: centavos((l.valorRecebido ?? 0) * PARTE_DA_EMPRESA) };
+  if (l.situacao === 'apurado')
+    return { tipo: 'apurado', parte: centavos((l.valorRecebido ?? 0) * PARTE_DA_EMPRESA) };
+  if (l.situacao === 'perdido') return { tipo: 'sem-exito', parte: 0 };
+  return { tipo: 'referencia', parte: REFERENCIA_DO_INVESTIDOR };
 }
 
 const moeda = (v: number): string =>
@@ -275,6 +327,14 @@ function mesesEntre(de: string, ate: Date): number {
   const inicio = Date.parse(`${de.slice(0, 10)}T12:00:00.000Z`);
   if (Number.isNaN(inicio)) return 0;
   return Math.max(0, Math.floor((ate.getTime() - inicio) / (30.44 * DIA_MS)));
+}
+
+/** Um movimento que mexe no valor BRUTO de uma carteira (antes do teto). */
+interface EventoBruto {
+  readonly em: string;
+  readonly tipo: TipoExtrato;
+  readonly descricao: string;
+  readonly bruto: number;
 }
 
 export function montarPainelInvestidor(entrada: {
@@ -291,48 +351,61 @@ export function montarPainelInvestidor(entrada: {
   const { investidor, agora } = entrada;
   const andamentoPor = new Map(entrada.andamentos.map((a) => [a.numero.replace(/\D/g, ''), a]));
   const resultadoPor = new Map(entrada.resultados.map((r) => [r.numero.replace(/\D/g, ''), r]));
-  const extrato: LinhaExtrato[] = [];
+  const alocacoes = entrada.alocacoes.filter((a) => a.cpf === investidor.cpf);
+  const eventosPorLote = new Map<string, EventoBruto[]>();
+  const eventos = (loteId: string): EventoBruto[] => {
+    const lista = eventosPorLote.get(loteId) ?? [];
+    eventosPorLote.set(loteId, lista);
+    return lista;
+  };
 
-  const processos = entrada.alocacoes
-    .filter((a) => a.cpf === investidor.cpf)
+  const processos = alocacoes
     .map((a): ProcessoNoPainel => {
       const chave = a.numero.replace(/\D/g, '');
       const andamento = andamentoPor.get(chave) ?? null;
       const resultado = resultadoPor.get(chave) ?? null;
       const fase = faseDoProcesso(andamento, resultado);
-      const encerrado = resultado !== null && resultado.situacao !== 'em-andamento';
+      const numero = numeroCnj(a.numero);
 
-      // Extrato: cada lançamento DEPOIS da alocação mexe na parte do investidor.
-      let atual = REFERENCIA_DO_INVESTIDOR;
-      let situacaoAtual: LancamentoResultado['situacao'] = 'em-andamento';
+      // Cada lançamento DEPOIS da alocação mexe no valor bruto da carteira.
+      let parteAtual = REFERENCIA_DO_INVESTIDOR;
+      let situacaoAtual: Situacao = 'em-andamento';
       for (const l of resultado?.historico ?? []) {
         if (l.em < a.alocadoEm) continue;
-        const novo = parteDoInvestidor(l);
-        if (l.situacao === situacaoAtual && novo === atual) continue;
-        const delta = centavos(novo - atual);
-        const numero = numeroCnj(a.numero);
-        // Pago a exatamente R$ 10.000 também entra (variação zero).
+        const { parte } = valorDoLancamento(l);
+        if (l.situacao === situacaoAtual && parte === parteAtual) continue;
+        // Pagamento que só confirma o valor apurado (mesmo valor) também entra.
         const tipo: TipoExtrato =
-          situacaoAtual === 'em-andamento' && l.situacao !== 'em-andamento'
-            ? l.situacao
-            : 'correcao';
+          l.situacao === 'em-andamento'
+            ? 'correcao'
+            : l.situacao === situacaoAtual
+              ? 'correcao'
+              : l.situacao;
+        const valorProcesso = moeda(l.valorRecebido ?? 0);
         const descricao =
-          tipo === 'pago'
-            ? `Processo ${numero} pago: ${moeda(l.valorRecebido ?? 0)} no processo — sua parte ${moeda(novo)}`
-            : tipo === 'perdido'
-              ? `Processo ${numero} encerrado sem êxito`
-              : `Correção do processo ${numero}: sua parte passa a ${moeda(novo)}`;
-        extrato.push({ em: l.em, tipo, descricao, valor: delta });
-        atual = novo;
+          tipo === 'apurado'
+            ? `Processo ${numero}: valor apurado na execução — ${valorProcesso} no processo, sua parte ${moeda(parte)}`
+            : tipo === 'pago'
+              ? `Processo ${numero} pago: ${valorProcesso} no processo — sua parte ${moeda(parte)}`
+              : tipo === 'perdido'
+                ? `Processo ${numero} encerrado sem êxito`
+                : `Correção do processo ${numero}: sua parte passa a ${moeda(parte)}`;
+        eventos(a.loteId).push({ em: l.em, tipo, descricao, bruto: centavos(parte - parteAtual) });
+        parteAtual = parte;
         situacaoAtual = l.situacao;
       }
 
       const ultimo = andamento?.movimentos[0] ?? null;
       const desde = (andamento?.dataAjuizamento ?? '') || a.cadastradoEm;
+      const atual =
+        resultado === null
+          ? valorDoLancamento({ situacao: 'em-andamento', valorRecebido: null })
+          : valorDoLancamento(resultado);
       return {
-        numero: numeroCnj(a.numero),
+        numero,
         iniciais: iniciaisDoNome(a.clienteNome),
         ...(entrada.nomesCompletos ? { clienteNome: a.clienteNome } : {}),
+        loteId: a.loteId,
         bancos: a.bancos,
         advogado: entrada.advogadoAtual.get(a.clienteId) ?? a.advogado,
         tribunal: andamento?.tribunal ?? '',
@@ -345,10 +418,15 @@ export function montarPainelInvestidor(entrada: {
             : { nome: ultimo.nome.replace(/^DJEN · /, ''), data: ultimo.dataHora.slice(0, 10) },
         desde: desde.slice(0, 10),
         mesesDecorridos: mesesEntre(desde, agora),
-        referencia: REFERENCIA_DO_INVESTIDOR,
-        realizado: encerrado ? parteDoInvestidor(resultado) : null,
-        valorRecebido: encerrado ? resultado.valorRecebido : null,
-        desfechoEm: encerrado ? resultado.data : null,
+        valor: {
+          tipo: atual.tipo,
+          parte: atual.parte,
+          valorDoProcesso:
+            atual.tipo === 'apurado' || atual.tipo === 'recebido'
+              ? (resultado?.valorRecebido ?? null)
+              : null,
+          em: atual.tipo === 'referencia' ? null : (resultado?.data ?? null),
+        },
         alocadoEm: a.alocadoEm,
       };
     })
@@ -358,39 +436,107 @@ export function montarPainelInvestidor(entrada: {
         x.desde.localeCompare(y.desde),
     );
 
-  for (const lote of entrada.lotes.filter((l) => l.cpf === investidor.cpf)) {
-    const n = lote.processos.length;
-    extrato.push({
-      em: lote.criadoEm,
-      tipo: 'carteira',
-      descricao: `Carteira adicionada: ${String(n)} processo(s) — ${moeda(n * VALOR_REFERENCIA_PROCESSO)} em processos, sua parte ${moeda(n * REFERENCIA_DO_INVESTIDOR)}`,
-      valor: centavos(n * REFERENCIA_DO_INVESTIDOR),
+  // As carteiras: as gravadas + uma virtual para alocação sem lote (defensivo).
+  const lotes: LoteCarteira[] = entrada.lotes.filter((l) => l.cpf === investidor.cpf);
+  for (const a of alocacoes) {
+    if (lotes.some((l) => l.id === a.loteId)) continue;
+    const doLote = alocacoes.filter((x) => x.loteId === a.loteId);
+    lotes.push({
+      id: a.loteId,
+      cpf: investidor.cpf,
+      criadoEm: doLote.map((x) => x.alocadoEm).sort()[0] ?? a.alocadoEm,
+      criadoPor: '—',
+      processos: doLote.map((x) => x.numero),
+      retirados: [],
     });
-    for (const r of lote.retirados) {
-      extrato.push({
-        em: r.em,
-        tipo: 'retirado',
-        descricao: `Processo ${numeroCnj(r.numero)} retirado da carteira${r.motivo !== '' ? ` — ${r.motivo}` : ''}`,
-        valor: -REFERENCIA_DO_INVESTIDOR,
-      });
-    }
   }
-  // Mais recente primeiro; no mesmo instante, a entrada da carteira é a mais antiga.
-  const ordem = (l: LinhaExtrato): number => (l.tipo === 'carteira' ? 0 : 1);
-  extrato.sort((x, y) => y.em.localeCompare(x.em) || ordem(y) - ordem(x));
 
-  const encerrados = processos.filter((p) => p.realizado !== null);
-  const realizado = centavos(encerrados.reduce((s, p) => s + (p.realizado ?? 0), 0));
-  const aReceber = centavos(
-    processos.filter((p) => p.realizado === null).reduce((s, p) => s + p.referencia, 0),
+  const extrato: LinhaExtrato[] = [];
+  const carteiras = lotes
+    .map((lote): CarteiraNoPainel => {
+      const credito = lote.credito ?? lote.processos.length * REFERENCIA_DO_INVESTIDOR;
+      const limite = limiteDoCredito(credito);
+      const n = lote.processos.length;
+      const entradaDoCredito: EventoBruto = {
+        em: lote.criadoEm,
+        tipo: 'carteira',
+        descricao: `Crédito de ${moeda(credito)} adicionado: ${String(n)} processo(s) de ${moeda(REFERENCIA_DO_INVESTIDOR)} cada — limite de recebimento ${moeda(limite)}`,
+        bruto: centavos(n * REFERENCIA_DO_INVESTIDOR),
+      };
+      const movimentos: EventoBruto[] = [
+        entradaDoCredito,
+        ...lote.retirados.map((r): EventoBruto => ({
+          em: r.em,
+          tipo: 'retirado',
+          descricao: `Processo ${numeroCnj(r.numero)} retirado da carteira${r.motivo !== '' ? ` — ${r.motivo}` : ''}`,
+          bruto: -REFERENCIA_DO_INVESTIDOR,
+        })),
+        ...(eventosPorLote.get(lote.id) ?? []),
+      ].sort(
+        (x, y) =>
+          x.em.localeCompare(y.em) || Number(y.tipo === 'carteira') - Number(x.tipo === 'carteira'),
+      );
+      // O extrato anda com o TETO: a variação mostrada é a do valor limitado.
+      let bruto = 0;
+      let limitado = 0;
+      for (const m of movimentos) {
+        bruto = centavos(bruto + m.bruto);
+        const novo = Math.min(bruto, limite);
+        const valor = centavos(novo - limitado);
+        extrato.push({
+          em: m.em,
+          tipo: m.tipo,
+          descricao:
+            valor !== m.bruto && m.tipo !== 'carteira'
+              ? `${m.descricao} (limite da carteira: ${moeda(limite)})`
+              : m.descricao,
+          valor,
+        });
+        limitado = novo;
+      }
+
+      const doLote = processos.filter((p) => p.loteId === lote.id);
+      const soma = (tipo: TipoValor): number =>
+        centavos(
+          doLote.filter((p) => p.valor.tipo === tipo).reduce((s, p) => s + p.valor.parte, 0),
+        );
+      const recebido = Math.min(soma('recebido'), limite);
+      const apurado = Math.min(soma('apurado'), centavos(limite - recebido));
+      const aReceber = Math.min(soma('referencia'), centavos(limite - recebido - apurado));
+      const brutoAtual = soma('recebido') + soma('apurado') + soma('referencia');
+      return {
+        id: lote.id,
+        criadoEm: lote.criadoEm,
+        credito,
+        limite,
+        processos: doLote.length,
+        valorAtual: centavos(recebido + apurado + aReceber),
+        recebido,
+        apurado,
+        aReceber,
+        ...(entrada.nomesCompletos
+          ? { excedenteEmpresa: centavos(Math.max(0, brutoAtual - limite)) }
+          : {}),
+      };
+    })
+    .sort((x, y) => x.criadoEm.localeCompare(y.criadoEm));
+
+  // Mais recente primeiro; no mesmo instante, a entrada do crédito é a mais antiga.
+  extrato.sort(
+    (x, y) =>
+      y.em.localeCompare(x.em) || Number(x.tipo === 'carteira') - Number(y.tipo === 'carteira'),
   );
+
+  const total = (
+    campo: 'credito' | 'limite' | 'valorAtual' | 'recebido' | 'apurado' | 'aReceber',
+  ): number => centavos(carteiras.reduce((s, c) => s + c[campo], 0));
   const porFase = FASES.map(({ fase, rotulo }) => {
     const daFase = processos.filter((p) => p.fase === fase);
     return {
       fase,
       rotulo,
       processos: daFase.length,
-      valor: centavos(daFase.reduce((s, p) => s + (p.realizado ?? p.referencia), 0)),
+      valor: centavos(daFase.reduce((s, p) => s + p.valor.parte, 0)),
     };
   }).filter((f) => f.processos > 0);
 
@@ -400,16 +546,26 @@ export function montarPainelInvestidor(entrada: {
     geradoEm: agora.toISOString(),
     totais: {
       processos: processos.length,
-      valorAtual: centavos(realizado + aReceber),
-      referencia: centavos(processos.length * REFERENCIA_DO_INVESTIDOR),
-      realizado,
-      aReceber,
-      ajuste: centavos(realizado - encerrados.length * REFERENCIA_DO_INVESTIDOR),
-      emCurso: processos.length - encerrados.length,
+      credito: total('credito'),
+      limite: total('limite'),
+      valorAtual: total('valorAtual'),
+      recebido: total('recebido'),
+      apurado: total('apurado'),
+      aReceber: total('aReceber'),
+      emCurso: processos.filter((p) => p.valor.tipo === 'referencia').length,
+      apurados: processos.filter((p) => p.fase === 'apurado').length,
       pagos: processos.filter((p) => p.fase === 'pago').length,
       perdidos: processos.filter((p) => p.fase === 'perdido').length,
       valorDosProcessos: processos.length * VALOR_REFERENCIA_PROCESSO,
+      ...(entrada.nomesCompletos
+        ? {
+            excedenteEmpresa: centavos(
+              carteiras.reduce((s, c) => s + (c.excedenteEmpresa ?? 0), 0),
+            ),
+          }
+        : {}),
     },
+    carteiras,
     porFase,
     processos,
     extrato,
@@ -417,6 +573,7 @@ export function montarPainelInvestidor(entrada: {
       valorReferenciaProcesso: VALOR_REFERENCIA_PROCESSO,
       parteDaEmpresa: PARTE_DA_EMPRESA,
       referenciaPorProcesso: REFERENCIA_DO_INVESTIDOR,
+      limiteSobreCredito: LIMITE_SOBRE_CREDITO,
       prazoEstimadoMeses: PRAZO_ESTIMADO_MESES,
     },
   };

@@ -40,11 +40,12 @@ export async function postJson<T>(path: string, body: unknown): Promise<T | null
 
 // ── Tipos (espelham o PainelInvestidor da API) ────────────────────────────────
 export type FaseProcesso =
-  'distribuido' | 'andamento' | 'sentenca' | 'execucao' | 'pago' | 'perdido';
+  'distribuido' | 'andamento' | 'sentenca' | 'execucao' | 'apurado' | 'pago' | 'perdido';
 
 export interface ProcessoNoPainel {
   numero: string;
   iniciais: string;
+  loteId: string;
   bancos: string[];
   advogado: string | null;
   tribunal: string;
@@ -54,16 +55,18 @@ export interface ProcessoNoPainel {
   ultimaMovimentacao: { nome: string; data: string } | null;
   desde: string;
   mesesDecorridos: number;
-  referencia: number;
-  realizado: number | null;
-  valorRecebido: number | null;
-  desfechoEm: string | null;
+  valor: {
+    tipo: 'referencia' | 'apurado' | 'recebido' | 'sem-exito';
+    parte: number;
+    valorDoProcesso: number | null;
+    em: string | null;
+  };
   alocadoEm: string;
 }
 
 export interface LinhaExtrato {
   em: string;
-  tipo: 'carteira' | 'pago' | 'perdido' | 'correcao' | 'retirado';
+  tipo: 'carteira' | 'apurado' | 'pago' | 'perdido' | 'correcao' | 'retirado';
   descricao: string;
   valor: number;
 }
@@ -74,16 +77,29 @@ export interface PainelInvestidor {
   geradoEm: string;
   totais: {
     processos: number;
+    credito: number;
+    limite: number;
     valorAtual: number;
-    referencia: number;
-    realizado: number;
+    recebido: number;
+    apurado: number;
     aReceber: number;
-    ajuste: number;
     emCurso: number;
+    apurados: number;
     pagos: number;
     perdidos: number;
     valorDosProcessos: number;
   };
+  carteiras: {
+    id: string;
+    criadoEm: string;
+    credito: number;
+    limite: number;
+    processos: number;
+    valorAtual: number;
+    recebido: number;
+    apurado: number;
+    aReceber: number;
+  }[];
   porFase: { fase: FaseProcesso; rotulo: string; processos: number; valor: number }[];
   processos: ProcessoNoPainel[];
   extrato: LinhaExtrato[];
@@ -91,6 +107,7 @@ export interface PainelInvestidor {
     valorReferenciaProcesso: number;
     parteDaEmpresa: number;
     referenciaPorProcesso: number;
+    limiteSobreCredito: number;
     prazoEstimadoMeses: number;
   };
 }
@@ -123,10 +140,11 @@ export function dataBr(valor: string | null): string {
 /** Ramp ordinal dourado (validado: um tom, claro → escuro, contraste ≥ 2:1 no
  *  branco) — a fase mais madura é a mais escura; sem êxito fica neutro. */
 export const COR_DA_FASE: Record<FaseProcesso, string> = {
-  distribuido: '#d0aa3a',
-  andamento: '#b8860b',
-  sentenca: '#8f6708',
-  execucao: '#654806',
-  pago: '#3f2d04',
+  distribuido: '#caa233',
+  andamento: '#b0850c',
+  sentenca: '#8f6a09',
+  execucao: '#6e5107',
+  apurado: '#4f3a05',
+  pago: '#302303',
   perdido: '#a39d93',
 };

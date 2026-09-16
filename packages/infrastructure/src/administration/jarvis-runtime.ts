@@ -34,10 +34,11 @@ import {
 import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
 import {
-  PARTE_DA_EMPRESA,
+  REFERENCIA_DO_INVESTIDOR,
   VALOR_REFERENCIA_PROCESSO,
   iniciaisDoNome,
-  processosParaValor,
+  limiteDoCredito,
+  processosParaCredito,
   type ProcessoCandidato,
 } from '../investidores/carteira-investidor.js';
 
@@ -97,7 +98,10 @@ export interface CarteiraPendente {
   readonly id: string;
   readonly criadoEm: string;
   readonly tipo: 'carteira-investidor';
-  readonly valorPedido: number | null;
+  /** O crédito comprado (parte da empresa) — R$ 5.000 por processo. */
+  readonly credito: number;
+  /** Teto de recebimento (crédito + 20%). */
+  readonly limite: number;
   readonly quantidade: number;
   readonly itens: readonly ItemCarteira[];
   /** Processos livres no Jurídico no momento da proposta. */
@@ -105,7 +109,7 @@ export interface CarteiraPendente {
   readonly investidores: readonly { readonly cpf: string; readonly nome: string }[];
   readonly investidorSugeridoCpf: string | null;
   readonly valorReferenciaProcesso: number;
-  readonly parteDaEmpresa: number;
+  readonly referenciaPorProcesso: number;
 }
 
 export interface JarvisResposta {
@@ -199,7 +203,7 @@ export interface JarvisDeps {
     alocar(
       cpf: string,
       numeros: readonly string[],
-      valorPedido: number | null,
+      credito: number | null,
       quem: string,
     ): Promise<
       | { ok: true; valor: { alocados: number; indisponiveis: readonly string[] } }
@@ -490,7 +494,8 @@ export class JarvisRuntime {
           'Ainda não há investidor cadastrado. Cadastre em Admin → Investidores (nome e CPF), gere o link de acesso e repita o comando.',
       };
     }
-    const quantidade = cmd.processos ?? processosParaValor(cmd.valor ?? 0);
+    // Crédito de R$ 250.000 = EXATAMENTE 50 processos (R$ 5.000 cada).
+    const quantidade = cmd.processos ?? processosParaCredito(cmd.valor ?? 0);
     const { itens, disponiveis } = await fonte.proposta(quantidade);
     if (itens.length === 0) {
       return {
@@ -506,7 +511,8 @@ export class JarvisRuntime {
       id: `carteira-${String(Date.now())}`,
       criadoEm: this.deps.clock.now().toISOString(),
       tipo: 'carteira-investidor',
-      valorPedido: cmd.valor,
+      credito: quantidade * REFERENCIA_DO_INVESTIDOR,
+      limite: limiteDoCredito(quantidade * REFERENCIA_DO_INVESTIDOR),
       quantidade,
       itens: itens.map((i) => ({
         numero: i.numero,
@@ -519,7 +525,7 @@ export class JarvisRuntime {
       investidores,
       investidorSugeridoCpf: sugerido?.cpf ?? null,
       valorReferenciaProcesso: VALOR_REFERENCIA_PROCESSO,
-      parteDaEmpresa: PARTE_DA_EMPRESA,
+      referenciaPorProcesso: REFERENCIA_DO_INVESTIDOR,
     };
     await this.deps.json.put(NS_PLANO, pendente.id, pendente);
     const reais = (v: number): string =>
@@ -529,9 +535,10 @@ export class JarvisRuntime {
     const semAdvogado = itens.filter((i) => i.advogado === null).length;
     const clientes = new Set(itens.map((i) => i.clienteId)).size;
     const bancos = new Set(itens.flatMap((i) => i.bancos)).size;
+    const credito = n * REFERENCIA_DO_INVESTIDOR;
     const partes = [
-      `Montei a carteira${sugerido !== null ? ` para ${sugerido.nome}` : ''}: ${String(n)} processo(s), ${reais(n * VALOR_REFERENCIA_PROCESSO)} em processos (referência de ${reais(VALOR_REFERENCIA_PROCESSO)} cada).`,
-      `A parte da empresa, que é o que o investidor compra, soma ${reais(n * VALOR_REFERENCIA_PROCESSO * PARTE_DA_EMPRESA)}.`,
+      `Montei a carteira${sugerido !== null ? ` para ${sugerido.nome}` : ''}: crédito de ${reais(credito)} = ${String(n)} processo(s) de ${reais(REFERENCIA_DO_INVESTIDOR)} cada (a parte da empresa em ${reais(VALOR_REFERENCIA_PROCESSO)} de referência por processo).`,
+      `O investidor recebe no máximo ${reais(limiteDoCredito(credito))} (crédito + 20%) — se os processos renderem mais, o excedente fica com a empresa.`,
       `Espalhei o risco entre ${String(advogados)} advogado(s), ${String(clientes)} cliente(s) e ${String(bancos)} banco(s); os cadastrados há mais tempo entram primeiro.`,
     ];
     if (semAdvogado > 0)
@@ -579,7 +586,7 @@ export class JarvisRuntime {
     const r = await fonte.alocar(
       cpf,
       pendente.itens.map((i) => i.numero),
-      pendente.valorPedido,
+      pendente.credito,
       quem,
     );
     if (!r.ok) return { ok: false, alocados: 0, indisponiveis: [], erro: r.error };

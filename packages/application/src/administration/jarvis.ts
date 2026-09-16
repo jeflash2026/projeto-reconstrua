@@ -395,13 +395,14 @@ export function casarAdvogadoPorNome<T extends { readonly name: string }>(
   );
 }
 
-// ── Comando de CARTEIRA DE INVESTIDOR (2026-09-16): "adicione uma carteira de
-// 250 mil em processos para o investidor João" — a AHRI propõe os processos
-// (espalhados por advogado, cliente e banco) e NADA é alocado sem a confirmação
-// do dono. Reconhecimento determinístico: "carteira" + verbo + (investidor ou
-// processo) + um valor ou uma quantidade de processos. ───────────────────────
+// ── Comando de CARTEIRA DE INVESTIDOR (2026-09-16): "adicione 250 mil em
+// crédito ao investidor João" — a AHRI propõe os processos que cobrem o crédito
+// (R$ 5.000 de parte da empresa cada, espalhados por advogado, cliente e banco)
+// e NADA é alocado sem a confirmação do dono. Reconhecimento determinístico:
+// ("carteira" ou "crédito") + verbo + (investidor, ou processo sem advogado) +
+// um valor ou uma quantidade de processos. ────────────────────────────────────
 export interface ComandoCarteiraInvestidor {
-  /** Valor pedido EM PROCESSOS (R$ 10.000 de referência cada); null = por quantidade. */
+  /** O CRÉDITO pedido (parte da empresa, R$ 5.000 por processo); null = por quantidade. */
   readonly valor: number | null;
   /** Quantidade explícita ("25 processos"); null = deduzida do valor. */
   readonly processos: number | null;
@@ -410,7 +411,7 @@ export interface ComandoCarteiraInvestidor {
 }
 
 const VERBO_CARTEIRA =
-  /\b(adicion\w*|acrescent\w*|cri[ae]\w*|mont\w*|destin\w*|aloc\w*|aloqu\w*|coloc\w*|separ\w*|ger[ae]\w*|prepar\w*|faca|fazer|faz|abr[ae]\w*|vend\w*|pass[ae]\w*|atribu\w*|inclu\w*)\b/;
+  /\b(add|adicion\w*|acrescent\w*|cri[ae]\w*|mont\w*|destin\w*|aloc\w*|aloqu\w*|coloc\w*|separ\w*|ger[ae]\w*|prepar\w*|faca|fazer|faz|abr[ae]\w*|vend\w*|pass[ae]\w*|atribu\w*|inclu\w*)\b/;
 
 function numeroBr(bruto: string): number {
   // "250.000,50" → 250000.5 · "1,5" → 1.5 · "250.000" → 250000
@@ -480,9 +481,11 @@ export function interpretarComandoCarteiraInvestidor(
   texto: string,
 ): ComandoCarteiraInvestidor | null {
   const t = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  if (!/\bcarteira\b/.test(t) || !VERBO_CARTEIRA.test(t)) return null;
+  if (!/\b(carteira|credito)\b/.test(t) || !VERBO_CARTEIRA.test(t)) return null;
   const citaInvestidor = /\binvestidor/.test(t);
-  if (!citaInvestidor && (!/\bprocess/.test(t) || /\badvogad/.test(t))) return null;
+  // Sem "investidor": só "carteira" + processo, e nunca carteira de advogado.
+  if (!citaInvestidor && (!/\bcarteira\b/.test(t) || !/\bprocess/.test(t) || /\badvogad/.test(t)))
+    return null;
   const qtd = /(\d{1,4})\s*process(?:o|os)\b/.exec(t);
   const processos = qtd !== null ? Number(qtd[1]) : null;
   const valor = lerValorEmReais(texto);

@@ -198,8 +198,9 @@ const InvestidoresPanel = (): ReactElement => {
                     <th>Nome</th>
                     <th>CPF (login)</th>
                     <th>Processos</th>
+                    <th>Crédito (limite)</th>
                     <th>Carteira hoje</th>
-                    <th>Realizado</th>
+                    <th>Recebido</th>
                     <th>Acesso</th>
                     <th>Ações</th>
                   </tr>
@@ -212,8 +213,12 @@ const InvestidoresPanel = (): ReactElement => {
                         {formatarCpf(i.cpf)}
                       </td>
                       <td>{i.processos}</td>
+                      <td>
+                        {formatMoney(i.credito)}{' '}
+                        <span className="badge dim">{formatMoney(i.limite)}</span>
+                      </td>
                       <td>{formatMoney(i.valorAtual)}</td>
-                      <td>{formatMoney(i.realizado)}</td>
+                      <td>{formatMoney(i.recebido)}</td>
                       <td>
                         {i.temSenha ? (
                           <span className="badge ok">senha criada</span>
@@ -250,8 +255,8 @@ const InvestidoresPanel = (): ReactElement => {
               </table>
             </div>
             <p className="page-sub" style={{ marginTop: 12 }}>
-              Soma das carteiras hoje: <strong>{formatMoney(totalCarteiras)}</strong> (parte da
-              empresa: referência dos processos em curso + valor real dos encerrados).
+              Soma das carteiras hoje: <strong>{formatMoney(totalCarteiras)}</strong> (recebido +
+              apurado + referência dos processos em curso, respeitando o limite de cada crédito).
             </p>
           </>
         )}
@@ -265,11 +270,16 @@ const InvestidoresPanel = (): ReactElement => {
             <>
               <h3>Carteira de {carteira.nome}</h3>
               <p className="page-sub">
-                {carteira.totais.processos} processo(s) · hoje{' '}
-                {formatMoney(carteira.totais.valorAtual)} · realizado{' '}
-                {formatMoney(carteira.totais.realizado)} · a receber{' '}
+                Crédito {formatMoney(carteira.totais.credito)} (limite{' '}
+                {formatMoney(carteira.totais.limite)}) · {carteira.totais.processos} processo(s) ·
+                hoje {formatMoney(carteira.totais.valorAtual)} · recebido{' '}
+                {formatMoney(carteira.totais.recebido)} · apurado{' '}
+                {formatMoney(carteira.totais.apurado)} · a receber{' '}
                 {formatMoney(carteira.totais.aReceber)} · {carteira.totais.pagos} pago(s),{' '}
                 {carteira.totais.perdidos} sem êxito
+                {(carteira.totais.excedenteEmpresa ?? 0) > 0
+                  ? ` · excedente que fica com a empresa: ${formatMoney(carteira.totais.excedenteEmpresa ?? 0)}`
+                  : ''}
               </p>
               {aviso !== null ? <div className="error-box">{aviso}</div> : null}
               {carteira.processos.length === 0 ? (
@@ -306,20 +316,19 @@ const InvestidoresPanel = (): ReactElement => {
                           <td>{p.advogado ?? '—'}</td>
                           <td>{p.faseRotulo}</td>
                           <td>
-                            {p.realizado !== null ? (
-                              <>
-                                <strong>{formatMoney(p.realizado)}</strong>{' '}
-                                <span className="badge dim">real</span>
-                              </>
-                            ) : (
-                              <>
-                                {formatMoney(p.referencia)}{' '}
-                                <span className="badge dim">referência</span>
-                              </>
-                            )}
+                            <strong>{formatMoney(p.valor.parte)}</strong>{' '}
+                            <span className="badge dim">
+                              {p.valor.tipo === 'referencia'
+                                ? 'referência'
+                                : p.valor.tipo === 'apurado'
+                                  ? 'apurado'
+                                  : p.valor.tipo === 'recebido'
+                                    ? 'recebido'
+                                    : 'sem êxito'}
+                            </span>
                           </td>
                           <td>
-                            {p.realizado === null ? (
+                            {p.valor.tipo === 'referencia' ? (
                               <button
                                 onClick={() => {
                                   void retirar(p.numero);
@@ -337,7 +346,7 @@ const InvestidoresPanel = (): ReactElement => {
               )}
               <p className="page-sub" style={{ marginTop: 12 }}>
                 O valor real entra quando você lança o resultado na ficha do processo, no Painel
-                Jurídico (pago com o valor total recebido, ou encerrado sem êxito).
+                Jurídico: valor apurado na execução, pago, ou encerrado sem êxito.
               </p>
             </>
           )}

@@ -9,7 +9,8 @@ import {
   faseDoProcesso,
   iniciaisDoNome,
   numeroCnj,
-  processosParaValor,
+  limiteDoCredito,
+  processosParaCredito,
   selecionarProcessos,
   type ProcessoCandidato,
 } from './carteira-investidor.js';
@@ -22,10 +23,11 @@ describe('regras puras', () => {
     expect(numeroCnj('40051771920268260533')).toBe('4005177-19.2026.8.26.0533');
   });
 
-  it('valor pedido vira quantidade de processos (R$ 10.000 cada)', () => {
-    expect(processosParaValor(250_000)).toBe(25);
-    expect(processosParaValor(254_000)).toBe(25);
-    expect(processosParaValor(3_000)).toBe(1);
+  it('crédito vira EXATAMENTE o equivalente em processos (R$ 5.000 cada); teto = crédito + 20%', () => {
+    expect(processosParaCredito(250_000)).toBe(50);
+    expect(processosParaCredito(251_000)).toBe(50);
+    expect(processosParaCredito(3_000)).toBe(1);
+    expect(limiteDoCredito(250_000)).toBe(300_000);
   });
 
   it('seleção espalha por advogado, cliente e banco; sem advogado fica por último', () => {
@@ -148,13 +150,13 @@ describe('InvestidoresService', () => {
     });
   });
 
-  it('proposta → alocação exclusiva → painel com iniciais, referência e advogado', async () => {
+  it('proposta → alocação exclusiva → painel com crédito, limite, iniciais e advogado', async () => {
     const { investidores } = await montar();
     const proposta = await investidores.propostaCarteira(2);
     expect(proposta.disponiveis).toBe(3);
     // Com advogado primeiro (Hélio não foi entregue a ninguém).
     expect(proposta.itens.map((i) => i.numero).sort()).toEqual([GILDETE, TAIS].sort());
-    const r = await investidores.alocar(CPF, [TAIS, GILDETE], 20_000, 'founder-console');
+    const r = await investidores.alocar(CPF, [TAIS, GILDETE], 10_000, 'founder-console');
     expect(r).toMatchObject({ ok: true, valor: { alocados: 2, indisponiveis: [] } });
     // Nunca duas vezes.
     expect(await investidores.alocar(CPF, [TAIS], null, 'x')).toMatchObject({ ok: false });
@@ -163,10 +165,12 @@ describe('InvestidoresService', () => {
     const painel = await investidores.painel(CPF);
     expect(painel?.totais).toMatchObject({
       processos: 2,
+      credito: 10_000,
+      limite: 12_000,
       valorAtual: 10_000,
-      referencia: 10_000,
       aReceber: 10_000,
-      realizado: 0,
+      recebido: 0,
+      apurado: 0,
       valorDosProcessos: 20_000,
     });
     const tais = painel?.processos.find((p) => p.numero === TAIS);
@@ -174,16 +178,18 @@ describe('InvestidoresService', () => {
       iniciais: 'T. R. C. S.',
       advogado: 'Gracielle',
       fase: 'distribuido',
+      valor: { tipo: 'referencia', parte: 5_000, valorDoProcesso: null },
     });
     expect(tais).not.toHaveProperty('clienteNome');
     expect(JSON.stringify(painel)).not.toContain('Caetano');
+    expect(painel?.totais).not.toHaveProperty('excedenteEmpresa');
     // O Admin vê o nome.
     expect((await investidores.painel(CPF, true))?.processos[0]).toHaveProperty('clienteNome');
   });
 
   it('desfecho real: pago acima e abaixo da referência, perdido e correção entram no extrato', async () => {
     const { juridico, investidores, relogio } = await montar();
-    await investidores.alocar(CPF, [TAIS, GILDETE, HELIO], 30_000, 'founder-console');
+    await investidores.alocar(CPF, [TAIS, GILDETE, HELIO], 15_000, 'founder-console');
 
     relogio.t = new Date('2026-09-17T10:00:00.000Z');
     expect(
@@ -199,12 +205,11 @@ describe('InvestidoresService', () => {
     await juridico.registrarResultado(HELIO, { situacao: 'pago', valorRecebido: 9_000 }, 'Dono');
 
     const painel = await investidores.painel(CPF);
-    // Taís 7.000 + Gildete 0 + Hélio 4.500.
+    // Taís 7.000 + Gildete 0 + Hélio 4.500 — abaixo do teto de R$ 18.000.
     expect(painel?.totais).toMatchObject({
       valorAtual: 11_500,
-      realizado: 11_500,
+      recebido: 11_500,
       aReceber: 0,
-      ajuste: -3_500,
       pagos: 2,
       perdidos: 1,
     });
@@ -217,6 +222,74 @@ describe('InvestidoresService', () => {
     ]);
     // Processo com desfecho não sai da carteira.
     expect(await investidores.retirar(CPF, TAIS, 'teste', 'x')).toMatchObject({ ok: false });
+  });
+
+  it('TETO: o investidor recebe no máximo o crédito + 20%; o excedente fica com a empresa', async () => {
+    const { juridico, investidores, relogio } = await montar();
+    await investidores.alocar(CPF, [TAIS, GILDETE, HELIO], 15_000, 'founder-console');
+    relogio.t = new Date('2026-09-17T10:00:00.000Z');
+    await juridico.registrarResultado(TAIS, { situacao: 'pago', valorRecebido: 20_000 }, 'Dono');
+    relogio.t = new Date('2026-09-18T10:00:00.000Z');
+    await juridico.registrarResultado(
+      GILDETE,
+      { situacao: 'apurado', valorRecebido: 14_000 },
+      'Dono',
+    );
+
+    // Bruto: 10.000 recebido + 7.000 apurado + 5.000 em curso = 22.000 > teto 18.000.
+    const painel = await investidores.painel(CPF);
+    expect(painel?.totais).toMatchObject({
+      credito: 15_000,
+      limite: 18_000,
+      valorAtual: 18_000,
+      recebido: 10_000,
+      apurado: 7_000,
+      aReceber: 1_000,
+      apurados: 1,
+    });
+    expect(painel?.extrato.map((l) => [l.tipo, l.valor])).toEqual([
+      ['apurado', 0],
+      ['pago', 3_000],
+      ['carteira', 15_000],
+    ]);
+    expect(painel?.extrato[1]?.descricao).toContain('limite da carteira');
+    expect(JSON.stringify(painel)).not.toContain('excedente');
+    // O Admin vê o que ficou com a empresa.
+    const admin = await investidores.painel(CPF, true);
+    expect(admin?.totais.excedenteEmpresa).toBe(4_000);
+  });
+
+  it('valor apurado na execução entra no painel antes do pagamento; o pagamento só confirma', async () => {
+    const { juridico, investidores, relogio } = await montar();
+    await investidores.alocar(CPF, [TAIS], null, 'x');
+    relogio.t = new Date('2026-09-17T10:00:00.000Z');
+    expect(await juridico.registrarResultado(TAIS, { situacao: 'apurado' }, 'Dono')).toMatchObject({
+      ok: false,
+      error: 'informe o valor total apurado do processo',
+    });
+    await juridico.registrarResultado(
+      TAIS,
+      { situacao: 'apurado', valorRecebido: 12_000, data: '2026-09-17' },
+      'Dono',
+    );
+    let painel = await investidores.painel(CPF);
+    expect(painel?.processos[0]).toMatchObject({
+      fase: 'apurado',
+      valor: { tipo: 'apurado', parte: 6_000, valorDoProcesso: 12_000, em: '2026-09-17' },
+    });
+    expect(painel?.totais).toMatchObject({ apurado: 6_000, valorAtual: 6_000, aReceber: 0 });
+    // Apurado não pode ser retirado nem vendido de novo.
+    expect(await investidores.retirar(CPF, TAIS, 'x', 'x')).toMatchObject({ ok: false });
+
+    relogio.t = new Date('2026-09-20T10:00:00.000Z');
+    await juridico.registrarResultado(TAIS, { situacao: 'pago', valorRecebido: 12_000 }, 'Dono');
+    painel = await investidores.painel(CPF);
+    expect(painel?.totais).toMatchObject({ recebido: 6_000, apurado: 0, valorAtual: 6_000 });
+    expect(painel?.extrato.map((l) => [l.tipo, l.valor])).toEqual([
+      ['pago', 0],
+      ['apurado', 1_000],
+      ['carteira', 5_000],
+    ]);
   });
 
   it('retirar processo em curso: volta a ficar disponível e o extrato registra', async () => {

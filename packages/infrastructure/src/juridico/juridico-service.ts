@@ -242,15 +242,17 @@ interface AndamentoDatajud {
 const NS_ANDAMENTOS = 'juridico-andamentos';
 const NS_RESULTADOS = 'juridico-resultados';
 
-/** RESULTADO DO PROCESSO (2026-09-16) — o desfecho que o dono lança quando o
- *  processo termina: PAGO (com o valor total recebido, antes da divisão com o
- *  cliente) ou PERDIDO. Voltar para "em andamento" desfaz um lançamento errado.
- *  É a fonte do valor REAL na carteira dos investidores. */
-export type SituacaoResultado = 'em-andamento' | 'pago' | 'perdido';
+/** RESULTADO DO PROCESSO (2026-09-16) — o valor REAL que o dono lança:
+ *  APURADO na execução (já se sabe quanto o processo vai pagar, falta só o
+ *  tempo processual), PAGO (recebido) — ambos com o valor TOTAL do processo,
+ *  antes da divisão com o cliente — ou PERDIDO. Voltar para "em andamento"
+ *  desfaz um lançamento errado. É a fonte do valor real na carteira dos
+ *  investidores. */
+export type SituacaoResultado = 'em-andamento' | 'apurado' | 'pago' | 'perdido';
 
 export interface LancamentoResultado {
   readonly situacao: SituacaoResultado;
-  /** Valor TOTAL recebido no processo (antes da divisão com o cliente). */
+  /** Valor TOTAL do processo, apurado ou recebido (antes da divisão com o cliente). */
   readonly valorRecebido: number | null;
   /** AAAA-MM-DD do pagamento/encerramento. */
   readonly data: string | null;
@@ -1241,11 +1243,26 @@ export class JuridicoService {
     );
     if (contrato === undefined) return { ok: false, error: 'processo não encontrado' };
     const situacao = dados.situacao;
-    if (situacao !== 'em-andamento' && situacao !== 'pago' && situacao !== 'perdido')
-      return { ok: false, error: 'situação inválida — use pago, perdido ou em andamento' };
-    const valor = situacao === 'pago' ? valorNumerico(dados.valorRecebido) : null;
-    if (situacao === 'pago' && (valor === null || valor <= 0))
-      return { ok: false, error: 'informe o valor total recebido no processo' };
+    if (
+      situacao !== 'em-andamento' &&
+      situacao !== 'apurado' &&
+      situacao !== 'pago' &&
+      situacao !== 'perdido'
+    )
+      return {
+        ok: false,
+        error: 'situação inválida — use valor apurado, pago, perdido ou em andamento',
+      };
+    const comValor = situacao === 'pago' || situacao === 'apurado';
+    const valor = comValor ? valorNumerico(dados.valorRecebido) : null;
+    if (comValor && (valor === null || valor <= 0))
+      return {
+        ok: false,
+        error:
+          situacao === 'pago'
+            ? 'informe o valor total recebido no processo'
+            : 'informe o valor total apurado do processo',
+      };
     const dataBruta = texto(dados.data, 10);
     if (dataBruta !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(dataBruta))
       return { ok: false, error: 'data inválida — use AAAA-MM-DD' };
@@ -1266,12 +1283,15 @@ export class JuridicoService {
       historico: [...(anterior?.historico ?? []), lancamento],
     };
     await this.deps.json.put(NS_RESULTADOS, chave, resultado);
+    const reais = (valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const rotulo =
       situacao === 'pago'
-        ? `pago — ${(valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
-        : situacao === 'perdido'
-          ? 'encerrado sem êxito'
-          : 'voltou para em andamento';
+        ? `pago — ${reais}`
+        : situacao === 'apurado'
+          ? `valor apurado na execução — ${reais}`
+          : situacao === 'perdido'
+            ? 'encerrado sem êxito'
+            : 'voltou para em andamento';
     await this.registrarHistorico(
       'Resultado do processo lançado.',
       `${contrato.processoNumero} — ${rotulo}`,

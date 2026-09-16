@@ -13,6 +13,7 @@ import {
   type ProcessoDetalhe,
 } from '../../../../lib/api';
 import GerarParecer from '../../../../components/gerar-parecer';
+import ResultadoProcesso from '../../../../components/resultado-processo';
 
 export const dynamic = 'force-dynamic';
 
@@ -264,6 +265,13 @@ export default async function ProcessoPage({
           </>
         )}
       </div>
+
+      {/* ── RESULTADO (2026-09-16): pago/perdido — o valor real do investidor ─ */}
+      <ResultadoProcesso
+        numero={digitos}
+        resultado={dados.resultado ?? null}
+        investidor={dados.investidor?.nome ?? null}
+      />
 
       {/* ── CONTRATOS DESTE PROCESSO ─────────────────────────────────────── */}
       <h2 style={{ fontSize: '1.05rem' }}>Contratos ({dados.contratos.length})</h2>

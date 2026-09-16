@@ -240,6 +240,30 @@ interface AndamentoDatajud {
 }
 
 const NS_ANDAMENTOS = 'juridico-andamentos';
+const NS_RESULTADOS = 'juridico-resultados';
+
+/** RESULTADO DO PROCESSO (2026-09-16) — o desfecho que o dono lança quando o
+ *  processo termina: PAGO (com o valor total recebido, antes da divisão com o
+ *  cliente) ou PERDIDO. Voltar para "em andamento" desfaz um lançamento errado.
+ *  É a fonte do valor REAL na carteira dos investidores. */
+export type SituacaoResultado = 'em-andamento' | 'pago' | 'perdido';
+
+export interface LancamentoResultado {
+  readonly situacao: SituacaoResultado;
+  /** Valor TOTAL recebido no processo (antes da divisão com o cliente). */
+  readonly valorRecebido: number | null;
+  /** AAAA-MM-DD do pagamento/encerramento. */
+  readonly data: string | null;
+  readonly observacao: string;
+  readonly autor: string;
+  readonly em: string;
+}
+
+export interface ResultadoProcesso extends LancamentoResultado {
+  readonly numero: string;
+  /** Todos os lançamentos, do mais antigo ao mais recente (o atual é o último). */
+  readonly historico: readonly LancamentoResultado[];
+}
 
 // ── Validação de anexo (como no original: PDF/Word/Excel/imagens/TXT/CSV/ZIP) ─
 const MAGIC: ReadonlyArray<{ mime: string; bytes: readonly number[] }> = [
@@ -1188,6 +1212,72 @@ export class JuridicoService {
       autor,
     );
     return { ok: true };
+  }
+
+  // ── RESULTADO DO PROCESSO (2026-09-16) ─────────────────────────────────────
+
+  async listarResultados(): Promise<readonly ResultadoProcesso[]> {
+    return (await this.deps.json.list(NS_RESULTADOS)) as readonly ResultadoProcesso[];
+  }
+
+  async resultadoDoProcesso(numeroCnj: string): Promise<ResultadoProcesso | null> {
+    return (await this.deps.json.get(
+      NS_RESULTADOS,
+      numeroCnj.replace(/\D/g, ''),
+    )) as ResultadoProcesso | null;
+  }
+
+  /** Lança (ou corrige) o desfecho de um processo cadastrado. Pago exige o
+   *  valor total recebido; perdido zera; em andamento desfaz. Cada lançamento
+   *  fica no histórico — o extrato do investidor mostra as correções. */
+  async registrarResultado(
+    numeroCnj: string,
+    dados: { situacao?: unknown; valorRecebido?: unknown; data?: unknown; observacao?: unknown },
+    autor: string,
+  ): Promise<ResultadoJuridico<ResultadoProcesso>> {
+    const chave = numeroCnj.replace(/\D/g, '');
+    const contrato = (await this.listarContratos()).find(
+      (c) => c.status !== 'excluido' && c.processoNumero.replace(/\D/g, '') === chave,
+    );
+    if (contrato === undefined) return { ok: false, error: 'processo não encontrado' };
+    const situacao = dados.situacao;
+    if (situacao !== 'em-andamento' && situacao !== 'pago' && situacao !== 'perdido')
+      return { ok: false, error: 'situação inválida — use pago, perdido ou em andamento' };
+    const valor = situacao === 'pago' ? valorNumerico(dados.valorRecebido) : null;
+    if (situacao === 'pago' && (valor === null || valor <= 0))
+      return { ok: false, error: 'informe o valor total recebido no processo' };
+    const dataBruta = texto(dados.data, 10);
+    if (dataBruta !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(dataBruta))
+      return { ok: false, error: 'data inválida — use AAAA-MM-DD' };
+    const anterior = await this.resultadoDoProcesso(chave);
+    if (anterior === null && situacao === 'em-andamento')
+      return { ok: false, error: 'o processo já está em andamento' };
+    const lancamento: LancamentoResultado = {
+      situacao,
+      valorRecebido: situacao === 'perdido' ? 0 : valor,
+      data: situacao === 'em-andamento' ? null : dataBruta || diaEmBrasilia(this.deps.clock.now()),
+      observacao: texto(dados.observacao, 500),
+      autor,
+      em: this.agora(),
+    };
+    const resultado: ResultadoProcesso = {
+      ...lancamento,
+      numero: contrato.processoNumero,
+      historico: [...(anterior?.historico ?? []), lancamento],
+    };
+    await this.deps.json.put(NS_RESULTADOS, chave, resultado);
+    const rotulo =
+      situacao === 'pago'
+        ? `pago — ${(valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+        : situacao === 'perdido'
+          ? 'encerrado sem êxito'
+          : 'voltou para em andamento';
+    await this.registrarHistorico(
+      'Resultado do processo lançado.',
+      `${contrato.processoNumero} — ${rotulo}`,
+      autor,
+    );
+    return { ok: true, valor: resultado };
   }
 
   // ── DASHBOARD ──────────────────────────────────────────────────────────────

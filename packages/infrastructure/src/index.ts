@@ -52,3 +52,6 @@ export * from './juridico/index.js';
 // (correspondência que notifica bancos a partir dos contratos do cliente).
 export * from './util/index.js';
 export * from './corvo/index.js';
+
+// 2026-09-16: Painel de Investidores — carteira de créditos judiciais.
+export * from './investidores/index.js';

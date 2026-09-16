@@ -135,6 +135,8 @@ async function main(): Promise<void> {
     juridico: prod.juridico,
     // 2026-09-11: o parecer da AHRI por intimação, na ficha do processo.
     acompanhamentoProcessual: prod.acompanhamentoProcessual,
+    // 2026-09-16: Painel de Investidores (cadastro, carteira e portal /investidor).
+    investidores: prod.investidores,
     // Reaquecimento FASE 1 (2026-08-07): template pelo número OFICIAL da AHRI.
     templateOficial: prod.enviarTemplateOficial,
     // 2026-08-09: disparos persistidos — o painel mostra quem interagiu.

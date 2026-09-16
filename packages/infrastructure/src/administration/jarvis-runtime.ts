@@ -18,6 +18,7 @@
 import {
   acharEstadoNoTexto,
   casarAdvogadoPorNome,
+  interpretarComandoCarteiraInvestidor,
   interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
   interpretarComandoMensagem,
@@ -25,12 +26,20 @@ import {
   interpretarComandoRelatorio,
   planejarDistribuicao,
   type ClienteElegivel,
+  type ComandoCarteiraInvestidor,
   type ComandoProcessosJuridico,
   type PlanoDistribuicao,
   type RecorteRelatorio,
 } from '@reconstrua/application';
 import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
+import {
+  PARTE_DA_EMPRESA,
+  VALOR_REFERENCIA_PROCESSO,
+  iniciaisDoNome,
+  processosParaValor,
+  type ProcessoCandidato,
+} from '../investidores/carteira-investidor.js';
 
 const NS_PLANO = 'jarvis-plano';
 const VALIDADE_PLANO_MIN = 60; // um plano não confirmado morre em 1 hora
@@ -74,6 +83,31 @@ export interface MensagemPendente {
   readonly texto: string;
 }
 
+/** CARTEIRA DE INVESTIDOR (2026-09-16) aguardando a confirmação do dono: os
+ *  processos propostos + a escolha do investidor no card. */
+export interface ItemCarteira {
+  readonly numero: string;
+  readonly clienteNome: string;
+  readonly iniciais: string;
+  readonly bancos: readonly string[];
+  readonly advogado: string | null;
+}
+
+export interface CarteiraPendente {
+  readonly id: string;
+  readonly criadoEm: string;
+  readonly tipo: 'carteira-investidor';
+  readonly valorPedido: number | null;
+  readonly quantidade: number;
+  readonly itens: readonly ItemCarteira[];
+  /** Processos livres no Jurídico no momento da proposta. */
+  readonly disponiveis: number;
+  readonly investidores: readonly { readonly cpf: string; readonly nome: string }[];
+  readonly investidorSugeridoCpf: string | null;
+  readonly valorReferenciaProcesso: number;
+  readonly parteDaEmpresa: number;
+}
+
 export interface JarvisResposta {
   readonly resposta: string;
   /** Presente quando a pergunta era um COMANDO: o plano aguardando confirmação. */
@@ -82,6 +116,8 @@ export interface JarvisResposta {
   readonly cobranca?: CobrancaPendente;
   /** Presente quando o comando era MENSAGEM DITADA (confirmação própria). */
   readonly mensagem?: MensagemPendente;
+  /** Presente quando o comando era CARTEIRA DE INVESTIDOR (confirmação própria). */
+  readonly carteira?: CarteiraPendente;
 }
 
 export interface FichaCliente {
@@ -153,6 +189,23 @@ export interface JarvisDeps {
     jaExistiam: number;
     erros: readonly string[];
   }>;
+  /** CARTEIRA DE INVESTIDOR (2026-09-16): investidores ativos, a proposta de
+   *  processos livres no Jurídico e a alocação (só após a confirmação). */
+  readonly carteiraInvestidor?: {
+    investidores(): Promise<readonly { cpf: string; nome: string }[]>;
+    proposta(
+      quantidade: number,
+    ): Promise<{ itens: readonly ProcessoCandidato[]; disponiveis: number }>;
+    alocar(
+      cpf: string,
+      numeros: readonly string[],
+      valorPedido: number | null,
+      quem: string,
+    ): Promise<
+      | { ok: true; valor: { alocados: number; indisponiveis: readonly string[] } }
+      | { ok: false; error: string }
+    >;
+  };
 }
 
 function resumoDoPlanoTexto(p: PlanoDistribuicao, advogadoNome: string | null): string {
@@ -207,6 +260,11 @@ export class JarvisRuntime {
     // não pode cair na distribuição nem na cobrança pelo conteúdo do texto.
     const mensagem = interpretarComandoMensagem(pergunta);
     if (mensagem !== null) return this.montarMensagem(mensagem.destinatario, mensagem.texto);
+    // CARTEIRA DE INVESTIDOR (2026-09-16): "adicione uma carteira de 250 mil em
+    // processos para o investidor X" — proposta + confirmação no card.
+    const carteira = interpretarComandoCarteiraInvestidor(pergunta);
+    if (carteira !== null && this.deps.carteiraInvestidor !== undefined)
+      return this.montarCarteira(carteira);
     // RELATÓRIO NOMINAL antes da cobrança: "lista dos clientes com cpf" é um
     // pedido de relatório, nunca um disparo.
     const relatorio = interpretarComandoRelatorio(pergunta, acharEstadoNoTexto);
@@ -231,7 +289,7 @@ export class JarvisRuntime {
       'Use EXCLUSIVAMENTE os FATOS fornecidos (Read Models reais): PROIBIDO inventar dados, nomes ou valores; se o fato não está no dossiê, diga com naturalidade que ainda não está registrado e o que você TEM de mais próximo. ' +
       'Nomes de clientes podem vir com ruído de captura — apresente-os limpos. ' +
       'Feche, quando fizer sentido, com UMA sugestão de próximo passo. ' +
-      'Você não executa nada nesta resposta, mas TEM poderes administrativos com confirmação: se o assunto pedir, ofereça — "mova N contratos para o advogado X" (distribuição), "cobre o CPF dos clientes que faltam" (cobrança em lote), "mande a mensagem para <cliente>: <texto>" (mensagem ditada, enviada EXATAMENTE como o fundador escrever) ou "relatório com nome e telefone dos clientes de <estado>" (lista nominal direto dos registros). Nunca diga que não consegue disparar mensagens nem gerar listas nominais: o fundador só precisa dar o comando. ' +
+      'Você não executa nada nesta resposta, mas TEM poderes administrativos com confirmação: se o assunto pedir, ofereça — "mova N contratos para o advogado X" (distribuição), "cobre o CPF dos clientes que faltam" (cobrança em lote), "mande a mensagem para <cliente>: <texto>" (mensagem ditada, enviada EXATAMENTE como o fundador escrever) ou "relatório com nome e telefone dos clientes de <estado>" (lista nominal direto dos registros) ou "adicione uma carteira de 250 mil em processos para o investidor <nome>" (carteira de créditos judiciais no Painel do Investidor). Nunca diga que não consegue disparar mensagens nem gerar listas nominais: o fundador só precisa dar o comando. ' +
       'IMPORTANTE (decreto 2026-07-30): mensagens automáticas proativas foram DESLIGADAS — todo contato proativo com cliente passa por comando + confirmação do fundador.';
     const user = `PERGUNTA DO FUNDADOR: ${pergunta}\n\nFATOS (JSON):\n${JSON.stringify(fatos)}`;
     // Caso real 2026-07-29: uma falha pontual do narrador despejava JSON cru na
@@ -417,6 +475,117 @@ export class JarvisRuntime {
         'Confira o texto e clique em CONFIRMAR E ENVIAR — nada sai sem a sua confirmação.',
       mensagem: pendente,
     };
+  }
+
+  /** CARTEIRA DE INVESTIDOR (2026-09-16): propõe os processos (livres no
+   *  Jurídico, espalhados por advogado, cliente e banco) e guarda o plano —
+   *  a alocação só acontece no clique de confirmação, com o investidor. */
+  private async montarCarteira(cmd: ComandoCarteiraInvestidor): Promise<JarvisResposta> {
+    const fonte = this.deps.carteiraInvestidor;
+    if (fonte === undefined) return { resposta: 'O painel de investidores não está disponível.' };
+    const investidores = await fonte.investidores();
+    if (investidores.length === 0) {
+      return {
+        resposta:
+          'Ainda não há investidor cadastrado. Cadastre em Admin → Investidores (nome e CPF), gere o link de acesso e repita o comando.',
+      };
+    }
+    const quantidade = cmd.processos ?? processosParaValor(cmd.valor ?? 0);
+    const { itens, disponiveis } = await fonte.proposta(quantidade);
+    if (itens.length === 0) {
+      return {
+        resposta:
+          'Não há processos livres para montar a carteira: todos os processos com contrato ativo no Painel Jurídico já estão na carteira de algum investidor ou têm desfecho lançado.',
+      };
+    }
+    const sugerido = casarAdvogadoPorNome(
+      cmd.investidorNome,
+      investidores.map((i) => ({ ...i, name: i.nome })),
+    );
+    const pendente: CarteiraPendente = {
+      id: `carteira-${String(Date.now())}`,
+      criadoEm: this.deps.clock.now().toISOString(),
+      tipo: 'carteira-investidor',
+      valorPedido: cmd.valor,
+      quantidade,
+      itens: itens.map((i) => ({
+        numero: i.numero,
+        clienteNome: i.clienteNome,
+        iniciais: iniciaisDoNome(i.clienteNome),
+        bancos: i.bancos,
+        advogado: i.advogado,
+      })),
+      disponiveis,
+      investidores,
+      investidorSugeridoCpf: sugerido?.cpf ?? null,
+      valorReferenciaProcesso: VALOR_REFERENCIA_PROCESSO,
+      parteDaEmpresa: PARTE_DA_EMPRESA,
+    };
+    await this.deps.json.put(NS_PLANO, pendente.id, pendente);
+    const reais = (v: number): string =>
+      v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const n = itens.length;
+    const advogados = new Set(itens.map((i) => i.advogado).filter((a) => a !== null)).size;
+    const semAdvogado = itens.filter((i) => i.advogado === null).length;
+    const clientes = new Set(itens.map((i) => i.clienteId)).size;
+    const bancos = new Set(itens.flatMap((i) => i.bancos)).size;
+    const partes = [
+      `Montei a carteira${sugerido !== null ? ` para ${sugerido.nome}` : ''}: ${String(n)} processo(s), ${reais(n * VALOR_REFERENCIA_PROCESSO)} em processos (referência de ${reais(VALOR_REFERENCIA_PROCESSO)} cada).`,
+      `A parte da empresa, que é o que o investidor compra, soma ${reais(n * VALOR_REFERENCIA_PROCESSO * PARTE_DA_EMPRESA)}.`,
+      `Espalhei o risco entre ${String(advogados)} advogado(s), ${String(clientes)} cliente(s) e ${String(bancos)} banco(s); os cadastrados há mais tempo entram primeiro.`,
+    ];
+    if (semAdvogado > 0)
+      partes.push(
+        `Atenção: ${String(semAdvogado)} processo(s) ainda sem advogado responsável no Admin.`,
+      );
+    if (n < quantidade)
+      partes.push(
+        `Atenção: pedi ${String(quantidade)} processo(s), mas só ${String(n)} estão livres no Painel Jurídico.`,
+      );
+    if (cmd.investidorNome !== null && sugerido === null)
+      partes.push(
+        `Não encontrei "${cmd.investidorNome}" entre os investidores cadastrados — escolha na lista.`,
+      );
+    partes.push(
+      'O investidor vê cada cliente só pelas iniciais, com o nº do processo, os bancos, o advogado e a fase. Confira os processos, escolha o investidor e clique em CONFIRMAR — nada é alocado sem a sua confirmação.',
+    );
+    return { resposta: partes.join('\n\n'), carteira: pendente };
+  }
+
+  /** ALOCAÇÃO DA CARTEIRA (só após a confirmação explícita do fundador). */
+  async alocarCarteira(
+    planoId: string,
+    cpf: string,
+    quem: string,
+  ): Promise<{ ok: boolean; alocados: number; indisponiveis: readonly string[]; erro?: string }> {
+    const fonte = this.deps.carteiraInvestidor;
+    const pendente = (await this.deps.json.get(NS_PLANO, planoId)) as CarteiraPendente | null;
+    if (fonte === undefined || pendente === null || pendente.tipo !== 'carteira-investidor')
+      return {
+        ok: false,
+        alocados: 0,
+        indisponiveis: [],
+        erro: 'carteira não encontrada ou expirada — peça de novo',
+      };
+    const idadeMin =
+      (this.deps.clock.now().getTime() - new Date(pendente.criadoEm).getTime()) / 60_000;
+    if (idadeMin > VALIDADE_PLANO_MIN)
+      return {
+        ok: false,
+        alocados: 0,
+        indisponiveis: [],
+        erro: 'carteira expirada — peça de novo',
+      };
+    const r = await fonte.alocar(
+      cpf,
+      pendente.itens.map((i) => i.numero),
+      pendente.valorPedido,
+      quem,
+    );
+    if (!r.ok) return { ok: false, alocados: 0, indisponiveis: [], erro: r.error };
+    // O plano morre após a alocação (confirmar duas vezes não duplica).
+    await this.deps.json.del(NS_PLANO, planoId).catch(() => undefined);
+    return { ok: true, alocados: r.valor.alocados, indisponiveis: r.valor.indisponiveis };
   }
 
   /** ENVIO DA MENSAGEM DITADA (só após a confirmação explícita do fundador). */

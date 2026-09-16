@@ -126,11 +126,31 @@ export interface JarvisMensagem {
   nome: string;
   texto: string;
 }
+/** CARTEIRA DE INVESTIDOR (2026-09-16) aguardando confirmação. */
+export interface JarvisCarteira {
+  id: string;
+  criadoEm: string;
+  valorPedido: number | null;
+  quantidade: number;
+  itens: {
+    numero: string;
+    clienteNome: string;
+    iniciais: string;
+    bancos: string[];
+    advogado: string | null;
+  }[];
+  disponiveis: number;
+  investidores: { cpf: string; nome: string }[];
+  investidorSugeridoCpf: string | null;
+  valorReferenciaProcesso: number;
+  parteDaEmpresa: number;
+}
 export interface JarvisResposta {
   resposta: string;
   plano?: JarvisPlano;
   cobranca?: JarvisCobranca;
   mensagem?: JarvisMensagem;
+  carteira?: JarvisCarteira;
 }
 /** Pergunta livre OU comando ("mova 20 contratos para o advogado X"). */
 export async function perguntarJarvis(
@@ -153,6 +173,13 @@ export async function cobrarCpfJarvis(
   planoId: string,
 ): Promise<{ ok: boolean; enviados: number; pulados: number; erros: string[] } | null> {
   return sendJson('POST', '/admin/founder/jarvis/cobrar', { planoId });
+}
+/** ALOCA a carteira de investidor confirmada pelo fundador. */
+export async function alocarCarteiraJarvis(
+  planoId: string,
+  cpf: string,
+): Promise<{ ok: boolean; alocados: number; indisponiveis: string[]; erro?: string } | null> {
+  return sendJson('POST', '/admin/founder/jarvis/carteira', { planoId, cpf });
 }
 /** ENVIA a mensagem DITADA confirmada pelo fundador (texto exato). */
 export async function enviarMensagemJarvis(
@@ -697,6 +724,107 @@ export async function gerarConviteHumanizado(
     if (host === '')
       return { link: null, error: 'não foi possível determinar o domínio da plataforma' };
     return { link: `${proto}://${host}/humanizado/convite?t=${data.token}`, error: null };
+  } catch {
+    return { link: null, error: 'API do Admin inacessível' };
+  }
+}
+
+// ── INVESTIDORES (2026-09-16) — cadastro por CPF, link de acesso, carteira
+//    (montada no Founder Console) e retirada de processo. ───────────────────
+export interface InvestidorAdminView {
+  cpf: string;
+  nome: string;
+  email: string;
+  telefone: string;
+  ativo: boolean;
+  criadoEm: string;
+  temSenha: boolean;
+  processos: number;
+  valorAtual: number;
+  realizado: number;
+}
+export interface ProcessoCarteiraAdmin {
+  numero: string;
+  iniciais: string;
+  clienteNome?: string;
+  bancos: string[];
+  advogado: string | null;
+  fase: string;
+  faseRotulo: string;
+  referencia: number;
+  realizado: number | null;
+  valorRecebido: number | null;
+  alocadoEm: string;
+}
+export interface CarteiraAdmin {
+  cpf: string;
+  nome: string;
+  totais: {
+    processos: number;
+    valorAtual: number;
+    realizado: number;
+    aReceber: number;
+    ajuste: number;
+    pagos: number;
+    perdidos: number;
+  };
+  processos: ProcessoCarteiraAdmin[];
+}
+export async function fetchInvestidores(): Promise<{ investidores: InvestidorAdminView[] } | null> {
+  return getJson<{ investidores: InvestidorAdminView[] }>('/admin/investidores');
+}
+export async function cadastrarInvestidor(dados: {
+  cpf: string;
+  nome: string;
+  email: string;
+  telefone: string;
+}): Promise<{ ok: boolean; error: string | null }> {
+  const res = await sendJson<{ ok: true } | { error: string }>(
+    'POST',
+    '/admin/investidores/cadastrar',
+    dados,
+  );
+  if (res === null) return { ok: false, error: 'API do Admin inacessível ou dados inválidos' };
+  if ('error' in res) return { ok: false, error: res.error };
+  return { ok: true, error: null };
+}
+export async function fetchCarteiraInvestidor(cpf: string): Promise<CarteiraAdmin | null> {
+  return getJson<CarteiraAdmin>(`/admin/investidores/${encodeURIComponent(cpf)}/carteira`);
+}
+export async function retirarProcessoInvestidor(
+  cpf: string,
+  numero: string,
+  motivo: string,
+): Promise<{ ok: boolean; error?: string } | null> {
+  return sendJson('POST', `/admin/investidores/${encodeURIComponent(cpf)}/retirar`, {
+    numero,
+    motivo,
+  });
+}
+export async function gerarConviteInvestidor(
+  cpf: string,
+): Promise<{ link: string | null; error: string | null }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/investidores/convite`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(ADMIN_TOKEN ? { authorization: `Bearer ${ADMIN_TOKEN}` } : {}),
+      },
+      body: JSON.stringify({ cpf }),
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      const parsed = (await res.json().catch(() => ({}))) as { error?: string };
+      return { link: null, error: parsed.error ?? `HTTP ${String(res.status)}` };
+    }
+    const data = (await res.json()) as { token: string };
+    const h = headers();
+    const proto = h.get('x-forwarded-proto') ?? 'https';
+    const host = h.get('x-forwarded-host') ?? h.get('host') ?? '';
+    if (host === '')
+      return { link: null, error: 'não foi possível determinar o domínio da plataforma' };
+    return { link: `${proto}://${host}/investidor/convite?t=${data.token}`, error: null };
   } catch {
     return { link: null, error: 'API do Admin inacessível' };
   }

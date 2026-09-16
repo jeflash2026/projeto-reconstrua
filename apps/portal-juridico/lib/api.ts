@@ -265,6 +265,16 @@ export interface AcompanhamentoDoProcesso {
   parecerDisponivel: boolean;
 }
 
+/** RESULTADO DO PROCESSO (2026-09-16): pago/perdido lançado pelo escritório. */
+export interface ResultadoProcessoView {
+  situacao: 'em-andamento' | 'pago' | 'perdido';
+  valorRecebido: number | null;
+  data: string | null;
+  observacao: string;
+  autor: string;
+  em: string;
+}
+
 /** A ficha de UM processo (GET /admin/juridico/processos/:numero). */
 export interface ProcessoDetalhe {
   numero: string;
@@ -274,6 +284,10 @@ export interface ProcessoDetalhe {
   andamento: AndamentoProcesso | null;
   /** null = parecer automático fora desta montagem. */
   acompanhamento: AcompanhamentoDoProcesso | null;
+  /** 2026-09-16: desfecho lançado (ausente em API anterior ao deploy). */
+  resultado?: ResultadoProcessoView | null;
+  /** De quem é o processo na carteira de investidores (null = de ninguém). */
+  investidor?: { nome: string } | null;
 }
 
 /** URL da ficha do processo — só dígitos (o ponto do CNJ não entra na rota). */

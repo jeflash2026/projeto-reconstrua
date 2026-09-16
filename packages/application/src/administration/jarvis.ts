@@ -394,3 +394,108 @@ export function casarAdvogadoPorNome<T extends { readonly name: string }>(
     null
   );
 }
+
+// ── Comando de CARTEIRA DE INVESTIDOR (2026-09-16): "adicione uma carteira de
+// 250 mil em processos para o investidor João" — a AHRI propõe os processos
+// (espalhados por advogado, cliente e banco) e NADA é alocado sem a confirmação
+// do dono. Reconhecimento determinístico: "carteira" + verbo + (investidor ou
+// processo) + um valor ou uma quantidade de processos. ───────────────────────
+export interface ComandoCarteiraInvestidor {
+  /** Valor pedido EM PROCESSOS (R$ 10.000 de referência cada); null = por quantidade. */
+  readonly valor: number | null;
+  /** Quantidade explícita ("25 processos"); null = deduzida do valor. */
+  readonly processos: number | null;
+  /** O investidor citado (livre) — casado depois contra o cadastro. */
+  readonly investidorNome: string | null;
+}
+
+const VERBO_CARTEIRA =
+  /\b(adicion\w*|acrescent\w*|cri[ae]\w*|mont\w*|destin\w*|aloc\w*|aloqu\w*|coloc\w*|separ\w*|ger[ae]\w*|prepar\w*|faca|fazer|faz|abr[ae]\w*|vend\w*|pass[ae]\w*|atribu\w*|inclu\w*)\b/;
+
+function numeroBr(bruto: string): number {
+  // "250.000,50" → 250000.5 · "1,5" → 1.5 · "250.000" → 250000
+  const t = bruto.includes(',') ? bruto.replace(/\./g, '').replace(',', '.') : bruto;
+  return /^\d{1,3}(\.\d{3})+$/.test(t) ? Number(t.replace(/\./g, '')) : Number(t);
+}
+
+/** O valor em reais citado ("250 mil", "R$ 250.000", "1,5 milhão"). */
+export function lerValorEmReais(texto: string): number | null {
+  const t = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const escala = /(\d+(?:[.,]\d+)*)\s*(mil\b|k\b|milhao\b|milhoes\b|mi\b)/.exec(t);
+  if (escala !== null) {
+    const n = numeroBr(escala[1] ?? '');
+    const fator = escala[2] === 'mil' || escala[2] === 'k' ? 1e3 : 1e6;
+    const v = n * fator;
+    return Number.isFinite(v) && v >= 1_000 ? Math.round(v) : null;
+  }
+  const cheio = /(?:r\$\s*)?(\d{1,3}(?:\.\d{3})+|\d{4,})(?:,\d{2})?/.exec(t);
+  if (cheio !== null && !/\d{7}-?\d{2}\.\d{4}/.test(t)) {
+    const v = numeroBr(cheio[1] ?? '');
+    return Number.isFinite(v) && v >= 1_000 ? v : null;
+  }
+  return null;
+}
+
+const PARADAS_NOME = new Set([
+  'com',
+  'de',
+  'em',
+  'no',
+  'na',
+  'e',
+  'que',
+  'do',
+  'da',
+  'por',
+  'para',
+  'valor',
+]);
+
+function nomeAposMarcador(texto: string, marcador: RegExp): string | null {
+  const m = marcador.exec(texto);
+  if (m === null) return null;
+  const palavras: string[] = [];
+  for (const p of texto.slice(m.index + m[0].length).split(/\s+/)) {
+    const limpa = p.replace(/[,.;:!?]+$/, '');
+    if (limpa === '' || !/^\p{L}[\p{L}'-]*$/u.test(limpa)) break;
+    if (PARADAS_NOME.has(limpa.toLowerCase()) && palavras.length > 0) {
+      // "dos Santos" continua o nome; "com 250 mil" encerra.
+      if (/^d[aeo]s?$/i.test(limpa)) {
+        palavras.push(limpa);
+        continue;
+      }
+      break;
+    }
+    if (PARADAS_NOME.has(limpa.toLowerCase())) break;
+    palavras.push(limpa);
+    if (palavras.length >= 5 || p !== limpa) break;
+  }
+  while (palavras.length > 0 && /^d[aeo]s?$/i.test(palavras[palavras.length - 1] ?? ''))
+    palavras.pop();
+  return palavras.length > 0 ? palavras.join(' ') : null;
+}
+
+/** Reconhece o comando de carteira de investidor. null = não é. */
+export function interpretarComandoCarteiraInvestidor(
+  texto: string,
+): ComandoCarteiraInvestidor | null {
+  const t = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (!/\bcarteira\b/.test(t) || !VERBO_CARTEIRA.test(t)) return null;
+  const citaInvestidor = /\binvestidor/.test(t);
+  if (!citaInvestidor && (!/\bprocess/.test(t) || /\badvogad/.test(t))) return null;
+  const qtd = /(\d{1,4})\s*process(?:o|os)\b/.exec(t);
+  const processos = qtd !== null ? Number(qtd[1]) : null;
+  const valor = lerValorEmReais(texto);
+  if ((processos === null || processos <= 0) && valor === null) return null;
+  const investidorNome =
+    nomeAposMarcador(texto, /\binvestidor(?:a)?\s+(?:chamad[oa]\s+)?/iu) ??
+    nomeAposMarcador(
+      texto,
+      /\b(?:para|pro|ao|à)\s+(?:o\s+|a\s+)?(?:sr\.?\s+|sra\.?\s+)?(?=\p{Lu})/u,
+    );
+  return {
+    valor,
+    processos: processos !== null && processos > 0 ? processos : null,
+    investidorNome,
+  };
+}

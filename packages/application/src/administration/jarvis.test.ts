@@ -6,10 +6,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   casarAdvogadoPorNome,
+  interpretarComandoCarteiraInvestidor,
   interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
   interpretarComandoMensagem,
   interpretarComandoRelatorio,
+  lerValorEmReais,
   pesoDoCliente,
   planejarDistribuicao,
   type ClienteElegivel,
@@ -395,5 +397,54 @@ describe('interpretarComandoProcessosJuridico — planilha do WhatsApp (negrito 
     );
     expect(cmd?.clientes.map((c) => c.nome)).toEqual(['Maria da Silva Santos']);
     expect(cmd?.clientes[0]?.processos[0]?.banco).toBe('BANCO PAN');
+  });
+});
+
+describe('interpretarComandoCarteiraInvestidor (2026-09-16)', () => {
+  it('a frase do dono: valor em processos, sem nome', () => {
+    expect(
+      interpretarComandoCarteiraInvestidor(
+        'ahri preciso adicionar uma carteira com aproximadamente 250 mil em processo a um cliente',
+      ),
+    ).toEqual({ valor: 250_000, processos: null, investidorNome: null });
+  });
+
+  it('investidor citado; R$ cheio; milhão; quantidade de processos', () => {
+    expect(
+      interpretarComandoCarteiraInvestidor(
+        'Adicione uma carteira de R$ 250.000,00 para o investidor João Pereira dos Santos',
+      ),
+    ).toEqual({ valor: 250_000, processos: null, investidorNome: 'João Pereira dos Santos' });
+    expect(
+      interpretarComandoCarteiraInvestidor(
+        'monte uma carteira de 1,5 milhão em processos para o Carlos Mendes',
+      ),
+    ).toMatchObject({ valor: 1_500_000, investidorNome: 'Carlos Mendes' });
+    expect(
+      interpretarComandoCarteiraInvestidor(
+        'crie carteira de 25 processos ao investidor carlos com urgência',
+      ),
+    ).toEqual({ valor: null, processos: 25, investidorNome: 'carlos' });
+  });
+
+  it('não é comando: pergunta, carteira de advogado, sem valor', () => {
+    expect(
+      interpretarComandoCarteiraInvestidor('quanto vale a carteira do investidor João?'),
+    ).toBeNull();
+    expect(
+      interpretarComandoCarteiraInvestidor(
+        'adicione 50 processos na carteira do advogado Cornélio',
+      ),
+    ).toBeNull();
+    expect(
+      interpretarComandoCarteiraInvestidor('monte uma carteira para o investidor João'),
+    ).toBeNull();
+  });
+
+  it('lerValorEmReais', () => {
+    expect(lerValorEmReais('250k')).toBe(250_000);
+    expect(lerValorEmReais('uns 80 mil')).toBe(80_000);
+    expect(lerValorEmReais('2 milhões')).toBe(2_000_000);
+    expect(lerValorEmReais('sem valor')).toBeNull();
   });
 });

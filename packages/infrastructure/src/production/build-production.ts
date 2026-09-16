@@ -232,6 +232,8 @@ import { ChatHumanizadoService } from '../humanizado/chat-humanizado.js';
 import { VarreduraFase2 } from '../humanizado/varredura-fase2.js';
 import { TransferenciaDeNumero } from '../humanizado/transferencia-numero.js';
 import { JuridicoService } from '../juridico/juridico-service.js';
+import type { EntregaAoAdvogado } from '../juridico/pastas-advogado.js';
+import { InvestidoresService } from '../investidores/investidores-service.js';
 import { DatajudClient } from '../juridico/datajud-client.js';
 import { CorvoClient } from '../corvo/corvo-client.js';
 import { CorvoService, type DocumentoColetado } from '../corvo/corvo-service.js';
@@ -366,6 +368,9 @@ export interface AssembledProduction {
   /** ACOMPANHAMENTO PROCESSUAL (2026-09-11): o parecer de cada intimação do
    *  DJEN e os alertas de prazo, no painel do advogado dos clientes DELE. */
   readonly acompanhamentoProcessual: AcompanhamentoProcessual;
+  /** PAINEL DE INVESTIDORES (2026-09-16): cadastro por CPF, carteira de
+   *  créditos judiciais (parte da empresa) e o painel do investidor. */
+  readonly investidores: InvestidoresService;
   /** REAQUECIMENTO FASE 1 (decreto 2026-08-07): envia um TEMPLATE aprovado
    *  pelo número OFICIAL da AHRI (o 16) — a única forma de reabrir lead frio
    *  no canal Meta. false = canal não configurado ou Meta recusou. */
@@ -1749,6 +1754,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       jaExistiam: 0,
       erros: ['Painel Jurídico indisponível nesta montagem'],
     });
+  // PAINEL DE INVESTIDORES (2026-09-16): o serviço nasce depois do Jurídico
+  // (ref tardio, ligado lá) — o Jarvis só o usa em request.
+  let investidoresRef: InvestidoresService | null = null;
   const jarvisCompletion = llm.completion;
   const jarvis = new JarvisRuntime({
     json,
@@ -1762,6 +1770,24 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // nasce depois). Com advogado citado, só os clientes MARCADOS para ele.
     elegiveis: (advogadoId) => poolProcuracaoRef(advogadoId),
     cadastrarProcessosJuridico: (nome, processos) => cadastrarProcessosJuridicoRef(nome, processos),
+    // CARTEIRA DE INVESTIDOR (2026-09-16): proposta de processos livres no
+    // Jurídico + alocação só após a confirmação do dono no console.
+    carteiraInvestidor: {
+      investidores: async () =>
+        investidoresRef === null
+          ? []
+          : (await investidoresRef.listar())
+              .filter((i) => i.ativo)
+              .map((i) => ({ cpf: i.cpf, nome: i.nome })),
+      proposta: (quantidade) =>
+        investidoresRef === null
+          ? Promise.resolve({ itens: [], disponiveis: 0 })
+          : investidoresRef.propostaCarteira(quantidade),
+      alocar: (cpf, numeros, valorPedido, quem) =>
+        investidoresRef === null
+          ? Promise.resolve({ ok: false as const, error: 'painel de investidores indisponível' })
+          : investidoresRef.alocar(cpf, numeros, valorPedido, quem),
+    },
     advogados: async () => {
       const advs = await staffStore.byRole('advogado');
       const out = [];
@@ -2537,6 +2563,32 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // processos judiciais, guias e perícias do dono + sócio (2º painel).
   // DataJud (CNJ): acompanhamento automático dos processos pelo nº CNJ — chave
   // pública do CNJ por padrão; env DATAJUD_API_KEY para trocar.
+  // ENTREGAS AOS ADVOGADOS (2026-09-16): cliente → advogado responsável, a
+  // MESMA régua das pastas do Painel Jurídico (atribuição real do Admin).
+  const entregasAosAdvogados = async (): Promise<EntregaAoAdvogado[]> => {
+    const advs = await staffStore.byRole('advogado');
+    const lista = await clientes.list().catch(() => []);
+    const nomePorChat = new Map(lista.map((c) => [c.chatId, c.quem]));
+    const chatPorMissao = new Map(
+      lista.filter((c) => c.missionId !== null).map((c) => [c.missionId as string, c.chatId]),
+    );
+    const out: EntregaAoAdvogado[] = [];
+    for (const a of advs) {
+      for (const t of await work.myMissions(a.id).catch(() => [])) {
+        const chatId = t.chatId ?? chatPorMissao.get(t.missionId) ?? null;
+        if (chatId === null) continue;
+        const em = new Date(t.assignedAt);
+        out.push({
+          advogadoId: a.id,
+          advogado: a.name,
+          chatId,
+          nome: nomePorChat.get(chatId) ?? chatId.split('@')[0] ?? chatId,
+          entregueEm: Number.isNaN(em.getTime()) ? null : em.toISOString(),
+        });
+      }
+    }
+    return out;
+  };
   const juridico = new JuridicoService({
     json,
     media: mediaStore,
@@ -2554,6 +2606,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         : { url: 'https://comunicaapi.pje.jus.br/api/v1/comunicacao', headers: {} },
     ),
   });
+  const investidores = new InvestidoresService({
+    json,
+    clock,
+    secret: env['ADMIN_ACCESS_SECRET'] ?? '',
+    juridico,
+    entregas: entregasAosAdvogados,
+  });
+  investidoresRef = investidores;
   // CADASTRO DE PROCESSOS via Jarvis (decreto 2026-08-31): o dono cola o bloco
   // "Nome:" + "BANCO - nº CNJ" no chat da AHRI e o Painel Jurídico é preenchido
   // na hora. Find-or-create do cliente por NOME (sem acentos/caixa); um processo
@@ -3137,6 +3197,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     devolverAdvogado,
     juridico,
     acompanhamentoProcessual,
+    investidores,
     // 2026-08-09: cada disparo oficial é PERSISTIDO (ns 'disparos-oficial') e
     // registrado na memória da conversa — a AHRI fica ciente e o painel
     // consegue mostrar quem interagiu depois do template.

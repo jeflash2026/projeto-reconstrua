@@ -5,11 +5,13 @@
 // advogado X") SEMPRE com plano + confirmação explícita — nada move sozinho.
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import {
+  alocarCarteiraJarvis,
   cobrarCpfJarvis,
   enviarMensagemJarvis,
   executarJarvis,
   fetchFounderBriefing,
   perguntarJarvis,
+  type JarvisCarteira,
   type JarvisCobranca,
   type JarvisMensagem,
   type JarvisPlano,
@@ -22,7 +24,114 @@ interface ChatMessage {
   plano?: JarvisPlano;
   cobranca?: JarvisCobranca;
   mensagem?: JarvisMensagem;
+  carteira?: JarvisCarteira;
 }
+
+const reais = (v: number): string =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+/** Card da CARTEIRA DE INVESTIDOR (2026-09-16): processos propostos + escolha do
+ *  investidor + confirmação. O investidor verá os clientes só pelas iniciais. */
+const CarteiraCard = ({
+  carteira,
+  onResultado,
+}: {
+  carteira: JarvisCarteira;
+  onResultado: (texto: string) => void;
+}): ReactElement => {
+  const [cpf, setCpf] = useState(
+    carteira.investidorSugeridoCpf ?? carteira.investidores[0]?.cpf ?? '',
+  );
+  const [busy, setBusy] = useState(false);
+  const [feito, setFeito] = useState(false);
+  const n = carteira.itens.length;
+
+  const confirmar = async (): Promise<void> => {
+    if (busy || cpf === '') return;
+    setBusy(true);
+    const r = await alocarCarteiraJarvis(carteira.id, cpf);
+    const nome = carteira.investidores.find((i) => i.cpf === cpf)?.nome ?? 'o investidor';
+    if (r === null) onResultado('A API não respondeu — a carteira NÃO foi alocada.');
+    else if (!r.ok) onResultado(`Não aloquei: ${r.erro ?? 'falha'}`);
+    else
+      onResultado(
+        `Feito! ${String(r.alocados)} processo(s) na carteira de ${nome} — já aparecem no painel do investidor.` +
+          (r.indisponiveis.length > 0
+            ? ` Ficaram de fora (já não estavam livres): ${r.indisponiveis.join(', ')}.`
+            : ''),
+      );
+    setFeito(true);
+    setBusy(false);
+  };
+
+  if (feito) return <></>;
+  return (
+    <div className="card" style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 13, marginBottom: 8 }}>
+        <strong>{n}</strong> processo(s) · {reais(n * carteira.valorReferenciaProcesso)} em
+        processos · parte da empresa (investidor):{' '}
+        <strong>{reais(n * carteira.valorReferenciaProcesso * carteira.parteDaEmpresa)}</strong>
+      </div>
+      <div className="table-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Processo</th>
+              <th>Cliente (o investidor vê)</th>
+              <th>Bancos</th>
+              <th>Advogado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {carteira.itens.map((i) => (
+              <tr key={i.numero}>
+                <td className="mono" style={{ fontSize: 12 }}>
+                  {i.numero}
+                </td>
+                <td>
+                  <span style={{ fontWeight: 600 }}>{i.clienteNome}</span>{' '}
+                  <span className="badge dim">{i.iniciais}</span>
+                </td>
+                <td>{i.bancos.join(', ')}</td>
+                <td>{i.advogado ?? <span className="badge bad">sem advogado</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="form-row" style={{ marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          Investidor:
+          <select
+            value={cpf}
+            onChange={(e) => {
+              setCpf(e.target.value);
+            }}
+            disabled={busy}
+          >
+            {carteira.investidores.map((i) => (
+              <option key={i.cpf} value={i.cpf}>
+                {i.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="primary" disabled={busy || cpf === ''} onClick={() => void confirmar()}>
+          {busy ? 'Alocando…' : `Confirmar — alocar ${String(n)} processo(s)`}
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => {
+            setFeito(true);
+            onResultado('Carteira cancelada — nada foi alocado.');
+          }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+};
 
 /** Card da MENSAGEM DITADA (decreto 2026-07-30): destinatário + texto EXATO +
  *  confirmação — o único jeito da AHRI falar proativamente com um cliente. */
@@ -292,6 +401,7 @@ const FounderChat = (): ReactElement => {
             ...(r.plano !== undefined ? { plano: r.plano } : {}),
             ...(r.cobranca !== undefined ? { cobranca: r.cobranca } : {}),
             ...(r.mensagem !== undefined ? { mensagem: r.mensagem } : {}),
+            ...(r.carteira !== undefined ? { carteira: r.carteira } : {}),
           }
         : {
             from: 'ahri',
@@ -307,8 +417,9 @@ const FounderChat = (): ReactElement => {
       <h1 className="page-title">Founder Console</h1>
       <p className="page-sub">
         A AHRI com a empresa inteira na cabeça: pergunte qualquer coisa (os números vêm dos Read
-        Models) ou dê um comando — ex.: “mova 20 contratos para o advogado Cornélio”. Comandos
-        sempre mostram o plano e pedem a sua confirmação.
+        Models) ou dê um comando — ex.: “mova 20 contratos para o advogado Cornélio” ou “adicione
+        uma carteira de 250 mil em processos para o investidor João”. Comandos sempre mostram o
+        plano e pedem a sua confirmação.
       </p>
       {offline ? (
         <div className="error-box" style={{ marginBottom: 12 }}>
@@ -343,6 +454,17 @@ const FounderChat = (): ReactElement => {
               {m.cobranca ? (
                 <CobrancaCard
                   cobranca={m.cobranca}
+                  onResultado={(texto) => {
+                    setMessages((prev) => [
+                      ...prev,
+                      { from: 'ahri', text: texto, provenance: 'read-models' },
+                    ]);
+                  }}
+                />
+              ) : null}
+              {m.carteira ? (
+                <CarteiraCard
+                  carteira={m.carteira}
                   onResultado={(texto) => {
                     setMessages((prev) => [
                       ...prev,

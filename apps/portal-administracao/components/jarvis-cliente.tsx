@@ -33,7 +33,10 @@ const JarvisCliente = ({ chatId }: { chatId: string }): ReactElement => {
       const r = await perguntarJarvis(limpo, chatId);
       const pedeConfirmacao =
         r !== null &&
-        (r.plano !== undefined || r.cobranca !== undefined || r.mensagem !== undefined);
+        (r.plano !== undefined ||
+          r.cobranca !== undefined ||
+          r.mensagem !== undefined ||
+          r.carteira !== undefined);
       setResposta(
         r === null
           ? 'Jarvis indisponível — tente novamente.'

@@ -14,6 +14,7 @@ import {
   type CorvoService,
   type JuridicoService,
   type AcompanhamentoProcessual,
+  type InvestidoresService,
   montarPastasPorAdvogado,
   type EntregaAoAdvogado,
 } from '@reconstrua/infrastructure';
@@ -326,6 +327,9 @@ export function buildAdminServer(
     /** ACOMPANHAMENTO PROCESSUAL (2026-09-11): o parecer da AHRI de cada
      *  intimação do DJEN, na ficha do processo do Painel Jurídico. */
     readonly acompanhamentoProcessual?: AcompanhamentoProcessual;
+    /** PAINEL DE INVESTIDORES (2026-09-16): cadastro por CPF, carteira de
+     *  créditos judiciais e o painel do investidor (portal /investidor). */
+    readonly investidores?: InvestidoresService;
     /** Integração Corvo (2026-08-25): envio do lead + caixa/respostas dos bancos. */
     readonly corvo?: CorvoService;
     /** HISCON EM LOTE por advogado (2026-08-31): o ZIP com o HISCON de todos os
@@ -472,6 +476,17 @@ export function buildAdminServer(
        *  já é conhecido (nada de resolver por nome); confirmação na própria
        *  página, mesma trilha do decreto anti-automático. */
       montarMensagemParaChat(chatId: string, texto: string): Promise<unknown>;
+      /** 2026-09-16: carteira de investidor confirmada no console. */
+      alocarCarteira?(
+        planoId: string,
+        cpf: string,
+        quem: string,
+      ): Promise<{
+        ok: boolean;
+        alocados: number;
+        indisponiveis: readonly string[];
+        erro?: string;
+      }>;
     };
     /** Decreto 2026-07-31: o CANAL do último contato do chat (meta/evolution/
      *  webchat) — mostrado na aba Conversa do cadastro do cliente. */
@@ -2794,7 +2809,13 @@ export function buildAdminServer(
       acompanhamento.parecerDisponivel
     )
       void acompanhamentoProcessual.analisarPendentes([andamento], 5).catch(() => undefined);
+    const [resultado, investidor] = await Promise.all([
+      opts.juridico.resultadoDoProcesso(digitos),
+      opts.investidores?.investidorDoProcesso(digitos).catch(() => null) ?? null,
+    ]);
     return {
+      resultado,
+      investidor: investidor === null ? null : { nome: investidor.nome },
       numero: primeiro.processoNumero,
       clienteId: primeiro.clienteId,
       clienteNome: clientes.find((c) => c.id === primeiro.clienteId)?.nome ?? '—',
@@ -2802,6 +2823,23 @@ export function buildAdminServer(
       andamento,
       acompanhamento,
     };
+  });
+
+  // RESULTADO DO PROCESSO (2026-09-16): pago (valor total recebido), perdido
+  // ou de volta a em andamento — é o valor REAL na carteira do investidor.
+  app.post('/admin/juridico/processos/:numero/resultado', async (request, reply) => {
+    if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
+    const { numero } = request.params as { numero: string };
+    const body = (request.body ?? {}) as {
+      situacao?: unknown;
+      valorRecebido?: unknown;
+      data?: unknown;
+      observacao?: unknown;
+      autor?: string;
+    };
+    const r = await opts.juridico.registrarResultado(numero, body, body.autor ?? 'Equipe');
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
   });
 
   app.post('/admin/juridico/processos/:numero/parecer', async (request, reply) => {
@@ -3552,6 +3590,104 @@ export function buildAdminServer(
     const { cpf } = request.params as { cpf: string };
     const painel = await opts.socios.painel(cpf);
     if (painel === null) return reply.code(404).send({ error: 'sócio não encontrado ou inativo' });
+    return painel;
+  });
+
+  // ── INVESTIDORES (2026-09-16) — o Admin cadastra o investidor (CPF + nome) e
+  //    gera o LINK; ele cria a própria senha confirmando o CPF e entra só com
+  //    CPF + senha no portal /investidor. A carteira nasce no Founder Console
+  //    (proposta + confirmação); aqui o Admin a acompanha e retira processos.
+  //    O painel do investidor mostra o cliente só pelas iniciais (LGPD). ─────
+  const investidoresIndisponivel = { error: 'painel de investidores indisponível' };
+
+  app.get('/admin/investidores', async (_request, reply) => {
+    if (!opts.investidores) return reply.code(503).send(investidoresIndisponivel);
+    return { investidores: await opts.investidores.listaAdmin() };
+  });
+
+  app.post('/admin/investidores/cadastrar', async (request, reply) => {
+    if (!opts.investidores) return reply.code(503).send(investidoresIndisponivel);
+    const body = (request.body ?? {}) as {
+      cpf?: string;
+      nome?: string;
+      email?: string;
+      telefone?: string;
+      ativo?: boolean;
+    };
+    if (!body.cpf || !body.nome)
+      return reply.code(400).send({ error: 'cpf e nome são obrigatórios' });
+    const r = await opts.investidores.cadastrar({
+      cpf: body.cpf,
+      nome: body.nome,
+      ...(body.email !== undefined ? { email: body.email } : {}),
+      ...(body.telefone !== undefined ? { telefone: body.telefone } : {}),
+      ...(body.ativo !== undefined ? { ativo: body.ativo } : {}),
+    });
+    if (!r.ok) return reply.code(400).send({ error: r.error });
+    return { ok: true, investidor: r.valor };
+  });
+
+  app.post('/admin/investidores/convite', async (request, reply) => {
+    if (!opts.investidores) return reply.code(503).send(investidoresIndisponivel);
+    const body = (request.body ?? {}) as { cpf?: string };
+    if (!body.cpf) return reply.code(400).send({ error: 'cpf obrigatório' });
+    const token = await opts.investidores.emitirConvite(body.cpf);
+    if (token === null)
+      return reply.code(404).send({ error: 'investidor não encontrado ou inativo' });
+    return { cpf: body.cpf, token, validadeDias: 7 };
+  });
+
+  app.get('/admin/investidores/:cpf/carteira', async (request, reply) => {
+    if (!opts.investidores) return reply.code(503).send(investidoresIndisponivel);
+    const { cpf } = request.params as { cpf: string };
+    const painel = await opts.investidores.painel(cpf, true);
+    if (painel === null) return reply.code(404).send({ error: 'investidor não encontrado' });
+    return painel;
+  });
+
+  app.post('/admin/investidores/:cpf/retirar', async (request, reply) => {
+    if (!opts.investidores) return reply.code(503).send(investidoresIndisponivel);
+    const { cpf } = request.params as { cpf: string };
+    const body = (request.body ?? {}) as { numero?: string; motivo?: string; autor?: string };
+    if (!body.numero) return reply.code(400).send({ error: 'numero obrigatório' });
+    const r = await opts.investidores.retirar(
+      cpf,
+      body.numero,
+      body.motivo ?? '',
+      body.autor ?? 'Admin',
+    );
+    if (!r.ok) return reply.code(422).send(r);
+    return r;
+  });
+
+  // Rotas do PORTAL DO INVESTIDOR (atrás do Bearer do Admin, que só o portal
+  // tem server-side): login, criação da senha e o painel do PRÓPRIO CPF.
+  app.post('/admin/investidor/login', async (request, reply) => {
+    if (!opts.investidores) return reply.code(503).send(investidoresIndisponivel);
+    const body = (request.body ?? {}) as { cpf?: string; senha?: string };
+    if (!body.cpf || !body.senha)
+      return reply.code(400).send({ error: 'cpf e senha são obrigatórios' });
+    const r = await opts.investidores.login(body.cpf, body.senha);
+    if (!r.ok) return reply.code(401).send({ error: r.error });
+    return { ok: true, cpf: r.valor.cpf, nome: r.valor.nome };
+  });
+
+  app.post('/admin/investidor/definir-senha', async (request, reply) => {
+    if (!opts.investidores) return reply.code(503).send(investidoresIndisponivel);
+    const body = (request.body ?? {}) as { token?: string; cpf?: string; senha?: string };
+    if (!body.token || !body.cpf || !body.senha)
+      return reply.code(400).send({ error: 'token, cpf e senha são obrigatórios' });
+    const r = await opts.investidores.definirSenha(body.token, body.cpf, body.senha);
+    if (!r.ok) return reply.code(400).send({ error: r.error });
+    return { ok: true, cpf: r.valor.cpf, nome: r.valor.nome };
+  });
+
+  app.get('/admin/investidor/painel/:cpf', async (request, reply) => {
+    if (!opts.investidores) return reply.code(503).send(investidoresIndisponivel);
+    const { cpf } = request.params as { cpf: string };
+    const painel = await opts.investidores.painel(cpf, false);
+    if (painel === null)
+      return reply.code(404).send({ error: 'investidor não encontrado ou inativo' });
     return painel;
   });
 
@@ -4314,6 +4450,18 @@ export function buildAdminServer(
     if (typeof body.texto !== 'string' || body.texto.trim() === '')
       return reply.code(400).send({ error: 'texto é obrigatório' });
     return opts.jarvis.montarMensagemParaChat(chatId, body.texto);
+  });
+
+  // CARTEIRA DE INVESTIDOR (2026-09-16): alocação confirmada pelo dono, com o
+  // investidor escolhido no card — a proposta veio do comando no console.
+  app.post('/admin/founder/jarvis/carteira', async (request, reply) => {
+    const jarvis = opts.jarvis;
+    if (jarvis?.alocarCarteira === undefined)
+      return reply.code(503).send({ error: 'jarvis indisponível nesta montagem' });
+    const body = (request.body ?? {}) as { planoId?: string; cpf?: string };
+    if (!body.planoId || !body.cpf)
+      return reply.code(400).send({ error: 'planoId e cpf são obrigatórios' });
+    return jarvis.alocarCarteira(body.planoId, body.cpf, 'founder-console');
   });
 
   // MENSAGEM DITADA (decreto 2026-07-30, fim dos automáticos): o texto sai

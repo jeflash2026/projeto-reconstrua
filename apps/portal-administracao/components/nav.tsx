@@ -49,6 +49,7 @@ const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = 
   { href: '/corvo', label: 'Bancos (Corvo)' },
   { href: '/auditoria-abates', label: 'Auditoria de abates' },
   { href: '/socios', label: 'Sócios' },
+  { href: '/investidores', label: 'Investidores' },
   { href: '/financeiro', label: 'Financeiro' },
   { href: '/custos-ia', label: 'Custos de IA' },
   { href: '/founder-console', label: 'Founder Console' },

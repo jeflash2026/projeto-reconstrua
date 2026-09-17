@@ -79,7 +79,7 @@ const AtribuirAdvogado = ({
                   {c.pericia == null ? (
                     <span>pedido administrativo ainda não feito pelo perito</span>
                   ) : c.pericia.expirado ? (
-                    <span style={{ color: '#39d98a', fontWeight: 600 }}>
+                    <span style={{ color: 'var(--ok)', fontWeight: 600 }}>
                       🟢 pedido feito em{' '}
                       {new Date(c.pericia.iniciadaEm).toLocaleDateString('pt-BR')} — prazo de 10
                       dias EXPIRADO, luz verde para o advogado assumir

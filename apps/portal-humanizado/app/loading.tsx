@@ -23,7 +23,7 @@ const Loading = (): ReactElement => (
         height: 42,
         borderRadius: '50%',
         border: '4px solid var(--borda, #ddd)',
-        borderTopColor: 'var(--vermelho, #a01e1e)',
+        borderTopColor: 'var(--marca, #d4af37)',
         animation: 'girar 0.9s linear infinite',
       }}
     />

@@ -6,6 +6,7 @@
 import { Suspense, useState, type ReactElement } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { definirSenhaSocio } from '../../lib/actions';
+import { LadoAcesso } from '../../components/marca';
 
 const SENHA_MINIMA = 8;
 
@@ -99,10 +100,15 @@ const ConviteForm = (): ReactElement => {
 };
 
 const ConvitePage = (): ReactElement => (
-  <div style={{ maxWidth: 420, margin: '10vh auto', padding: '0 16px' }}>
-    <Suspense fallback={null}>
-      <ConviteForm />
-    </Suspense>
+  <div className="acesso">
+    <LadoAcesso />
+    <main className="acesso-form">
+      <div className="acesso-caixa">
+        <Suspense fallback={null}>
+          <ConviteForm />
+        </Suspense>
+      </div>
+    </main>
   </div>
 );
 

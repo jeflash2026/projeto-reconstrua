@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Reconstrua — Atendimento Humanizado',
   description:
     'A mesa da fase 2: clientes que confirmaram o interesse, contato humanizado e coleta de procuração, RG e comprovante.',
+  icons: { icon: '/humanizado/icone.png' },
 };
 
 const RootLayout = ({ children }: { children: ReactNode }): ReactElement => (

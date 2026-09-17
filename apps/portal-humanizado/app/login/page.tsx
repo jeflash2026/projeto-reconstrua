@@ -4,6 +4,7 @@
 import { useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginHumanizado } from '../../lib/actions';
+import { LadoAcesso } from '../../components/marca';
 
 const LoginPage = (): ReactElement => {
   const router = useRouter();
@@ -27,44 +28,49 @@ const LoginPage = (): ReactElement => {
   };
 
   return (
-    <div style={{ maxWidth: 420, margin: '10vh auto', padding: '0 16px' }}>
-      <div className="card">
-        <h1 className="page-title">Atendimento Humanizado</h1>
-        <p className="page-sub">
-          Entre com o seu CPF e a sua senha. Ainda não tem senha? Use o link de convite que o
-          escritório enviou a você.
-        </p>
-        <form
-          className="form-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void entrar();
-          }}
-          style={{ flexDirection: 'column', alignItems: 'stretch' }}
-        >
-          <input
-            type="text"
-            placeholder="Seu CPF"
-            value={login}
-            autoFocus
-            onChange={(e) => {
-              setLogin(e.target.value);
-            }}
-          />
-          <input
-            type="password"
-            placeholder="Sua senha"
-            value={senha}
-            onChange={(e) => {
-              setSenha(e.target.value);
-            }}
-          />
-          <button type="submit" className="btn primary" disabled={busy}>
-            {busy ? 'Entrando…' : 'Entrar'}
-          </button>
-          {erro !== null ? <div className="error-box">{erro}</div> : null}
-        </form>
-      </div>
+    <div className="acesso">
+      <LadoAcesso />
+      <main className="acesso-form">
+        <div className="acesso-caixa">
+          <div className="card">
+            <h1 className="page-title">Entrar</h1>
+            <p className="page-sub">
+              Entre com o seu CPF e a sua senha. Ainda não tem senha? Use o link de convite que o
+              escritório enviou a você.
+            </p>
+            <form
+              className="form-row"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void entrar();
+              }}
+              style={{ flexDirection: 'column', alignItems: 'stretch' }}
+            >
+              <input
+                type="text"
+                placeholder="Seu CPF"
+                value={login}
+                autoFocus
+                onChange={(e) => {
+                  setLogin(e.target.value);
+                }}
+              />
+              <input
+                type="password"
+                placeholder="Sua senha"
+                value={senha}
+                onChange={(e) => {
+                  setSenha(e.target.value);
+                }}
+              />
+              <button type="submit" className="btn primary" disabled={busy}>
+                {busy ? 'Entrando…' : 'Entrar'}
+              </button>
+              {erro !== null ? <div className="error-box">{erro}</div> : null}
+            </form>
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

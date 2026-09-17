@@ -9,6 +9,7 @@ import type { ReactElement } from 'react';
 import { getJson, type AdvogadoOpcao, type ClienteHumanizado } from '../../lib/api';
 import { operadorDaSessao, HUMANIZADO_SESSION_COOKIE } from '../../lib/session';
 import { SairButton } from '../../components/sair-button';
+import { FaixaTopo } from '../../components/marca';
 import ProntosPainel, { type ClientePronto } from '../../components/prontos-painel';
 
 export const dynamic = 'force-dynamic';
@@ -39,31 +40,35 @@ const ProntosPage = async (): Promise<ReactElement> => {
     }));
 
   return (
-    <div style={{ maxWidth: 1500, margin: '0 auto', padding: '16px 20px 48px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 className="page-title">✅ Clientes Prontos</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Link className="btn" href="/">
-            ← Mesa de atendimento
-          </Link>
-          <Link className="btn" href="/conversas">
-            💬 Conversas
-          </Link>
-          <SairButton />
+    <>
+      <FaixaTopo sub="Atendimento Humanizado" largura={1500}>
+        <SairButton />
+      </FaixaTopo>
+      <div style={{ maxWidth: 1500, margin: '0 auto', padding: '16px 20px 48px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 className="page-title">✅ Clientes Prontos</h1>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Link className="btn" href="/">
+              ← Mesa de atendimento
+            </Link>
+            <Link className="btn" href="/conversas">
+              💬 Conversas
+            </Link>
+          </div>
         </div>
-      </div>
-      <p className="page-sub">
-        Documentação 100% entregue — estes já são CLIENTES da casa. O registro fica aqui para quando
-        precisarmos chamar de volta (um documento novo, um aviso do processo), organizado por estado
-        e por advogado responsável.
-      </p>
+        <p className="page-sub">
+          Documentação 100% entregue — estes já são CLIENTES da casa. O registro fica aqui para
+          quando precisarmos chamar de volta (um documento novo, um aviso do processo), organizado
+          por estado e por advogado responsável.
+        </p>
 
-      {data === null ? (
-        <div className="error-box">API indisponível — recarregue a página.</div>
-      ) : (
-        <ProntosPainel clientes={prontos} advogados={advogadosData?.advogados ?? []} />
-      )}
-    </div>
+        {data === null ? (
+          <div className="error-box">API indisponível — recarregue a página.</div>
+        ) : (
+          <ProntosPainel clientes={prontos} advogados={advogadosData?.advogados ?? []} />
+        )}
+      </div>
+    </>
   );
 };
 

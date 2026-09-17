@@ -14,6 +14,7 @@ import type { ReactElement, ReactNode } from 'react';
 import Nav from '../../components/nav';
 import ThemeToggle from '../../components/theme-toggle';
 import LogoutButton from '../../components/logout-button';
+import { Marca } from '../../components/marca';
 import { ADMIN_SESSION_COOKIE, adminSessionToken, secretsMatch } from '../../lib/session';
 
 const PainelLayout = ({ children }: { children: ReactNode }): ReactElement => {
@@ -26,8 +27,9 @@ const PainelLayout = ({ children }: { children: ReactNode }): ReactElement => {
   return (
     <div className="shell">
       <aside className="sidebar">
+        {/* IDENTIDADE (2026-09-17): a marca do projeto na lateral escura. */}
         <div className="brand">
-          AHRIOS <span>ADMIN</span>
+          <Marca sub="Painel Admin" />
         </div>
         <Nav />
         <ThemeToggle />

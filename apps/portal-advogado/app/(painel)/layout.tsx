@@ -13,6 +13,7 @@ import type { ReactElement, ReactNode } from 'react';
 import Nav from '../../components/nav';
 import ThemeToggle from '../../components/theme-toggle';
 import LogoutButton from '../../components/logout-button';
+import { Marca } from '../../components/marca';
 import {
   ADVOGADO_ID_COOKIE,
   ADVOGADO_SESSION_COOKIE,
@@ -35,15 +36,10 @@ const PainelLayout = ({ children }: { children: ReactNode }): ReactElement => {
   return (
     <div className="shell">
       <aside className="sidebar">
-        {/* MARCA (pedido do dono, 2026-08-05): a logo R do projeto + o nome
-            comercial; a operação tecnológica assina embaixo. O src carrega o
-            basePath explícito (assets de public/ vivem sob /advogado). */}
+        {/* MARCA (pedido do dono, 2026-08-05; identidade do projeto 2026-09-17):
+            o ícone + o nome comercial na lateral escura. */}
         <div className="brand">
-          <img src="/advogado/logo-ahri.png" alt="Projeto Reconstrua" className="brand-logo" />
-          <div className="brand-nome">
-            Projeto <span>Reconstrua</span>
-          </div>
-          <div className="brand-operacao">Operado pela AHRI TECNOLOGIA</div>
+          <Marca sub="Portal do Advogado" />
         </div>
         <Nav />
         <ThemeToggle />

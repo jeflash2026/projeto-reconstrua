@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import type { ReactElement, ReactNode } from 'react';
 import { JURIDICO_NOME_COOKIE, JURIDICO_SESSION_COOKIE, usuarioDaSessao } from '../../lib/session';
 import SairButton from '../../components/sair-button';
+import { Marca } from '../../components/marca';
 
 const SEGREDO = process.env['ADMIN_API_TOKEN'] ?? '';
 
@@ -18,7 +19,7 @@ export default function PainelLayout({ children }: { children: ReactNode }): Rea
       <header className="topo">
         <div className="topo-linha">
           <a className="topo-marca" href="/juridico">
-            <span className="selo">⚖ Jurídico</span>
+            <Marca sub="Painel Jurídico" />
           </a>
           <nav className="topo-nav">
             <a href="/juridico">Dashboard</a>

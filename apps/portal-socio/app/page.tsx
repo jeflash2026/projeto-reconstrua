@@ -8,6 +8,7 @@ import type { ReactElement } from 'react';
 import { getJson, formatMoney, type PainelSocioView } from '../lib/api';
 import { socioDaSessao, SOCIO_SESSION_COOKIE } from '../lib/session';
 import { SairButton } from '../components/sair-button';
+import { FaixaTopo } from '../components/marca';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,103 +28,105 @@ const PainelSocio = async (): Promise<ReactElement> => {
   const painel = await getJson<PainelSocioView>(`/admin/socio/painel/${cpf}`);
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 className="page-title">Painel do Sócio</h1>
+    <>
+      <FaixaTopo sub="Painel do Sócio" largura={900}>
         <SairButton />
-      </div>
+      </FaixaTopo>
+      <main style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px 40px' }}>
+        <h1 className="page-title">Painel do Sócio</h1>
 
-      {painel === null ? (
-        <div className="card">
-          <div className="error-box">
-            Não foi possível carregar a sua participação agora. Tente novamente em instantes ou fale
-            com o administrador.
-          </div>
-        </div>
-      ) : (
-        <>
-          <p className="page-sub">
-            Olá, {painel.nome} — CPF {formatarCpf(painel.cpf)}. Sua participação é de{' '}
-            <strong>{painel.percentual}</strong> do potencial recuperável da carteira.
-          </p>
-
-          <div className="grid stats" style={{ marginBottom: 16 }}>
-            <div className="card stat">
-              <div className="value">{formatMoney(painel.meuValor)}</div>
-              <div className="label">O que lhe cabe hoje ({painel.percentual})</div>
-            </div>
-            <div className="card stat">
-              <div className="value">{formatMoney(painel.potencialTotal)}</div>
-              <div className="label">Potencial recuperável total (100%)</div>
-            </div>
-            <div className="card stat">
-              <div className="value">{painel.clientes}</div>
-              <div className="label">Clientes na base</div>
+        {painel === null ? (
+          <div className="card">
+            <div className="error-box">
+              Não foi possível carregar a sua participação agora. Tente novamente em instantes ou
+              fale com o administrador.
             </div>
           </div>
+        ) : (
+          <>
+            <p className="page-sub">
+              Olá, {painel.nome} — CPF {formatarCpf(painel.cpf)}. Sua participação é de{' '}
+              <strong>{painel.percentual}</strong> do potencial recuperável da carteira.
+            </p>
 
-          {/* Decreto 2026-08-04: o POTENCIAL CONFIRMADO — a fatia da carteira
-              que já entregou TUDO (procuração assinada + RG + comprovante) e
-              está liberada para o pedido administrativo. */}
-          {painel.potencialConfirmado != null ? (
-            <div className="card" style={{ marginBottom: 16, borderLeft: '4px solid #1b7f3b' }}>
-              <h3 style={{ marginTop: 0 }}>Potencial confirmado — documentação completa</h3>
-              <p className="page-sub" style={{ marginTop: 0 }}>
-                A parte da carteira com procuração ASSINADA, RG e comprovante já entregues — os
-                casos prontos para o pedido administrativo.
-              </p>
-              <div className="grid stats">
-                <div className="card stat">
-                  <div className="value">{formatMoney(painel.meuValorConfirmado ?? 0)}</div>
-                  <div className="label">A sua parte confirmada ({painel.percentual})</div>
-                </div>
-                <div className="card stat">
-                  <div className="value">{formatMoney(painel.potencialConfirmado)}</div>
-                  <div className="label">Potencial confirmado total (100%)</div>
-                </div>
-                <div className="card stat">
-                  <div className="value">{painel.clientesConfirmados ?? 0}</div>
-                  <div className="label">Clientes com documentação completa</div>
-                </div>
+            <div className="grid stats" style={{ marginBottom: 16 }}>
+              <div className="card stat">
+                <div className="value">{formatMoney(painel.meuValor)}</div>
+                <div className="label">O que lhe cabe hoje ({painel.percentual})</div>
+              </div>
+              <div className="card stat">
+                <div className="value">{formatMoney(painel.potencialTotal)}</div>
+                <div className="label">Potencial recuperável total (100%)</div>
+              </div>
+              <div className="card stat">
+                <div className="value">{painel.clientes}</div>
+                <div className="label">Clientes na base</div>
               </div>
             </div>
-          ) : null}
 
-          <div className="card">
-            <h3>Como o resultado é dividido</h3>
-            <p className="page-sub" style={{ marginTop: 0 }}>
-              Rateio de referência sobre o potencial recuperável total da carteira hoje.
-            </p>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Parte</th>
-                    <th>Percentual</th>
-                    <th>Valor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {painel.rateioReferencia.map((f) => (
-                    <tr key={f.rotulo}>
-                      <td style={{ fontWeight: 600 }}>{f.rotulo}</td>
-                      <td>{f.percentual}</td>
-                      <td>{formatMoney(f.valor)}</td>
+            {/* Decreto 2026-08-04: o POTENCIAL CONFIRMADO — a fatia da carteira
+              que já entregou TUDO (procuração assinada + RG + comprovante) e
+              está liberada para o pedido administrativo. */}
+            {painel.potencialConfirmado != null ? (
+              <div className="card" style={{ marginBottom: 16, borderLeft: '4px solid var(--ok)' }}>
+                <h3 style={{ marginTop: 0 }}>Potencial confirmado — documentação completa</h3>
+                <p className="page-sub" style={{ marginTop: 0 }}>
+                  A parte da carteira com procuração ASSINADA, RG e comprovante já entregues — os
+                  casos prontos para o pedido administrativo.
+                </p>
+                <div className="grid stats">
+                  <div className="card stat">
+                    <div className="value">{formatMoney(painel.meuValorConfirmado ?? 0)}</div>
+                    <div className="label">A sua parte confirmada ({painel.percentual})</div>
+                  </div>
+                  <div className="card stat">
+                    <div className="value">{formatMoney(painel.potencialConfirmado)}</div>
+                    <div className="label">Potencial confirmado total (100%)</div>
+                  </div>
+                  <div className="card stat">
+                    <div className="value">{painel.clientesConfirmados ?? 0}</div>
+                    <div className="label">Clientes com documentação completa</div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="card">
+              <h3>Como o resultado é dividido</h3>
+              <p className="page-sub" style={{ marginTop: 0 }}>
+                Rateio de referência sobre o potencial recuperável total da carteira hoje.
+              </p>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Parte</th>
+                      <th>Percentual</th>
+                      <th>Valor</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {painel.rateioReferencia.map((f) => (
+                      <tr key={f.rotulo}>
+                        <td style={{ fontWeight: 600 }}>{f.rotulo}</td>
+                        <td>{f.percentual}</td>
+                        <td>{formatMoney(f.valor)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="page-sub" style={{ marginTop: 12 }}>
+                A fatia da AHRI (empresa) é dividida entre os sócios. A sua parte é{' '}
+                <strong>{painel.percentual}</strong> do total, equivalente a{' '}
+                <strong>{formatMoney(painel.meuValor)}</strong> hoje. Os valores acompanham a
+                carteira e mudam conforme novos HISCON entram.
+              </p>
             </div>
-            <p className="page-sub" style={{ marginTop: 12 }}>
-              A fatia da AHRI (empresa) é dividida entre os sócios. A sua parte é{' '}
-              <strong>{painel.percentual}</strong> do total, equivalente a{' '}
-              <strong>{formatMoney(painel.meuValor)}</strong> hoje. Os valores acompanham a carteira
-              e mudam conforme novos HISCON entram.
-            </p>
-          </div>
-        </>
-      )}
-    </main>
+          </>
+        )}
+      </main>
+    </>
   );
 };
 

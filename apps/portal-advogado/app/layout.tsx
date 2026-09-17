@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: 'Projeto Reconstrua — Portal do Advogado',
   description:
     'Portal do Advogado do Projeto Reconstrua — trabalho jurídico sobre processos atribuídos. Operado pela AHRI TECNOLOGIA.',
+  icons: { icon: '/advogado/icone.png' },
 };
 
 // Portal operacional: nunca pré-renderizar no build (sem API no build Docker).

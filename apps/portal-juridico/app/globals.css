@@ -1,18 +1,27 @@
-/* PAINEL JURÍDICO — visual limpo espelhado do "Contratos Advocacia": topo
-   branco, botões escuros, cards suaves. Mobile-first, inputs 16px (iOS). */
+/* PAINEL JURÍDICO — visual limpo espelhado do "Contratos Advocacia": cards
+   suaves, botões escuros. Mobile-first, inputs 16px (iOS). IDENTIDADE DO
+   PROJETO (2026-09-17, a mesma do Painel do Investidor): papel claro, tinta
+   quente, ouro da marca e o topo escuro "noite". */
 :root {
-  --bg: #f6f7fb;
+  --bg: #fbfaf7;
   --card: #ffffff;
-  --ink: #10182b;
-  --ink-dim: #5b6478;
-  --linha: #e5e8f0;
-  --primario: #10182b;
-  --verde: #0c7a43;
-  --verde-bg: #e9f7ef;
-  --ambar: #8a6100;
-  --ambar-bg: #fdf6e3;
-  --vermelho: #a01e1e;
-  --vermelho-bg: #fdeeee;
+  --ink: #16130f;
+  --ink-dim: #6b6458;
+  --linha: #e6e1d6;
+  --primario: #16130f;
+  --verde: #1e7a3c;
+  --verde-bg: #eaf5ee;
+  --ambar: #8a5a00;
+  --ambar-bg: #fbf3e0;
+  --vermelho: #a8322a;
+  --vermelho-bg: #fbeceb;
+  --accent: #946b0a;
+  --marca: #d4af37;
+  --noite: #16130f;
+  --noite-2: #221d17;
+  --noite-borda: #3a3228;
+  --noite-texto: #efe7d4;
+  --noite-muda: #b9ad96;
 }
 
 * {
@@ -24,7 +33,11 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   font-size: 15px;
   line-height: 1.5;
 }
@@ -191,7 +204,7 @@ th {
   color: var(--ink-dim);
   padding: 10px 12px;
   border-bottom: 1px solid var(--linha);
-  background: #fafbfe;
+  background: #faf8f3;
 }
 
 td {
@@ -384,4 +397,163 @@ textarea {
   max-width: 380px;
   margin: 10vh auto;
   padding: 0 16px;
+}
+
+/* ══ IDENTIDADE DO PROJETO (2026-09-17) ═════════════════════════════════════ */
+body {
+  -webkit-font-smoothing: antialiased;
+}
+.topo {
+  background: var(--noite);
+  border-bottom-color: var(--noite-borda);
+  color: var(--noite-texto);
+}
+.topo-linha {
+  padding: 12px 16px;
+}
+.topo-nav a {
+  color: var(--noite-muda);
+}
+.topo-nav a.ativo,
+.topo-nav a:hover {
+  color: var(--noite-texto);
+  background: rgba(255, 255, 255, 0.07);
+}
+.topo-user {
+  color: var(--noite-muda);
+}
+.topo .btn {
+  background: transparent;
+  color: var(--noite-texto);
+  border-color: var(--noite-borda);
+  border-radius: 999px;
+}
+.topo .btn:hover {
+  border-color: var(--marca);
+  color: var(--marca);
+}
+.btn:hover {
+  border-color: var(--accent);
+}
+.btn.primario:hover {
+  background: var(--noite-2);
+  border-color: var(--noite-2);
+}
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(184, 134, 11, 0.14);
+  outline: none;
+}
+
+/* Marca: ícone + "Projeto Reconstrua" com o ouro no nome. */
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  text-decoration: none;
+}
+.marca img {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.marca-nome {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--noite-texto);
+  white-space: nowrap;
+}
+.marca-nome span {
+  color: var(--marca);
+}
+.marca-sub {
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--noite-muda);
+}
+
+/* Acesso (login e convite): a coluna escura com a marca, como no investidor. */
+.acesso {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.acesso-lado {
+  background: var(--noite);
+  color: var(--noite-texto);
+  padding: 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+}
+.acesso-titulo {
+  font-weight: 700;
+  font-size: clamp(28px, 3.4vw, 40px);
+  line-height: 1.15;
+  margin: 18px 0 14px;
+  color: #ffffff;
+}
+.acesso-lado p {
+  color: var(--noite-muda);
+  max-width: 440px;
+  font-size: 15px;
+}
+.acesso-kicker {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--marca);
+  font-weight: 600;
+}
+.acesso-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+.acesso-caixa {
+  width: 100%;
+  max-width: 400px;
+}
+@media (max-width: 900px) {
+  .acesso {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+  .acesso-form {
+    align-items: flex-start;
+    padding: 28px 20px;
+  }
+  /* No celular o formulário vem logo: a coluna escura fica só com a marca e o título. */
+  .acesso-lado {
+    padding: 24px 20px;
+    gap: 16px;
+  }
+  .acesso-titulo {
+    font-size: 24px;
+    margin: 8px 0 0;
+  }
+  .acesso-lado p,
+  .acesso-lado > .marca-sub {
+    display: none;
+  }
+}
+.acesso-caixa .secao-form {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+@media (max-width: 620px) {
+  .topo .marca-sub {
+    display: none;
+  }
 }

@@ -1,28 +1,31 @@
 'use client';
-// Alternância de tema — dark é o padrão; escolha persiste em localStorage.
+// Alternância de tema — a identidade do projeto (papel claro, lateral escura) é
+// o padrão desde 2026-09-17; o modo escuro quente é opcional e a escolha
+// persiste em localStorage (chave nova: a antiga guardava o tema azul).
 import { useEffect, useState, type ReactElement } from 'react';
 
+const CHAVE = 'reconstrua-tema';
+
 const ThemeToggle = (): ReactElement => {
-  const [light, setLight] = useState(false);
+  const [escuro, setEscuro] = useState(false);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('ahrios-theme');
-    if (saved === 'light') {
-      setLight(true);
-      document.documentElement.classList.add('light');
+    if (window.localStorage.getItem(CHAVE) === 'dark') {
+      setEscuro(true);
+      document.documentElement.classList.add('dark');
     }
   }, []);
 
   const toggle = (): void => {
-    const next = !light;
-    setLight(next);
-    document.documentElement.classList.toggle('light', next);
-    window.localStorage.setItem('ahrios-theme', next ? 'light' : 'dark');
+    const next = !escuro;
+    setEscuro(next);
+    document.documentElement.classList.toggle('dark', next);
+    window.localStorage.setItem(CHAVE, next ? 'dark' : 'light');
   };
 
   return (
     <button onClick={toggle} title="Alternar tema" style={{ width: '100%', marginTop: 12 }}>
-      {light ? '🌙 Modo escuro' : '☀️ Modo claro'}
+      {escuro ? '☀️ Modo claro' : '🌙 Modo escuro'}
     </button>
   );
 };

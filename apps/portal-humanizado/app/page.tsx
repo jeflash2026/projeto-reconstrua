@@ -13,6 +13,7 @@ import type { ReactElement } from 'react';
 import { getJson, type AdvogadoOpcao, type ClienteHumanizado, type ResumoChat } from '../lib/api';
 import { operadorDaSessao, HUMANIZADO_SESSION_COOKIE } from '../lib/session';
 import { SairButton } from '../components/sair-button';
+import { FaixaTopo } from '../components/marca';
 import DocsFase2 from '../components/docs-fase2';
 import AguardandoToggle from '../components/aguardando-toggle';
 import DescartarButton from '../components/descartar-button';
@@ -420,239 +421,243 @@ const MesaPage = async ({
         : '📞 Aguardando documentos';
 
   return (
-    <div style={{ maxWidth: 1500, margin: '0 auto', padding: '24px 20px 48px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 className="page-title">Atendimento Humanizado</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {/* Painel Conversas (2026-08-05): a janela estilo WhatsApp da equipe */}
-          <Link className="btn primary" href="/conversas">
-            💬 Conversas
-          </Link>
-          {/* Clientes Prontos (2026-08-09): a agenda permanente de quem já é
+    <>
+      <FaixaTopo sub="Atendimento Humanizado" largura={1500}>
+        <SairButton />
+      </FaixaTopo>
+      <div style={{ maxWidth: 1500, margin: '0 auto', padding: '24px 20px 48px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 className="page-title">Atendimento Humanizado</h1>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {/* Painel Conversas (2026-08-05): a janela estilo WhatsApp da equipe */}
+            <Link className="btn primary" href="/conversas">
+              💬 Conversas
+            </Link>
+            {/* Clientes Prontos (2026-08-09): a agenda permanente de quem já é
               CLIENTE (4 documentos entregues) — por estado e por advogado. */}
-          <Link className="btn" href="/prontos">
-            ✅ Clientes Prontos
-          </Link>
-          <SairButton />
+            <Link className="btn" href="/prontos">
+              ✅ Clientes Prontos
+            </Link>
+          </div>
         </div>
-      </div>
-      <p className="page-sub">
-        Clientes que CONFIRMARAM o interesse, organizados por estado. Chame pelo WhatsApp da equipe,
-        marque &quot;aguardando devolução&quot; quando enviar a documentação, e anexe a procuração,
-        o RG (frente e verso), o comprovante e o extrato de crédito do INSS (últimos 3 meses) — com
-        os 4, o cliente fica 100% pronto para o pedido administrativo.
-      </p>
+        <p className="page-sub">
+          Clientes que CONFIRMARAM o interesse, organizados por estado. Chame pelo WhatsApp da
+          equipe, marque &quot;aguardando devolução&quot; quando enviar a documentação, e anexe a
+          procuração, o RG (frente e verso), o comprovante e o extrato de crédito do INSS (últimos 3
+          meses) — com os 4, o cliente fica 100% pronto para o pedido administrativo.
+        </p>
 
-      {clientes === null || todos === null ? (
-        <div className="error-box">API indisponível — recarregue a página.</div>
-      ) : (
-        <>
-          <ResumoDaMesa todos={todos} fase={fase} uf={ativo} q={q} />
-          {fase !== 'todos' ? (
-            <p className="page-sub" style={{ marginTop: 8 }}>
-              Mostrando só a fila <strong>{ROTULO_FASE[fase]}</strong>.{' '}
-              <Link href={comFiltros({ uf: ativo, q, fase: 'todos' })}>ver a mesa inteira →</Link>
-            </p>
-          ) : null}
-          {/* CAIXA DE ENTRADA do canal da equipe (2026-08-05): quem respondeu
+        {clientes === null || todos === null ? (
+          <div className="error-box">API indisponível — recarregue a página.</div>
+        ) : (
+          <>
+            <ResumoDaMesa todos={todos} fase={fase} uf={ativo} q={q} />
+            {fase !== 'todos' ? (
+              <p className="page-sub" style={{ marginTop: 8 }}>
+                Mostrando só a fila <strong>{ROTULO_FASE[fase]}</strong>.{' '}
+                <Link href={comFiltros({ uf: ativo, q, fase: 'todos' })}>ver a mesa inteira →</Link>
+              </p>
+            ) : null}
+            {/* CAIXA DE ENTRADA do canal da equipe (2026-08-05): quem respondeu
               no número oficial espera a secretária — inclusive número que não
               está na mesa (cliente que escreveu direto). */}
-          {(chats?.conversas ?? []).some((cv) => cv.naoLidas > 0) ? (
-            <div className="chat-inbox">
-              <strong>💬 Respostas no WhatsApp da equipe aguardando você:</strong>{' '}
-              <Link href="/conversas" style={{ fontSize: 13 }}>
-                ver todas as conversas →
-              </Link>
-              <div className="chat-inbox-lista">
-                {(chats?.conversas ?? [])
-                  .filter((cv) => cv.naoLidas > 0)
-                  .slice(0, 12)
-                  .map((cv) => {
-                    const cliente = todos.find((c) => c.chatId === cv.chatId) ?? null;
-                    return (
-                      <Link
-                        key={cv.chatId}
-                        className="chat-inbox-item"
-                        href={`/chat/${encodeURIComponent(cv.chatId)}`}
-                      >
-                        <span className="chat-inbox-nome">
-                          {cliente?.nome ?? cv.chatId.split('@')[0] ?? cv.chatId}
-                        </span>
-                        <span className="chat-inbox-previa">{cv.previa}</span>
-                        <span className="badge warn">{cv.naoLidas} nova(s)</span>
-                      </Link>
-                    );
-                  })}
+            {(chats?.conversas ?? []).some((cv) => cv.naoLidas > 0) ? (
+              <div className="chat-inbox">
+                <strong>💬 Respostas no WhatsApp da equipe aguardando você:</strong>{' '}
+                <Link href="/conversas" style={{ fontSize: 13 }}>
+                  ver todas as conversas →
+                </Link>
+                <div className="chat-inbox-lista">
+                  {(chats?.conversas ?? [])
+                    .filter((cv) => cv.naoLidas > 0)
+                    .slice(0, 12)
+                    .map((cv) => {
+                      const cliente = todos.find((c) => c.chatId === cv.chatId) ?? null;
+                      return (
+                        <Link
+                          key={cv.chatId}
+                          className="chat-inbox-item"
+                          href={`/chat/${encodeURIComponent(cv.chatId)}`}
+                        >
+                          <span className="chat-inbox-nome">
+                            {cliente?.nome ?? cv.chatId.split('@')[0] ?? cv.chatId}
+                          </span>
+                          <span className="chat-inbox-previa">{cv.previa}</span>
+                          <span className="badge warn">{cv.naoLidas} nova(s)</span>
+                        </Link>
+                      );
+                    })}
+                </div>
               </div>
-            </div>
-          ) : null}
-          <FiltroEstados
-            contagens={gruposDeTodos}
-            ativo={ativo}
-            total={todos.length}
-            fase={fase}
-            q={q}
-          />
-          <BuscaCliente q={q} uf={ativo} fase={fase} />
+            ) : null}
+            <FiltroEstados
+              contagens={gruposDeTodos}
+              ativo={ativo}
+              total={todos.length}
+              fase={fase}
+              q={q}
+            />
+            <BuscaCliente q={q} uf={ativo} fase={fase} />
 
-          {/* LEGENDA DAS CORES (pedido do dono, 2026-08-04): o estado de cada
+            {/* LEGENDA DAS CORES (pedido do dono, 2026-08-04): o estado de cada
               cartão de relance — sem precisar ler os selos um a um. */}
-          <div className="legenda-cores">
-            <span>
-              <i className="ponto vermelho" /> falta entrar em contato
-            </span>
-            <span>
-              <i className="ponto ambar" /> documentação enviada — aguardando devolução
-            </span>
-            <span>
-              <i className="ponto verde" /> documentação completa
-            </span>
-            <span>
-              <i className="ponto cinza" /> descartado
-            </span>
-          </div>
-          {q !== '' ? (
-            <p className="page-sub">
-              Resultado da busca por &quot;{q}&quot;: {pendentes.length + completos.length}{' '}
-              cliente(s){ativo !== null ? ` em ${ativo}` : ''}.
-            </p>
-          ) : null}
+            <div className="legenda-cores">
+              <span>
+                <i className="ponto vermelho" /> falta entrar em contato
+              </span>
+              <span>
+                <i className="ponto ambar" /> documentação enviada — aguardando devolução
+              </span>
+              <span>
+                <i className="ponto verde" /> documentação completa
+              </span>
+              <span>
+                <i className="ponto cinza" /> descartado
+              </span>
+            </div>
+            {q !== '' ? (
+              <p className="page-sub">
+                Resultado da busca por &quot;{q}&quot;: {pendentes.length + completos.length}{' '}
+                cliente(s){ativo !== null ? ` em ${ativo}` : ''}.
+              </p>
+            ) : null}
 
-          {!mostraPendentes ? null : (
-            <>
-              <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 16 }}>
-                {tituloPendentes} <span className="badge warn">{pendentes.length}</span>
-                {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
-              </h2>
-              {pendentes.length === 0 ? (
-                <div className="card empty">
-                  {q !== ''
-                    ? 'Nenhum cliente pendente na busca.'
-                    : ativo === null
-                      ? 'Ninguém aguardando — tudo em dia.'
-                      : `Ninguém aguardando em ${ativo}.`}
-                </div>
-              ) : ativo !== null || q !== '' ? (
-                // Com estado escolhido (ou busca), a lista é direta em GRADE.
-                <div className="grade-cartoes">
-                  {pendentes.map((c) => (
-                    <CartaoCliente key={c.chatId} c={c} advogados={advogados} />
-                  ))}
-                </div>
-              ) : (
-                porEstado(pendentes).map(([uf, lista]) => (
-                  <section key={uf}>
-                    <div className="uf-titulo">
-                      {uf} <span className="badge">{lista.length}</span>
-                    </div>
-                    <div className="grade-cartoes">
-                      {lista.map((c) => (
-                        <CartaoCliente key={c.chatId} c={c} advogados={advogados} />
-                      ))}
-                    </div>
-                  </section>
-                ))
-              )}
-            </>
-          )}
+            {!mostraPendentes ? null : (
+              <>
+                <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 16 }}>
+                  {tituloPendentes} <span className="badge warn">{pendentes.length}</span>
+                  {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
+                </h2>
+                {pendentes.length === 0 ? (
+                  <div className="card empty">
+                    {q !== ''
+                      ? 'Nenhum cliente pendente na busca.'
+                      : ativo === null
+                        ? 'Ninguém aguardando — tudo em dia.'
+                        : `Ninguém aguardando em ${ativo}.`}
+                  </div>
+                ) : ativo !== null || q !== '' ? (
+                  // Com estado escolhido (ou busca), a lista é direta em GRADE.
+                  <div className="grade-cartoes">
+                    {pendentes.map((c) => (
+                      <CartaoCliente key={c.chatId} c={c} advogados={advogados} />
+                    ))}
+                  </div>
+                ) : (
+                  porEstado(pendentes).map(([uf, lista]) => (
+                    <section key={uf}>
+                      <div className="uf-titulo">
+                        {uf} <span className="badge">{lista.length}</span>
+                      </div>
+                      <div className="grade-cartoes">
+                        {lista.map((c) => (
+                          <CartaoCliente key={c.chatId} c={c} advogados={advogados} />
+                        ))}
+                      </div>
+                    </section>
+                  ))
+                )}
+              </>
+            )}
 
-          {!mostraCompletos ? null : (
-            <>
-              <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
-                ✅ Documentação completa <span className="badge ok">{completos.length}</span>
-                {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
-              </h2>
-              {completos.length === 0 ? (
-                <div className="card empty">
-                  {q !== ''
-                    ? 'Nenhum concluído na busca.'
-                    : ativo === null
-                      ? 'Nenhum concluído ainda.'
-                      : `Nenhum concluído em ${ativo}.`}
-                </div>
-              ) : (
-                porEstado(completos).map(([uf, lista]) => (
-                  <section key={uf}>
-                    <div className="uf-titulo">
-                      {uf} <span className="badge">{lista.length}</span>
-                    </div>
-                    <div className="grade-cartoes">
-                      {lista.map((c) => (
-                        <div className="card concluida" key={c.chatId}>
-                          <strong>{c.nome}</strong>{' '}
-                          <span className="mono" style={{ fontSize: 12 }}>
-                            {c.telefone}
-                          </span>{' '}
-                          <span className="badge">{c.uf}</span>
-                          {/* Pedido do dono (2026-08-03): com os 4 documentos, o
+            {!mostraCompletos ? null : (
+              <>
+                <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
+                  ✅ Documentação completa <span className="badge ok">{completos.length}</span>
+                  {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
+                </h2>
+                {completos.length === 0 ? (
+                  <div className="card empty">
+                    {q !== ''
+                      ? 'Nenhum concluído na busca.'
+                      : ativo === null
+                        ? 'Nenhum concluído ainda.'
+                        : `Nenhum concluído em ${ativo}.`}
+                  </div>
+                ) : (
+                  porEstado(completos).map(([uf, lista]) => (
+                    <section key={uf}>
+                      <div className="uf-titulo">
+                        {uf} <span className="badge">{lista.length}</span>
+                      </div>
+                      <div className="grade-cartoes">
+                        {lista.map((c) => (
+                          <div className="card concluida" key={c.chatId}>
+                            <strong>{c.nome}</strong>{' '}
+                            <span className="mono" style={{ fontSize: 12 }}>
+                              {c.telefone}
+                            </span>{' '}
+                            <span className="badge">{c.uf}</span>
+                            {/* Pedido do dono (2026-08-03): com os 4 documentos, o
                           cartão anuncia a conclusão e o caso segue ao perito. */}
-                          <div className="concluido">
-                            ✅ <strong>Documentação completa recebida</strong> — este cliente saiu
-                            da sua fila e seguiu para o perito fazer o pedido administrativo.
-                          </div>
-                          <div style={{ marginTop: 6 }}>
-                            <Badge ok rotulo="Procuração" />
-                            <Badge ok rotulo="RG" />
-                            <Badge ok rotulo="Comprovante" />
-                            <Badge ok rotulo="Extrato INSS (3m)" />
-                          </div>
-                          <TamanhoDoCaso c={c} />
-                          {/* Guia v2: o pacote do Jarvis usa OS COMPLETOS — a
+                            <div className="concluido">
+                              ✅ <strong>Documentação completa recebida</strong> — este cliente saiu
+                              da sua fila e seguiu para o perito fazer o pedido administrativo.
+                            </div>
+                            <div style={{ marginTop: 6 }}>
+                              <Badge ok rotulo="Procuração" />
+                              <Badge ok rotulo="RG" />
+                              <Badge ok rotulo="Comprovante" />
+                              <Badge ok rotulo="Extrato INSS (3m)" />
+                            </div>
+                            <TamanhoDoCaso c={c} />
+                            {/* Guia v2: o pacote do Jarvis usa OS COMPLETOS — a
                           marcação do advogado precisa estar viva aqui. */}
-                          <AdvogadoSelect
-                            chatId={c.chatId}
-                            advogadoId={c.advogadoId ?? null}
-                            advogados={advogados}
-                          />
-                          <DocsFase2 chatId={c.chatId} />
-                          <div style={{ marginTop: 8 }}>
-                            <Link className="btn" href={`/chat/${encodeURIComponent(c.chatId)}`}>
-                              💬 Conversa no sistema
-                            </Link>
+                            <AdvogadoSelect
+                              chatId={c.chatId}
+                              advogadoId={c.advogadoId ?? null}
+                              advogados={advogados}
+                            />
+                            <DocsFase2 chatId={c.chatId} />
+                            <div style={{ marginTop: 8 }}>
+                              <Link className="btn" href={`/chat/${encodeURIComponent(c.chatId)}`}>
+                                💬 Conversa no sistema
+                              </Link>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                ))
-              )}
-            </>
-          )}
+                        ))}
+                      </div>
+                    </section>
+                  ))
+                )}
+              </>
+            )}
 
-          {/* DESCARTADOS (2026-08-04): fora da fila de trabalho, mas nunca
+            {/* DESCARTADOS (2026-08-04): fora da fila de trabalho, mas nunca
               perdidos — a reativação manual (ou um SIM novo do cliente no
               WhatsApp) devolve o caso à mesa e o atendimento recomeça. */}
-          {descartados.length > 0 ? (
-            <>
-              <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
-                🗑 Descartados <span className="badge">{descartados.length}</span>
-                {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
-              </h2>
-              <p className="page-sub">
-                Sem interesse ou sem documentação. Se o cliente voltar a confirmar no WhatsApp, ele
-                retorna sozinho para a sua fila — ou reative manualmente aqui.
-              </p>
-              <div className="grade-cartoes">
-                {descartados.map((c) => (
-                  <div className="card descartado" key={c.chatId}>
-                    <strong>{c.nome}</strong>{' '}
-                    <span className="mono" style={{ fontSize: 12 }}>
-                      {c.telefone}
-                    </span>{' '}
-                    <span className="badge">{c.uf}</span>
-                    <div style={{ fontSize: 12, color: 'var(--texto-dim)', margin: '4px 0 8px' }}>
-                      descartado em{' '}
-                      {c.descartadoEm != null ? dataBr(c.descartadoEm) : 'data não registrada'}
+            {descartados.length > 0 ? (
+              <>
+                <h2 className="page-title" style={{ fontSize: '1.1rem', marginTop: 24 }}>
+                  🗑 Descartados <span className="badge">{descartados.length}</span>
+                  {ativo !== null ? <span className="badge accent-uf">{ativo}</span> : null}
+                </h2>
+                <p className="page-sub">
+                  Sem interesse ou sem documentação. Se o cliente voltar a confirmar no WhatsApp,
+                  ele retorna sozinho para a sua fila — ou reative manualmente aqui.
+                </p>
+                <div className="grade-cartoes">
+                  {descartados.map((c) => (
+                    <div className="card descartado" key={c.chatId}>
+                      <strong>{c.nome}</strong>{' '}
+                      <span className="mono" style={{ fontSize: 12 }}>
+                        {c.telefone}
+                      </span>{' '}
+                      <span className="badge">{c.uf}</span>
+                      <div style={{ fontSize: 12, color: 'var(--texto-dim)', margin: '4px 0 8px' }}>
+                        descartado em{' '}
+                        {c.descartadoEm != null ? dataBr(c.descartadoEm) : 'data não registrada'}
+                      </div>
+                      <DescartarButton chatId={c.chatId} descartado />
                     </div>
-                    <DescartarButton chatId={c.chatId} descartado />
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : null}
-        </>
-      )}
-    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </>
+        )}
+      </div>
+    </>
   );
 };
 

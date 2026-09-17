@@ -29,7 +29,7 @@ const SeloPedido = ({ p }: { p: PericiaDoCliente | null | undefined }): ReactEle
   if (p.respostaBanco != null)
     return (
       <span
-        style={{ ...base, background: 'rgba(60,170,90,.18)', color: '#3fae5f' }}
+        style={{ ...base, background: 'rgba(30,122,60,.12)', color: 'var(--ok)' }}
         title={`Resposta em ${formatDate(p.respostaBanco.registradaEm)}: ${p.respostaBanco.texto}`}
       >
         ✅ banco respondeu — pronto p/ ajuizar
@@ -38,7 +38,7 @@ const SeloPedido = ({ p }: { p: PericiaDoCliente | null | undefined }): ReactEle
   if (p.expirado)
     return (
       <span
-        style={{ ...base, background: 'rgba(60,170,90,.18)', color: '#3fae5f' }}
+        style={{ ...base, background: 'rgba(30,122,60,.12)', color: 'var(--ok)' }}
         title={`Pedido feito em ${formatDate(p.iniciadaEm)} — 10 dias vencidos sem resposta`}
       >
         🟢 prazo vencido — pronto p/ ajuizar
@@ -48,10 +48,10 @@ const SeloPedido = ({ p }: { p: PericiaDoCliente | null | undefined }): ReactEle
   const horas = p.horasRestantes % 24;
   const cor =
     dias > 5
-      ? { background: 'rgba(60,170,90,.18)', color: '#3fae5f' }
+      ? { background: 'rgba(30,122,60,.12)', color: 'var(--ok)' }
       : dias >= 2
-        ? { background: 'rgba(217,154,0,.18)', color: '#d99a00' }
-        : { background: 'rgba(200,60,60,.18)', color: '#d05050' };
+        ? { background: 'rgba(154,90,0,.12)', color: 'var(--warn)' }
+        : { background: 'rgba(168,50,42,.12)', color: 'var(--bad)' };
   return (
     <span
       style={{ ...base, ...cor }}

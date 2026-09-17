@@ -8,6 +8,7 @@ import type { ReactElement } from 'react';
 import { getJson, type ClienteHumanizado } from '../../lib/api';
 import { operadorDaSessao, HUMANIZADO_SESSION_COOKIE } from '../../lib/session';
 import { SairButton } from '../../components/sair-button';
+import { FaixaTopo } from '../../components/marca';
 import ConversasPainel, { type ClienteDaMesa } from '../../components/conversas-painel';
 
 export const dynamic = 'force-dynamic';
@@ -34,25 +35,29 @@ const ConversasPage = async (): Promise<ReactElement> => {
   }));
 
   return (
-    <div style={{ maxWidth: 1500, margin: '0 auto', padding: '16px 20px 32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 className="page-title">💬 Conversas da equipe</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Link className="btn" href="/">
-            ← Mesa de atendimento
-          </Link>
-          <Link className="btn" href="/prontos">
-            ✅ Clientes Prontos
-          </Link>
-          <SairButton />
+    <>
+      <FaixaTopo sub="Atendimento Humanizado" largura={1500}>
+        <SairButton />
+      </FaixaTopo>
+      <div style={{ maxWidth: 1500, margin: '0 auto', padding: '16px 20px 32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 className="page-title">💬 Conversas da equipe</h1>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Link className="btn" href="/">
+              ← Mesa de atendimento
+            </Link>
+            <Link className="btn" href="/prontos">
+              ✅ Clientes Prontos
+            </Link>
+          </div>
         </div>
+        <p className="page-sub">
+          Todas as conversas do número oficial da equipe — 100% humanas (a AHRI não responde aqui).
+          Clique nos painéis para filtrar; clique no cliente para abrir a conversa ao lado.
+        </p>
+        <ConversasPainel clientes={clientes} />
       </div>
-      <p className="page-sub">
-        Todas as conversas do número oficial da equipe — 100% humanas (a AHRI não responde aqui).
-        Clique nos painéis para filtrar; clique no cliente para abrir a conversa ao lado.
-      </p>
-      <ConversasPainel clientes={clientes} />
-    </div>
+    </>
   );
 };
 

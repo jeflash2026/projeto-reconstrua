@@ -5,6 +5,7 @@
 import { useState, type ReactElement } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { definirSenhaAdvogado } from '../../lib/actions';
+import { LadoAcesso } from '../../components/marca';
 
 const CONVITE_AUSENTE =
   'Este link de convite está incompleto ou expirou. Peça um novo ao escritório.';
@@ -53,92 +54,103 @@ const ConvitePage = (): ReactElement => {
 
   if (feito !== null) {
     return (
-      <div style={{ maxWidth: 420, margin: '10vh auto', padding: '0 16px' }}>
-        <div className="card">
-          <h1 className="page-title">Senha criada!</h1>
-          {feito.loginCpf !== null ? (
-            <>
-              <p className="page-sub">
-                Tudo pronto. Para entrar, use o seu CPF{' '}
-                <strong className="mono">{cpfBr(feito.loginCpf)}</strong> e a senha que você acabou
-                de criar.
-              </p>
-              <button
-                className="primary"
-                onClick={() => {
-                  router.push('/login');
-                }}
-              >
-                Ir para o login
-              </button>
-            </>
-          ) : (
-            <div className="error-box" style={{ marginTop: 12 }}>
-              A sua senha foi criada, mas o seu cadastro ainda não tem um CPF de login — e o acesso
-              é feito pelo CPF. Peça ao escritório para cadastrar o seu CPF no painel (Equipe →
-              Advogados) e então entre normalmente com CPF + a senha que você criou agora.
+      <div className="acesso">
+        <LadoAcesso />
+        <main className="acesso-form">
+          <div className="acesso-caixa">
+            <div className="card">
+              <h1 className="page-title">Senha criada!</h1>
+              {feito.loginCpf !== null ? (
+                <>
+                  <p className="page-sub">
+                    Tudo pronto. Para entrar, use o seu CPF{' '}
+                    <strong className="mono">{cpfBr(feito.loginCpf)}</strong> e a senha que você
+                    acabou de criar.
+                  </p>
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      router.push('/login');
+                    }}
+                  >
+                    Ir para o login
+                  </button>
+                </>
+              ) : (
+                <div className="error-box" style={{ marginTop: 12 }}>
+                  A sua senha foi criada, mas o seu cadastro ainda não tem um CPF de login — e o
+                  acesso é feito pelo CPF. Peça ao escritório para cadastrar o seu CPF no painel
+                  (Equipe → Advogados) e então entre normalmente com CPF + a senha que você criou
+                  agora.
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        </main>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: '10vh auto', padding: '0 16px' }}>
-      <div className="card">
-        <h1 className="page-title">Crie ou redefina a sua senha</h1>
-        {token === '' ? (
-          <div className="error-box" style={{ marginTop: 12 }}>
-            {CONVITE_AUSENTE}
+    <div className="acesso">
+      <LadoAcesso />
+      <main className="acesso-form">
+        <div className="acesso-caixa">
+          <div className="card">
+            <h1 className="page-title">Crie ou redefina a sua senha</h1>
+            {token === '' ? (
+              <div className="error-box" style={{ marginTop: 12 }}>
+                {CONVITE_AUSENTE}
+              </div>
+            ) : (
+              <>
+                <p className="page-sub">
+                  Você recebeu este link do escritório. Defina a sua senha pessoal para acessar o
+                  portal — se já tinha uma senha, a nova substitui a antiga.
+                </p>
+                <form
+                  className="form-row"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void concluir();
+                  }}
+                  style={{ flexDirection: 'column', alignItems: 'stretch' }}
+                >
+                  <input
+                    type="password"
+                    placeholder="Nova senha (mínimo 8 caracteres)"
+                    value={senha}
+                    autoFocus
+                    onChange={(e) => {
+                      setSenha(e.target.value);
+                    }}
+                  />
+                  <input
+                    type="password"
+                    placeholder="Confirme a senha"
+                    value={confirmar}
+                    onChange={(e) => {
+                      setConfirmar(e.target.value);
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    className="primary"
+                    disabled={busy || senha === '' || confirmar === ''}
+                  >
+                    Criar senha e continuar
+                  </button>
+                </form>
+              </>
+            )}
+            {erro ? (
+              <div className="error-box" style={{ marginTop: 12 }}>
+                {erro}
+              </div>
+            ) : null}
           </div>
-        ) : (
-          <>
-            <p className="page-sub">
-              Você recebeu este link do escritório. Defina a sua senha pessoal para acessar o portal
-              — se já tinha uma senha, a nova substitui a antiga.
-            </p>
-            <form
-              className="form-row"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void concluir();
-              }}
-              style={{ flexDirection: 'column', alignItems: 'stretch' }}
-            >
-              <input
-                type="password"
-                placeholder="Nova senha (mínimo 8 caracteres)"
-                value={senha}
-                autoFocus
-                onChange={(e) => {
-                  setSenha(e.target.value);
-                }}
-              />
-              <input
-                type="password"
-                placeholder="Confirme a senha"
-                value={confirmar}
-                onChange={(e) => {
-                  setConfirmar(e.target.value);
-                }}
-              />
-              <button
-                type="submit"
-                className="primary"
-                disabled={busy || senha === '' || confirmar === ''}
-              >
-                Criar senha e continuar
-              </button>
-            </form>
-          </>
-        )}
-        {erro ? (
-          <div className="error-box" style={{ marginTop: 12 }}>
-            {erro}
-          </div>
-        ) : null}
-      </div>
+        </div>
+      </main>
     </div>
   );
 };

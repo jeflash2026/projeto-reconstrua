@@ -1,33 +1,49 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   AHRIOS — Portal Administrativo. Design system próprio: dark-first, denso,
-   profissional. Sem bibliotecas externas; variáveis CSS + grid responsivo.
+   Projeto Reconstrua — Central do Perito. IDENTIDADE DO PROJETO (2026-09-17, a mesma do
+   Painel do Investidor e dos documentos): papel claro, tinta quente, cartões
+   brancos de borda quente, ouro da marca e a lateral/faixa escura "noite".
+   O modo escuro (html.dark) é opcional e fica no mesmo tom quente.
    ────────────────────────────────────────────────────────────────────────── */
 :root {
-  --bg: #0b0e14;
-  --bg-elev: #121722;
-  --bg-hover: #1a2130;
-  --border: #232b3b;
-  --text: #e6e9f0;
-  --text-dim: #8b93a7;
-  --accent: #4f8cff;
-  --accent-soft: rgba(79, 140, 255, 0.14);
-  --ok: #34d399;
-  --warn: #fbbf24;
-  --bad: #f87171;
-  --radius: 10px;
+  color-scheme: light;
+  --bg: #fbfaf7;
+  --bg-elev: #ffffff;
+  --bg-hover: #f5f0e6;
+  --border: #e6e1d6;
+  --text: #16130f;
+  --text-dim: #6b6458;
+  --accent: #946b0a;
+  --accent-soft: rgba(184, 134, 11, 0.1);
+  --ok: #1e7a3c;
+  --warn: #9a5a00;
+  --bad: #a8322a;
+  --marca: #d4af37;
+  --noite: #16130f;
+  --noite-2: #221d17;
+  --noite-borda: #3a3228;
+  --noite-texto: #efe7d4;
+  --noite-muda: #b9ad96;
+  --radius: 12px;
   --sidebar-w: 232px;
-  --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
 }
-html.light {
-  --bg: #f5f6fa;
-  --bg-elev: #ffffff;
-  --bg-hover: #eef1f7;
-  --border: #dfe3ec;
-  --text: #171c28;
-  --text-dim: #5b6474;
-  --accent: #2563eb;
-  --accent-soft: rgba(37, 99, 235, 0.1);
+html.dark {
+  color-scheme: dark;
+  --bg: #12100c;
+  --bg-elev: #1b1813;
+  --bg-hover: #26211a;
+  --border: #342d24;
+  --text: #efe7d4;
+  --text-dim: #a89e8a;
+  --accent: #d4af37;
+  --accent-soft: rgba(212, 175, 55, 0.14);
+  --ok: #4fbf7a;
+  --warn: #e0a341;
+  --bad: #e07a70;
+  --noite: #0b0a08;
+  --noite-2: #17140f;
+  --noite-borda: #2b261e;
 }
 
 * {
@@ -1531,18 +1547,18 @@ details[open] > .lab-explica-body,
   height: 26px;
   border-radius: 50%;
   flex: 0 0 auto;
-  background: radial-gradient(circle at 35% 30%, var(--accent), rgba(79, 140, 255, 0.15) 70%);
+  background: radial-gradient(circle at 35% 30%, var(--accent), rgba(184, 134, 11, 0.15) 70%);
   animation: ahri-breathe 2.4s ease-in-out infinite;
 }
 @keyframes ahri-breathe {
   0%,
   100% {
     transform: scale(0.9);
-    box-shadow: 0 0 0 0 rgba(79, 140, 255, 0.22);
+    box-shadow: 0 0 0 0 rgba(184, 134, 11, 0.22);
   }
   50% {
     transform: scale(1.06);
-    box-shadow: 0 0 20px 3px rgba(79, 140, 255, 0.22);
+    box-shadow: 0 0 20px 3px rgba(184, 134, 11, 0.22);
   }
 }
 .ahri-thinking-label {
@@ -1825,4 +1841,236 @@ details[open] > .lab-explica-body,
 
 .pc-card-pericia.vencida {
   border-left-color: var(--ok);
+}
+
+/* ══ IDENTIDADE DO PROJETO (2026-09-17) ═════════════════════════════════════ */
+body {
+  -webkit-font-smoothing: antialiased;
+}
+.card {
+  box-shadow: 0 1px 2px rgba(22, 19, 15, 0.04);
+}
+
+/* Marca: ícone + "Projeto Reconstrua" com o ouro no nome. */
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+}
+.marca img {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.marca-nome {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--noite-texto);
+  white-space: nowrap;
+}
+.marca-nome span {
+  color: var(--marca);
+}
+.marca-sub {
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--noite-muda);
+}
+
+/* Lateral "noite". */
+.sidebar {
+  background: var(--noite);
+  border-right-color: var(--noite-borda);
+  color: var(--noite-texto);
+}
+.sidebar .brand {
+  padding: 4px 8px 18px;
+}
+.nav a {
+  color: var(--noite-muda);
+}
+.nav a:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--noite-texto);
+}
+.nav a.active {
+  background: rgba(212, 175, 55, 0.14);
+  color: var(--marca);
+}
+.nav .sep {
+  color: var(--marca);
+  opacity: 0.7;
+}
+.sidebar button,
+.sidebar .nav-toggle {
+  background: transparent;
+  color: var(--noite-texto);
+  border-color: var(--noite-borda);
+}
+.sidebar button:hover {
+  filter: none;
+  border-color: var(--marca);
+  color: var(--marca);
+}
+
+/* Faixa escura no topo (portais sem lateral). */
+.faixa-topo {
+  background: var(--noite);
+  color: var(--noite-texto);
+  border-bottom: 1px solid var(--noite-borda);
+}
+.faixa-topo-inner {
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.faixa-topo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--noite-muda);
+}
+.faixa-topo button {
+  background: transparent;
+  color: var(--noite-texto);
+  border: 1px solid var(--noite-borda);
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+.faixa-topo button:hover {
+  filter: none;
+  border-color: var(--marca);
+  color: var(--marca);
+}
+
+/* Botão principal: tinta escura com texto claro (no modo escuro, o ouro). */
+button.primary {
+  background: var(--noite);
+  border-color: var(--noite);
+  color: #ffffff;
+}
+button.primary:hover {
+  filter: none;
+  background: var(--noite-2);
+}
+html.dark button.primary {
+  background: var(--marca);
+  border-color: var(--marca);
+  color: #16130f;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Acesso (login e convite): a coluna escura com a marca, como no investidor. */
+.acesso {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.acesso-lado {
+  background: var(--noite);
+  color: var(--noite-texto);
+  padding: 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+}
+.acesso-titulo {
+  font-weight: 700;
+  font-size: clamp(28px, 3.4vw, 40px);
+  line-height: 1.15;
+  margin: 18px 0 14px;
+  color: #ffffff;
+}
+.acesso-lado p {
+  color: var(--noite-muda);
+  max-width: 440px;
+  font-size: 15px;
+}
+.acesso-kicker {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--marca);
+  font-weight: 600;
+}
+.acesso-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+.acesso-caixa {
+  width: 100%;
+  max-width: 400px;
+}
+.acesso-caixa .card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+.acesso-caixa .page-title {
+  font-size: 22px;
+}
+.acesso-caixa input {
+  font-size: 15px;
+  padding: 11px 13px;
+  background: var(--bg-elev);
+}
+.acesso-caixa button[type='submit'] {
+  font-size: 15px;
+  padding: 12px;
+}
+@media (max-width: 900px) {
+  .acesso {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+  .acesso-form {
+    align-items: flex-start;
+    padding: 28px 20px;
+  }
+  /* No celular o formulário vem logo: a coluna escura fica só com a marca e o título. */
+  .acesso-lado {
+    padding: 24px 20px;
+    gap: 16px;
+  }
+  .acesso-titulo {
+    font-size: 24px;
+    margin: 8px 0 0;
+  }
+  .acesso-lado p,
+  .acesso-lado > .marca-sub {
+    display: none;
+  }
+}
+@media (max-width: 860px) {
+  .sidebar {
+    border-bottom-color: var(--noite-borda);
+  }
+  .nav {
+    border-top-color: var(--noite-borda);
+  }
+  .sidebar .marca-sub {
+    display: none;
+  }
+  .faixa-topo-inner {
+    padding: 12px 16px;
+  }
 }

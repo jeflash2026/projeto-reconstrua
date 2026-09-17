@@ -5,6 +5,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'AHRIOS — Administração',
   description: 'Portal Administrativo AHRIOS — operação em tempo real sobre Read Models.',
+  icons: { icon: '/admin/icone.png' },
 };
 
 // Portal 100% operacional: NUNCA pré-renderizar no build (o build Docker não tem

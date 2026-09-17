@@ -41,5 +41,5 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 // do basePath atravessava o padrão com grupo e abria o Dashboard sem sessão.
 // Defesa em profundidade: o layout do (painel) também valida a sessão (SSR).
 export const config = {
-  matcher: ['/', '/((?!login|_next/|favicon\\.ico).*)'],
+  matcher: ['/', '/((?!login|_next/|icone\\.png|favicon\\.ico).*)'],
 };

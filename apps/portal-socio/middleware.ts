@@ -43,5 +43,5 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
 // Tudo exige sessão, exceto login, convite e assets ('/' explícito).
 export const config = {
-  matcher: ['/', '/((?!login|convite|_next/|favicon\\.ico).*)'],
+  matcher: ['/', '/((?!login|convite|_next/|icone\\.png|favicon\\.ico).*)'],
 };

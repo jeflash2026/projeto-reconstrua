@@ -1,6 +1,7 @@
 'use client';
 // LOGIN do Painel Jurídico — dono + sócio (usuário e senha próprios).
 import { useState, type ReactElement } from 'react';
+import { LadoAcesso } from '../../components/marca';
 
 export default function LoginPage(): ReactElement {
   const [usuario, setUsuario] = useState('');
@@ -32,48 +33,46 @@ export default function LoginPage(): ReactElement {
   }
 
   return (
-    <div className="login-caixa">
-      <div style={{ textAlign: 'center', marginBottom: 18 }}>
-        <div className="topo-marca" style={{ justifyContent: 'center' }}>
-          <span className="selo">⚖ Jurídico</span>
+    <div className="acesso">
+      <LadoAcesso />
+      <main className="acesso-form">
+        <div className="acesso-caixa">
+          <h1 className="titulo">Entrar</h1>
+          <p className="subtitulo">Use o seu usuário e a sua senha do Painel Jurídico.</p>
+          <div className="secao-form">
+            <div className="campo" style={{ marginBottom: 10 }}>
+              <span>Usuário</span>
+              <input
+                value={usuario}
+                onChange={(e) => setUsuario(e.target.value)}
+                autoComplete="username"
+                autoFocus
+              />
+            </div>
+            <div className="campo" style={{ marginBottom: 14 }}>
+              <span>Senha</span>
+              <input
+                type="password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                autoComplete="current-password"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void entrar();
+                }}
+              />
+            </div>
+            {erro !== null ? <div className="erro-box">{erro}</div> : null}
+            <button
+              className="btn primario"
+              style={{ width: '100%', justifyContent: 'center' }}
+              disabled={ocupado || usuario.trim() === '' || senha === ''}
+              onClick={() => void entrar()}
+            >
+              {ocupado ? 'Entrando…' : 'Entrar'}
+            </button>
+          </div>
         </div>
-        <h1 className="titulo" style={{ marginTop: 10 }}>
-          Painel Jurídico
-        </h1>
-        <p className="subtitulo">Projeto Reconstrua · operado pela AHRI Tecnologia</p>
-      </div>
-      <div className="secao-form">
-        <div className="campo" style={{ marginBottom: 10 }}>
-          <span>Usuário</span>
-          <input
-            value={usuario}
-            onChange={(e) => setUsuario(e.target.value)}
-            autoComplete="username"
-            autoFocus
-          />
-        </div>
-        <div className="campo" style={{ marginBottom: 14 }}>
-          <span>Senha</span>
-          <input
-            type="password"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-            autoComplete="current-password"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void entrar();
-            }}
-          />
-        </div>
-        {erro !== null ? <div className="erro-box">{erro}</div> : null}
-        <button
-          className="btn primario"
-          style={{ width: '100%', justifyContent: 'center' }}
-          disabled={ocupado || usuario.trim() === '' || senha === ''}
-          onClick={() => void entrar()}
-        >
-          {ocupado ? 'Entrando…' : 'Entrar'}
-        </button>
-      </div>
+      </main>
     </div>
   );
 }

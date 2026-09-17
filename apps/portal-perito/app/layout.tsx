@@ -6,13 +6,13 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Reconstrua — Central do Perito',
   description: 'Fila da perícia, planilhas de contratos e confirmação dos pedidos administrativos.',
+  icons: { icon: '/perito/icone.png' },
 };
 
-// TEMA CLARO (pedido do dono, 2026-08-05 — mesma linha da mesa do humanizado):
-// a Central é ferramenta de trabalho diurno; o design system já traz as
-// variáveis light — basta a classe na raiz.
+// TEMA CLARO (pedido do dono, 2026-08-05): desde 2026-09-17 a identidade do
+// projeto (papel claro, faixa escura, ouro) é o padrão do design system.
 const RootLayout = ({ children }: { children: ReactNode }): ReactElement => (
-  <html lang="pt-BR" className="light">
+  <html lang="pt-BR">
     <body>{children}</body>
   </html>
 );

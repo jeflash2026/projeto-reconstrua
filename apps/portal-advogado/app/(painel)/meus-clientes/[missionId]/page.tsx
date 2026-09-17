@@ -209,8 +209,8 @@ const ClienteDestinadoPage = async ({
                     processo salta aos olhos — chip dourado, não um selo miúdo. */}
                 <span
                   style={{
-                    background: 'var(--accent, #d4a437)',
-                    color: '#1b1b20',
+                    background: 'var(--marca, #d4af37)',
+                    color: '#16130f',
                     fontWeight: 800,
                     fontSize: 13,
                     letterSpacing: '0.02em',

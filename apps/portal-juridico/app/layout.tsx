@@ -5,6 +5,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Painel Jurídico — Projeto Reconstrua',
   description: 'Gestão de clientes, processos, guias e perícias.',
+  icons: { icon: '/juridico/icone.png' },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }): ReactElement {

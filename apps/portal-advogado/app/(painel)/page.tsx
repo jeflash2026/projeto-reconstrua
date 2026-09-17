@@ -76,7 +76,7 @@ const PainelPage = async (): Promise<ReactElement> => {
       </div>
       {/* ── PRAZOS PROCESSUAIS (2026-09-11): intimações que pedem providência ── */}
       {prazosAbertos.length > 0 ? (
-        <div className="card" style={{ marginBottom: 16, borderLeft: '4px solid #c0392b' }}>
+        <div className="card" style={{ marginBottom: 16, borderLeft: '4px solid var(--bad)' }}>
           <h3 style={{ marginTop: 0 }}>Prazos processuais</h3>
           <p className="page-sub" style={{ marginTop: 0 }}>
             Intimações publicadas nos processos dos seus clientes que pedem providência. Vencimentos

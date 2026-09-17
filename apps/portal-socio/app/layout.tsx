@@ -6,6 +6,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Reconstrua — Painel do Sócio',
   description: 'A sua participação no resultado: quanto lhe cabe do potencial recuperável.',
+  icons: { icon: '/socios/icone.png' },
 };
 
 const RootLayout = ({ children }: { children: ReactNode }): ReactElement => (

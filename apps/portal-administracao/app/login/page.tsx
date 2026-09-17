@@ -6,6 +6,7 @@
 import { useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { bootstrapAdmin, loginAdmin } from '../../lib/actions';
+import { LadoAcesso } from '../../components/marca';
 
 const LoginPage = (): ReactElement => {
   const router = useRouter();
@@ -46,69 +47,74 @@ const LoginPage = (): ReactElement => {
   };
 
   return (
-    <div style={{ maxWidth: 420, margin: '10vh auto', padding: '0 16px' }}>
-      <div className="card">
-        <h1 className="page-title">Reconstrua — Administração</h1>
-        {fase === 'login' ? (
-          <>
-            <p className="page-sub">Informe a senha de acesso do administrador.</p>
-            <form
-              className="form-row"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void entrar();
-              }}
-              style={{ flexDirection: 'column', alignItems: 'stretch' }}
-            >
-              <input
-                type="password"
-                placeholder="Senha de acesso"
-                value={senha}
-                autoFocus
-                onChange={(e) => {
-                  setSenha(e.target.value);
-                }}
-              />
-              <button type="submit" className="primary" disabled={busy || senha.trim() === ''}>
-                Entrar
-              </button>
-            </form>
-          </>
-        ) : (
-          <>
-            <p className="page-sub">
-              Nenhum administrador cadastrado ainda. Informe seu nome para concluir o cadastro do
-              primeiro administrador.
-            </p>
-            <form
-              className="form-row"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void cadastrar();
-              }}
-              style={{ flexDirection: 'column', alignItems: 'stretch' }}
-            >
-              <input
-                type="text"
-                placeholder="Seu nome completo"
-                value={nome}
-                autoFocus
-                onChange={(e) => {
-                  setNome(e.target.value);
-                }}
-              />
-              <button type="submit" className="primary" disabled={busy || nome.trim() === ''}>
-                Cadastrar e entrar
-              </button>
-            </form>
-          </>
-        )}
-        {erro ? (
-          <div className="error-box" style={{ marginTop: 12 }}>
-            {erro}
+    <div className="acesso">
+      <LadoAcesso />
+      <main className="acesso-form">
+        <div className="acesso-caixa">
+          <div className="card">
+            <h1 className="page-title">Entrar</h1>
+            {fase === 'login' ? (
+              <>
+                <p className="page-sub">Informe a senha de acesso do administrador.</p>
+                <form
+                  className="form-row"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void entrar();
+                  }}
+                  style={{ flexDirection: 'column', alignItems: 'stretch' }}
+                >
+                  <input
+                    type="password"
+                    placeholder="Senha de acesso"
+                    value={senha}
+                    autoFocus
+                    onChange={(e) => {
+                      setSenha(e.target.value);
+                    }}
+                  />
+                  <button type="submit" className="primary" disabled={busy || senha.trim() === ''}>
+                    Entrar
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <p className="page-sub">
+                  Nenhum administrador cadastrado ainda. Informe seu nome para concluir o cadastro
+                  do primeiro administrador.
+                </p>
+                <form
+                  className="form-row"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void cadastrar();
+                  }}
+                  style={{ flexDirection: 'column', alignItems: 'stretch' }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Seu nome completo"
+                    value={nome}
+                    autoFocus
+                    onChange={(e) => {
+                      setNome(e.target.value);
+                    }}
+                  />
+                  <button type="submit" className="primary" disabled={busy || nome.trim() === ''}>
+                    Cadastrar e entrar
+                  </button>
+                </form>
+              </>
+            )}
+            {erro ? (
+              <div className="error-box" style={{ marginTop: 12 }}>
+                {erro}
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
+        </div>
+      </main>
     </div>
   );
 };

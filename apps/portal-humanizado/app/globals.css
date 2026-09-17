@@ -1,22 +1,31 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Portal do ATENDIMENTO HUMANIZADO — TEMA CLARO (pedido do dono, 2026-07-31):
-   a mesa da secretária é ferramenta de trabalho diurno; fundo claro, alto
-   contraste, identidade do Projeto Reconstrua (vermelho institucional).
+   a mesa da secretária é ferramenta de trabalho diurno. IDENTIDADE DO PROJETO
+   (2026-09-17, a mesma do Painel do Investidor): papel claro, tinta quente,
+   ouro da marca e a faixa escura "noite". O vermelho fica SÓ para o que pede
+   atenção (falta contato, não lidas, descarte).
    ──────────────────────────────────────────────────────────────────────────── */
 :root {
-  --vermelho: #c62828;
-  --vermelho-escuro: #a02020;
-  --texto: #1c2430;
-  --texto-dim: #5b6b7d;
-  --text-dim: #5b6b7d; /* alias usado por componentes compartilhados */
-  --fundo: #f4f6f9;
+  --vermelho: #a8322a; /* atenção — não é mais a cor da marca */
+  --vermelho-escuro: #8c2a23;
+  --texto: #16130f;
+  --texto-dim: #6b6458;
+  --text-dim: #6b6458; /* alias usado por componentes compartilhados */
+  --fundo: #fbfaf7;
   --cartao: #ffffff;
-  --borda: #dfe6ee;
-  --ok: #1b7f3b;
-  --ok-fundo: #e6f4ea;
+  --borda: #e6e1d6;
+  --ok: #1e7a3c;
+  --ok-fundo: #eaf5ee;
   --aviso: #8a5a00;
-  --aviso-fundo: #fdf3d7;
-  --accent: var(--vermelho);
+  --aviso-fundo: #fbf3e0;
+  --accent: #946b0a;
+  --accent-soft: rgba(184, 134, 11, 0.1);
+  --marca: #d4af37;
+  --noite: #16130f;
+  --noite-2: #221d17;
+  --noite-borda: #3a3228;
+  --noite-texto: #efe7d4;
+  --noite-muda: #b9ad96;
 }
 
 * {
@@ -59,7 +68,7 @@ a {
   border: 1px solid var(--borda);
   border-radius: 12px;
   padding: 16px 18px;
-  box-shadow: 0 1px 2px rgba(28, 36, 48, 0.05);
+  box-shadow: 0 1px 2px rgba(22, 19, 15, 0.05);
 }
 
 .card.empty,
@@ -75,7 +84,7 @@ a {
   padding: 2px 10px;
   font-size: 12px;
   font-weight: 600;
-  background: #eef2f6;
+  background: #f3efe6;
   color: var(--texto-dim);
   border: 1px solid var(--borda);
 }
@@ -241,7 +250,7 @@ button {
   font-weight: 700;
   padding: 0 6px;
   border-radius: 999px;
-  background: #eef2f6;
+  background: #f3efe6;
   color: var(--texto-dim);
 }
 
@@ -268,7 +277,7 @@ button {
   border: 1px solid var(--borda);
   border-left: 4px solid var(--vermelho);
   border-radius: 8px;
-  background: #fbfcfe;
+  background: #fcfaf5;
   font-size: 13px;
   color: var(--texto-dim);
 }
@@ -301,7 +310,7 @@ button {
   border-left: 4px solid var(--texto-dim);
   border-radius: 12px;
   padding: 12px 16px;
-  box-shadow: 0 1px 2px rgba(28, 36, 48, 0.05);
+  box-shadow: 0 1px 2px rgba(22, 19, 15, 0.05);
 }
 
 .stat-card.atencao {
@@ -317,7 +326,7 @@ button {
 }
 
 .stat-card.descartado {
-  border-left-color: #9aa7b4;
+  border-left-color: #a39d93;
   opacity: 0.85;
 }
 
@@ -429,7 +438,7 @@ button {
 }
 
 .legenda-cores .cinza {
-  background: #9aa7b4;
+  background: #a39d93;
 }
 
 /* ── DESCARTE (2026-08-04): botão discreto e cartão apagado ────────────────── */
@@ -445,8 +454,8 @@ button {
 
 .card.descartado {
   opacity: 0.75;
-  background: #fafbfc;
-  border-left: 5px solid #9aa7b4;
+  background: #faf8f3;
+  border-left: 5px solid #a39d93;
 }
 
 /* Cabeçalho de ESTADO (organização da mesa por UF) */
@@ -847,8 +856,8 @@ button {
 }
 
 .cv-selo.nova {
-  background: #eef2f5;
-  color: #5a6a78;
+  background: #f3efe6;
+  color: #6b6458;
 }
 
 .cv-conversa {
@@ -990,7 +999,7 @@ button.chip-uf {
 .prontos-rotulo {
   font-size: 12.5px;
   font-weight: 600;
-  color: #5a6a78;
+  color: #6b6458;
 }
 
 .prontos-busca {
@@ -1021,7 +1030,7 @@ button.chip-uf {
   font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #5a6a78;
+  color: #6b6458;
   background: #faf9f6;
   padding: 10px 12px;
   border-bottom: 1px solid var(--borda);
@@ -1045,7 +1054,7 @@ button.chip-uf {
 
 .prontos-fone {
   font-size: 12.5px;
-  color: #5a6a78;
+  color: #6b6458;
 }
 
 /* ── PAINÉIS CLICÁVEIS (2026-08-13) — cada cartão do resumo É o filtro da sua
@@ -1064,7 +1073,7 @@ a.stat-card {
 }
 a.stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(28, 36, 48, 0.12);
+  box-shadow: 0 6px 16px rgba(22, 19, 15, 0.12);
 }
 a.stat-card:focus-visible {
   outline: 3px solid var(--vermelho);
@@ -1078,4 +1087,226 @@ a.stat-card.ativo {
 }
 a.stat-card.ativo .stat-valor {
   color: var(--vermelho);
+}
+
+/* ══ IDENTIDADE DO PROJETO (2026-09-17) ═════════════════════════════════════
+   A marca deixa de ser vermelha: ações, seleção e foco em tinta/ouro. O
+   vermelho segue só onde é ALERTA (falta contato, não lidas, descarte). ══ */
+body {
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: var(--accent);
+}
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn.primary,
+button.primary {
+  background: var(--noite);
+  border-color: var(--noite);
+  color: #ffffff;
+}
+.btn.primary:hover,
+button.primary:hover {
+  background: var(--noite-2);
+  border-color: var(--noite-2);
+  color: #ffffff;
+}
+input[type='text']:focus,
+input[type='password']:focus,
+select:focus {
+  outline: 2px solid rgba(184, 134, 11, 0.22);
+  border-color: var(--accent);
+}
+.chip-uf:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.chip-uf.ativo,
+.badge.accent-uf {
+  background: var(--noite);
+  border-color: var(--noite);
+  color: #ffffff;
+}
+.tamanho-caso {
+  border-left-color: var(--marca);
+}
+.uf-titulo {
+  color: var(--texto);
+  border-bottom-color: var(--marca);
+}
+.cv-painel:hover {
+  border-color: var(--accent);
+}
+.cv-painel.ativo {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.18);
+}
+a.stat-card {
+  color: var(--texto);
+}
+a.stat-card:focus-visible {
+  outline-color: var(--accent);
+}
+a.stat-card.ativo {
+  background: #fbf6e8;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* Faixa escura no topo de cada página da mesa. */
+.faixa-topo {
+  background: var(--noite);
+  color: var(--noite-texto);
+  border-bottom: 1px solid var(--noite-borda);
+}
+.faixa-topo-inner {
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.faixa-topo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--noite-muda);
+}
+.faixa-topo .btn {
+  background: transparent;
+  color: var(--noite-texto);
+  border-color: var(--noite-borda);
+  border-radius: 999px;
+}
+.faixa-topo .btn:hover {
+  border-color: var(--marca);
+  color: var(--marca);
+}
+
+/* Marca: ícone + "Projeto Reconstrua" com o ouro no nome. */
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  text-decoration: none;
+}
+.marca img {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.marca-nome {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--noite-texto);
+  white-space: nowrap;
+}
+.marca-nome span {
+  color: var(--marca);
+}
+.marca-sub {
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--noite-muda);
+}
+
+/* Acesso (login e convite): a coluna escura com a marca, como no investidor. */
+.acesso {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.acesso-lado {
+  background: var(--noite);
+  color: var(--noite-texto);
+  padding: 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+}
+.acesso-titulo {
+  font-weight: 700;
+  font-size: clamp(28px, 3.4vw, 40px);
+  line-height: 1.15;
+  margin: 18px 0 14px;
+  color: #ffffff;
+}
+.acesso-lado p {
+  color: var(--noite-muda);
+  max-width: 440px;
+  font-size: 15px;
+}
+.acesso-kicker {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--marca);
+  font-weight: 600;
+}
+.acesso-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+.acesso-caixa {
+  width: 100%;
+  max-width: 400px;
+}
+@media (max-width: 900px) {
+  .acesso {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+  .acesso-form {
+    align-items: flex-start;
+    padding: 28px 20px;
+  }
+  /* No celular o formulário vem logo: a coluna escura fica só com a marca e o título. */
+  .acesso-lado {
+    padding: 24px 20px;
+    gap: 16px;
+  }
+  .acesso-titulo {
+    font-size: 24px;
+    margin: 8px 0 0;
+  }
+  .acesso-lado p,
+  .acesso-lado > .marca-sub {
+    display: none;
+  }
+}
+.acesso-caixa .card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+.acesso-caixa input {
+  width: 100%;
+  font-size: 15px;
+  padding: 11px 13px;
+}
+.acesso-caixa button[type='submit'] {
+  font-size: 15px;
+  padding: 12px;
+}
+@media (max-width: 620px) {
+  .faixa-topo .marca-sub {
+    display: none;
+  }
+  .faixa-topo-inner {
+    padding: 12px 16px;
+  }
 }

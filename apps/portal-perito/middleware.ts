@@ -44,5 +44,5 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 // Tudo exige sessão, exceto login, convite e assets ('/' explícito — lição
 // do GO-LIVE-04.1 no Portal Admin).
 export const config = {
-  matcher: ['/', '/((?!login|convite|_next/|favicon\\.ico).*)'],
+  matcher: ['/', '/((?!login|convite|_next/|icone\\.png|favicon\\.ico).*)'],
 };

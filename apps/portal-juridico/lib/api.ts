@@ -141,7 +141,15 @@ export interface DashboardJuridico {
   ativos: number;
   encerrados: number;
   excluidos: number;
+  /** Valor dos processos ativos: base de R$ 10.000 cada, já corrigida pelo
+   *  valor real de quem chegou à execução. Os campos abaixo são opcionais
+   *  porque a API anterior ao deploy não os manda. */
   valorAtivos: number;
+  valorBase?: number;
+  processosAtivos?: number;
+  comValorReal?: number;
+  valorEmpresa?: number;
+  parteDaEmpresa?: number;
   guias: { total: number; valor: number };
   periciasProximas: PericiaJuridica[];
   alertas: {

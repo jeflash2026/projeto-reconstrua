@@ -242,6 +242,18 @@ interface AndamentoDatajud {
 const NS_ANDAMENTOS = 'juridico-andamentos';
 const NS_RESULTADOS = 'juridico-resultados';
 
+/** VALOR BASE DE UM PROCESSO (pedido do dono, 2026-09-17): a média histórica —
+ *  raramente sai menos que isso. Vale como referência ATÉ o processo chegar à
+ *  execução e o valor real ser lançado (aí o real substitui a base). É a MESMA
+ *  referência do Painel do Investidor. */
+export const VALOR_BASE_PROCESSO = 10_000;
+
+/** A parte da EMPRESA sobre o valor dos processos (pedido do dono, 2026-09-17).
+ *  Privado de propósito: o módulo de investidores tem a fração DELE (a parte
+ *  comprada pelo investidor) — os dois números não devem se misturar por um
+ *  import solto. O dashboard devolve a fração usada no payload. */
+const PARTE_DA_EMPRESA_NO_PROCESSO = 0.49;
+
 /** RESULTADO DO PROCESSO (2026-09-16) — o valor REAL que o dono lança:
  *  APURADO na execução (já se sabe quanto o processo vai pagar, falta só o
  *  tempo processual), PAGO (recebido) — ambos com o valor TOTAL do processo,
@@ -1318,13 +1330,69 @@ export class JuridicoService {
     [/^DJEN · Intima[çc][ãa]o/i, '📬 Intimação'],
   ];
 
+  /** O valor da carteira ATIVA: base de R$ 10.000 por processo, corrigida pelo
+   *  valor real de quem já teve o desfecho lançado (apurado/pago manda; sem
+   *  êxito zera). Conta por nº CNJ — dois contratos do mesmo processo não
+   *  contam duas vezes. Pura: recebe o que já foi lido do disco. */
+  private static valorDaCarteira(
+    contratos: readonly ContratoJuridico[],
+    resultados: readonly ResultadoProcesso[],
+  ): {
+    processos: number;
+    base: number;
+    corrigido: number;
+    comValorReal: number;
+    empresa: number;
+  } {
+    const centavos = (v: number): number => Math.round(v * 100) / 100;
+    const porNumero = new Map(resultados.map((r) => [r.numero.replace(/\D/g, ''), r]));
+    const ativos = new Set(
+      contratos
+        .filter((c) => c.status === 'ativo')
+        .map((c) => c.processoNumero.replace(/\D/g, ''))
+        .filter((n) => n !== ''),
+    );
+    let corrigido = 0;
+    let comValorReal = 0;
+    for (const numero of ativos) {
+      const r = porNumero.get(numero);
+      if (r?.situacao === 'apurado' || r?.situacao === 'pago') {
+        corrigido += r.valorRecebido ?? 0;
+        comValorReal += 1;
+      } else if (r?.situacao === 'perdido') {
+        comValorReal += 1;
+      } else {
+        corrigido += VALOR_BASE_PROCESSO;
+      }
+    }
+    return {
+      processos: ativos.size,
+      base: centavos(ativos.size * VALOR_BASE_PROCESSO),
+      corrigido: centavos(corrigido),
+      comValorReal,
+      empresa: centavos(corrigido * PARTE_DA_EMPRESA_NO_PROCESSO),
+    };
+  }
+
   async dashboard(): Promise<{
     clientes: number;
     contratos: number;
     ativos: number;
     encerrados: number;
     excluidos: number;
+    /** Valor dos processos ativos: a BASE de cada um, já CORRIGIDA pelo valor
+     *  real de quem chegou à execução (apurado/pago) — perdido vale zero. */
     valorAtivos: number;
+    /** A referência crua: processos ativos × R$ 10.000 (sem correção). */
+    valorBase: number;
+    /** Processos ativos distintos (nº CNJ) — a base conta por processo. */
+    processosAtivos: number;
+    /** Quantos já têm valor real lançado (apurado, pago ou sem êxito). */
+    comValorReal: number;
+    /** A parte da empresa sobre o valor corrigido. */
+    valorEmpresa: number;
+    /** A fração usada (0.49) — o painel mostra o percentual sem repetir a regra. */
+    parteDaEmpresa: number;
     guias: { total: number; valor: number };
     periciasProximas: readonly PericiaJuridica[];
     alertas: readonly {
@@ -1342,14 +1410,16 @@ export class JuridicoService {
     historico: readonly EventoHistorico[];
     distribuidosHoje: DistribuidosNoDia;
   }> {
-    const [clientes, contratos, eventos, guias, pericias, andamentos] = await Promise.all([
-      this.listarClientes(),
-      this.listarContratos(),
-      this.historico(12),
-      this.listarGuias(),
-      this.listarPericias(),
-      this.listarAndamentos(),
-    ]);
+    const [clientes, contratos, eventos, guias, pericias, andamentos, resultados] =
+      await Promise.all([
+        this.listarClientes(),
+        this.listarContratos(),
+        this.historico(12),
+        this.listarGuias(),
+        this.listarPericias(),
+        this.listarAndamentos(),
+        this.listarResultados(),
+      ]);
     const nomePorCliente = new Map(clientes.map((c) => [c.id, c.nome]));
     const naoExcluidos = contratos.filter((c) => c.status !== 'excluido');
     const porBanco = new Map<string, number>();
@@ -1399,6 +1469,12 @@ export class JuridicoService {
     }
     alertas.sort((x, y) => y.dataHora.localeCompare(x.dataHora));
 
+    // VALOR DA CARTEIRA (2026-09-17, pedido do dono): cada processo vale a BASE
+    // de R$ 10.000; quando o processo chega à execução e o valor real é lançado
+    // (apurado ou pago), o real SUBSTITUI a base — para mais ou para menos — e
+    // "sem êxito" vale zero. A conta é por processo (nº CNJ), não por contrato.
+    const valores = JuridicoService.valorDaCarteira(contratos, resultados);
+
     const hoje = this.agora().slice(0, 10);
     const ultimaConsulta = andamentos.reduce<string | null>(
       (max, a) => (max === null || a.consultadoEm > max ? a.consultadoEm : max),
@@ -1410,10 +1486,12 @@ export class JuridicoService {
       ativos: contratos.filter((c) => c.status === 'ativo').length,
       encerrados: contratos.filter((c) => c.status === 'encerrado').length,
       excluidos: contratos.filter((c) => c.status === 'excluido').length,
-      valorAtivos:
-        Math.round(
-          naoExcluidos.reduce((s, c) => s + (c.status === 'ativo' ? (c.valor ?? 0) : 0), 0) * 100,
-        ) / 100,
+      valorAtivos: valores.corrigido,
+      valorBase: valores.base,
+      processosAtivos: valores.processos,
+      comValorReal: valores.comValorReal,
+      valorEmpresa: valores.empresa,
+      parteDaEmpresa: PARTE_DA_EMPRESA_NO_PROCESSO,
       guias: {
         total: guias.length,
         valor: Math.round(guias.reduce((s, g) => s + (g.valor ?? 0), 0) * 100) / 100,

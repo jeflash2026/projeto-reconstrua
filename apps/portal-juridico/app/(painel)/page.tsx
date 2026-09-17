@@ -153,15 +153,42 @@ export default async function DashboardPage(): Promise<ReactElement> {
                 {dados.encerrados} encerrados · {dados.excluidos} excluídos
               </div>
             </div>
+            {/* VALOR DA CARTEIRA (2026-09-17, pedido do dono): base de R$ 10.000
+                por processo; quem chega à execução entra pelo valor REAL. */}
+            <div className="card">
+              <div className="rotulo">Valor base (R$ 10 mil × processo)</div>
+              <div className="valor" style={{ fontSize: 'clamp(1rem, 2.1vw, 1.3rem)' }}>
+                {moeda(dados.valorBase ?? 0)}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', fontWeight: 600 }}>
+                {dados.processosAtivos ?? dados.ativos} processo(s) ativo(s)
+              </div>
+            </div>
             <div className="card">
               <div className="rotulo">Valor em processos ativos</div>
-              <div className="valor" style={{ fontSize: 'clamp(1.1rem, 3vw, 1.5rem)' }}>
+              <div className="valor" style={{ fontSize: 'clamp(1rem, 2.1vw, 1.3rem)' }}>
                 {moeda(dados.valorAtivos)}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', fontWeight: 600 }}>
+                {(dados.comValorReal ?? 0) > 0
+                  ? `${dados.comValorReal ?? 0} já com valor real`
+                  : 'pela base — nenhum valor real lançado'}
+              </div>
+            </div>
+            <div className="card ok">
+              <div className="rotulo">
+                Valor da empresa ({Math.round((dados.parteDaEmpresa ?? 0.49) * 100)}%)
+              </div>
+              <div className="valor" style={{ fontSize: 'clamp(1rem, 2.1vw, 1.3rem)' }}>
+                {moeda(dados.valorEmpresa ?? 0)}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', fontWeight: 600 }}>
+                sobre o valor dos processos ativos
               </div>
             </div>
             <div className="card ok">
               <div className="rotulo">Guias ({dados.guias.total})</div>
-              <div className="valor" style={{ fontSize: 'clamp(1.1rem, 3vw, 1.5rem)' }}>
+              <div className="valor" style={{ fontSize: 'clamp(1rem, 2.1vw, 1.3rem)' }}>
                 {moeda(dados.guias.valor)}
               </div>
             </div>

@@ -139,7 +139,8 @@ a {
 /* ── Cards e grades ───────────────────────────────────────────────────────── */
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  /* 2026-09-17: 200px porque os cartões de VALOR (R$ 800.000,00) não cabiam em 160. */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }

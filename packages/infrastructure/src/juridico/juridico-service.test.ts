@@ -228,3 +228,84 @@ describe('atualizarAndamentos — DataJud sem o processo, DJEN com as publicaç�
     });
   });
 });
+
+// ── VALOR DA CARTEIRA (2026-09-17, pedido do dono): cada processo vale a BASE
+// de R$ 10.000 até a execução dizer o valor real — que então substitui a base,
+// para mais ou para menos. A parte da empresa é 49% do valor corrigido. ──────
+
+describe('dashboard — valor base por processo e correção pelo valor real', () => {
+  function servico(): JuridicoService {
+    return new JuridicoService({
+      json: new InMemoryJsonStore(),
+      media: {} as MediaStorePort,
+      clock: { now: () => new Date('2026-09-17T18:00:00.000Z') },
+      datajud: { consultar: () => Promise.resolve(null) },
+      djen: { consultar: () => Promise.resolve([]) },
+    });
+  }
+
+  async function comTresProcessos(svc: JuridicoService): Promise<readonly string[]> {
+    const c = await svc.criarCliente({ nome: 'Jose Luiz Malgradi' }, 'teste');
+    if (!c.ok) throw new Error('cliente não criado');
+    const numeros = [
+      '4002400-94.2026.8.26.0619',
+      '4002412-11.2026.8.26.0619',
+      '4002419-03.2026.8.26.0619',
+    ];
+    for (const numero of numeros) {
+      await svc.criarProcesso(
+        {
+          clienteId: c.valor,
+          numero,
+          bancos: [{ banco: 'BANCO PAN', contratos: [{ numero: 's/nº' }] }],
+        },
+        'teste',
+      );
+    }
+    return numeros;
+  }
+
+  it('sem nenhum valor lançado: base = corrigido = 3 × 10 mil e empresa = 49%', async () => {
+    const svc = servico();
+    await comTresProcessos(svc);
+    const d = await svc.dashboard();
+    expect(d.processosAtivos).toBe(3);
+    expect(d.valorBase).toBe(30_000);
+    expect(d.valorAtivos).toBe(30_000);
+    expect(d.comValorReal).toBe(0);
+    expect(d.valorEmpresa).toBe(14_700);
+    expect(d.parteDaEmpresa).toBe(0.49);
+  });
+
+  it('o valor real da execução substitui a base — para mais, para menos e zerando', async () => {
+    const svc = servico();
+    const [maior, menor, perdido] = await comTresProcessos(svc);
+    expect(
+      (
+        await svc.registrarResultado(
+          maior ?? '',
+          { situacao: 'apurado', valorRecebido: 18_600 },
+          'dono',
+        )
+      ).ok,
+    ).toBe(true);
+    expect(
+      (
+        await svc.registrarResultado(
+          menor ?? '',
+          { situacao: 'pago', valorRecebido: 6_400 },
+          'dono',
+        )
+      ).ok,
+    ).toBe(true);
+    expect((await svc.registrarResultado(perdido ?? '', { situacao: 'perdido' }, 'dono')).ok).toBe(
+      true,
+    );
+    const d = await svc.dashboard();
+    // 18.600 (apurado) + 6.400 (pago) + 0 (sem êxito) — a base não entra em nenhum.
+    expect(d.valorBase).toBe(30_000);
+    expect(d.valorAtivos).toBe(25_000);
+    expect(d.comValorReal).toBe(3);
+    expect(d.valorEmpresa).toBe(12_250);
+  });
+});

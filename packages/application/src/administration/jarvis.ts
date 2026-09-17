@@ -409,12 +409,12 @@ export function casarAdvogadoPorNome<T extends { readonly name: string }>(
 
 // ── Comando de CARTEIRA DE INVESTIDOR (2026-09-16): "adicione 250 mil em
 // crédito ao investidor João" — a AHRI propõe os processos que cobrem o crédito
-// (R$ 5.000 de parte da empresa cada, espalhados por advogado, cliente e banco)
+// (a parte da empresa em cada um, espalhados por advogado, cliente e banco)
 // e NADA é alocado sem a confirmação do dono. Reconhecimento determinístico:
 // ("carteira" ou "crédito") + verbo + (investidor, ou processo sem advogado) +
 // um valor ou uma quantidade de processos. ────────────────────────────────────
 export interface ComandoCarteiraInvestidor {
-  /** O CRÉDITO pedido (parte da empresa, R$ 5.000 por processo); null = por quantidade. */
+  /** O CRÉDITO pedido (a parte da empresa em cada processo); null = por quantidade. */
   readonly valor: number | null;
   /** Quantidade explícita ("25 processos"); null = deduzida do valor. */
   readonly processos: number | null;

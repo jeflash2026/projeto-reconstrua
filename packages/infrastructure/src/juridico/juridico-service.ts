@@ -15,6 +15,12 @@ import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
 import type { MediaStorePort } from '../media/media-store-port.js';
 import type { PublicacaoDjen } from './djen-client.js';
+// O valor base do processo e a parte da empresa vêm da FONTE ÚNICA — os mesmos
+// números do Painel do Investidor (decisão do dono, 2026-09-17).
+import {
+  PARTE_DA_EMPRESA,
+  VALOR_REFERENCIA_PROCESSO as VALOR_BASE_PROCESSO,
+} from '../comercial/parametros-do-processo.js';
 
 const NS_USUARIOS = 'juridico-usuarios';
 const NS_CLIENTES = 'juridico-clientes';
@@ -241,18 +247,6 @@ interface AndamentoDatajud {
 
 const NS_ANDAMENTOS = 'juridico-andamentos';
 const NS_RESULTADOS = 'juridico-resultados';
-
-/** VALOR BASE DE UM PROCESSO (pedido do dono, 2026-09-17): a média histórica —
- *  raramente sai menos que isso. Vale como referência ATÉ o processo chegar à
- *  execução e o valor real ser lançado (aí o real substitui a base). É a MESMA
- *  referência do Painel do Investidor. */
-export const VALOR_BASE_PROCESSO = 10_000;
-
-/** A parte da EMPRESA sobre o valor dos processos (pedido do dono, 2026-09-17).
- *  Privado de propósito: o módulo de investidores tem a fração DELE (a parte
- *  comprada pelo investidor) — os dois números não devem se misturar por um
- *  import solto. O dashboard devolve a fração usada no payload. */
-const PARTE_DA_EMPRESA_NO_PROCESSO = 0.49;
 
 /** RESULTADO DO PROCESSO (2026-09-16) — o valor REAL que o dono lança:
  *  APURADO na execução (já se sabe quanto o processo vai pagar, falta só o
@@ -1370,7 +1364,7 @@ export class JuridicoService {
       base: centavos(ativos.size * VALOR_BASE_PROCESSO),
       corrigido: centavos(corrigido),
       comValorReal,
-      empresa: centavos(corrigido * PARTE_DA_EMPRESA_NO_PROCESSO),
+      empresa: centavos(corrigido * PARTE_DA_EMPRESA),
     };
   }
 
@@ -1491,7 +1485,7 @@ export class JuridicoService {
       processosAtivos: valores.processos,
       comValorReal: valores.comValorReal,
       valorEmpresa: valores.empresa,
-      parteDaEmpresa: PARTE_DA_EMPRESA_NO_PROCESSO,
+      parteDaEmpresa: PARTE_DA_EMPRESA,
       guias: {
         total: guias.length,
         valor: Math.round(guias.reduce((s, g) => s + (g.valor ?? 0), 0) * 100) / 100,

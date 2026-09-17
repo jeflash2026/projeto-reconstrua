@@ -115,7 +115,7 @@ const InvestidoresPanel = (): ReactElement => {
     <>
       <h1 className="page-title">Investidores</h1>
       <p className="page-sub">
-        Carteiras de créditos judiciais: o investidor compra, antecipado, a parte da empresa (50%)
+        Carteiras de créditos judiciais: o investidor compra, antecipado, a parte da empresa (49%)
         no resultado dos processos — R$ 10.000 de referência por processo, ajustado pelo valor real
         quando o processo é pago. Cadastre o investidor, gere o link de acesso e monte a carteira no
         Founder Console, ex.: “adicione uma carteira de 250 mil em processos para o investidor

@@ -4,7 +4,7 @@
 // O modelo (decisão do dono): o investidor compra, antecipado, um CRÉDITO sobre
 // a PARTE DA EMPRESA no resultado de processos judiciais já distribuídos. Cada
 // processo vale R$ 10.000 de REFERÊNCIA (raramente paga menos); a empresa fica
-// com 50% e o cliente com 50% — cada processo conta R$ 5.000 para o investidor.
+// com 49% e o cliente com o resto — cada processo conta R$ 4.900 para o investidor.
 //
 //  • Um crédito de R$ 250.000 recebe EXATAMENTE o equivalente em processos:
 //    250.000 ÷ 5.000 = 50 processos.
@@ -20,16 +20,24 @@
 // processo, os bancos, o advogado responsável e a fase; nada de texto de
 // publicação (traz nomes das partes).
 // ─────────────────────────────────────────────────────────────────────────────
+import {
+  PARTE_DA_EMPRESA,
+  REFERENCIA_DO_INVESTIDOR,
+  VALOR_REFERENCIA_PROCESSO,
+} from '../comercial/parametros-do-processo.js';
 import type {
   AndamentoProcesso,
   LancamentoResultado,
   ResultadoProcesso,
 } from '../juridico/juridico-service.js';
 
-export const VALOR_REFERENCIA_PROCESSO = 10_000;
-export const PARTE_DA_EMPRESA = 0.5;
-/** Quanto cada processo conta para o investidor (R$ 5.000). */
-export const REFERENCIA_DO_INVESTIDOR = VALOR_REFERENCIA_PROCESSO * PARTE_DA_EMPRESA;
+// A base do processo e a parte da empresa vivem na FONTE ÚNICA (o Jurídico usa
+// os mesmos números); aqui só reexportamos para quem já importava daqui.
+export {
+  PARTE_DA_EMPRESA,
+  REFERENCIA_DO_INVESTIDOR,
+  VALOR_REFERENCIA_PROCESSO,
+} from '../comercial/parametros-do-processo.js';
 /** O investidor recebe no máximo o crédito + 20%. */
 export const LIMITE_SOBRE_CREDITO = 0.2;
 /** Prazo usado na régua de maturação (o dono estima 1 ano e meio a 2 anos). */
@@ -80,7 +88,7 @@ export interface ProcessoCandidato {
   readonly cadastradoEm: string;
 }
 
-/** Quantos processos cobrem EXATAMENTE um crédito (R$ 5.000 cada, ≥ 1). */
+/** Quantos processos cobrem EXATAMENTE um crédito (R$ 4.900 cada, ≥ 1). */
 export function processosParaCredito(credito: number): number {
   return Math.max(1, Math.round(credito / REFERENCIA_DO_INVESTIDOR));
 }
@@ -196,7 +204,7 @@ export interface LoteCarteira {
   readonly cpf: string;
   readonly criadoEm: string;
   readonly criadoPor: string;
-  /** O crédito comprado (parte da empresa). Ausente ⇒ processos × R$ 5.000. */
+  /** O crédito comprado (parte da empresa). Ausente ⇒ processos × R$ 4.900. */
   readonly credito?: number;
   readonly processos: readonly string[];
   readonly retirados: readonly {
@@ -228,7 +236,7 @@ export interface ProcessoNoPainel {
   /** O que o processo vale para o investidor HOJE (antes do teto da carteira). */
   readonly valor: {
     readonly tipo: TipoValor;
-    /** Referência (R$ 5.000), 50% do valor apurado/recebido, ou zero. */
+    /** Referência (R$ 4.900), a parte da empresa no valor apurado/recebido, ou zero. */
     readonly parte: number;
     /** Valor TOTAL do processo (apurado ou recebido); null = em curso. */
     readonly valorDoProcesso: number | null;

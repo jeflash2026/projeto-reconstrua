@@ -23,9 +23,9 @@ describe('regras puras', () => {
     expect(numeroCnj('40051771920268260533')).toBe('4005177-19.2026.8.26.0533');
   });
 
-  it('crédito vira EXATAMENTE o equivalente em processos (R$ 5.000 cada); teto = crédito + 20%', () => {
-    expect(processosParaCredito(250_000)).toBe(50);
-    expect(processosParaCredito(251_000)).toBe(50);
+  it('crédito vira EXATAMENTE o equivalente em processos (R$ 4.900 cada); teto = crédito + 20%', () => {
+    expect(processosParaCredito(250_000)).toBe(51);
+    expect(processosParaCredito(251_000)).toBe(51);
     expect(processosParaCredito(3_000)).toBe(1);
     expect(limiteDoCredito(250_000)).toBe(300_000);
   });
@@ -167,8 +167,8 @@ describe('InvestidoresService', () => {
       processos: 2,
       credito: 10_000,
       limite: 12_000,
-      valorAtual: 10_000,
-      aReceber: 10_000,
+      valorAtual: 9_800,
+      aReceber: 9_800,
       recebido: 0,
       apurado: 0,
       valorDosProcessos: 20_000,
@@ -178,7 +178,7 @@ describe('InvestidoresService', () => {
       iniciais: 'T. R. C. S.',
       advogado: 'Gracielle',
       fase: 'distribuido',
-      valor: { tipo: 'referencia', parte: 5_000, valorDoProcesso: null },
+      valor: { tipo: 'referencia', parte: 4_900, valorDoProcesso: null },
     });
     expect(tais).not.toHaveProperty('clienteNome');
     expect(JSON.stringify(painel)).not.toContain('Caetano');
@@ -205,20 +205,20 @@ describe('InvestidoresService', () => {
     await juridico.registrarResultado(HELIO, { situacao: 'pago', valorRecebido: 9_000 }, 'Dono');
 
     const painel = await investidores.painel(CPF);
-    // Taís 7.000 + Gildete 0 + Hélio 4.500 — abaixo do teto de R$ 18.000.
+    // Taís 6.860 + Gildete 0 + Hélio 4.410 — abaixo do teto de R$ 18.000.
     expect(painel?.totais).toMatchObject({
-      valorAtual: 11_500,
-      recebido: 11_500,
+      valorAtual: 11_270,
+      recebido: 11_270,
       aReceber: 0,
       pagos: 2,
       perdidos: 1,
     });
     expect(painel?.extrato.map((l) => [l.tipo, l.valor])).toEqual([
-      ['correcao', 500],
-      ['pago', 2_000],
-      ['perdido', -5_000],
-      ['pago', -1_000],
-      ['carteira', 15_000],
+      ['correcao', 490],
+      ['pago', 1_960],
+      ['perdido', -4_900],
+      ['pago', -980],
+      ['carteira', 14_700],
     ]);
     // Processo com desfecho não sai da carteira.
     expect(await investidores.retirar(CPF, TAIS, 'teste', 'x')).toMatchObject({ ok: false });
@@ -236,27 +236,27 @@ describe('InvestidoresService', () => {
       'Dono',
     );
 
-    // Bruto: 10.000 recebido + 7.000 apurado + 5.000 em curso = 22.000 > teto 18.000.
+    // Bruto: 9.800 recebido + 6.860 apurado + 4.900 em curso = 21.560 > teto 18.000.
     const painel = await investidores.painel(CPF);
     expect(painel?.totais).toMatchObject({
       credito: 15_000,
       limite: 18_000,
       valorAtual: 18_000,
-      recebido: 10_000,
-      apurado: 7_000,
-      aReceber: 1_000,
+      recebido: 9_800,
+      apurado: 6_860,
+      aReceber: 1_340,
       apurados: 1,
     });
     expect(painel?.extrato.map((l) => [l.tipo, l.valor])).toEqual([
       ['apurado', 0],
-      ['pago', 3_000],
-      ['carteira', 15_000],
+      ['pago', 3_300],
+      ['carteira', 14_700],
     ]);
     expect(painel?.extrato[1]?.descricao).toContain('limite da carteira');
     expect(JSON.stringify(painel)).not.toContain('excedente');
     // O Admin vê o que ficou com a empresa.
     const admin = await investidores.painel(CPF, true);
-    expect(admin?.totais.excedenteEmpresa).toBe(4_000);
+    expect(admin?.totais.excedenteEmpresa).toBe(3_560);
   });
 
   it('valor apurado na execução entra no painel antes do pagamento; o pagamento só confirma', async () => {
@@ -275,20 +275,20 @@ describe('InvestidoresService', () => {
     let painel = await investidores.painel(CPF);
     expect(painel?.processos[0]).toMatchObject({
       fase: 'apurado',
-      valor: { tipo: 'apurado', parte: 6_000, valorDoProcesso: 12_000, em: '2026-09-17' },
+      valor: { tipo: 'apurado', parte: 5_880, valorDoProcesso: 12_000, em: '2026-09-17' },
     });
-    expect(painel?.totais).toMatchObject({ apurado: 6_000, valorAtual: 6_000, aReceber: 0 });
+    expect(painel?.totais).toMatchObject({ apurado: 5_880, valorAtual: 5_880, aReceber: 0 });
     // Apurado não pode ser retirado nem vendido de novo.
     expect(await investidores.retirar(CPF, TAIS, 'x', 'x')).toMatchObject({ ok: false });
 
     relogio.t = new Date('2026-09-20T10:00:00.000Z');
     await juridico.registrarResultado(TAIS, { situacao: 'pago', valorRecebido: 12_000 }, 'Dono');
     painel = await investidores.painel(CPF);
-    expect(painel?.totais).toMatchObject({ recebido: 6_000, apurado: 0, valorAtual: 6_000 });
+    expect(painel?.totais).toMatchObject({ recebido: 5_880, apurado: 0, valorAtual: 5_880 });
     expect(painel?.extrato.map((l) => [l.tipo, l.valor])).toEqual([
       ['pago', 0],
-      ['apurado', 1_000],
-      ['carteira', 5_000],
+      ['apurado', 980],
+      ['carteira', 4_900],
     ]);
   });
 
@@ -301,7 +301,7 @@ describe('InvestidoresService', () => {
     expect(await investidores.investidorDoProcesso(TAIS)).toBeNull();
     const painel = await investidores.painel(CPF);
     expect(painel?.totais.processos).toBe(0);
-    expect(painel?.extrato[0]).toMatchObject({ tipo: 'retirado', valor: -5_000 });
+    expect(painel?.extrato[0]).toMatchObject({ tipo: 'retirado', valor: -4_900 });
   });
 
   it('resultado do processo valida os dados e desfaz com "em andamento"', async () => {

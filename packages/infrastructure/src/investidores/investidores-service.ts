@@ -304,7 +304,7 @@ export class InvestidoresService {
   }
 
   /** EXECUÇÃO (após a confirmação do dono): aloca os processos ao investidor
-   *  como UMA carteira com o crédito comprado (null ⇒ processos × R$ 5.000).
+   *  como UMA carteira com o crédito comprado (null ⇒ processos × R$ 4.900).
    *  Quem ficou indisponível entre a proposta e a confirmação (outra carteira,
    *  desfecho lançado) é pulado e listado. */
   async alocar(

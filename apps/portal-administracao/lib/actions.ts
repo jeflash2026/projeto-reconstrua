@@ -157,10 +157,16 @@ export interface JarvisResposta {
 export async function perguntarJarvis(
   pergunta: string,
   chatId?: string,
+  historico?: readonly { de: 'dono' | 'ahri'; texto: string }[],
 ): Promise<JarvisResposta | null> {
   // Decreto 2026-07-31: chatId opcional = Jarvis em CONTEXTO de um cliente (a
   // caixa do cadastro) — habilita "retomar o atendimento" daquele chat.
-  return sendJson<JarvisResposta>('POST', '/admin/founder/jarvis', { pergunta, chatId });
+  // 2026-09-17: a conversa recente vai junto para a AHRI entender pedidos curtos.
+  return sendJson<JarvisResposta>('POST', '/admin/founder/jarvis', {
+    pergunta,
+    chatId,
+    historico,
+  });
 }
 /** EXECUTA um plano confirmado pelo fundador (com o advogado escolhido). */
 export async function executarJarvis(

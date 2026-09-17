@@ -261,3 +261,122 @@ describe('JarvisRuntime · cadastro de processos no Painel Jurídico', () => {
     expect(r.resposta).toContain('dois-pontos');
   });
 });
+
+// ── INTÉRPRETE (2026-09-17, "quero que me entenda com poucas palavras"): a LLM
+// lê o pedido com a conversa recente; a leitura validada segue o MESMO trilho
+// dos comandos, e a reserva determinística assume quando a LLM falha. ─────────
+
+describe('JarvisRuntime · intérprete com a conversa recente', () => {
+  function runtimeComInterprete(interpretar: (system: string, user: string) => Promise<string>): {
+    jarvis: JarvisRuntime;
+    cadastrados: string[];
+    narrados: string[];
+    lidos: string[];
+  } {
+    const cadastrados: string[] = [];
+    const narrados: string[] = [];
+    const lidos: string[] = [];
+    const deps: JarvisDeps = {
+      json: new InMemoryJsonStore(),
+      clock: { now: () => new Date('2026-09-17T12:00:00Z') },
+      elegiveis: () => Promise.resolve([]),
+      dossier: () => Promise.resolve({ clientesTotal: 10 }),
+      advogados: () => Promise.resolve([]),
+      fichaPorTermo: () => Promise.resolve(null),
+      atribuir: () => Promise.resolve({ ok: true }),
+      pendentesCpf: () => Promise.resolve([]),
+      cobrarCpf: () => Promise.resolve({ ok: true }),
+      resolverDestinatario: () => Promise.resolve(null),
+      relatorioClientes: () => Promise.resolve([]),
+      enviarAoCliente: () => Promise.resolve(),
+      retomarAtendimento: () => Promise.resolve({ ok: false, motivo: 'n/a' }),
+      narrar: (_system, user) => {
+        narrados.push(user);
+        return Promise.resolve('Resposta da AHRI.');
+      },
+      interpretar: (system, user) => {
+        lidos.push(user);
+        return interpretar(system, user);
+      },
+      cadastrarProcessosJuridico: (nome, processos) => {
+        cadastrados.push(`${nome}: ${processos.map((p) => p.numero).join(', ')}`);
+        return Promise.resolve({
+          clienteNovo: true,
+          criados: processos.length,
+          jaExistiam: 0,
+          erros: [],
+        });
+      },
+    };
+    return { jarvis: new JarvisRuntime(deps), cadastrados, narrados, lidos };
+  }
+
+  const FRANCISCO =
+    'ahri adicione no juridico: FRANCISCO NUNES DA SILVA Banco Mercantil do Brasil - 4002326-40.2026.8.26.0619   ' +
+    'Banco Bradesco S.A 4029409-91.2026.8.26.0405';
+
+  it('o caso real: a leitura da LLM cadastra os processos no cliente certo', async () => {
+    const { jarvis, cadastrados } = runtimeComInterprete(() =>
+      Promise.resolve(
+        JSON.stringify({
+          acao: 'cadastrar_processos',
+          clientes: [
+            {
+              nome: 'FRANCISCO NUNES DA SILVA',
+              processos: [
+                { banco: 'Banco Mercantil do Brasil', numero: '4002326-40.2026.8.26.0619' },
+                { banco: 'Banco Bradesco S.A', numero: '4029409-91.2026.8.26.0405' },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    const r = await jarvis.perguntar(FRANCISCO);
+    expect(cadastrados).toEqual([
+      'Francisco Nunes da Silva: 4002326-40.2026.8.26.0619, 4029409-91.2026.8.26.0405',
+    ]);
+    expect(r.resposta).toContain('2 processo(s) cadastrado(s)');
+  });
+
+  it('LLM fora do ar ⇒ a reserva determinística lê o mesmo pedido', async () => {
+    const { jarvis, cadastrados } = runtimeComInterprete(() =>
+      Promise.reject(new Error('anthropic HTTP 529')),
+    );
+    await jarvis.perguntar(FRANCISCO);
+    expect(cadastrados).toEqual([
+      'Francisco Nunes da Silva: 4002326-40.2026.8.26.0619, 4029409-91.2026.8.26.0405',
+    ]);
+  });
+
+  it('"responder": a conversa recente chega ao intérprete E ao narrador', async () => {
+    const { jarvis, narrados, lidos } = runtimeComInterprete(() =>
+      Promise.resolve('{"acao":"responder"}'),
+    );
+    const r = await jarvis.perguntar('e do rodrigo?', undefined, [
+      { de: 'dono', texto: 'quantos clientes o Cornélio tem?' },
+      { de: 'ahri', texto: 'O Cornélio tem 61 contratos.' },
+    ]);
+    expect(r.resposta).toBe('Resposta da AHRI.');
+    expect(lidos[0]).toContain('Dono: quantos clientes o Cornélio tem?');
+    expect(narrados[0]).toContain('Fundador: quantos clientes o Cornélio tem?');
+    expect(narrados[0]).toContain('AHRI: O Cornélio tem 61 contratos.');
+    expect(narrados[0]).toContain('PERGUNTA DO FUNDADOR: e do rodrigo?');
+  });
+
+  it('"responder" nunca cai nos reconhecedores (pergunta sobre CPF não vira cobrança)', async () => {
+    const { jarvis } = runtimeComInterprete(() => Promise.resolve('{"acao":"responder"}'));
+    const r = await jarvis.perguntar('consegue disparar mensagem solicitando o cpf para eles?');
+    expect(r.cobranca).toBeUndefined();
+    expect(r.resposta).toBe('Resposta da AHRI.');
+  });
+
+  it('"esclarecer": a AHRI devolve a pergunta curta, sem executar nada', async () => {
+    const { jarvis, cadastrados } = runtimeComInterprete(() =>
+      Promise.resolve('{"acao":"esclarecer","pergunta":"De qual cliente são esses processos?"}'),
+    );
+    const r = await jarvis.perguntar('4002326-40.2026.8.26.0619');
+    expect(r.resposta).toBe('De qual cliente são esses processos?');
+    expect(cadastrados).toHaveLength(0);
+  });
+});

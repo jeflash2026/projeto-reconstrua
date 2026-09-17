@@ -9,3 +9,4 @@ export * from './admin-projection.js';
 export * from './administration-intelligence-runtime.js';
 export * from './founder-console-runtime.js';
 export * from './jarvis.js';
+export * from './jarvis-interprete.js';

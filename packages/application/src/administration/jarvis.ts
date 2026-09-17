@@ -274,7 +274,7 @@ function ehNomeDeCliente(candidato: string): boolean {
 }
 
 /** "GILDETE DOS SANTOS" → "Gildete dos Santos" (só quando veio TODO em caixa alta). */
-function nomeApresentavel(nome: string): string {
+export function nomeApresentavel(nome: string): string {
   if (nome !== nome.toUpperCase()) return nome;
   const particulas = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
   return nome
@@ -340,7 +340,19 @@ export function interpretarComandoProcessosJuridico(
     }
     const achado = cabecalho as { nome: string; fim: number } | null;
     if (achado !== null) abrir(achado.nome);
-    const pedacoBanco = achado !== null ? trecho.slice(achado.fim) : trecho;
+    let pedacoBanco = achado !== null ? trecho.slice(achado.fim) : trecho;
+    // Caso real 2026-09-17: "adicione no juridico: FRANCISCO NUNES DA SILVA Banco
+    // Mercantil do Brasil - nº" — o nome colado ao banco, sem dois-pontos. Sem
+    // cliente aberto, o que vem ANTES da 1ª instituição abre o cliente.
+    if (achado === null && (atual as { nome: string } | null) === null) {
+      const resto = trecho.slice(Math.max(trecho.lastIndexOf(':'), trecho.lastIndexOf('\n')) + 1);
+      const instituicao = /\b(banco|bank|financeira|caixa|cef)\b/iu.exec(resto);
+      const nome = instituicao !== null ? limparPedaco(resto.slice(0, instituicao.index)) : '';
+      if (instituicao !== null && ehNomeDeCliente(nome)) {
+        abrir(nome);
+        pedacoBanco = resto.slice(instituicao.index);
+      }
+    }
 
     // O banco é a última linha CHEIA do pedaço (o nº pode estar na linha de
     // baixo). Colunas por TAB ou 2+ espaços: "NOME ⇥ BANCO" abre o cliente.

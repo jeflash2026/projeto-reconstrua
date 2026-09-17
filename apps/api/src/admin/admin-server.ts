@@ -460,7 +460,11 @@ export function buildAdminServer(
     readonly jarvis?: {
       /** Decreto 2026-07-31: chatId opcional = Jarvis EM CONTEXTO de um cliente
        *  (a caixa do cadastro) — habilita "retomar o atendimento" daquele chat. */
-      perguntar(pergunta: string, chatId?: string): Promise<unknown>;
+      perguntar(
+        pergunta: string,
+        chatId?: string,
+        historico?: readonly { de: 'dono' | 'ahri'; texto: string }[],
+      ): Promise<unknown>;
       executar(
         planoId: string,
         advogadoId: string,
@@ -4416,14 +4420,24 @@ export function buildAdminServer(
   // um PLANO que só executa após a confirmação explícita (com o advogado).
   app.post('/admin/founder/jarvis', async (request, reply) => {
     if (!opts.jarvis) return reply.code(503).send({ error: 'jarvis indisponível nesta montagem' });
-    const body = request.body as { pergunta?: string; chatId?: string };
+    const body = request.body as { pergunta?: string; chatId?: string; historico?: unknown };
     if (!body.pergunta || body.pergunta.trim() === '')
       return reply.code(400).send({ error: 'pergunta obrigatória' });
     // Decreto 2026-07-31: chatId opcional = Jarvis em CONTEXTO de um cliente
     // (a caixa do cadastro) — habilita "retomar o atendimento" daquele chat.
     const chatId =
       typeof body.chatId === 'string' && body.chatId.trim() !== '' ? body.chatId.trim() : undefined;
-    return opts.jarvis.perguntar(body.pergunta.trim(), chatId);
+    // 2026-09-17: a conversa recente acompanha o pedido ("e pro Rodrigo?").
+    const historico = (Array.isArray(body.historico) ? (body.historico as unknown[]) : [])
+      .flatMap((t): { de: 'dono' | 'ahri'; texto: string }[] => {
+        const turno = t as { de?: unknown; texto?: unknown } | null;
+        if (turno === null || typeof turno.texto !== 'string' || turno.texto.trim() === '')
+          return [];
+        const de = turno.de === 'dono' ? 'dono' : turno.de === 'ahri' ? 'ahri' : null;
+        return de === null ? [] : [{ de, texto: turno.texto.slice(0, 4_000) }];
+      })
+      .slice(-12);
+    return opts.jarvis.perguntar(body.pergunta.trim(), chatId, historico);
   });
   app.post('/admin/founder/jarvis/executar', async (request, reply) => {
     if (!opts.jarvis) return reply.code(503).send({ error: 'jarvis indisponível nesta montagem' });

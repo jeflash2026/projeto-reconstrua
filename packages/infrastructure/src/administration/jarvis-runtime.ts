@@ -16,8 +16,12 @@
 //    painel (work.assign + aviso ao advogado pela AHRI).
 // ─────────────────────────────────────────────────────────────────────────────
 import {
+  PROMPT_INTERPRETE_JARVIS,
+  TURNOS_DE_CONTEXTO,
   acharEstadoNoTexto,
   casarAdvogadoPorNome,
+  entradaDoInterprete,
+  lerIntencaoJarvis,
   interpretarComandoCarteiraInvestidor,
   interpretarComandoCobrancaCpf,
   interpretarComandoDistribuicao,
@@ -28,8 +32,10 @@ import {
   type ClienteElegivel,
   type ComandoCarteiraInvestidor,
   type ComandoProcessosJuridico,
+  type IntencaoJarvis,
   type PlanoDistribuicao,
   type RecorteRelatorio,
+  type TurnoConversa,
 } from '@reconstrua/application';
 import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
@@ -180,6 +186,10 @@ export interface JarvisDeps {
   ) => Promise<{ ok: boolean; texto?: string; motivo?: string }>;
   /** Narração pela LLM (system, user) → texto. null = offline (determinístico). */
   readonly narrar: ((system: string, user: string) => Promise<string>) | null;
+  /** INTÉRPRETE (2026-09-17): a LLM entende o pedido do dono e devolve a
+   *  intenção em JSON (validada antes de virar comando). Ausente ou null = só
+   *  os reconhecedores determinísticos. */
+  readonly interpretar?: ((system: string, user: string) => Promise<string>) | null;
   /** CADASTRO DE PROCESSOS no Painel Jurídico (decreto 2026-08-31): o dono cola
    *  "Nome do Cliente:" + linhas "BANCO - nº CNJ" e a AHRI cadastra direto —
    *  find-or-create do cliente por nome, um processo por linha, idempotente
@@ -239,7 +249,11 @@ export class JarvisRuntime {
 
   /** A conversa do fundador: comando ⇒ plano com confirmação; senão, resposta
    *  fundamentada no dossiê (LLM narra; sem LLM, resumo determinístico). */
-  async perguntar(pergunta: string, chatIdContexto?: string): Promise<JarvisResposta> {
+  async perguntar(
+    pergunta: string,
+    chatIdContexto?: string,
+    historico: readonly TurnoConversa[] = [],
+  ): Promise<JarvisResposta> {
     // JARVIS NO CADASTRO (decreto 2026-07-31): com um cliente em CONTEXTO,
     // "retoma o atendimento" reprocessa a última mensagem DELE pela entrada
     // única — o resgate imediato de um turno engolido (caso Iracema). Execução
@@ -253,6 +267,17 @@ export class JarvisRuntime {
           : `Não consegui retomar: ${r.motivo ?? 'nada a reprocessar'}.`,
       };
     }
+    // INTÉRPRETE (2026-09-17, "quero que me entenda com poucas palavras"): a LLM
+    // lê o pedido com a conversa recente e devolve a INTENÇÃO. Ela não executa
+    // nada — a intenção vira o MESMO comando (plano + confirmação) e, se a
+    // leitura vier inválida, seguem os reconhecedores determinísticos abaixo.
+    const intencao = await this.interpretar(pergunta, historico);
+    if (intencao !== null) {
+      const r = await this.seguirIntencao(intencao, pergunta, historico);
+      if (r !== null) return r;
+    }
+
+    // RECONHECEDORES DETERMINÍSTICOS (reserva: LLM fora do ar ou leitura inválida).
     // CADASTRO DE PROCESSOS no Painel Jurídico (decreto 2026-08-31): o nº CNJ de
     // 20 dígitos é assinatura inconfundível — checa ANTES de tudo (o bloco tem
     // "Nome:" e poderia ser confundido com mensagem ditada).
@@ -277,9 +302,76 @@ export class JarvisRuntime {
     if (comando !== null)
       return this.montarPlano(pergunta, comando.contratos, comando.advogadoNome);
     if (interpretarComandoCobrancaCpf(pergunta)) return this.montarCobranca();
+    return this.responder(pergunta, historico);
+  }
 
+  /** A leitura da LLM, validada. null = sem intérprete, falha ou JSON inválido. */
+  private async interpretar(
+    pergunta: string,
+    historico: readonly TurnoConversa[],
+  ): Promise<IntencaoJarvis | null> {
+    const interpretar = this.deps.interpretar;
+    if (interpretar === undefined || interpretar === null) return null;
+    try {
+      const bruto = await interpretar(
+        PROMPT_INTERPRETE_JARVIS,
+        entradaDoInterprete(pergunta, historico),
+      );
+      return lerIntencaoJarvis(bruto, pergunta, historico);
+    } catch {
+      return null;
+    }
+  }
+
+  /** A intenção lida segue o MESMO trilho dos comandos determinísticos.
+   *  null = o recurso não existe nesta montagem (cai na reserva). */
+  private async seguirIntencao(
+    intencao: IntencaoJarvis,
+    pergunta: string,
+    historico: readonly TurnoConversa[],
+  ): Promise<JarvisResposta | null> {
+    switch (intencao.acao) {
+      case 'cadastrar_processos':
+        return this.deps.cadastrarProcessosJuridico === undefined
+          ? null
+          : this.cadastrarProcessos(intencao.comando);
+      case 'mensagem':
+        return this.montarMensagem(intencao.comando.destinatario, intencao.comando.texto);
+      case 'carteira_investidor':
+        return this.deps.carteiraInvestidor === undefined
+          ? null
+          : this.montarCarteira(intencao.comando);
+      case 'relatorio':
+        return this.montarRelatorio(intencao.comando.recorte, intencao.comando.uf);
+      case 'distribuir':
+        return this.montarPlano(
+          pergunta,
+          intencao.comando.contratos,
+          intencao.comando.advogadoNome,
+        );
+      case 'cobrar_cpf':
+        return this.montarCobranca();
+      case 'esclarecer':
+        return { resposta: intencao.pergunta };
+      case 'responder':
+        return this.responder(pergunta, historico);
+    }
+  }
+
+  /** Pergunta livre: resposta fundamentada no dossiê e na conversa recente
+   *  (LLM narra; sem LLM, resumo determinístico). */
+  private async responder(
+    pergunta: string,
+    historico: readonly TurnoConversa[],
+  ): Promise<JarvisResposta> {
     const dossier = await this.deps.dossier();
-    const ficha = await this.deps.fichaPorTermo(pergunta).catch(() => null);
+    // "e o telefone dela?": sem cliente na frase, vale o citado na última fala do dono.
+    const ultimaDoDono = [...historico].reverse().find((t) => t.de === 'dono')?.texto ?? null;
+    const ficha =
+      (await this.deps.fichaPorTermo(pergunta).catch(() => null)) ??
+      (ultimaDoDono !== null
+        ? await this.deps.fichaPorTermo(ultimaDoDono).catch(() => null)
+        : null);
     const fatos: Record<string, unknown> = { ...dossier };
     if (ficha !== null) fatos['clienteCitado'] = ficha;
 
@@ -294,8 +386,15 @@ export class JarvisRuntime {
       'Nomes de clientes podem vir com ruído de captura — apresente-os limpos. ' +
       'Feche, quando fizer sentido, com UMA sugestão de próximo passo. ' +
       'Você não executa nada nesta resposta, mas TEM poderes administrativos com confirmação: se o assunto pedir, ofereça — "mova N contratos para o advogado X" (distribuição), "cobre o CPF dos clientes que faltam" (cobrança em lote), "mande a mensagem para <cliente>: <texto>" (mensagem ditada, enviada EXATAMENTE como o fundador escrever) ou "relatório com nome e telefone dos clientes de <estado>" (lista nominal direto dos registros) ou "adicione uma carteira de 250 mil em processos para o investidor <nome>" (carteira de créditos judiciais no Painel do Investidor). Nunca diga que não consegue disparar mensagens nem gerar listas nominais: o fundador só precisa dar o comando. ' +
-      'IMPORTANTE (decreto 2026-07-30): mensagens automáticas proativas foram DESLIGADAS — todo contato proativo com cliente passa por comando + confirmação do fundador.';
-    const user = `PERGUNTA DO FUNDADOR: ${pergunta}\n\nFATOS (JSON):\n${JSON.stringify(fatos)}`;
+      'IMPORTANTE (decreto 2026-07-30): mensagens automáticas proativas foram DESLIGADAS — todo contato proativo com cliente passa por comando + confirmação do fundador. ' +
+      'CONVERSA (2026-09-17): converse com naturalidade, como uma pessoa de confiança do fundador. Ele escreve curto e direto: entenda o pedido pela CONVERSA RECENTE ("e pro Rodrigo?", "e dela?", "quantos desses?") e responda no mesmo ritmo. Cumprimento ou conversa pede resposta curta e humana, sem despejar números. Nunca peça para ele reformatar o que escreveu quando dá para entender.';
+    const conversa = historico
+      .slice(-TURNOS_DE_CONTEXTO)
+      .map((t) => `${t.de === 'dono' ? 'Fundador' : 'AHRI'}: ${t.texto.slice(0, 2_000)}`)
+      .join('\n\n');
+    const user =
+      (conversa !== '' ? `CONVERSA RECENTE (a mais antiga primeiro):\n${conversa}\n\n` : '') +
+      `PERGUNTA DO FUNDADOR: ${pergunta}\n\nFATOS (JSON):\n${JSON.stringify(fatos)}`;
     // Caso real 2026-07-29: uma falha pontual do narrador despejava JSON cru na
     // tela. Agora: UMA nova tentativa; persistindo, um RESUMO legível (nunca JSON).
     for (let tentativa = 0; tentativa < 2; tentativa += 1) {

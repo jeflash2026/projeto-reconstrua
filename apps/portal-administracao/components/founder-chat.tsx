@@ -389,8 +389,14 @@ const FounderChat = (): ReactElement => {
     if (pergunta === '' || busy) return;
     setInput('');
     setBusy(true);
+    // A conversa recente vai junto (2026-09-17): "e pro Rodrigo?" só faz
+    // sentido com o que veio antes.
+    const historico = messages.slice(-12).map((m) => ({
+      de: m.from === 'founder' ? ('dono' as const) : ('ahri' as const),
+      texto: m.text,
+    }));
     setMessages((prev) => [...prev, { from: 'founder', text: pergunta, provenance: null }]);
-    const r = await perguntarJarvis(pergunta);
+    const r = await perguntarJarvis(pergunta, undefined, historico);
     setMessages((prev) => [
       ...prev,
       r

@@ -1765,6 +1765,13 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       jarvisCompletion !== null
         ? async (system, user) => (await jarvisCompletion.complete(system, user)).text
         : null,
+    // INTÉRPRETE (2026-09-17): o mesmo modelo lê o pedido do dono; teto maior
+    // porque uma colagem de processos volta inteira no JSON.
+    interpretar:
+      jarvisCompletion !== null
+        ? async (system, user) =>
+            (await jarvisCompletion.complete(system, user, { maxTokens: 8_000 })).text
+        : null,
     // GUIA V2 (decreto 2026-08-04): o pool do pacote é a MESA do humanizado
     // (procuração ASSINADA), ligada adiante na composição (ref tardio — a mesa
     // nasce depois). Com advogado citado, só os clientes MARCADOS para ele.

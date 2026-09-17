@@ -58,9 +58,15 @@ export interface CompletionResult {
   readonly tokensOut: number | null;
 }
 
+/** Opções por chamada. maxTokens: o teto da resposta (o intérprete do Jarvis
+ *  devolve listas longas de processos — os 1024 padrão cortariam o JSON). */
+export interface OpcoesCompletion {
+  readonly maxTokens?: number;
+}
+
 /** Chamada de completamento única (system+user → texto + uso). */
 export interface LlmCompletion {
-  complete(system: string, user: string): Promise<CompletionResult>;
+  complete(system: string, user: string, opcoes?: OpcoesCompletion): Promise<CompletionResult>;
   readonly name: string;
 }
 
@@ -100,10 +106,14 @@ export class CompletionComRetentativa implements LlmCompletion {
   ) {
     this.name = interno.name;
   }
-  async complete(system: string, user: string): Promise<CompletionResult> {
+  async complete(
+    system: string,
+    user: string,
+    opcoes?: OpcoesCompletion,
+  ): Promise<CompletionResult> {
     for (let i = 0; ; i += 1) {
       try {
-        return await this.interno.complete(system, user);
+        return await this.interno.complete(system, user, opcoes);
       } catch (e) {
         const mensagem = e instanceof Error ? e.message : String(e);
         if (!ehTransiente(mensagem) || i >= PAUSAS_TRANSIENTE_MS.length) throw e;
@@ -120,7 +130,11 @@ export class OpenAiCompletion implements LlmCompletion {
     private readonly apiKey: string,
     private readonly model: string,
   ) {}
-  async complete(system: string, user: string): Promise<CompletionResult> {
+  async complete(
+    system: string,
+    user: string,
+    opcoes?: OpcoesCompletion,
+  ): Promise<CompletionResult> {
     const res = await this.http.postJson(
       'https://api.openai.com/v1/chat/completions',
       { authorization: `Bearer ${this.apiKey}` },
@@ -131,6 +145,7 @@ export class OpenAiCompletion implements LlmCompletion {
           { role: 'user', content: user },
         ],
         temperature: 0.7,
+        ...(opcoes?.maxTokens !== undefined ? { max_tokens: opcoes.maxTokens } : {}),
       },
     );
     exigir2xx(this.name, res.status, res.body);
@@ -151,11 +166,20 @@ export class AnthropicCompletion implements LlmCompletion {
     private readonly apiKey: string,
     private readonly model: string,
   ) {}
-  async complete(system: string, user: string): Promise<CompletionResult> {
+  async complete(
+    system: string,
+    user: string,
+    opcoes?: OpcoesCompletion,
+  ): Promise<CompletionResult> {
     const res = await this.http.postJson(
       'https://api.anthropic.com/v1/messages',
       { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01' },
-      { model: this.model, max_tokens: 1024, system, messages: [{ role: 'user', content: user }] },
+      {
+        model: this.model,
+        max_tokens: opcoes?.maxTokens ?? 1024,
+        system,
+        messages: [{ role: 'user', content: user }],
+      },
     );
     exigir2xx(this.name, res.status, res.body);
     // 13ª rodada: 2xx com content sem texto (thinking/vazio/shape inesperado)
@@ -189,13 +213,20 @@ export class GeminiCompletion implements LlmCompletion {
     private readonly apiKey: string,
     private readonly model: string,
   ) {}
-  async complete(system: string, user: string): Promise<CompletionResult> {
+  async complete(
+    system: string,
+    user: string,
+    opcoes?: OpcoesCompletion,
+  ): Promise<CompletionResult> {
     const res = await this.http.postJson(
       `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`,
       {},
       {
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: user }] }],
+        ...(opcoes?.maxTokens !== undefined
+          ? { generationConfig: { maxOutputTokens: opcoes.maxTokens } }
+          : {}),
       },
     );
     exigir2xx(this.name, res.status, res.body);
@@ -545,8 +576,12 @@ export function createLlmBundle(deps: LlmFactoryDeps): LlmBundle {
     const comRetry = new CompletionComRetentativa(interno);
     return {
       name: interno.name,
-      async complete(system: string, user: string): Promise<CompletionResult> {
-        const result = await comRetry.complete(system, user);
+      async complete(
+        system: string,
+        user: string,
+        opcoes?: OpcoesCompletion,
+      ): Promise<CompletionResult> {
+        const result = await comRetry.complete(system, user, opcoes);
         meter.record(result.tokensIn, result.tokensOut);
         // Medidor de Custo: registro persistido por chamada, best-effort e FORA
         // do caminho crítico (o cliente não espera a escrita do custo no banco).

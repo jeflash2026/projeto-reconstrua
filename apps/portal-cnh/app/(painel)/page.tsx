@@ -6,6 +6,7 @@ import { AtualizarAuto } from '../../components/atualizar-auto';
 import {
   ETAPAS,
   ROTULO_ETAPA,
+  ROTULO_ORIGEM,
   getJson,
   haQuanto,
   telefoneBr,
@@ -39,6 +40,9 @@ const LeadLinha = ({ l }: { l: LeadResumoCnh }): ReactElement => {
           {l.motoristaProfissional === true ? ' · motorista profissional' : ''}
           {l.tipoCaso !== null ? ` · ${l.tipoCaso === 'cassacao' ? 'cassação' : 'suspensão'}` : ''}
         </div>
+        {l.origem !== undefined && l.origem !== null && l.origem !== 'direto' ? (
+          <div className="lead-sub">veio pelo {ROTULO_ORIGEM[l.origem].toLowerCase()}</div>
+        ) : null}
       </div>
       <div style={{ minWidth: 0 }}>
         {l.atencao !== null ? (
@@ -49,6 +53,10 @@ const LeadLinha = ({ l }: { l: LeadResumoCnh }): ReactElement => {
         </div>
       </div>
       <div className="lead-lado">
+        {l.prazoCurto === true ? <span className="selo ruim">Prazo curto</span> : null}
+        {l.motoristaProfissional === true && l.etapa !== 'descartado' ? (
+          <span className="selo aviso">Prioridade</span>
+        ) : null}
         <span className={`selo etapa-${l.etapa}`}>{l.etapaRotulo}</span>
         {/* Em aceite, advogado e descarte a etapa já diz quem está com o lead. */}
         {['aceito', 'transferido', 'descartado'].includes(l.etapa) ? null : (
@@ -107,7 +115,12 @@ export default async function FunilPage({
         <div className="tile escuro">
           <div className="rot">Novos hoje</div>
           <div className="val">{resumo.novosHoje}</div>
-          <div className="sub">{resumo.total} no total</div>
+          <div className="sub">
+            {resumo.total} no total
+            {resumo.porOrigem !== undefined
+              ? ` · ${String(resumo.porOrigem.anuncio)} anúncio · ${String(resumo.porOrigem.site)} site`
+              : ''}
+          </div>
         </div>
         <div className="tile">
           <div className="rot">Em conversa com a AHRI</div>
@@ -129,6 +142,11 @@ export default async function FunilPage({
           <div className="val">{resumo.followupsDevidos}</div>
           <div className="sub">leads mornos há 24 h</div>
         </Link>
+        <div className="tile">
+          <div className="rot">Prioridade</div>
+          <div className="val">{resumo.prioritarios ?? 0}</div>
+          <div className="sub">motorista profissional ou prazo curto</div>
+        </div>
         <div className="tile">
           <div className="rot">Aceites</div>
           <div className="val">{resumo.porEtapa.aceito}</div>

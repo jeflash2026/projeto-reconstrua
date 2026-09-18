@@ -222,3 +222,58 @@ describe('AtendimentoCnh — painel', () => {
     expect((await svc.listar())[0]).toMatchObject({ nome: 'Ana', etapa: 'qualificacao' });
   });
 });
+
+describe('AtendimentoCnh — resumo da tese', () => {
+  it('PPD/bloqueio: o lead vai para o advogado com o aviso certo; prioridade conta', async () => {
+    const { svc } = montar([
+      ia({
+        mensagens: ['Resumo.'],
+        ficha: {
+          nome: 'Célia',
+          situacao: 'outra',
+          jaTemAdvogado: false,
+          motoristaProfissional: true,
+          prazoCurto: true,
+        },
+        etapa: 'qualificacao',
+        acao: 'conversar',
+      }),
+      ia({ mensagens: ['Viabilidade.'], etapa: 'viabilidade', acao: 'conversar' }),
+      ia({ acao: 'proposta' }),
+    ]);
+    for (const texto of ['oi', 'resposta', 'pode mandar']) {
+      const r = await svc.receber(msg(texto));
+      await svc.responder(r.leadId);
+    }
+    const lead = await svc.obter('5511988887777');
+    expect(lead).toMatchObject({ etapa: 'transferido', modo: 'humano' });
+    expect(lead?.atencao).toContain('a proposta é do advogado');
+    expect((await svc.resumo()).prioritarios).toBe(1);
+    expect((await svc.listar())[0]).toMatchObject({ prazoCurto: true });
+  });
+});
+
+describe('AtendimentoCnh — origem do lead (marketing)', () => {
+  it('botão do site, anúncio e WhatsApp direto ficam na ficha e no resumo', async () => {
+    const { svc } = montar([]);
+    await svc.receber({
+      ...msg('Olá! Vim pelo site e preciso de ajuda com a minha CNH.'),
+      chatId: '5511900000001@s.whatsapp.net',
+    });
+    await svc.receber({
+      ...msg('Oi, vi o anúncio'),
+      chatId: '5511900000002@s.whatsapp.net',
+      anuncio: { titulo: 'CNH suspensa? Fale com um especialista', url: 'https://fb.me/x' },
+    });
+    await svc.receber({ ...msg('oi'), chatId: '5511900000003@s.whatsapp.net' });
+    expect((await svc.obter('5511900000001'))?.origem).toEqual({ tipo: 'site', detalhe: null });
+    expect((await svc.obter('5511900000002'))?.origem).toEqual({
+      tipo: 'anuncio',
+      detalhe: 'CNH suspensa? Fale com um especialista',
+    });
+    expect((await svc.resumo()).porOrigem).toEqual({ anuncio: 1, site: 1, direto: 1 });
+    expect((await svc.obter('5511900000002'))?.historico[0]?.texto).toBe(
+      'Primeiro contato pelo WhatsApp (anúncio: CNH suspensa? Fale com um especialista).',
+    );
+  });
+});

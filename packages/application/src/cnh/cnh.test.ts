@@ -222,3 +222,46 @@ describe('AHRI CNH — validação de cada turno', () => {
     expect(e).toContain('Cliente: minha cnh foi suspensa');
   });
 });
+
+// ── Ajustes pelo resumo da tese (2026-09-18): PPD/bloqueio sem tabela, prazo
+// curto como prioridade e o conhecimento da tese no roteiro da AHRI. ─────────
+describe('AHRI CNH — resumo da tese', () => {
+  const ppd: FichaCnh = { ...QUALIFICADO, situacao: 'outra', tipoCaso: null };
+
+  it('PPD ou bloqueio: a "proposta" vira transferência — o advogado faz a proposta', () => {
+    const t = lerTurnoCnh(JSON.stringify({ acao: 'proposta' }), {
+      ficha: ppd,
+      etapa: 'viabilidade',
+      propostaEnviada: false,
+    });
+    expect(t).toMatchObject({
+      acao: 'transferir',
+      etapa: 'transferido',
+      motivoTransferencia: 'proposta-com-advogado',
+      urgente: false,
+    });
+    expect(t?.mensagens[0]).toContain('PPD e de bloqueio de prontuário');
+    expect(t?.mensagens.join(' ')).not.toMatch(/R\$/);
+  });
+
+  it('transferência registra o motivo: urgência ou pedido do cliente', () => {
+    const estado = { ficha: JOAO, etapa: 'recepcao' as const, propostaEnviada: false };
+    expect(
+      lerTurnoCnh(JSON.stringify({ acao: 'transferir', urgente: true }), estado)
+        ?.motivoTransferencia,
+    ).toBe('urgencia');
+    expect(lerTurnoCnh(JSON.stringify({ acao: 'transferir' }), estado)?.motivoTransferencia).toBe(
+      'pedido',
+    );
+  });
+
+  it('prazo curto entra na ficha; o roteiro traz a tese e as duas frentes', async () => {
+    expect(mesclarFichaCnh(JOAO, { prazoCurto: true }).prazoCurto).toBe(true);
+    const { promptAhriCnh } = await import('./ahri-cnh.js');
+    const p = promptAhriCnh();
+    expect(p).toContain('Súmula 312 do STJ');
+    expect(p).toContain('JARI');
+    expect(p).toContain('mandado de segurança');
+    expect(p).toContain('PPD e bloqueio de prontuário');
+  });
+});

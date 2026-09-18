@@ -47,6 +47,21 @@ desde julho de 2026).
 A IA ainda não lê áudio nem foto: ela vê "[o cliente enviou uma foto]" e segue o
 roteiro. A equipe abre a mídia pelo painel.
 
+### O que veio do resumo da tese
+
+- A AHRI conhece a tese (as falhas mais comuns e as duas frentes, administrativa e
+  judicial) e usa isso para tirar dúvidas, sem prometer resultado. Ela só cita as
+  referências que estão no material (Súmula 312 do STJ, limite de 40 pontos, JARI,
+  CETRAN, ação anulatória, mandado de segurança, liminar).
+- **PPD e bloqueio de prontuário** são atendidos, mas não estão na tabela de
+  honorários: na hora da proposta a AHRI passa o caso para o advogado, que faz a
+  proposta pessoalmente.
+- **Prazo curto** (suspensão começando em dias ou prazo de defesa acabando) e
+  **motorista profissional** aparecem como prioridade no painel.
+- **Origem do lead**: anúncio "clique para o WhatsApp" (a Meta manda o título do
+  anúncio), botão do site ("Vim pelo site…") ou WhatsApp direto — na ficha e no
+  funil.
+
 ## Implantação
 
 ### 1. Variáveis no `.env` da VPS
@@ -106,18 +121,21 @@ Quando for aprovado, coloque o nome dele em `CNH_META_TEMPLATE_FOLLOWUP` e suba 
 
 ## O site (feito à parte)
 
-O site não precisa de servidor próprio nem de formulário. Todo botão de contato
-abre o WhatsApp da CNH com uma mensagem pronta; quem começa a conversa é o
-cliente, e a AHRI responde na hora:
+O site é feito fora (pelo ChatGPT) e entregue num formato combinado, para entrar
+no servidor sem retrabalho:
 
-```
-https://wa.me/55DDDNUMERO?text=Ol%C3%A1!%20Vim%20pelo%20site%20e%20preciso%20de%20ajuda%20com%20a%20minha%20CNH.
-```
+- **Estático**: HTML, CSS e JavaScript puro, sem framework e sem build, num ZIP
+  `site-cnh.zip` com `index.html`, `privacidade.html`, `assets/css/estilo.css`,
+  `assets/js/config.js`, `assets/js/site.js` e `assets/img/`.
+- O número do WhatsApp e a mensagem ficam **só** em `assets/js/config.js`
+  (`window.CNH_CONFIG = { whatsapp, mensagem }`). A mensagem traz "Vim pelo site",
+  que é como a AHRI marca a origem do lead.
+- Sem formulário, sem cookies e sem rastreadores: quem começa a conversa é o
+  cliente, no WhatsApp, e a AHRI responde na hora.
 
-Texto para passar a quem for fazer o site:
+Quando o ZIP chegar: os arquivos vão para `apps/site-cnh/`, o número entra no
+`config.js`, sobe um contêiner estático (nginx) e o domínio do site aponta para ele
+no NPM.
 
-> Site de captação para advogado de Direito de Trânsito (suspensão e cassação de
-> CNH). Todos os botões de ação ("Falar com um especialista", "Quero defender
-> minha CNH") devem abrir o link do WhatsApp acima em nova aba. Não criar
-> formulário: o atendimento acontece todo no WhatsApp. Não prometer resultado nem
-> falar em "causa ganha" (regras da OAB). Os honorários não aparecem no site.
+O pedido completo para o ChatGPT (identidade visual, seções, regras da OAB e
+formato) está no arquivo `Pedido-Site-CNH-ChatGPT.txt` entregue ao dono.

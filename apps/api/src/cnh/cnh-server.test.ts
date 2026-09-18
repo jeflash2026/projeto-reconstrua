@@ -169,3 +169,30 @@ describe('cnh-api', () => {
     });
   });
 });
+
+describe('cnh-api — anúncio de origem', () => {
+  it('o referral da Meta (clique para o WhatsApp) vira a origem do lead', async () => {
+    const { app } = montar();
+    const comAnuncio = payload('CNH-1', 'quero saber sobre minha cnh') as {
+      entry: { changes: { value: { messages: Record<string, unknown>[] } }[] }[];
+    };
+    const mensagem = comAnuncio.entry[0]?.changes[0]?.value.messages[0];
+    if (mensagem !== undefined)
+      mensagem['referral'] = {
+        source_url: 'https://fb.me/anuncio',
+        source_type: 'ad',
+        headline: 'CNH suspensa? Fale com um especialista',
+      };
+    await app.inject({
+      method: 'POST',
+      url: '/cnh-api/webhook/meta?token=verifica',
+      payload: comAnuncio,
+    });
+    await esperar();
+    const lead = await app.inject({ url: '/cnh-api/admin/leads/5511955554444', headers: PAINEL });
+    expect(lead.json<{ origem: unknown }>().origem).toEqual({
+      tipo: 'anuncio',
+      detalhe: 'CNH suspensa? Fale com um especialista',
+    });
+  });
+});

@@ -144,6 +144,10 @@ export interface FichaCnh {
   readonly indicacaoNoPrazo: boolean | null;
   readonly temDocumentos: boolean | null;
   readonly tipoCaso: TipoCasoCnh | null;
+  /** Prazo curto (tese, 2026-09-18): a suspensão começa em dias ou o prazo de
+   *  defesa está acabando — é o caso da ação judicial com pedido de liminar.
+   *  Prioridade no painel; a AHRI segue o roteiro sem perder tempo. */
+  readonly prazoCurto: boolean | null;
 }
 
 export const FICHA_CNH_VAZIA: FichaCnh = {
@@ -161,6 +165,7 @@ export const FICHA_CNH_VAZIA: FichaCnh = {
   indicacaoNoPrazo: null,
   temDocumentos: null,
   tipoCaso: null,
+  prazoCurto: null,
 };
 
 /** O escritório que a AHRI representa neste funil (configurável). */
@@ -305,6 +310,18 @@ export function textoTransferenciaCnh(
 ): string[] {
   return [
     `${comNome('Entendi', nome, '.')} Vou passar o seu atendimento agora para o ${esc.advogadoCurto}, que continua com você por aqui.`,
+  ];
+}
+
+/** PPD e bloqueio de prontuário: o escritório atende (tese, 2026-09-18), mas a
+ *  tabela só tem suspensão e cassação — a proposta desses casos é do advogado. */
+export function textoPropostaComAdvogadoCnh(
+  nome: string | null,
+  esc: EscritorioCnh = ESCRITORIO_CNH_PADRAO,
+): string[] {
+  return [
+    `${comNome('Entendi', nome, '.')} Casos de PPD e de bloqueio de prontuário o ${esc.advogadoCurto} avalia pessoalmente antes de passar a proposta.`,
+    `Vou passar o seu atendimento para ele, que continua com você por aqui.`,
   ];
 }
 

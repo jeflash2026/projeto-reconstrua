@@ -7,6 +7,7 @@ import { AtualizarAuto } from '../../../../components/atualizar-auto';
 import {
   HONORARIOS,
   ROTULO_ETAPA,
+  ROTULO_ORIGEM,
   ROTULO_SITUACAO,
   getJson,
   haQuanto,
@@ -71,6 +72,12 @@ const Ficha = ({ f }: { f: FichaCnh }): ReactElement => (
     ) : null}
     <dt>Possível prescrição</dt>
     <dd>{simNao(f.prescricaoPossivel)}</dd>
+    <dt>Prazo curto</dt>
+    <dd style={f.prazoCurto === true ? { color: 'var(--ruim)' } : undefined}>
+      {f.prazoCurto === true
+        ? 'Sim — suspensão perto de começar ou prazo acabando'
+        : simNao(f.prazoCurto ?? null)}
+    </dd>
     <dt>Documentos em mãos</dt>
     <dd>{simNao(f.temDocumentos)}</dd>
     <dt>Tipo de caso</dt>
@@ -168,6 +175,12 @@ export default async function LeadPage({
         <div>
           <div className="cartao">
             <h2>Ficha do caso</h2>
+            {lead.origem !== undefined && lead.origem !== null ? (
+              <p className="nota" style={{ marginTop: 0 }}>
+                Origem: <b>{ROTULO_ORIGEM[lead.origem.tipo]}</b>
+                {lead.origem.detalhe !== null ? ` — ${lead.origem.detalhe}` : ''}
+              </p>
+            ) : null}
             <Ficha f={lead.ficha} />
             {lead.propostaEnviadaEm !== null ? (
               <p className="nota">Proposta enviada em {horaBr(lead.propostaEnviadaEm)}.</p>

@@ -97,11 +97,41 @@ export interface LeadCnh {
   readonly atencao: string | null;
   /** Última mensagem DO CLIENTE — a janela de 24h da Meta conta daqui. */
   readonly ultimaDoClienteEm: string | null;
+  /** De onde veio (gravado no primeiro contato; null em leads antigos). */
+  readonly origem: OrigemCnh | null;
   readonly conversa: readonly MensagemCnh[];
   readonly historico: readonly EventoLeadCnh[];
   readonly criadoEm: string;
   readonly atualizadoEm: string;
 }
+
+/** De onde o lead veio (marketing, 2026-09-18): anúncio com botão de WhatsApp
+ *  (a Meta manda a identificação do anúncio junto da mensagem), o botão do
+ *  site (mensagem pronta "Vim pelo site…"), ou direto no WhatsApp. */
+export interface OrigemCnh {
+  readonly tipo: 'anuncio' | 'site' | 'direto';
+  /** Título do anúncio ou a página de origem, quando a Meta informa. */
+  readonly detalhe: string | null;
+}
+
+/** Anúncio "clique para o WhatsApp" que trouxe a mensagem (campo referral da Meta). */
+export interface AnuncioDeOrigem {
+  readonly titulo: string | null;
+  readonly url: string | null;
+}
+
+export function origemDoContato(texto: string | null, anuncio: AnuncioDeOrigem | null): OrigemCnh {
+  if (anuncio !== null) return { tipo: 'anuncio', detalhe: anuncio.titulo ?? anuncio.url };
+  if (texto !== null && /\b(pelo|no|do) site\b/iu.test(texto))
+    return { tipo: 'site', detalhe: null };
+  return { tipo: 'direto', detalhe: null };
+}
+
+const ROTULO_ORIGEM: Readonly<Record<OrigemCnh['tipo'], string>> = {
+  anuncio: 'anúncio',
+  site: 'site',
+  direto: 'WhatsApp direto',
+};
 
 /** A linha do funil no painel (sem a conversa inteira). */
 export interface LeadResumoCnh {
@@ -114,6 +144,9 @@ export interface LeadResumoCnh {
   readonly resumo: string | null;
   readonly urgente: boolean;
   readonly motoristaProfissional: boolean | null;
+  /** A suspensão começa em dias ou o prazo de defesa está acabando. */
+  readonly prazoCurto: boolean;
+  readonly origem: OrigemCnh['tipo'] | null;
   readonly tipoCaso: FichaCnh['tipoCaso'];
   readonly atencao: string | null;
   readonly ultimaMensagem: {
@@ -134,6 +167,8 @@ export interface EntradaCnh {
   readonly mediaId: string | null;
   readonly nomeArquivo: string | null;
   readonly em: Date;
+  /** Presente quando a mensagem veio de um anúncio "clique para o WhatsApp". */
+  readonly anuncio?: AnuncioDeOrigem | null;
 }
 
 export interface AtendimentoCnhDeps {
@@ -199,7 +234,7 @@ export class AtendimentoCnh {
     return { ...lead, historico: [...lead.historico, { em: this.agora(), texto, autor }] };
   }
 
-  private novoLead(chatId: string): LeadCnh {
+  private novoLead(chatId: string, origem: OrigemCnh): LeadCnh {
     const agora = this.agora();
     return {
       id: telefoneDe(chatId),
@@ -219,8 +254,15 @@ export class AtendimentoCnh {
       pagamentoConfirmadoEm: null,
       atencao: null,
       ultimaDoClienteEm: null,
+      origem,
       conversa: [],
-      historico: [{ em: agora, texto: 'Primeiro contato pelo WhatsApp.', autor: 'AHRI' }],
+      historico: [
+        {
+          em: agora,
+          texto: `Primeiro contato pelo WhatsApp (${ROTULO_ORIGEM[origem.tipo]}${origem.detalhe !== null ? `: ${origem.detalhe}` : ''}).`,
+          autor: 'AHRI',
+        },
+      ],
       criadoEm: agora,
       atualizadoEm: agora,
     };
@@ -235,7 +277,9 @@ export class AtendimentoCnh {
   ): Promise<{ readonly responder: boolean; readonly leadId: string }> {
     const id = telefoneDe(entrada.chatId);
     if (id === '') return { responder: false, leadId: id };
-    const atual = (await this.ler(id)) ?? this.novoLead(entrada.chatId);
+    const atual =
+      (await this.ler(id)) ??
+      this.novoLead(entrada.chatId, origemDoContato(entrada.texto, entrada.anuncio ?? null));
     if (atual.conversa.some((m) => m.id === entrada.messageId))
       return { responder: false, leadId: id };
     const texto =
@@ -329,6 +373,7 @@ export class AtendimentoCnh {
         ficha: lead.ficha,
         etapa: lead.etapa,
         acao: 'conversar',
+        motivoTransferencia: null,
         motivo: null,
         urgente: false,
         resumo: lead.resumo,
@@ -398,19 +443,24 @@ export class AtendimentoCnh {
           'AHRI',
         );
         break;
-      case 'transferir':
+      case 'transferir': {
+        const motivo = turno.motivoTransferencia ?? (turno.urgente ? 'urgencia' : 'pedido');
+        const [atencao, registro] =
+          motivo === 'urgencia'
+            ? ['URGENTE — atender agora', 'Transferido por URGÊNCIA.']
+            : motivo === 'proposta-com-advogado'
+              ? [
+                  'PPD ou bloqueio de prontuário — a proposta é do advogado',
+                  'Caso sem tabela (PPD/bloqueio): a proposta fica com o advogado.',
+                ]
+              : ['Quer falar com o advogado', 'Pediu para falar com o advogado.'];
         prox = this.evento(
-          {
-            ...prox,
-            modo: 'humano',
-            transferidoEm: agora,
-            urgente: turno.urgente,
-            atencao: turno.urgente ? 'URGENTE — atender agora' : 'Quer falar com o advogado',
-          },
-          turno.urgente ? 'Transferido por URGÊNCIA.' : 'Pediu para falar com o advogado.',
+          { ...prox, modo: 'humano', transferidoEm: agora, urgente: turno.urgente, atencao },
+          registro,
           'AHRI',
         );
         break;
+      }
       case 'descartar':
         prox = this.evento(
           { ...prox, descartadoEm: agora, motivoDescarte: turno.motivo, followup: null },
@@ -460,6 +510,10 @@ export class AtendimentoCnh {
       resumo: l.resumo,
       urgente: l.urgente,
       motoristaProfissional: l.ficha.motoristaProfissional,
+      // Leads gravados antes do campo existir não o têm (=== true resolve).
+      prazoCurto: l.ficha.prazoCurto === true,
+      // Leads anteriores à origem (2026-09-18) não a têm.
+      origem: (l.origem as OrigemCnh | null | undefined)?.tipo ?? null,
       tipoCaso: l.ficha.tipoCaso,
       atencao: l.atencao,
       ultimaMensagem:
@@ -493,6 +547,10 @@ export class AtendimentoCnh {
     readonly precisamDeAtencao: number;
     readonly followupsDevidos: number;
     readonly urgentes: number;
+    /** Em andamento com motorista profissional ou prazo curto (a tese põe na frente). */
+    readonly prioritarios: number;
+    /** De onde vieram os leads (todos os tempos). */
+    readonly porOrigem: Readonly<Record<OrigemCnh['tipo'], number>>;
   }> {
     const leads = (await this.deps.json.list(NS_LEADS)) as readonly LeadCnh[];
     const porEtapa = Object.fromEntries(ETAPAS_CNH.map((e) => [e, 0])) as Record<EtapaCnh, number>;
@@ -510,8 +568,17 @@ export class AtendimentoCnh {
     let precisamDeAtencao = 0;
     let followupsDevidos = 0;
     let urgentes = 0;
+    let prioritarios = 0;
+    const porOrigem: Record<OrigemCnh['tipo'], number> = { anuncio: 0, site: 0, direto: 0 };
     for (const l of leads) {
       porEtapa[l.etapa] += 1;
+      const origem = (l.origem as OrigemCnh | null | undefined)?.tipo;
+      if (origem !== undefined) porOrigem[origem] += 1;
+      if (
+        l.etapa !== 'descartado' &&
+        (l.ficha.motoristaProfissional === true || l.ficha.prazoCurto === true)
+      )
+        prioritarios += 1;
       if (diaBr(l.criadoEm) === hoje) novosHoje += 1;
       if (diaBr(l.aceitoEm) === hoje) aceitosHoje += 1;
       if (l.atencao !== null) precisamDeAtencao += 1;
@@ -527,6 +594,8 @@ export class AtendimentoCnh {
       precisamDeAtencao,
       followupsDevidos,
       urgentes,
+      prioritarios,
+      porOrigem,
     };
   }
 

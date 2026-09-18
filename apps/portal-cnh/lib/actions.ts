@@ -95,9 +95,7 @@ export async function marcarVistoLead(id: string): Promise<ResultadoAcao> {
 }
 
 /** Envia os follow-ups que o dono APROVOU (marcou) no painel. */
-export async function enviarFollowups(
-  ids: string[],
-): Promise<{
+export async function enviarFollowups(ids: string[]): Promise<{
   ok: boolean;
   error?: string;
   resultados?: { id: string; ok: boolean; detalhe: string }[];

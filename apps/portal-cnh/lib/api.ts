@@ -110,6 +110,8 @@ export interface FichaCnh {
   indicacaoNoPrazo: boolean | null;
   temDocumentos: boolean | null;
   tipoCaso: 'suspensao' | 'cassacao' | null;
+  /** Ausente em leads gravados antes de 2026-09-18. */
+  prazoCurto?: boolean | null;
 }
 
 export interface MensagemCnh {
@@ -142,6 +144,8 @@ export interface LeadCnh {
   pagamentoConfirmadoEm: string | null;
   atencao: string | null;
   ultimaDoClienteEm: string | null;
+  /** Ausente em leads gravados antes de 2026-09-18. */
+  origem?: OrigemCnh | null;
   conversa: MensagemCnh[];
   historico: { em: string; texto: string; autor: string }[];
   criadoEm: string;
@@ -158,6 +162,8 @@ export interface LeadResumoCnh {
   resumo: string | null;
   urgente: boolean;
   motoristaProfissional: boolean | null;
+  prazoCurto?: boolean;
+  origem?: OrigemCnh['tipo'] | null;
   tipoCaso: 'suspensao' | 'cassacao' | null;
   atencao: string | null;
   ultimaMensagem: { de: MensagemCnh['de']; texto: string; em: string } | null;
@@ -174,7 +180,22 @@ export interface ResumoCnh {
   precisamDeAtencao: number;
   followupsDevidos: number;
   urgentes: number;
+  /** Motorista profissional ou prazo curto, fora do descarte. */
+  prioritarios?: number;
+  porOrigem?: Record<OrigemCnh['tipo'], number>;
 }
+
+/** De onde o lead veio: anúncio (clique para o WhatsApp), botão do site ou direto. */
+export interface OrigemCnh {
+  tipo: 'anuncio' | 'site' | 'direto';
+  detalhe: string | null;
+}
+
+export const ROTULO_ORIGEM: Readonly<Record<OrigemCnh['tipo'], string>> = {
+  anuncio: 'Anúncio',
+  site: 'Site',
+  direto: 'WhatsApp direto',
+};
 
 export interface ConfigCnh {
   whatsapp: boolean;

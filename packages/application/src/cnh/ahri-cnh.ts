@@ -21,6 +21,7 @@ import {
   textoAceiteCnh,
   textoDescarteCnh,
   textoPropostaCnh,
+  textoPropostaComAdvogadoCnh,
   textoTransferenciaCnh,
   transicaoPermitida,
   valoresPermitidosCnh,
@@ -47,6 +48,9 @@ export interface TurnoCnh {
   readonly acao: AcaoCnh;
   readonly motivo: MotivoDescarteCnh | null;
   readonly urgente: boolean;
+  /** Por que o lead foi para gente: urgência, pedido do cliente, ou caso sem
+   *  tabela (PPD/bloqueio) cuja proposta é do advogado. null fora da transferência. */
+  readonly motivoTransferencia: 'urgencia' | 'pedido' | 'proposta-com-advogado' | null;
   /** Uma frase para o painel ("suspensão por pontos, motorista de app"). */
   readonly resumo: string | null;
 }
@@ -55,7 +59,14 @@ export function promptAhriCnh(esc: EscritorioCnh = ESCRITORIO_CNH_PADRAO): strin
   const h = HONORARIOS_CNH;
   return `Você é a AHRI, assistente virtual do escritório do ${esc.advogadoCompleto}, advogado com atuação em ${esc.area}. Você atende pelo WhatsApp pessoas com problema na CNH e conduz a conversa pelo ROTEIRO abaixo, uma pergunta por vez, com frases curtas e naturais, em português simples, como uma atendente atenciosa. Nunca use markdown, títulos ou listas longas. No máximo 3 mensagens curtas por resposta.
 
-O ESCRITÓRIO ATUA EM: suspensão e cassação da CNH (risco de perder a habilitação). NÃO atua em recurso de multa simples, matéria criminal, nem em quem já pode refazer a habilitação.
+O ESCRITÓRIO ATUA EM: suspensão e cassação da CNH (risco de perder a habilitação), CNH já suspensa, indicação de condutor não acolhida, PPD e bloqueio de prontuário. Motoristas profissionais (aplicativo, táxi, caminhão, ônibus, entregas) são PRIORIDADE, porque a CNH é a renda deles. NÃO atua em recurso de multa simples, matéria criminal, quem já tem advogado, quem cumpriu cassação há mais de 2 anos e só quer tirar nova CNH, nem em casos antigos já cumpridos.
+
+COMO O ESCRITÓRIO ATUA (use para tirar dúvidas, em palavras simples, sem prometer nada):
+- A tese: a suspensão e a cassação só valem se o processo administrativo que as originou respeitou a lei. O escritório analisa o caso, procura falhas nesse processo e, havendo falha, contesta a penalidade.
+- Onde costumam estar as falhas: notificação inválida ou ausente (a Súmula 312 do STJ exige a notificação da autuação e a da penalidade); prescrição (o prazo para a Administração aplicar ou executar a penalidade pode ter se esgotado); indicação de condutor não acolhida (feita no prazo e os pontos foram para o nome errado); motorista profissional (limite próprio de 40 pontos, o que muda a conta); vícios no procedimento (falta de contraditório e ampla defesa, decisão sem fundamentação, prazos desrespeitados); nulidades no auto de infração (por isso o cliente busca a cópia do auto no órgão que aplicou a multa).
+- As duas frentes: ADMINISTRATIVA — logo que chega a notificação, dentro do prazo de defesa: defesa no processo do DETRAN e recursos à JARI e ao CETRAN; começa rápido, custa menos e pode preservar a CNH sem processo judicial, mas quem decide é o próprio órgão. JUDICIAL — quando a via administrativa não resolveu ou não é viável, ou quando há urgência (suspensão prestes a começar): ação anulatória ou mandado de segurança, com pedido de liminar para suspender a penalidade enquanto o caso é julgado; é mais demorada e depende de prova documental. O ${esc.advogadoCurto} define a via caso a caso.
+- A contratação cobre a análise inicial, a defesa administrativa, os recursos e a ação judicial, se ela for necessária.
+- PRAZO CURTO: se a suspensão começa nos próximos dias ou o prazo de defesa está acabando, marque ficha.prazoCurto true (é prioridade e pode ir direto para a via judicial). Não é transferência: siga o roteiro sem enrolar e reforce que quanto antes começar, melhor.
 
 ROTEIRO
 
@@ -81,7 +92,7 @@ ETAPA "viabilidade" (não há reunião nem ligação)
 - "[nome], pelo que você me passou, é possível buscar a reversão do seu caso: existem caminhos jurídicos para contestar [a suspensão / a cassação], tanto na via administrativa quanto na judicial, se necessário. Cada caso depende da análise dos documentos, por isso não há garantia de resultado, mas o ${esc.advogadoCurto} atua para buscar a melhor solução possível."
 - "Um ponto importante: a documentação fica por sua conta. Você vai precisar buscar a cópia do auto de infração no órgão que aplicou a multa, porque é nele que o ${esc.advogadoCurto} verifica se há nulidades. Depois da contratação, te oriento passo a passo."
 - "Posso seguir e te enviar a proposta de honorários?"
-  - Sim ⇒ acao "proposta" (o sistema envia a proposta com o valor certo).
+  - Sim ⇒ acao "proposta" (o sistema envia a proposta com o valor certo). Em PPD ou bloqueio de prontuário (situacao "outra") também use acao "proposta": o sistema passa o caso para o ${esc.advogadoCurto}, que faz a proposta pessoalmente.
   - Dúvida ⇒ responda curto, sem prometer resultado, e repita a pergunta.
   - "Quero falar com o doutor agora" ⇒ acao "transferir".
   - "Vou pensar" / "agora não" ⇒ acao "morno" e diga: "Sem problema, [nome]. Se houver prazo correndo, quanto antes começarmos, mais opções de defesa existem. Quando quiser, é só me chamar por aqui."
@@ -99,14 +110,14 @@ HONORÁRIOS (a única tabela que existe): suspensão R$ ${h.suspensao.toLocaleSt
 
 REGRAS
 - Nunca prometa resultado ("garanto", "causa ganha", "com certeza você ganha"). Pode dizer que existem teses de defesa e que não há garantia.
-- Nunca invente lei, prazo, número de artigo ou fato que o cliente não disse.
+- Nunca invente lei, prazo, número de artigo ou fato que o cliente não disse. As únicas referências que você pode citar são as do bloco COMO O ESCRITÓRIO ATUA (Súmula 312 do STJ, o limite de 40 pontos do motorista profissional, JARI, CETRAN, ação anulatória, mandado de segurança, liminar).
 - Pergunte uma coisa por vez. Se a pessoa já respondeu algo, não pergunte de novo.
 - Mensagens de áudio, fotos e documentos aparecem para você como "[o cliente enviou ...]". Agradeça e siga o roteiro; você não consegue ler o conteúdo.
 - Se a pessoa fugir do assunto, responda com gentileza e volte ao roteiro.
 
 RESPOSTA: devolva SÓ um JSON, sem texto antes ou depois:
 {"mensagens": ["..."], "ficha": {"campo": valor}, "etapa": "recepcao|qualificacao|viabilidade|proposta|morno", "acao": "conversar|descartar|transferir|proposta|aceite|morno", "motivo": null, "urgente": false, "resumo": "uma frase sobre o caso"}
-- "ficha": só os campos que você descobriu ou corrigiu nesta mensagem. Campos: nome, cidade, jaTemAdvogado (true/false), situacao, relato, cartaDetran ("recente"|"antiga"|"nao-recebeu"), cartaDetranQuando, prescricaoPossivel, motoristaProfissional, atividade, notificacoesAnteriores ("nenhuma-ou-poucas"|"todas"|"nao-lembra"), indicacaoNoPrazo, temDocumentos, tipoCaso ("suspensao"|"cassacao").
+- "ficha": só os campos que você descobriu ou corrigiu nesta mensagem. Campos: nome, cidade, jaTemAdvogado (true/false), situacao, relato, cartaDetran ("recente"|"antiga"|"nao-recebeu"), cartaDetranQuando, prescricaoPossivel, motoristaProfissional, atividade, notificacoesAnteriores ("nenhuma-ou-poucas"|"todas"|"nao-lembra"), indicacaoNoPrazo, temDocumentos, tipoCaso ("suspensao"|"cassacao"), prazoCurto (true/false).
 - "motivo" só com acao "descartar": ja-tem-advogado, multa-simples, criminal, cassacao-cumprida, decisao-antiga-cumprida, indicacao-fora-do-prazo, sem-condicao ou outro.
 - Nas ações "descartar", "transferir", "proposta" e "aceite", deixe "mensagens" vazio: o sistema envia o texto oficial do escritório.`;
 }
@@ -204,6 +215,7 @@ export function mesclarFichaCnh(atual: FichaCnh, bruto: unknown): FichaCnh {
     'motoristaProfissional',
     'indicacaoNoPrazo',
     'temDocumentos',
+    'prazoCurto',
   ] as const) {
     const b = booleano(d[campo]);
     if (b !== null) f[campo] = b;
@@ -277,15 +289,26 @@ export function lerTurnoCnh(
       ? etapaIa
       : estado.etapa;
 
-  // Proposta só depois da qualificação e com o tipo de caso definido.
-  if (acao === 'proposta') {
-    const podeOfertar = ['viabilidade', 'proposta', 'morno'].includes(estado.etapa);
-    if (!podeOfertar || ficha.tipoCaso === null) acao = 'conversar';
-  }
+  // Proposta só depois da qualificação. PPD e bloqueio de prontuário não
+  // estão na tabela: a proposta desses casos é do advogado (transferência).
+  const podeOfertar = ['viabilidade', 'proposta', 'morno'].includes(estado.etapa);
+  const semTabela = ficha.situacao === 'outra';
+  if (acao === 'proposta' && (!podeOfertar || (ficha.tipoCaso === null && !semTabela)))
+    acao = 'conversar';
   // Aceite só vale depois de uma proposta enviada.
   if (acao === 'aceite' && !estado.propostaEnviada) acao = 'conversar';
 
-  const base = { ficha, urgente, resumo };
+  const base = { ficha, urgente, resumo, motivoTransferencia: null };
+  if (acao === 'proposta' && semTabela)
+    return {
+      ...base,
+      mensagens: textoPropostaComAdvogadoCnh(ficha.nome, esc),
+      etapa: 'transferido',
+      acao: 'transferir',
+      motivo: null,
+      urgente: false,
+      motivoTransferencia: 'proposta-com-advogado',
+    };
   switch (acao) {
     case 'descartar': {
       const motivo =
@@ -308,6 +331,7 @@ export function lerTurnoCnh(
         etapa: 'transferido',
         acao,
         motivo: null,
+        motivoTransferencia: urgente ? 'urgencia' : 'pedido',
       };
     case 'proposta':
       return {

@@ -48,6 +48,35 @@ const TIPO_POR_KIND: Readonly<Record<string, TipoMensagemCnh>> = {
   document: 'documento',
 };
 
+const objeto = (v: unknown): Record<string, unknown> | null =>
+  typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+const lista = (v: unknown): readonly unknown[] => (Array.isArray(v) ? v : []);
+const textoOuNull = (v: unknown): string | null =>
+  typeof v === 'string' && v.trim() !== '' ? v.trim().slice(0, 200) : null;
+
+/** Anúncio "clique para o WhatsApp" de cada mensagem (campo `referral` que a
+ *  Meta manda na primeira mensagem vinda de um anúncio), por id da mensagem. */
+export function anunciosDoPayload(
+  payload: unknown,
+): ReadonlyMap<string, { readonly titulo: string | null; readonly url: string | null }> {
+  const mapa = new Map<string, { titulo: string | null; url: string | null }>();
+  for (const entry of lista(objeto(payload)?.['entry'])) {
+    for (const change of lista(objeto(entry)?.['changes'])) {
+      for (const m of lista(objeto(objeto(change)?.['value'])?.['messages'])) {
+        const msg = objeto(m);
+        const referral = objeto(msg?.['referral']);
+        const id = textoOuNull(msg?.['id']);
+        if (id === null || referral === null) continue;
+        mapa.set(id, {
+          titulo: textoOuNull(referral['headline']),
+          url: textoOuNull(referral['source_url']),
+        });
+      }
+    }
+  }
+  return mapa;
+}
+
 function autorDe(request: FastifyRequest): string {
   const body = (request.body ?? {}) as { autor?: unknown };
   return typeof body.autor === 'string' && body.autor.trim() !== ''
@@ -78,6 +107,7 @@ export function buildCnhServer(deps: CnhServerDeps): FastifyInstance {
 
   /** Processa um payload da Meta (direto ou repassado). */
   const processar = (payload: unknown): void => {
+    const anuncios = anunciosDoPayload(payload);
     for (const inbound of mapMetaWebhook(payload)) {
       if (inbound.phoneNumberId !== null && inbound.phoneNumberId !== deps.phoneNumberId) continue;
       const e = inbound.envelope;
@@ -92,6 +122,7 @@ export function buildCnhServer(deps: CnhServerDeps): FastifyInstance {
           mediaId: inbound.mediaId,
           nomeArquivo: e.fileName,
           em: e.timestamp,
+          anuncio: anuncios.get(e.messageId) ?? null,
         })
         .then((r) => {
           if (r.responder) agendarResposta(r.leadId);

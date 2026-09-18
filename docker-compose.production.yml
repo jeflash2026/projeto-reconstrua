@@ -490,6 +490,27 @@ services:
       - default
       - npm-net
 
+  # Site da CNH (estático, nginx). NPM: o domínio do site → :3960, com SSL.
+  # Os botões chamam o WhatsApp da CNH: CNH_SITE_WHATSAPP (55 + DDD + número).
+  site-cnh:
+    build:
+      context: .
+      target: site-cnh
+    restart: unless-stopped
+    environment:
+      CNH_SITE_WHATSAPP: ${CNH_SITE_WHATSAPP:-}
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3960/healthz']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    ports:
+      - '3960:3960'
+    networks:
+      - default
+      - npm-net
+
 volumes:
   ahrios-prod-pgdata:
 

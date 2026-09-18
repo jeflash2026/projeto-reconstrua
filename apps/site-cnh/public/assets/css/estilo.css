@@ -1173,3 +1173,62 @@ main {
     padding: 1.45rem;
   }
 }
+
+/* ── Ajustes da publicação (2026-09-18) ──────────────────────────────────── */
+/* Topo escuro de verdade: translúcido sobre o papel, ele ficava cinza. */
+.topo {
+  background: rgba(22, 19, 15, 0.96);
+}
+/* O logo não tem mais a caixa preta; no rodapé, do mesmo tamanho do topo. */
+.rodape__grid img {
+  width: 250px;
+  height: auto;
+}
+/* Cena do topo em grade: os cartões não cobrem mais o texto do principal. */
+.hero__cena {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
+  align-content: center;
+  min-height: 0;
+}
+.hero__cena .glass-card {
+  width: 100%;
+  margin: 0;
+}
+.hero__cena .floating-card {
+  position: relative;
+  inset: auto;
+  max-width: none;
+  margin: 0;
+}
+@media (min-width: 641px) {
+  .hero__cena {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hero__cena .glass-card,
+  .hero__cena .floating-card--tres {
+    grid-column: 1 / -1;
+  }
+}
+/* Respiro entre o título e o texto das seções. */
+.secao__cabecalho h2 + p,
+.tese-layout h2 + p,
+.destaque-profissional h2 + p,
+.cta-final__box h2 + p {
+  margin-top: 1rem;
+}
+.tese-layout p + p {
+  margin-top: 0.8rem;
+}
+/* Subtítulo legível nas seções escuras (o cinza do papel sumia no escuro). */
+.secao__cabecalho--escuro > p:last-child {
+  color: var(--noite-secundario);
+}
+/* O rótulo dourado também na tese e no motorista profissional (o estilo dos
+   parágrafos dessas seções o deixava cinza e maior). */
+.tese-layout .eyebrow,
+.destaque-profissional .eyebrow {
+  color: var(--ouro-texto);
+  font-size: 0.78rem;
+}

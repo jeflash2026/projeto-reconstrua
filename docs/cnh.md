@@ -15,6 +15,7 @@ viabilidade → proposta) e passa para a equipe no aceite.
 | Serviço `cnh-api` | `apps/api/src/cnh/` | Webhook da Meta, repasse e rotas do painel (porta 3140) |
 | Painel | `apps/portal-cnh` | `/cnh` (porta 3950) |
 | Dados | `infrastructure/database/init/07-cnh.sql` | Tabela própria `cnh.documents` |
+| Site | `apps/site-cnh` | Site estático da tese, com os botões do WhatsApp (porta 3960) |
 
 O `cnh-api` usa a mesma imagem da API do Reconstrua, mas é outro contêiner, com
 variáveis próprias (`CNH_*`). Uma pane na CNH não afeta o consignado.
@@ -121,21 +122,34 @@ Quando for aprovado, coloque o nome dele em `CNH_META_TEMPLATE_FOLLOWUP` e suba 
 
 ## O site (feito à parte)
 
-O site é feito fora (pelo ChatGPT) e entregue num formato combinado, para entrar
-no servidor sem retrabalho:
+O site foi feito fora (pelo ChatGPT) e está em `apps/site-cnh/public`: HTML, CSS e
+JavaScript puro, sem build. Sobe no contêiner `site-cnh` (nginx, porta 3960).
 
-- **Estático**: HTML, CSS e JavaScript puro, sem framework e sem build, num ZIP
-  `site-cnh.zip` com `index.html`, `privacidade.html`, `assets/css/estilo.css`,
-  `assets/js/config.js`, `assets/js/site.js` e `assets/img/`.
-- O número do WhatsApp e a mensagem ficam **só** em `assets/js/config.js`
-  (`window.CNH_CONFIG = { whatsapp, mensagem }`). A mensagem traz "Vim pelo site",
-  que é como a AHRI marca a origem do lead.
+- **WhatsApp dos botões**: vem de `CNH_SITE_WHATSAPP` no `.env` (o telefone do
+  número da CNH, só dígitos: 55 + DDD + número). A cada subida, o contêiner grava
+  o número em `assets/js/config.js`. Vazio, os botões levam à seção de contato.
+  A mensagem pronta traz "Vim pelo site", que marca a origem do lead no painel.
+- **Domínio**: as páginas trazem `https://DOMINIO/` nas tags de SEO e
+  compartilhamento; o nginx troca pelo domínio em que o site foi aberto. Basta
+  apontar o domínio no NPM, sem mexer no site.
 - Sem formulário, sem cookies e sem rastreadores: quem começa a conversa é o
   cliente, no WhatsApp, e a AHRI responde na hora.
 
-Quando o ZIP chegar: os arquivos vão para `apps/site-cnh/`, o número entra no
-`config.js`, sobe um contêiner estático (nginx) e o domínio do site aponta para ele
-no NPM.
+Ajustes feitos na entrega do ChatGPT (2026-09-18): topo escuro (estava cinza),
+logo sem a caixa preta, cartões do topo sem cobrir o texto, respiro entre títulos
+e textos, ícone com o "R", imagem de compartilhamento com a chamada do site,
+`robots.txt` e `sitemap.xml`. Os ajustes de estilo estão no fim do
+`estilo.css`.
 
-O pedido completo para o ChatGPT (identidade visual, seções, regras da OAB e
-formato) está no arquivo `Pedido-Site-CNH-ChatGPT.txt` entregue ao dono.
+### Subir o site
+
+1. No DNS do domínio, crie o registro **A** do endereço do site (por exemplo
+   `cnh.projetoreconstrua.com.br`) apontando para `2.25.162.251`.
+2. No `.env`: `CNH_SITE_WHATSAPP=55DDDNUMERO`.
+3. `docker compose --env-file .env -f docker-compose.production.yml up -d --build site-cnh`
+4. No NPM, um **Proxy Host** novo: o domínio do site → `2.25.162.251` porta
+   `3960`, com certificado SSL (Let's Encrypt) e "Force SSL".
+
+Para trocar o número depois: mude `CNH_SITE_WHATSAPP` e rode o passo 3 de novo.
+Para trocar o site: substitua os arquivos de `apps/site-cnh/public`, mantendo o
+`config.js` no mesmo formato.

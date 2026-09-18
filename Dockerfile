@@ -111,3 +111,12 @@ FROM portal-build AS landing-web
 ENV NODE_ENV=production
 EXPOSE 3500
 CMD ["pnpm", "--filter", "@reconstrua/landing-web", "start"]
+
+# 2026-09-18: SITE da RECONSTRUA CNH — estático (feito à parte), servido por
+# nginx. O número do WhatsApp entra na subida (CNH_SITE_WHATSAPP → config.js).
+FROM nginx:1.27-alpine AS site-cnh
+COPY apps/site-cnh/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/site-cnh/40-whatsapp.sh /docker-entrypoint.d/40-whatsapp.sh
+RUN chmod +x /docker-entrypoint.d/40-whatsapp.sh
+COPY apps/site-cnh/public/ /usr/share/nginx/html/
+EXPOSE 3960

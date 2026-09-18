@@ -55,3 +55,6 @@ export * from './corvo/index.js';
 
 // 2026-09-16: Painel de Investidores — carteira de créditos judiciais.
 export * from './investidores/index.js';
+
+// 2026-09-18: Reconstrua CNH — o funil de captação da tese de CNH (serviço próprio).
+export * from './cnh/index.js';

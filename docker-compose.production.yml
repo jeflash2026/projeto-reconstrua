@@ -104,6 +104,10 @@ services:
       CORVO_API_KEY: ${CORVO_API_KEY:-}
       CORVO_WEBHOOK_SECRET: ${CORVO_WEBHOOK_SECRET:-}
       CORVO_CRED_KEY: ${CORVO_CRED_KEY:-}
+      # RECONSTRUA CNH (2026-09-18): mensagem de OUTRO número do mesmo app Meta
+      # (o da CNH) nunca chega à AHRI do consignado — é repassada ao cnh-api.
+      CNH_ENCAMINHAR_URL: ${CNH_ENCAMINHAR_URL:-http://cnh-api:3140/cnh-api/webhook/encaminhado}
+      CNH_ENCAMINHAMENTO_SEGREDO: ${CNH_ENCAMINHAMENTO_SEGREDO:-}
     # DEPLOY GRACIOSO (caso Iracema, 2026-07-31): a API drena os turnos em voo
     # no SIGTERM (até 45s) — o Docker precisa dar mais que os 10s padrão antes
     # do SIGKILL, senão o desligamento gracioso morre no meio.
@@ -398,6 +402,90 @@ services:
       start_period: 30s
     ports:
       - '3500:3500'
+    networks:
+      - default
+      - npm-net
+
+  # ── RECONSTRUA CNH (2026-09-18) — o funil de captação da tese de CNH ──────────
+  # Serviço PRÓPRIO: mesma imagem da api, outro processo; dados em cnh.documents;
+  # número de WhatsApp, token do painel e segredos próprios (CNH_*). Uma pane
+  # aqui não afeta o consignado. NPM: /cnh-api → :3140 (só o webhook é público;
+  # o painel fala com ele pela rede interna, com Bearer).
+  cnh-api:
+    build:
+      context: .
+      target: runtime
+    command: ['node', 'apps/api/dist/cnh/main.js']
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      CNH_PORT: 3140
+      DATABASE_URL: postgres://reconstrua:${POSTGRES_PASSWORD:?}@postgres:5432/reconstrua
+      # WhatsApp oficial: o número da CNH. Token vazio ⇒ usa o do app do Reconstrua.
+      CNH_META_TOKEN: ${CNH_META_TOKEN:-}
+      META_WHATSAPP_TOKEN: ${META_WHATSAPP_TOKEN:-}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-}
+      CNH_META_PHONE_NUMBER_ID: ${CNH_META_PHONE_NUMBER_ID:-}
+      CNH_META_VERIFY_TOKEN: ${CNH_META_VERIFY_TOKEN:-}
+      CNH_META_TEMPLATE_FOLLOWUP: ${CNH_META_TEMPLATE_FOLLOWUP:-}
+      CNH_META_TEMPLATE_IDIOMA: ${CNH_META_TEMPLATE_IDIOMA:-pt_BR}
+      CNH_API_TOKEN: ${CNH_API_TOKEN:-}
+      CNH_ENCAMINHAMENTO_SEGREDO: ${CNH_ENCAMINHAMENTO_SEGREDO:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      CNH_ANTHROPIC_MODEL: ${CNH_ANTHROPIC_MODEL:-}
+      CNH_ADVOGADO_CURTO: ${CNH_ADVOGADO_CURTO:-}
+      CNH_ADVOGADO_COMPLETO: ${CNH_ADVOGADO_COMPLETO:-}
+      CNH_AREA: ${CNH_AREA:-}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3140/cnh-api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    ports:
+      - '3140:3140'
+    networks:
+      - default
+      - npm-net
+
+  # Painel da CNH (basePath /cnh; NPM /cnh → :3950). Fala só com o cnh-api.
+  portal-cnh:
+    build:
+      context: .
+      target: portal-cnh
+    restart: unless-stopped
+    depends_on:
+      - cnh-api
+    environment:
+      CNH_API_URL: http://cnh-api:3140
+      CNH_API_TOKEN: ${CNH_API_TOKEN:-}
+      CNH_PAINEL_SENHA: ${CNH_PAINEL_SENHA:-}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3950/cnh/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    ports:
+      - '3950:3950'
     networks:
       - default
       - npm-net

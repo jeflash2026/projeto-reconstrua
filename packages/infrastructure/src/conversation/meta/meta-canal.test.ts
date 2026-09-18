@@ -287,6 +287,61 @@ describe('MetaCanalRuntime', () => {
     expect(await canais.canalDe('5511988887777@s.whatsapp.net')).toBe('meta');
   });
 
+  it('OUTRO número do mesmo app (ex.: CNH): a AHRI do consignado nunca vê — o payload é repassado', async () => {
+    const json = new InMemoryJsonStore();
+    const recebidos: InboundEnvelope[] = [];
+    const repassados: unknown[] = [];
+    const { http } = fakeHttp();
+    const runtime = new MetaCanalRuntime({
+      gateway: gatewayCom(http),
+      canais: new CanalDoChatStore(json),
+      ingress: () => ({
+        receive: (envelope: InboundEnvelope) => {
+          recebidos.push(envelope);
+          return Promise.resolve();
+        },
+      }),
+      media: new InMemoryMediaStore(),
+      references: new JsonMediaReferenceStore(json),
+      humanizado: { phoneNumberId: '222', registrar: () => Promise.resolve() },
+      phoneNumberIdAhri: '111',
+      outroNumero: (payload) => {
+        repassados.push(payload);
+      },
+    });
+    const doNumero = (phoneNumberId: string, texto: string): unknown => ({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                metadata: { phone_number_id: phoneNumberId },
+                messages: [
+                  {
+                    from: '5511977776666',
+                    id: `wamid.${texto}`,
+                    timestamp: '1753900000',
+                    type: 'text',
+                    text: { body: texto },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const daCnh = doNumero('333', 'minha cnh foi suspensa');
+    runtime.processar(daCnh);
+    runtime.processar(doNumero('111', 'oi ahri'));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(recebidos.map((e) => e.text)).toEqual(['oi ahri']);
+    expect(repassados).toEqual([daCnh]);
+  });
+
   it('chegouPelaEvolution devolve o canal ao interno (last-write-wins)', async () => {
     const h = runtimeHarness();
     h.runtime.processar(webhookTexto('oi'));

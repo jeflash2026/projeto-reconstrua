@@ -101,11 +101,22 @@ function coerceJson(value: unknown): unknown {
 }
 
 export class PgJsonStore implements JsonStore, JsonStoreVarredura {
-  constructor(private readonly sql: SqlClient) {}
+  /** A tabela (schema.nome). Padrão: a do Reconstrua. A CNH (2026-09-18) usa
+   *  a PRÓPRIA — cnh.documents — para os dados dos dois negócios não se
+   *  misturarem. Só aceita identificador simples: nada vindo de fora entra aqui. */
+  private readonly tabela: string;
+
+  constructor(
+    private readonly sql: SqlClient,
+    tabela = 'production.documents',
+  ) {
+    if (!/^[a-z_]+\.[a-z_]+$/.test(tabela)) throw new Error(`tabela inválida: ${tabela}`);
+    this.tabela = tabela;
+  }
 
   async get(namespace: string, key: string): Promise<unknown> {
     const rows = await this.sql.query<SqlRow>(
-      'SELECT value FROM production.documents WHERE namespace = $1 AND key = $2',
+      `SELECT value FROM ${this.tabela} WHERE namespace = $1 AND key = $2`,
       [namespace, key],
     );
     const raw = rows[0]?.['value'];
@@ -113,28 +124,28 @@ export class PgJsonStore implements JsonStore, JsonStoreVarredura {
   }
   async put(namespace: string, key: string, value: unknown): Promise<void> {
     await this.sql.query(
-      `INSERT INTO production.documents (namespace, key, value, updated_at)
+      `INSERT INTO ${this.tabela} (namespace, key, value, updated_at)
        VALUES ($1, $2, $3::jsonb, now())
        ON CONFLICT (namespace, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
       [namespace, key, JSON.stringify(value)],
     );
   }
   async del(namespace: string, key: string): Promise<void> {
-    await this.sql.query('DELETE FROM production.documents WHERE namespace = $1 AND key = $2', [
+    await this.sql.query(`DELETE FROM ${this.tabela} WHERE namespace = $1 AND key = $2`, [
       namespace,
       key,
     ]);
   }
   async list(namespace: string): Promise<readonly unknown[]> {
     const rows = await this.sql.query<SqlRow>(
-      'SELECT value FROM production.documents WHERE namespace = $1 ORDER BY key',
+      `SELECT value FROM ${this.tabela} WHERE namespace = $1 ORDER BY key`,
       [namespace],
     );
     return rows.map((r) => coerceJson(r['value']));
   }
   async keys(namespace: string): Promise<readonly string[]> {
     const rows = await this.sql.query<SqlRow>(
-      'SELECT key FROM production.documents WHERE namespace = $1 ORDER BY key',
+      `SELECT key FROM ${this.tabela} WHERE namespace = $1 ORDER BY key`,
       [namespace],
     );
     return rows.map((r) => String(r['key']));
@@ -144,7 +155,7 @@ export class PgJsonStore implements JsonStore, JsonStoreVarredura {
    *  manutenção, nunca no caminho do atendimento. */
   async varrer(agulha: string): Promise<readonly LinhaDocumento[]> {
     const rows = await this.sql.query<SqlRow>(
-      `SELECT namespace, key, value FROM production.documents
+      `SELECT namespace, key, value FROM ${this.tabela}
         WHERE position($1 in namespace) > 0
            OR position($1 in key) > 0
            OR position($1 in value::text) > 0

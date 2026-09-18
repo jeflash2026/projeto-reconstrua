@@ -50,9 +50,10 @@ COPY apps/portal-socio ./apps/portal-socio
 COPY apps/portal-humanizado ./apps/portal-humanizado
 COPY apps/portal-juridico ./apps/portal-juridico
 COPY apps/portal-investidor ./apps/portal-investidor
+COPY apps/portal-cnh ./apps/portal-cnh
 COPY apps/landing-web ./apps/landing-web
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente --filter @reconstrua/portal-perito --filter @reconstrua/portal-socio --filter @reconstrua/portal-humanizado --filter @reconstrua/portal-juridico --filter @reconstrua/portal-investidor --filter @reconstrua/landing-web build
+RUN pnpm --filter @reconstrua/portal-administracao --filter @reconstrua/portal-advogado --filter @reconstrua/portal-cliente --filter @reconstrua/portal-perito --filter @reconstrua/portal-socio --filter @reconstrua/portal-humanizado --filter @reconstrua/portal-juridico --filter @reconstrua/portal-investidor --filter @reconstrua/portal-cnh --filter @reconstrua/landing-web build
 
 FROM portal-build AS portal-admin
 ENV NODE_ENV=production
@@ -92,6 +93,12 @@ FROM portal-build AS portal-investidor
 ENV NODE_ENV=production
 EXPOSE 3900
 CMD ["pnpm", "--filter", "@reconstrua/portal-investidor", "start"]
+
+# 2026-09-18: Painel da RECONSTRUA CNH — o funil de captação da tese de CNH (basePath /cnh).
+FROM portal-build AS portal-cnh
+ENV NODE_ENV=production
+EXPOSE 3950
+CMD ["pnpm", "--filter", "@reconstrua/portal-cnh", "start"]
 
 # Decreto 2026-07-23: Portal do SÓCIO — apartado do Admin (basePath /socios).
 FROM portal-build AS portal-socio

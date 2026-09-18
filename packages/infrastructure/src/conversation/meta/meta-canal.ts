@@ -93,6 +93,13 @@ export interface MetaCanalDeps {
      *  (ex.: 131047, janela de 24h) — a mensagem ganha o aviso no chat. */
     marcarFalha?(chatId: string, wamid: string, motivo: string): Promise<void>;
   } | null;
+  /** O número da AHRI (phone_number_id). Com ele definido, mensagem de OUTRO
+   *  número do mesmo app — ex.: o da CNH (2026-09-18) — NUNCA chega à AHRI do
+   *  consignado: é ignorada aqui e repassada por `outroNumero`. Ausente = o
+   *  comportamento antigo (tudo que não é da equipe vai à AHRI). */
+  readonly phoneNumberIdAhri?: string;
+  /** Payload que trouxe mensagem ou status de outro número (repasse). */
+  readonly outroNumero?: (payload: unknown) => void;
 }
 
 export class MetaCanalRuntime {
@@ -107,7 +114,16 @@ export class MetaCanalRuntime {
   /** Processa um POST do webhook oficial. ACK imediato: tudo é destacado. */
   processar(payload: unknown): void {
     const humanizado = this.deps.humanizado ?? null;
+    const ahri = this.deps.phoneNumberIdAhri ?? '';
+    // Outro número do mesmo app (ex.: CNH): nem AHRI, nem equipe.
+    const deOutroNumero = (id: string | null): boolean =>
+      ahri !== '' && id !== null && id !== ahri && id !== humanizado?.phoneNumberId;
+    let repassar = false;
     for (const inbound of mapMetaWebhook(payload)) {
+      if (deOutroNumero(inbound.phoneNumberId)) {
+        repassar = true;
+        continue;
+      }
       // Número da EQUIPE ⇒ conversa humana do portal; a AHRI nunca vê.
       const doHumanizado =
         humanizado !== null && inbound.phoneNumberId === humanizado.phoneNumberId;
@@ -125,6 +141,10 @@ export class MetaCanalRuntime {
     // STATUS DE ENTREGA (2026-08-06): falha assíncrona (ex.: 131047 — janela
     // de 24h) marca a mensagem no chat da equipe; qualquer falha vira log.
     for (const s of mapMetaStatuses(payload)) {
+      if (deOutroNumero(s.phoneNumberId)) {
+        repassar = true;
+        continue;
+      }
       if (s.status !== 'failed') continue;
       const motivo =
         s.codigo === 131047
@@ -137,6 +157,7 @@ export class MetaCanalRuntime {
         void humanizado.marcarFalha?.(s.chatId, s.wamid, motivo).catch(() => undefined);
       }
     }
+    if (repassar) this.deps.outroNumero?.(payload);
   }
 
   private async turno(envelope: InboundEnvelope, mediaId: string | null): Promise<void> {

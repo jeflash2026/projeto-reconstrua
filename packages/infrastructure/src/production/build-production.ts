@@ -2698,6 +2698,41 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
                   marcarFalha: (chatId, wamid, motivo) =>
                     chatHumanizado.marcarFalhaEnvio(chatId, wamid, motivo),
                 },
+          // RECONSTRUA CNH (2026-09-18): o número da CNH pode estar no MESMO app
+          // Meta — a AHRI do consignado nunca responde outro número; o payload
+          // segue para o serviço da CNH (CNH_ENCAMINHAR_URL, rede interna).
+          phoneNumberIdAhri: metaPhoneNumberId,
+          outroNumero: (payload) => {
+            const url = env['CNH_ENCAMINHAR_URL'] ?? '';
+            const segredo = env['CNH_ENCAMINHAMENTO_SEGREDO'] ?? '';
+            if (url === '' || segredo === '') {
+              observability.event('meta', 'outro-numero-ignorado', clock.now());
+              return;
+            }
+            void fetch(url, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', 'x-cnh-encaminhamento': segredo },
+              body: JSON.stringify(payload),
+              signal: AbortSignal.timeout(10_000),
+            })
+              .then((r) => {
+                if (!r.ok)
+                  observability.error(
+                    'meta',
+                    'cnh-repasse',
+                    clock.now(),
+                    `HTTP ${String(r.status)}`,
+                  );
+              })
+              .catch((e: unknown) => {
+                observability.error(
+                  'meta',
+                  'cnh-repasse',
+                  clock.now(),
+                  e instanceof Error ? e.message : 'falha',
+                );
+              });
+          },
         });
 
   // Decreto 2026-07-31: o canal do ÚLTIMO contato do chat, para a aba Conversa

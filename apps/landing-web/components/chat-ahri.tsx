@@ -8,9 +8,10 @@
 // Mandar o visitante para outra página (/webchat) custa conversão — quem veio de
 // anúncio abandona na troca de tela. Aqui a conversa abre por cima da página.
 //
-// Fala com a MESMA AHRI: os endpoints são os do webchat (/webchat/sessao,
-// /webchat/mensagem, /webchat/historico), servidos pela API no mesmo domínio.
-// Nada de canal novo, nada de pipeline paralelo.
+// Fala com a MESMA AHRI: as chamadas passam pelo SERVIDOR do site
+// (/api/ahri/*), que repassa ao webchat da API. Assim a conversa funciona em
+// qualquer endereço do domínio (com ou sem www) e em domínios novos de
+// campanha, sem depender de configuração no proxy. Nada de canal novo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
 import { MessageCircle, Send, X } from 'lucide-react';
@@ -92,7 +93,7 @@ export function ChatAhri(): ReactElement {
   const carregarHistorico = useCallback(async (t: string): Promise<void> => {
     if (t === '') return;
     try {
-      const r = await fetch(`/webchat/historico?token=${encodeURIComponent(t)}`);
+      const r = await fetch(`/api/ahri/historico?token=${encodeURIComponent(t)}`);
       const j = (await r.json()) as { ok?: boolean; mensagens?: Mensagem[] };
       if (j.ok !== true) {
         // Sessão vencida: volta à identificação em vez de ficar em silêncio.
@@ -178,7 +179,7 @@ export function ChatAhri(): ReactElement {
     if (ocupado || token !== '') return;
     setOcupado(true);
     setErro('');
-    const j: Record<string, unknown> = await postar('/webchat/sessao', {
+    const j: Record<string, unknown> = await postar('/api/ahri/sessao', {
       nome,
       telefone,
       campanha: campanhaDaVisita(),
@@ -213,7 +214,7 @@ export function ChatAhri(): ReactElement {
       { de: 'cliente', texto: limpo, em: new Date().toISOString() },
     ]);
     setEsperandoResposta(true);
-    const j: Record<string, unknown> = await postar('/webchat/mensagem', {
+    const j: Record<string, unknown> = await postar('/api/ahri/mensagem', {
       token: t,
       texto: limpo,
     }).catch(() => ({ ok: false }));

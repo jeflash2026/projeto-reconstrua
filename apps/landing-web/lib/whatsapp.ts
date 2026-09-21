@@ -21,7 +21,9 @@
 export function campanhaDaVisita(): string {
   if (typeof window === 'undefined') return 'organico';
   const params = new URLSearchParams(window.location.search);
-  const nomeada = params.get('utm_campaign') ?? params.get('campaign');
+  // `c` entrou em 2026-09-21: é o parâmetro curto que o webchat já entende, e
+  // assim o MESMO link do anúncio serve para a landing e para o webchat.
+  const nomeada = params.get('c') ?? params.get('utm_campaign') ?? params.get('campaign');
   if (nomeada !== null && nomeada.trim() !== '') return nomeada;
   if (params.has('gclid') || params.has('gbraid') || params.has('wbraid')) return 'google-ads';
   if (params.has('fbclid')) return 'meta-ads';

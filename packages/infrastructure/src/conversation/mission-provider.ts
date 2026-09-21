@@ -30,17 +30,20 @@ export function criarMissaoProvider(
   onboarding: OnboardingCompletude | null = null,
 ): MissaoProvider {
   return async (chatId) => {
-    const [snapshot, lista, documentacaoInicialCompleta] = await Promise.all([
+    const [snapshot, cliente, documentacaoInicialCompleta] = await Promise.all([
       snapshots.load(chatId).catch(() => null), // MISSÃO ATIVA (Mission Runtime) — primário
-      clientes.list(clock.now()).catch(() => []),
+      // AGILIDADE (2026-09-21, "a AHRI demora ~55s"): UM cliente, por chave.
+      // Antes era `clientes.list()` — a base INTEIRA composta cliente a cliente
+      // a CADA turno (e o contexto roda duas vezes por turno): ~15 s cada.
+      // Mesmo dado, mesma derivação, sem varredura.
+      clientes.porChat(chatId, clock.now()).catch(() => null),
       onboarding !== null
         ? onboarding.estaCompleto(chatId).catch(() => false)
         : Promise.resolve(false),
     ]);
-    const cliente = lista.find((c) => c.chatId === chatId);
 
     // Sem missão ativa E sem cliente reconhecido ⇒ novo contato ⇒ LEAD (default).
-    if (snapshot === null && cliente === undefined) return null;
+    if (snapshot === null && cliente === null) return null;
 
     return derivarMissaoDaConversa({
       // FONTE PRIMÁRIA: a missão ativa do Mission Runtime.

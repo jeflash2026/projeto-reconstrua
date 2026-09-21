@@ -1188,7 +1188,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const context = new ConversationContextRuntime(
     sessions,
     convMemory,
-    {},
+    // MEDIÇÃO por parte (2026-09-21): o contexto era a etapa mais lenta do turno.
+    { medir: (parte, ms) => observability.latency('contexto', parte, ms, clock.now()) },
     casoFatos,
     criarMissaoProvider(missionSnapshots, clientes, clock, onboardingDocumental),
     pendenciaDocumental,

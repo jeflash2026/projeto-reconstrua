@@ -14,6 +14,9 @@ import { MISSAO_PADRAO } from './sales-conversation-policy.js';
 export interface ContextOptions {
   readonly memoryWindow: number;
   readonly outboundWindow: number;
+  /** MEDIÇÃO por parte (2026-09-21): o contexto levava 15 s por chamada e não
+   *  havia como saber de qual provedor era o tempo. Ausente ⇒ não mede. */
+  readonly medir?: (parte: string, ms: number) => void;
 }
 
 export const DEFAULT_CONTEXT_OPTIONS: ContextOptions = {
@@ -83,7 +86,17 @@ export class ConversationContextRuntime {
     now: Date,
     silenceMs: number | null = null,
   ): Promise<ConversationContextView> {
-    const session: Session = await this.sessions.getOrOpen(chatId, now);
+    const cron = async <T>(parte: string, op: () => Promise<T>): Promise<T> => {
+      const medir = this.options.medir;
+      if (medir === undefined) return op();
+      const t0 = Date.now();
+      try {
+        return await op();
+      } finally {
+        medir(parte, Date.now() - t0);
+      }
+    };
+    const session: Session = await cron('sessao', () => this.sessions.getOrOpen(chatId, now));
     const [
       recentEntries,
       recentOutboundTexts,
@@ -95,21 +108,39 @@ export class ConversationContextRuntime {
       dossie,
       registro,
     ] = await Promise.all([
-      this.memory.recent(chatId, this.options.memoryWindow),
-      this.memory.recentOutboundTexts(chatId, this.options.outboundWindow),
-      this.casoFatos !== undefined
-        ? this.casoFatos(chatId).catch(() => null)
-        : Promise.resolve(null),
-      this.missao !== undefined ? this.missao(chatId).catch(() => null) : Promise.resolve(null),
-      this.pendencia !== undefined
-        ? this.pendencia(chatId).catch(() => null)
-        : Promise.resolve(null),
-      this.onboarding !== undefined
-        ? this.onboarding(chatId).catch(() => null)
-        : Promise.resolve(null),
-      this.cpf !== undefined ? this.cpf(chatId).catch(() => null) : Promise.resolve(null),
-      this.dossie !== undefined ? this.dossie(chatId).catch(() => null) : Promise.resolve(null),
-      this.registro !== undefined ? this.registro(chatId).catch(() => null) : Promise.resolve(null),
+      cron('recentes', () => this.memory.recent(chatId, this.options.memoryWindow)),
+      cron('falas-recentes', () =>
+        this.memory.recentOutboundTexts(chatId, this.options.outboundWindow),
+      ),
+      cron('caso-fatos', () =>
+        this.casoFatos !== undefined
+          ? this.casoFatos(chatId).catch(() => null)
+          : Promise.resolve(null),
+      ),
+      cron('missao', () =>
+        this.missao !== undefined ? this.missao(chatId).catch(() => null) : Promise.resolve(null),
+      ),
+      cron('pendencia', () =>
+        this.pendencia !== undefined
+          ? this.pendencia(chatId).catch(() => null)
+          : Promise.resolve(null),
+      ),
+      cron('onboarding', () =>
+        this.onboarding !== undefined
+          ? this.onboarding(chatId).catch(() => null)
+          : Promise.resolve(null),
+      ),
+      cron('cpf', () =>
+        this.cpf !== undefined ? this.cpf(chatId).catch(() => null) : Promise.resolve(null),
+      ),
+      cron('dossie', () =>
+        this.dossie !== undefined ? this.dossie(chatId).catch(() => null) : Promise.resolve(null),
+      ),
+      cron('registro', () =>
+        this.registro !== undefined
+          ? this.registro(chatId).catch(() => null)
+          : Promise.resolve(null),
+      ),
     ]);
     return {
       chatId,

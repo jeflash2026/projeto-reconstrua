@@ -158,6 +158,16 @@ export class ClientesList {
     return (await this.list(now)).filter((c) => c.status === 'PRONTO_AGUARDANDO_VENDA');
   }
 
+  /** UM cliente pelo chat — a MESMA composição da lista, sem varrer a base.
+   *  (2026-09-21, "a AHRI demora ~55s": o contexto da conversa chamava `list()`
+   *  a cada turno — a base inteira composta cliente a cliente, ~15 s por
+   *  chamada, DUAS por turno.) `null` quando o chat não é conhecido. */
+  async porChat(chatId: string, now?: Date): Promise<ClienteResumo | null> {
+    const memoria = await this.deps.memory.load(chatId);
+    if (memoria === null) return null;
+    return this.resumo(chatId, now);
+  }
+
   private async resumo(chatId: string, now?: Date): Promise<ClienteResumo> {
     const groups: readonly ('CORE' | 'OPERATIONAL')[] = ['CORE', 'OPERATIONAL'];
     const { alir, metrics } = await this.deps.alir.compose(

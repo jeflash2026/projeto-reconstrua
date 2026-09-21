@@ -54,7 +54,14 @@ function resumo(status: ClienteStatus, missionId: string | null): ClienteResumo 
   };
 }
 function clientes(status: ClienteStatus, missionId: string | null): ClientesList {
-  return { list: () => Promise.resolve([resumo(status, missionId)]) } as unknown as ClientesList;
+  // AGILIDADE (2026-09-21): o provedor lê UM cliente por chave (`porChat`).
+  // Antes varria a base inteira a cada turno — 15 s por chamada, duas por
+  // turno. O `list` aqui FALHA de propósito: ninguém mais pode varrer.
+  return {
+    porChat: (chatId: string) =>
+      Promise.resolve(chatId === CHAT ? resumo(status, missionId) : null),
+    list: () => Promise.reject(new Error('a conversa NÃO pode varrer a base de clientes')),
+  } as unknown as ClientesList;
 }
 function jornada1(completa: boolean): OnboardingCompletude {
   return { estaCompleto: () => Promise.resolve(completa) };
@@ -150,7 +157,7 @@ describe('Decreto · a MISSÃO ATIVA + Jornada 1 transicionam o estado da conver
   it('PRIMAZIA do Mission Runtime: snapshot com missão ativa vence, mesmo sem cliente na lista', async () => {
     const provider = criarMissaoProvider(
       snapshots(snap({ caseExists: true })),
-      { list: () => Promise.resolve([]) } as unknown as ClientesList,
+      { porChat: () => Promise.resolve(null) } as unknown as ClientesList,
       new TestClock(),
     );
     expect(await provider(CHAT)).toBe('ONBOARDING_DOCUMENTAL');
@@ -216,7 +223,7 @@ describe('Decreto · a MISSÃO ATIVA + Jornada 1 transicionam o estado da conver
   it('novo contato (sem snapshot e sem cliente) ⇒ null ⇒ LEAD', async () => {
     const provider = criarMissaoProvider(
       snapshots(null),
-      { list: () => Promise.resolve([]) } as unknown as ClientesList,
+      { porChat: () => Promise.resolve(null) } as unknown as ClientesList,
       new TestClock(),
     );
     expect(await provider('desconhecido@c')).toBeNull();

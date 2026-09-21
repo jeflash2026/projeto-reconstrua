@@ -22,6 +22,11 @@ export default function Home() {
     /\D/g,
     '',
   );
+  // CANAL DE ENTRADA (2026-09-21): a conta oficial do WhatsApp foi desativada em
+  // definitivo pela Meta (política comercial), então o CTA leva ao WEBCHAT
+  // próprio — que é nosso e não pode ser banido. CANAL_DE_ENTRADA=whatsapp
+  // devolve o wa.me no dia em que houver um número oficial de novo.
+  const canalDeEntrada = process.env['CANAL_DE_ENTRADA'] === 'whatsapp' ? 'whatsapp' : 'webchat';
   return (
     <SmoothScroll>
       <Navbar />
@@ -34,10 +39,10 @@ export default function Home() {
         <IndicatorsSection />
         <TestimonialsSection />
         <FaqSection />
-        <FinalCtaSection numeroWhatsApp={numeroWhatsApp} />
+        <FinalCtaSection numeroWhatsApp={numeroWhatsApp} canal={canalDeEntrada} />
       </main>
       <Footer />
-      <WhatsAppFloat numero={numeroWhatsApp} />
+      <WhatsAppFloat numero={numeroWhatsApp} canal={canalDeEntrada} />
     </SmoothScroll>
   );
 }

@@ -54,6 +54,12 @@ export interface WebchatDeps {
   readonly references: MediaReferenceStore;
   /** Falhas do turno assíncrono viram log — nunca derrubam o HTTP. */
   readonly aoFalhar?: (mensagem: string) => void;
+  /** TRÁFEGO PAGO NO WEBCHAT (2026-09-21): a atribuição de campanha lê a marca
+   *  "Vim pelo site (X)" no começo da conversa. No WhatsApp ela viaja no texto
+   *  do link wa.me; quem entra pelo webchat não escreve nada disso, e a origem
+   *  se perdia. Agora a marca é registrada na ABERTURA da sessão, uma única vez
+   *  por conversa. Ausente ⇒ sem atribuição (comportamento anterior). */
+  readonly registrarOrigem?: (chatId: string, texto: string) => Promise<void>;
 }
 
 /** Normaliza o telefone digitado: DDD+número (10-11 dígitos) ou já com 55. */
@@ -94,6 +100,7 @@ export class WebchatRuntime {
   async abrirSessao(
     nomeBruto: string,
     telefoneBruto: string,
+    campanhaBruta = '',
   ): Promise<{ ok: true; token: string; nome: string } | { ok: false; error: string }> {
     const nome = nomeBruto.replace(/\s+/g, ' ').trim().slice(0, 80);
     if (nome.length < 2) return { ok: false, error: 'informe o seu nome' };
@@ -107,7 +114,30 @@ export class WebchatRuntime {
       criadaEm: this.deps.clock.now().toISOString(),
     };
     await this.deps.json.put(NS_SESSAO, sessao.token, sessao);
+    await this.marcarOrigem(sessao.chatId, campanhaBruta);
     return { ok: true, token: sessao.token, nome };
+  }
+
+  /** Carimba a origem UMA vez por conversa (a marca que a atribuição lê). */
+  private async marcarOrigem(chatId: string, campanhaBruta: string): Promise<void> {
+    const registrar = this.deps.registrarOrigem;
+    if (registrar === undefined) return;
+    const campanha = campanhaBruta
+      .replace(/[^\w .:-]/gu, '')
+      .trim()
+      .slice(0, 60);
+    if (campanha === '') return;
+    try {
+      // Conversa que já existe mantém a origem do primeiro contato: trocar a
+      // atribuição a cada visita inventaria conversões para a última campanha.
+      const jaTem = await this.deps.conversas.recent(chatId, 1);
+      if (jaTem.length > 0) return;
+      await registrar(chatId, `Vim pelo site (${campanha}) — pelo webchat.`);
+    } catch (erro) {
+      this.deps.aoFalhar?.(
+        `webchat origem falhou chat=${chatId}: ${erro instanceof Error ? erro.message : 'falha'}`,
+      );
+    }
   }
 
   private async sessao(token: string): Promise<SessaoWebchat | null> {

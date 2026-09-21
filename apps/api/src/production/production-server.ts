@@ -129,8 +129,12 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
       .send(r.zip);
   });
   app.post('/webchat/sessao', async (request, reply) => {
-    const body = request.body as { nome?: string; telefone?: string };
-    const r = await prod.webchat.abrirSessao(body.nome ?? '', body.telefone ?? '');
+    const body = request.body as { nome?: string; telefone?: string; campanha?: string };
+    const r = await prod.webchat.abrirSessao(
+      body.nome ?? '',
+      body.telefone ?? '',
+      body.campanha ?? '',
+    );
     if (!r.ok) return reply.code(400).send(r);
     return r;
   });

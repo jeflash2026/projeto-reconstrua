@@ -23,11 +23,13 @@ const PDF_BASE64 = Buffer.from('%PDF-1.4\n%%EOF\n').toString('base64');
 
 function montar(entradas: MemoryEntry[] = []): {
   runtime: WebchatRuntime;
+  origens: string[];
   recebidos: InboundEnvelope[];
   blobs: Map<string, StoredBlob>;
   refs: Map<string, MediaReference>;
 } {
   const recebidos: InboundEnvelope[] = [];
+  const origens: string[] = [];
   const blobs = new Map<string, StoredBlob>();
   const refs = new Map<string, MediaReference>();
   const runtime = new WebchatRuntime({
@@ -40,6 +42,10 @@ function montar(entradas: MemoryEntry[] = []): {
       },
     }),
     conversas: { recent: () => Promise.resolve(entradas) },
+    registrarOrigem: (_chatId, texto) => {
+      origens.push(texto);
+      return Promise.resolve();
+    },
     media: {
       has: (sha) => Promise.resolve(blobs.has(sha)),
       put: (blob) => {
@@ -56,7 +62,7 @@ function montar(entradas: MemoryEntry[] = []): {
       byMessageId: (id) => Promise.resolve(refs.get(id) ?? null),
     },
   });
-  return { runtime, recebidos, blobs, refs };
+  return { runtime, origens, recebidos, blobs, refs };
 }
 
 describe('normalizarTelefoneWebchat', () => {
@@ -185,5 +191,32 @@ describe('WebchatGatewayRouter', () => {
       { now: () => NOW },
     );
     expect(typeof comDocumento.sendDocument).toBe('function');
+  });
+});
+
+// TRÁFEGO PAGO NO WEBCHAT (2026-09-21): com o WhatsApp oficial desativado pela
+// Meta, o anúncio passa a cair no webchat — e a atribuição de campanha lê a
+// marca "Vim pelo site (X)" no começo da conversa. Quem entra pelo webchat não
+// escreve essa marca: ela é carimbada na abertura da sessão.
+describe('WebchatRuntime — origem da visita', () => {
+  it('carimba a campanha na PRIMEIRA sessão da conversa', async () => {
+    const b = montar();
+    const s = await b.runtime.abrirSessao('Maria', '48 99999-9999', 'black-friday');
+    expect(s.ok).toBe(true);
+    expect(b.origens).toEqual(['Vim pelo site (black-friday) — pelo webchat.']);
+  });
+
+  it('conversa que já existe MANTÉM a origem do primeiro contato', async () => {
+    const b = montar([
+      { id: 'e1', chatId: '5548999999999@webchat', kind: 'inbound', text: 'oi', at: NOW, meta: {} },
+    ] as never);
+    await b.runtime.abrirSessao('Maria', '48 99999-9999', 'outra-campanha');
+    expect(b.origens).toEqual([]);
+  });
+
+  it('sem campanha, não carimba nada', async () => {
+    const b = montar();
+    await b.runtime.abrirSessao('Maria', '48 99999-9999');
+    expect(b.origens).toEqual([]);
   });
 });

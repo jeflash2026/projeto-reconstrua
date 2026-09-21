@@ -2,21 +2,28 @@
 // Botão FLUTUANTE de WhatsApp — o atalho permanente ao canal oficial (o link é
 // montado no clique, com a campanha da visita no texto — atribuição preservada).
 import { useEffect, useState, type ReactElement } from 'react';
-import { linkWhatsApp } from '@/lib/whatsapp';
+import { linkDeEntrada, type CanalDeEntrada } from '@/lib/whatsapp';
 import { trackGoogleAdsContact } from '@/lib/google-ads';
 
-export function WhatsAppFloat({ numero }: { numero: string }): ReactElement {
+export function WhatsAppFloat({
+  numero,
+  canal = 'whatsapp',
+}: {
+  numero: string;
+  canal?: CanalDeEntrada;
+}): ReactElement {
   const [href, setHref] = useState('#');
   useEffect(() => {
-    setHref(linkWhatsApp(numero));
-  }, [numero]);
+    setHref(linkDeEntrada(canal, numero));
+  }, [numero, canal]);
+  const rotulo = canal === 'webchat' ? 'Falar com a Ahri' : 'Falar no WhatsApp';
   return (
     <a
       className="wa-float"
       href={href}
       rel="nofollow noreferrer"
-      target="_blank"
-      aria-label="Falar no WhatsApp"
+      {...(canal === 'webchat' ? {} : { target: '_blank' })}
+      aria-label={rotulo}
       // CONVERSÃO "Contato" (2026-08-12): contato de verdade começa aqui. Não
       // preventDefault, não async — o link segue para o WhatsApp exatamente
       // como antes; o rastreamento apenas acompanha.
@@ -43,7 +50,7 @@ export function WhatsAppFloat({ numero }: { numero: string }): ReactElement {
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M.06 24l1.7-6.2A11.9 11.9 0 1 1 12 24a11.9 11.9 0 0 1-5.7-1.45L.06 24zM6.6 20l.4.24a9.9 9.9 0 1 0-3.4-3.4l.25.4-1 3.6z" />
       </svg>
-      <span>Falar no WhatsApp</span>
+      <span>{rotulo}</span>
     </a>
   );
 }

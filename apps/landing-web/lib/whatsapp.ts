@@ -28,6 +28,27 @@ export function campanhaDaVisita(): string {
   return 'organico';
 }
 
+/** Por onde o visitante entra em contato. O WhatsApp oficial da empresa foi
+ *  DESATIVADO em definitivo pela Meta em 17/08/2026 (política comercial), então
+ *  o caminho de entrada passa a ser o WEBCHAT próprio — que é nosso, não pode
+ *  ser banido e recebe tráfego pago do mesmo jeito. Vem do servidor
+ *  (CANAL_DE_ENTRADA) para o dia em que houver um número oficial de novo. */
+export type CanalDeEntrada = 'whatsapp' | 'webchat';
+
+/** O link do CTA: wa.me quando há WhatsApp, /webchat quando não há. A campanha
+ *  da visita viaja nos dois (no texto do wa.me; na query do webchat). */
+export function linkDeEntrada(
+  canal: CanalDeEntrada,
+  numero: string,
+  extras?: { readonly nome?: string; readonly relato?: string },
+): string {
+  if (canal !== 'webchat') return linkWhatsApp(numero, extras);
+  const params = new URLSearchParams({ c: campanhaDaVisita() });
+  const nome = extras?.nome?.trim();
+  if (nome !== undefined && nome !== '') params.set('nome', nome);
+  return `/webchat?${params.toString()}`;
+}
+
 /** Link wa.me com o texto de atribuição (e, opcionalmente, nome/relato do form). */
 export function linkWhatsApp(
   numero: string,

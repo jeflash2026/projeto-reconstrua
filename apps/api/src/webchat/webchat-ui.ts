@@ -184,12 +184,28 @@ export const WEBCHAT_UI_HTML = `<!doctype html>
       .catch(function () { /* rede oscilou: o próximo polling tenta de novo */ });
   }
 
+  // TRÁFEGO PAGO (2026-09-21): a campanha da visita viaja na URL do anúncio
+  // (?c=, utm_campaign, ou os identificadores de clique gclid/fbclid). Ela vai
+  // junto na abertura da sessão e vira a origem do cliente no painel.
+  function campanhaDaVisita() {
+    try {
+      var p = new URLSearchParams(window.location.search);
+      var nomeada = p.get('c') || p.get('utm_campaign') || p.get('campaign');
+      if (nomeada && nomeada.trim() !== '') return nomeada.trim();
+      if (p.get('gclid') || p.get('gbraid') || p.get('wbraid')) return 'google-ads';
+      if (p.get('fbclid')) return 'meta-ads';
+      return 'site';
+    } catch (e) {
+      return 'site';
+    }
+  }
+
   document.getElementById('comecar').addEventListener('click', function () {
     var nome = document.getElementById('nome').value;
     var fone = document.getElementById('fone').value;
     var erro = document.getElementById('erroEntrada');
     erro.style.display = 'none';
-    post('/webchat/sessao', { nome: nome, telefone: fone }).then(function (j) {
+    post('/webchat/sessao', { nome: nome, telefone: fone, campanha: campanhaDaVisita() }).then(function (j) {
       if (j && j.ok === true) {
         token = j.token;
         sessionStorage.setItem('wcToken', token);

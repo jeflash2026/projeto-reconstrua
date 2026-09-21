@@ -2263,6 +2263,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     aoFalhar: (mensagem) => {
       observability.error('webchat', 'turno', clock.now(), mensagem);
     },
+    // TRÁFEGO PAGO (2026-09-21): a campanha da visita vira a marca de origem
+    // no começo da conversa — a MESMA que a landing carimba no texto do wa.me.
+    registrarOrigem: (chatId, texto) => convMemory.recordNote(chatId, texto),
   });
 
   // ── CANAL OFICIAL META (decreto 2026-07-31): o webhook da Cloud API entra
@@ -2556,7 +2559,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // a conversa inteira de toda a base para nada seria desperdício.
     inicioDaConversa: async (chatId) =>
       (await conversationStore.primeiras(chatId, 6))
-        .filter((e) => e.kind === 'inbound' && e.text !== null)
+        // A nota entra junto: quem chega pelo webchat não escreve a marca de
+        // origem (ela é carimbada na abertura da sessão).
+        .filter((e) => (e.kind === 'inbound' || e.kind === 'note') && e.text !== null)
         .map((e) => e.text ?? ''),
     comHiscon: async () => new Set((await perito.todosComHiscon()).map((c) => c.chatId)),
     confirmados: async () =>

@@ -4,10 +4,16 @@ import { CheckCircle2, LoaderCircle, Send } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { BrandMark } from '@/components/brand-mark';
-import { linkWhatsApp } from '@/lib/whatsapp';
+import { linkDeEntrada, type CanalDeEntrada } from '@/lib/whatsapp';
 import { trackGoogleAdsContact } from '@/lib/google-ads';
 
-export function FinalCtaSection({ numeroWhatsApp }: { numeroWhatsApp: string }) {
+export function FinalCtaSection({
+  numeroWhatsApp,
+  canal = 'whatsapp',
+}: {
+  numeroWhatsApp: string;
+  canal?: CanalDeEntrada;
+}) {
   const [isSent, setIsSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -22,7 +28,9 @@ export function FinalCtaSection({ numeroWhatsApp }: { numeroWhatsApp: string }) 
     const nome = typeof nomeCru === 'string' ? nomeCru : '';
     const relatoCru = dados.get('message');
     const relato = typeof relatoCru === 'string' ? relatoCru : '';
-    window.open(linkWhatsApp(numeroWhatsApp, { nome, relato }), '_blank', 'noopener');
+    const destino = linkDeEntrada(canal, numeroWhatsApp, { nome, relato });
+    if (canal === 'webchat') window.location.assign(destino);
+    else window.open(destino, '_blank', 'noopener');
     // CONVERSÃO "Contato" (2026-08-12): só DEPOIS do envio dar certo. O submit
     // já passou pela validação nativa do formulário (todos os campos são
     // required) — inválido nem chega aqui. Este formulário não chama API: ele

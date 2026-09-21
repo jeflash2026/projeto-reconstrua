@@ -1,5 +1,6 @@
 import { SmoothScroll } from '@/components/motion/smooth-scroll';
 import { WhatsAppFloat } from '@/components/whatsapp-float';
+import { ChatAhri } from '@/components/chat-ahri';
 import { BenefitsSection } from '@/sections/benefits-section';
 import { FaqSection } from '@/sections/faq-section';
 import { FinalCtaSection } from '@/sections/final-cta-section';
@@ -42,7 +43,13 @@ export default function Home() {
         <FinalCtaSection numeroWhatsApp={numeroWhatsApp} canal={canalDeEntrada} />
       </main>
       <Footer />
-      <WhatsAppFloat numero={numeroWhatsApp} canal={canalDeEntrada} />
+      {/* A conversa acontece DENTRO da página (2026-09-21): a caixa da AHRI
+          substitui o botão de WhatsApp enquanto não houver número oficial. */}
+      {canalDeEntrada === 'webchat' ? (
+        <ChatAhri />
+      ) : (
+        <WhatsAppFloat numero={numeroWhatsApp} canal={canalDeEntrada} />
+      )}
     </SmoothScroll>
   );
 }

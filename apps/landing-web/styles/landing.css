@@ -2300,3 +2300,263 @@ button {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── CAIXA DE CONVERSA DA AHRI (2026-09-21) ─────────────────────────────────
+   O atendimento acontece dentro da página: bolha fixa + painel por cima. No
+   celular ocupa a tela inteira (teclado aberto continua usável). */
+.ahri-bolha {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 70;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 19px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--signal);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42);
+  transition: background 200ms var(--ease-out);
+}
+.ahri-bolha:hover {
+  background: var(--signal-hover);
+}
+
+.ahri-chat {
+  position: fixed;
+  right: 20px;
+  bottom: 88px;
+  z-index: 71;
+  display: flex;
+  flex-direction: column;
+  width: min(380px, calc(100vw - 40px));
+  height: min(560px, calc(100vh - 140px));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+
+.ahri-chat__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--soft-line);
+  background: var(--surface-raised);
+}
+.ahri-chat__quem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.ahri-chat__avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--signal);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+.ahri-chat__quem strong {
+  display: block;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+}
+.ahri-chat__quem span {
+  color: var(--dim);
+  font-size: 0.76rem;
+}
+.ahri-chat__topo > button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+}
+.ahri-chat__topo > button:hover {
+  color: var(--ink);
+}
+
+.ahri-chat__entrada {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 18px 16px;
+}
+.ahri-chat__entrada > p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.ahri-chat__entrada label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ahri-chat__entrada label span {
+  color: var(--dim);
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.ahri-chat__entrada input,
+.ahri-chat__campo input {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+}
+.ahri-chat__entrada input:focus,
+.ahri-chat__campo input:focus {
+  outline: none;
+  border-color: var(--signal);
+}
+.ahri-chat__entrada > button {
+  margin-top: 2px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--signal);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  cursor: pointer;
+}
+.ahri-chat__entrada > button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.ahri-chat__erro {
+  color: var(--signal-hover);
+  font-size: 0.85rem;
+}
+
+.ahri-chat__conversa {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 16px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(193, 18, 31, 0.07), transparent 42%), var(--black);
+}
+.ahri-chat__vazio {
+  color: var(--dim);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.ahri-balao {
+  max-width: 82%;
+  padding: 10px 13px;
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 0.93rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ahri-balao--cliente {
+  align-self: flex-end;
+  background: var(--signal);
+  border-bottom-right-radius: 3px;
+}
+.ahri-balao--ahri {
+  align-self: flex-start;
+  background: var(--surface-raised);
+  border: 1px solid var(--soft-line);
+  border-bottom-left-radius: 3px;
+}
+.ahri-balao--digitando {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  padding: 13px;
+}
+.ahri-balao--digitando span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dim);
+  animation: ahri-pulsa 1.2s infinite ease-in-out;
+}
+.ahri-balao--digitando span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ahri-balao--digitando span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes ahri-pulsa {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+.ahri-chat__campo {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--soft-line);
+  background: var(--surface-raised);
+}
+.ahri-chat__campo button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--signal);
+  color: var(--ink);
+  cursor: pointer;
+}
+.ahri-chat__campo button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (max-width: 620px) {
+  .ahri-chat {
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+  .ahri-bolha span {
+    display: none;
+  }
+  .ahri-bolha {
+    padding: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ahri-balao--digitando span {
+    animation: none;
+  }
+}

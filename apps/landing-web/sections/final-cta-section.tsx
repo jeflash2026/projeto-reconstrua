@@ -5,6 +5,7 @@ import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { BrandMark } from '@/components/brand-mark';
 import { linkDeEntrada, type CanalDeEntrada } from '@/lib/whatsapp';
+import { abrirChatAhri } from '@/components/chat-ahri';
 import { trackGoogleAdsContact } from '@/lib/google-ads';
 
 export function FinalCtaSection({
@@ -28,9 +29,15 @@ export function FinalCtaSection({
     const nome = typeof nomeCru === 'string' ? nomeCru : '';
     const relatoCru = dados.get('message');
     const relato = typeof relatoCru === 'string' ? relatoCru : '';
-    const destino = linkDeEntrada(canal, numeroWhatsApp, { nome, relato });
-    if (canal === 'webchat') window.location.assign(destino);
-    else window.open(destino, '_blank', 'noopener');
+    const telefoneCru = dados.get('phone');
+    const telefone = typeof telefoneCru === 'string' ? telefoneCru : '';
+    if (canal === 'webchat') {
+      // A conversa abre AQUI, com o que a pessoa já escreveu: sem troca de
+      // página, sem repetir o nome, sem esperar ninguém retornar.
+      abrirChatAhri({ nome, telefone, relato });
+    } else {
+      window.open(linkDeEntrada(canal, numeroWhatsApp, { nome, relato }), '_blank', 'noopener');
+    }
     // CONVERSÃO "Contato" (2026-08-12): só DEPOIS do envio dar certo. O submit
     // já passou pela validação nativa do formulário (todos os campos são
     // required) — inválido nem chega aqui. Este formulário não chama API: ele
@@ -74,10 +81,13 @@ export function FinalCtaSection({
                 animate={{ opacity: 1, scale: 1 }}
               >
                 <CheckCircle2 size={36} strokeWidth={1.45} />
-                <h3>Abrimos o seu WhatsApp.</h3>
+                <h3>
+                  {canal === 'webchat' ? 'A conversa começou aqui.' : 'Abrimos o seu WhatsApp.'}
+                </h3>
                 <p>
-                  É só enviar a mensagem que preparamos — a análise começa na hora, pelo WhatsApp
-                  oficial do Projeto Reconstrua.
+                  {canal === 'webchat'
+                    ? 'A Ahri está na caixa de conversa, no canto da tela. É só continuar por lá — ela responde em segundos.'
+                    : 'É só enviar a mensagem que preparamos — a análise começa na hora, pelo WhatsApp oficial do Projeto Reconstrua.'}
                 </p>
               </motion.div>
             ) : (
@@ -121,7 +131,7 @@ export function FinalCtaSection({
                 </label>
                 <button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? <LoaderCircle className="spin" size={17} /> : <Send size={16} />}
-                  {isSubmitting ? 'Abrindo o WhatsApp...' : 'Quero entender meu caso'}
+                  {isSubmitting ? 'Abrindo…' : 'Quero entender meu caso'}
                 </button>
               </form>
             )}

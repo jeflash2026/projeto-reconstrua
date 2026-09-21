@@ -444,6 +444,49 @@ async function main(): Promise<void> {
       );
     });
   }, 60_000);
+  // VIGIA DA CONEXÃO WHATSAPP (2026-09-21): o Evolution entra como "aparelho
+  // conectado" e a conexão CAI sozinha (celular offline, sessão expirada). Sem
+  // vigia, ninguém percebia: as mensagens simplesmente não chegavam e a gente
+  // descobria por cliente reclamando. Agora a queda vira saúde DEGRADED (painel)
+  // e uma linha no log a cada verificação.
+  const vigiarWhatsApp = async (): Promise<void> => {
+    const conexao = prod.adminView.whatsapp;
+    if (conexao === undefined) return;
+    const status = await conexao.getStatus();
+    const conectado = status.matchesOfficial;
+    prod.health.report({
+      component: 'whatsapp',
+      status: conectado ? 'ONLINE' : 'DEGRADED',
+      responseMs: null,
+      queueDepth: null,
+      memoryBytes: null,
+      lastProcessedAt: null,
+      detail: conectado
+        ? `número ${status.officialNumber} conectado`
+        : `SEM CONEXÃO (estado: ${status.live?.state ?? 'desconhecido'}) — leia o QR em Conexão WhatsApp`,
+      reportedAt: clock.now(),
+    });
+    if (!conectado)
+      prod.observability.degraded(
+        'whatsapp',
+        'sem-conexao',
+        clock.now(),
+        `o número ${status.officialNumber} NÃO está conectado (estado: ${status.live?.state ?? '-'}) — nenhuma mensagem entra nem sai; leia o QR no painel`,
+      );
+  };
+  const vigiaWhatsApp = (): void => {
+    void vigiarWhatsApp().catch((error: unknown) => {
+      prod.observability.error(
+        'whatsapp',
+        'vigia',
+        clock.now(),
+        error instanceof Error ? error.message : 'falha ao verificar a conexão',
+      );
+    });
+  };
+  vigiaWhatsApp();
+  setInterval(vigiaWhatsApp, 120_000);
+
   // 14ª rodada — BOMBA DE RETENTATIVAS: entregas pendentes (ex.: classificação
   // aguardando a transcrição da Vision) eram reprocessadas SÓ no próximo turno
   // (próxima mensagem do cliente). Sem mensagem nova, a progressão tardia

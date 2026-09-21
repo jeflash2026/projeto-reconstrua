@@ -318,7 +318,9 @@ class LlmPerception implements LlmPerceptionPort {
     // retentativa imediata resolve a maioria dos transientes (parse/vazio/erro).
     for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
       try {
-        const raw = (await this.llm.complete(system, user)).text;
+        // AGILIDADE (2026-09-21): teto de saída — a percepção é um JSON curto;
+        // sem teto, uma resposta longa do modelo vira espera do cliente.
+        const raw = (await this.llm.complete(system, user, { maxTokens: 500 })).text;
         const parsed = parseEnrichment(raw);
         this.track(
           'perception',
@@ -395,7 +397,9 @@ class LlmExpression implements LlmExpressionPort {
     // 5ª rodada: UMA retentativa imediata antes do degrade (transientes).
     for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
       try {
-        const raw = (await this.llm.complete(system, user)).text.trim();
+        // AGILIDADE (2026-09-21): teto de saída — a fala da AHRI é curta por
+        // política; o teto evita que um modelo prolixo segure o turno.
+        const raw = (await this.llm.complete(system, user, { maxTokens: 800 })).text.trim();
         this.track(
           'expression',
           this.clock.now().getTime() - t0,

@@ -44,17 +44,20 @@ export interface HumanizationPolicy {
  *  Decreto de agilidade (2026-07-22, caso Lucas): a cadência anterior somava
  *  até ~18s só de "lendo/digitando" por mensagem — atendimento LENTO gera
  *  insegurança. Cadência nova: consultora ágil (rápida, com digitação ainda
- *  perceptível; nunca instantâneo-robótico). */
+ *  perceptível; nunca instantâneo-robótico).
+ *  2026-09-21 (WhatsApp lento pela Evolution): tetos menores ainda. O grosso da
+ *  espera era o LLM do turno, e o DeliveryRuntime agora desconta esse tempo da
+ *  encenação — estes tetos só limitam o que sobra quando o turno é rápido. */
 export const DEFAULT_HUMANIZATION_POLICY: HumanizationPolicy = {
   readMsPerChar: 8,
-  maxReadMs: 2_000,
-  baseThinkMs: 400,
+  maxReadMs: 1_200,
+  baseThinkMs: 300,
   typeCharsPerSecond: 40,
-  minTypeMs: 600,
-  maxTypeMs: 4_000,
-  minPreSendMs: 800,
+  minTypeMs: 500,
+  maxTypeMs: 2_500,
+  minPreSendMs: 600,
   jitter: 0.25,
-  interMessageMs: 800,
+  interMessageMs: 600,
   repetitionThreshold: 0.8,
   antiRepetitionWindow: 8,
   silenceThresholdMs: 20 * 60 * 1_000, // 20 min

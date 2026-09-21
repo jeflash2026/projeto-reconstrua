@@ -83,10 +83,23 @@ export class DeliveryRuntime {
       : timing.compute(inboundLength, msg.text.length);
 
     if (!imediata) {
+      // AGILIDADE (2026-09-21, "a AHRI demora demais no WhatsApp"): a cadência
+      // humana conta desde a CHEGADA da mensagem, não desde agora. O turno já
+      // gastou segundos REAIS antes de chegar aqui (percepção, decisão e
+      // fraseado no LLM) e o cliente esperou por eles olhando a tela — somar a
+      // encenação inteira por cima era o que fazia a resposta demorar o dobro.
+      // Desconta o que já passou e encena só o que falta, sempre com um
+      // "digitando" visível antes de enviar (nunca instantâneo).
+      const { policy } = this.deps;
+      const chegadaMs = context.lastPercept?.perceivedAt.getTime() ?? clock.now().getTime();
+      const decorridoMs = Math.max(0, clock.now().getTime() - chegadaMs);
+      const pisoDigitando = Math.min(plan.typingDurationMs, policy.minTypeMs);
+      const restanteMs = Math.max(pisoDigitando, plan.totalMs - decorridoMs);
+      const digitarMs = Math.min(plan.typingDurationMs, restanteMs);
       // 1) Lê e pensa (com a AHRI ainda sem "digitando").
-      await delay.wait(plan.readingDelayMs + plan.thinkingDelayMs);
-      // 2) Digita visivelmente pela duração calculada.
-      await typing.typeFor(msg.chatId, plan.typingDurationMs, clock.now());
+      await delay.wait(restanteMs - digitarMs);
+      // 2) Digita visivelmente pela duração que restou.
+      await typing.typeFor(msg.chatId, digitarMs, clock.now());
     }
     // 3) Envia.
     const receipt = await gateway.sendText(msg.chatId, msg.text);

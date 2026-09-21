@@ -27,10 +27,16 @@ function mensagem(chatId: string): QueuedMessage {
   };
 }
 
-function contexto(chatId: string): ConversationContextView {
+function contexto(chatId: string, chegadaMsAtras = 0): ConversationContextView {
   return {
     chatId,
-    lastPercept: null,
+    lastPercept:
+      chegadaMsAtras === 0
+        ? null
+        : {
+            envelope: { text: 'oi, bom dia' },
+            perceivedAt: new Date(AGORA.getTime() - chegadaMsAtras),
+          },
     recentOutboundTexts: [],
   } as unknown as ConversationContextView;
 }
@@ -100,6 +106,26 @@ describe('DeliveryRuntime — entrega imediata por canal', () => {
     expect(b.enviadas).toHaveLength(1);
     expect(b.esperas.length).toBeGreaterThan(0); // leu/pensou antes de enviar
     expect(b.digitacoes.length).toBeGreaterThan(0); // e "digitou" visivelmente
+  });
+
+  // AGILIDADE (2026-09-21): o tempo que o turno gastou no LLM já é espera REAL
+  // do cliente; a encenação desconta esse tempo em vez de somar por cima.
+  it('turno demorado ⇒ desconta o tempo já decorrido e envia quase na hora', async () => {
+    const chatId = '5548999990000@s.whatsapp.net';
+    const b = bancada(chatId, (c) => c.endsWith('@webchat'));
+    await b.runtime.drain(contexto(chatId, 30_000)); // a mensagem chegou há 30 s
+    expect(b.enviadas).toHaveLength(1);
+    expect(b.esperas).toHaveLength(0); // nada de ler/pensar: isso já passou
+    // Ainda "digita" antes de enviar — nunca instantâneo, nunca robótico.
+    expect(b.digitacoes[0]).toBe(DEFAULT_HUMANIZATION_POLICY.minTypeMs);
+  });
+
+  it('turno rápido ⇒ a cadência humana continua inteira', async () => {
+    const chatId = '5548999990000@s.whatsapp.net';
+    const b = bancada(chatId, (c) => c.endsWith('@webchat'));
+    await b.runtime.drain(contexto(chatId, 1)); // chegou agora
+    const total = (b.esperas[0] ?? 0) + (b.digitacoes[0] ?? 0);
+    expect(total).toBeGreaterThanOrEqual(DEFAULT_HUMANIZATION_POLICY.minPreSendMs);
   });
 
   it('sem o predicado (montagens antigas) ⇒ comportamento de sempre', async () => {

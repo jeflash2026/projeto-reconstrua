@@ -170,14 +170,28 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
       // Canal oficial Meta ativo? O cliente falou pela EVOLUTION ⇒ a resposta
       // volta por lá (o canal é sempre o do último contato do cliente).
       void prod.metaCanal?.chegouPelaEvolution(envelope.chatId).catch(() => undefined);
-      void prod.ingress.receive(envelope).catch((error: unknown) => {
-        prod.observability.error(
-          'webhook',
-          'evolution',
-          new Date(),
-          error instanceof Error ? error.message : 'falha',
-        );
-      });
+      // AGILIDADE (2026-09-21): mede o turno INTEIRO — do webhook até a resposta
+      // entregue. Antes só havia a latência de cada chamada de LLM, e a demora
+      // REAL do cliente ficava invisível (ver /admin/logs?source=conversa).
+      const inicioDoTurno = Date.now();
+      void prod.ingress
+        .receive(envelope)
+        .then(() => {
+          prod.observability.latency(
+            'conversa',
+            'turno-evolution',
+            Date.now() - inicioDoTurno,
+            new Date(),
+          );
+        })
+        .catch((error: unknown) => {
+          prod.observability.error(
+            'webhook',
+            'evolution',
+            new Date(),
+            error instanceof Error ? error.message : 'falha',
+          );
+        });
       // CAT-02A: captura dos bytes reais de documento — ASSÍNCRONA e best-effort,
       // após o ACK. Nenhuma conversa espera; nenhuma exceção quebra o webhook.
       if (envelope.kind === 'image' || envelope.kind === 'pdf' || envelope.kind === 'document') {

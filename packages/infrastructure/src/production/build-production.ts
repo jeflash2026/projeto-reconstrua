@@ -1025,7 +1025,9 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
         // aceitado (resposta lenta/5xx pós-envio) ⇒ cliente recebia 2×. Envio
         // não é idempotente; leituras (getBase64) continuam com o resiliente.
         new EvolutionGateway(
-          new FetchHttpClient(),
+          // Envio: prazo mais largo que o das leituras — abortar cedo um envio que a
+          // Evolution já aceitou arrisca mensagem repetida (15ª rodada).
+          new FetchHttpClient(60_000),
           {
             baseUrl: config.evolution.baseUrl,
             instance: config.evolution.instance,

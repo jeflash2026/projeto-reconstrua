@@ -185,11 +185,13 @@ export function buildProductionServer(deps: ProductionServerDeps): FastifyInstan
           );
         })
         .catch((error: unknown) => {
+          // O chatId no detalhe (2026-09-21): sem ele, um turno que morre deixa
+          // o cliente em silêncio e o log não diz QUEM ficou sem resposta.
           prod.observability.error(
             'webhook',
             'evolution',
             new Date(),
-            error instanceof Error ? error.message : 'falha',
+            `${envelope.chatId}: ${error instanceof Error ? error.message : 'falha'}`,
           );
         });
       // CAT-02A: captura dos bytes reais de documento — ASSÍNCRONA e best-effort,

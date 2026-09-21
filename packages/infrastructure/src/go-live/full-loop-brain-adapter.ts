@@ -192,6 +192,16 @@ export class FullLoopBrainAdapter implements ExecutiveBrainPort {
     const chatId = input.percept.envelope.chatId;
     const t0 = now.getTime();
 
+    // MEDIÇÃO POR ETAPA (2026-09-21): a decisão levava ~45s de um turno de
+    // ~55s e não havia como saber de QUEM era o tempo. Cada etapa vira uma
+    // latência própria (componente "turno") — nada muda no comportamento.
+    let marco = t0;
+    const marcar = (etapa: string): void => {
+      const agora = d.clock.now().getTime();
+      d.observability.latency('turno', etapa, agora - marco, now);
+      marco = agora;
+    };
+
     // 1) BRAIN decide (determinístico, RO-gated).
     const snapshot = (await d.snapshots.load(chatId)) ?? emptySnapshot(chatId);
     const outcome = await d.brain.decide({
@@ -202,6 +212,8 @@ export class FullLoopBrainAdapter implements ExecutiveBrainPort {
       chatId,
       now,
     });
+
+    marcar('regras');
 
     // 2) MISSION executa as intenções use_case (Event Store; append→outbox).
     const missionIntents = toMissionUseCaseIntents(outcome.intents);
@@ -235,8 +247,12 @@ export class FullLoopBrainAdapter implements ExecutiveBrainPort {
       }
     }
 
+    marcar('missao');
+
     // 3) DISPATCHER drena: eventos → Read Models / Workflow / projeções.
     await d.outbox.drainToIdle();
+
+    marcar('dispatcher');
 
     // 4) MEMÓRIA VIVA ingere o turno (com os resultados factuais da missão).
     await d.memoryIngestor.ingestTurn(
@@ -250,14 +266,20 @@ export class FullLoopBrainAdapter implements ExecutiveBrainPort {
       },
       missionResult?.outcomes ?? [],
     );
+    marcar('memoria-viva');
+
     // 5) Continuidade: injeta a nota de memória (contexto dos PRÓXIMOS turnos).
     if (d.noteWriter) await d.noteWriter.inject(chatId);
+
+    marcar('nota');
 
     // 6) Consumidores das intenções não-conversacionais.
     for (const intent of outcome.intents) {
       if (intent.kind === 'notification') await d.notification.consume(intent, now);
       else if (intent.kind === 'escalation') await d.handoff.consume(intent);
     }
+
+    marcar('consumidores');
 
     d.observability.latency('full-loop', 'turn', d.clock.now().getTime() - t0, now);
     d.observability.event('full-loop', `turn:${chatId}`, now);

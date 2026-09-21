@@ -1362,6 +1362,15 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     clock,
     uuid,
     policy,
+    // AVISO ao operador (2026-09-21, caso Jefferson): quando a AHRI quase
+    // deixa alguém sem resposta, o registro aparece no log e no painel.
+    alerta: (chatId: string, motivo: string): void => {
+      observability.error('conversa', 'precisa-de-atencao', clock.now(), chatId + ': ' + motivo);
+    },
+    // MEDIÇÃO por etapa do turno (2026-09-21): onde vão os segundos.
+    medir: (etapa: string, ms: number): void => {
+      observability.latency('conversa', etapa, ms, clock.now());
+    },
   });
 
   // ── 3A/3B/3D ─────────────────────────────────────────────────────────────────

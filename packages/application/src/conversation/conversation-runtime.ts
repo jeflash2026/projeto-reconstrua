@@ -50,6 +50,13 @@ export interface ConversationRuntimeDeps {
   readonly clock: Clock;
   readonly uuid: UuidGenerator;
   readonly policy: HumanizationPolicy;
+  /** AVISO ao operador (2026-09-21, caso Jefferson): situações em que a AHRI
+   *  quase deixou o cliente sem resposta viram registro visível — a mesa vê que
+   *  aquela conversa precisa de gente. Ausente ⇒ só a nota na memória. */
+  readonly alerta?: (chatId: string, motivo: string) => void;
+  /** MEDIÇÃO por etapa do turno (2026-09-21, "a AHRI demora ~55s"): sem isto,
+   *  só dá para ver o tempo total e a demora fica sem dono. Ausente ⇒ não mede. */
+  readonly medir?: (etapa: string, ms: number, chatId: string) => void;
 }
 
 export interface TurnResult {
@@ -61,6 +68,11 @@ export interface TurnResult {
 }
 
 const MAX_REPHRASE_ATTEMPTS = 3;
+
+/** A saída quando a expressão só sabe repetir: devolve a palavra ao cliente sem
+ *  repetir nada e sem prometer nada (caso Jefferson, 2026-09-21). */
+const SAIDA_SEM_REPETIR =
+  'Tô aqui com você 🙂 Me conta com as suas palavras como você quer seguir, que eu te ajudo daqui.';
 
 export class ConversationRuntime {
   constructor(private readonly deps: ConversationRuntimeDeps) {}
@@ -106,6 +118,17 @@ export class ConversationRuntime {
     return results;
   }
 
+  /** Mede uma etapa do turno (quando há medidor) sem mudar o que ela faz. */
+  private async cronometrar<T>(etapa: string, chatId: string, op: () => Promise<T>): Promise<T> {
+    if (this.deps.medir === undefined) return op();
+    const t0 = this.deps.clock.now().getTime();
+    try {
+      return await op();
+    } finally {
+      this.deps.medir(etapa, this.deps.clock.now().getTime() - t0, chatId);
+    }
+  }
+
   // ── Núcleo de um turno: percebe → Brain decide → executa ────────────────────
   private async runTurn(
     envelope: InboundEnvelope,
@@ -117,8 +140,10 @@ export class ConversationRuntime {
     // 1) PERCEPÇÃO — o LLM entende (nunca decide). Percepções mecânicas não passam pelo LLM.
     let enrichment: PerceptEnrichment | null = null;
     if (!isMechanicalPercept(envelope.kind)) {
-      const recentSummary = await this.recentSummary(envelope.chatId);
-      enrichment = await perception.understand(envelope, { recentSummary });
+      enrichment = await this.cronometrar('percepcao', envelope.chatId, async () => {
+        const recentSummary = await this.recentSummary(envelope.chatId);
+        return perception.understand(envelope, { recentSummary });
+      });
     }
     const percept: Percept = {
       id: this.deps.uuid.next(),
@@ -129,10 +154,14 @@ export class ConversationRuntime {
     await memory.recordPercept(percept);
 
     // 2) CONTEXTO (read-only).
-    const view = await context.build(envelope.chatId, percept, now, silenceMs);
+    const view = await this.cronometrar('contexto', envelope.chatId, () =>
+      context.build(envelope.chatId, percept, now, silenceMs),
+    );
 
     // 3) EXECUTIVE BRAIN — a ÚNICA fonte de decisão. A Conversa não cria intenções.
-    const intents = await brain.decide({ percept, context: view });
+    const intents = await this.cronometrar('decisao', envelope.chatId, () =>
+      brain.decide({ percept, context: view }),
+    );
 
     // 3b) CONTEXTO PÓS-DECISÃO (correção GO-LIVE · Jornada Documental Inicial):
     // o pipeline do Brain EXECUTA a missão e drena o dispatcher DENTRO do turno
@@ -141,16 +170,22 @@ export class ConversationRuntime {
     // reconstrução, a AHRI responde a um documento recém-enviado pedindo o MESMO
     // documento (visão pré-turno). O Brain decidiu com a visão da chegada
     // (correto); a expressão fala com a visão atual (correto).
-    const viewParaFala = await context.build(envelope.chatId, percept, now, silenceMs);
+    const viewParaFala = await this.cronometrar('contexto-pos-decisao', envelope.chatId, () =>
+      context.build(envelope.chatId, percept, now, silenceMs),
+    );
 
     // 4) EXECUTA cada intenção (fala com anti-repetição, ou silencia).
     const turnPhrases: string[] = [];
-    for (const intent of intents) {
-      await this.executeIntent(intent, viewParaFala, now, turnPhrases);
-    }
+    await this.cronometrar('fala', envelope.chatId, async () => {
+      for (const intent of intents) {
+        await this.executeIntent(intent, viewParaFala, now, turnPhrases);
+      }
+    });
 
     // 5) ENTREGA humana da fila (ordenada, nunca instantânea, nunca sobreposta).
-    const delivered = await this.deps.delivery.drain(viewParaFala);
+    const delivered = await this.cronometrar('entrega', envelope.chatId, () =>
+      this.deps.delivery.drain(viewParaFala),
+    );
 
     return { chatId: envelope.chatId, percept, intents, delivered, skipped: false };
   }
@@ -227,11 +262,22 @@ export class ConversationRuntime {
     // (paráfrase da mesma intenção), envia — follow-ups legítimos continuam.
     const eco = avoidBase.some((a) => a.trim() === candidate.trim());
     if (eco) {
+      // CASO JEFFERSON (2026-09-21): calar era pior que repetir. O cliente
+      // escreveu, a AHRI não soube variar e ele ficou sem NENHUMA resposta —
+      // do lado dele, abandono. Agora a conversa continua com uma devolução que
+      // não repete nada (pede a palavra dele, o que muda o contexto do próximo
+      // turno) e o operador é avisado de que aquela conversa precisa de gente.
       await memory.recordNote(
         intent.chatId,
-        'guard anti-repetição esgotou tentativas; SILÊNCIO (candidato idêntico a fala recente)',
+        'guard anti-repetição esgotou tentativas; devolveu a palavra ao cliente (nunca silêncio)',
       );
-      return '';
+      this.deps.alerta?.(
+        intent.chatId,
+        'a AHRI não conseguiu variar a fala; conversa precisa de atenção',
+      );
+      // Se essa própria devolução já foi dita há pouco, aí sim calar: insistir
+      // nela seria a repetição que o decreto proíbe.
+      return avoidBase.some((a) => a.trim() === SAIDA_SEM_REPETIR) ? '' : SAIDA_SEM_REPETIR;
     }
     await memory.recordNote(
       intent.chatId,

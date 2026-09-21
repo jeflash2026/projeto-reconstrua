@@ -199,6 +199,11 @@ describe('ConversationRuntime — nunca repetir frases', () => {
       .all()
       .filter((e) => e.kind === 'note' && (e.text ?? '').includes('anti-repetição'));
     expect(notes.length).toBeGreaterThanOrEqual(1);
+    // CASO JEFFERSON (2026-09-21): o guard NÃO pode calar. O cliente escreveu e
+    // recebe uma devolução — diferente da anterior — em vez de silêncio.
+    const ditas = h.gateway.texts();
+    expect(ditas).toHaveLength(2);
+    expect(ditas[1]).not.toBe(ditas[0]);
   });
 });
 

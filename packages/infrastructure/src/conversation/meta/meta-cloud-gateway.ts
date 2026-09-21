@@ -153,6 +153,16 @@ export class MetaCloudGateway implements ConversationGateway {
     this.aoFalhar?.(`meta ${operacao} falhou: ${erroDoGraph(body)}`);
   }
 
+  /** A RECUSA de uma FALA é um erro (2026-09-21): registrar a mensagem como
+   *  enviada quando a Meta recusou (janela de 24h, token, número) deixava o
+   *  cliente sem resposta e a conversa seguindo como se ele tivesse recebido.
+   *  Presença e leitura continuam silenciosas — ali a falha não custa nada. */
+  private exigirEnvio(operacao: string, status: number, body: unknown): void {
+    if (status < 400) return;
+    this.falha(operacao, body);
+    throw new Error(`Meta recusou ${operacao} (HTTP ${String(status)}): ${erroDoGraph(body)}`);
+  }
+
   async sendText(chatId: string, text: string): Promise<OutboundReceipt> {
     const response = await this.http.postJson(this.messagesUrl(), this.headers(), {
       messaging_product: 'whatsapp',
@@ -161,7 +171,7 @@ export class MetaCloudGateway implements ConversationGateway {
       type: 'text',
       text: { body: text },
     });
-    if (response.status >= 400) this.falha('sendText', response.body);
+    this.exigirEnvio('sendText', response.status, response.body);
     const first = asRecord(asArray(dig(response.body, ['messages']))?.[0]);
     return {
       providerMessageId: (first ? asString(first['id']) : null) ?? '',
@@ -198,7 +208,7 @@ export class MetaCloudGateway implements ConversationGateway {
       type: 'document',
       document: { id: mediaId, filename: anexo.fileName, caption },
     });
-    if (response.status >= 400) this.falha('sendDocument', response.body);
+    this.exigirEnvio('sendDocument', response.status, response.body);
   }
 
   /** TEMPLATE aprovado (decreto 2026-08-05, canal humanizado): a ÚNICA forma de

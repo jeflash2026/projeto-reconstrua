@@ -42,6 +42,16 @@ describe('EvolutionGateway', () => {
     expect(receipt.providerMessageId).toBe('srv-1');
   });
 
+  // CASO REAL (2026-09-21): a Evolution recusava o envio e o sistema registrava
+  // a fala como entregue — o cliente ficava sem resposta e nada acusava.
+  it('recusa da Evolution (4xx) DERRUBA o envio, com o motivo no erro', async () => {
+    const http = new RecordingHttp({ status: 400, body: { message: 'number not exists' } });
+    const gw = new EvolutionGateway(http, config, clock);
+    await expect(gw.sendText('5511999999999@s.whatsapp.net', 'olá')).rejects.toThrow(
+      /HTTP 400.*number not exists/u,
+    );
+  });
+
   it('setPresence chama /chat/sendPresence com o estado', async () => {
     const http = new RecordingHttp();
     const gw = new EvolutionGateway(http, config, clock);

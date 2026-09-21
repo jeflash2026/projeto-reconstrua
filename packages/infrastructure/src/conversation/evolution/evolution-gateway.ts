@@ -48,11 +48,25 @@ export class EvolutionGateway implements ConversationGateway {
     return { apikey: this.config.apiKey };
   }
 
+  /** A RECUSA é um erro (2026-09-21, caso real): o status da Evolution era
+   *  IGNORADO. Quando ela recusava o envio (instância errada, chave inválida,
+   *  número inexistente), a fala era registrada como ENVIADA — o cliente não
+   *  recebia nada, a conversa seguia como se tivesse recebido e nenhum log
+   *  acusava. Agora a recusa derruba o envio: a mensagem fica na fila, o erro
+   *  aparece com o motivo literal, e a equipe vê que aquele cliente não foi
+   *  respondido. */
+  private conferir(status: number, corpo: unknown, acao: string): void {
+    if (status < 300) return;
+    const detalhe = JSON.stringify(corpo ?? '').slice(0, 200);
+    throw new Error(`Evolution recusou ${acao} (HTTP ${String(status)}): ${detalhe}`);
+  }
+
   async sendText(chatId: string, text: string): Promise<OutboundReceipt> {
     const response = await this.http.postJson(this.url('/message/sendText'), this.headers(), {
       number: toNumber(chatId),
       text,
     });
+    this.conferir(response.status, response.body, 'o envio de texto');
     const providerMessageId = asString(dig(response.body, ['key', 'id'])) ?? '';
     return { providerMessageId, sentAt: this.clock.now() };
   }
@@ -66,7 +80,7 @@ export class EvolutionGateway implements ConversationGateway {
     anexo: { readonly fileName: string; readonly mimeType: string; readonly base64: string },
     caption: string,
   ): Promise<void> {
-    await this.http.postJson(this.url('/message/sendMedia'), this.headers(), {
+    const response = await this.http.postJson(this.url('/message/sendMedia'), this.headers(), {
       number: toNumber(chatId),
       mediatype: 'document',
       mimetype: anexo.mimeType,
@@ -74,6 +88,7 @@ export class EvolutionGateway implements ConversationGateway {
       fileName: anexo.fileName,
       caption,
     });
+    this.conferir(response.status, response.body, 'o envio de documento');
   }
 
   async setPresence(chatId: string, state: PresenceState): Promise<void> {

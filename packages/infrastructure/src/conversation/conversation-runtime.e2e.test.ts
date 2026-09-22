@@ -201,9 +201,12 @@ describe('ConversationRuntime — nunca repetir frases', () => {
     expect(notes.length).toBeGreaterThanOrEqual(1);
     // CASO JEFFERSON (2026-09-21): o guard NÃO pode calar. O cliente escreveu e
     // recebe uma devolução — diferente da anterior — em vez de silêncio.
+    // 2026-09-22: e a devolução não pode ser UMA só, senão ela mesma vira
+    // repetição na vez seguinte e o silêncio volta. Três turnos, três falas.
+    await h.runtime.receive(envelope('text', { messageId: 'C', text: 'terceira' }));
     const ditas = h.gateway.texts();
-    expect(ditas).toHaveLength(2);
-    expect(ditas[1]).not.toBe(ditas[0]);
+    expect(ditas).toHaveLength(3);
+    expect(new Set(ditas).size).toBe(3);
   });
 });
 

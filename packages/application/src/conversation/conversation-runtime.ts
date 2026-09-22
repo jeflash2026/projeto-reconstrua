@@ -69,10 +69,33 @@ export interface TurnResult {
 
 const MAX_REPHRASE_ATTEMPTS = 3;
 
-/** A saída quando a expressão só sabe repetir: devolve a palavra ao cliente sem
- *  repetir nada e sem prometer nada (caso Jefferson, 2026-09-21). */
-const SAIDA_SEM_REPETIR =
-  'Tô aqui com você 🙂 Me conta com as suas palavras como você quer seguir, que eu te ajudo daqui.';
+/** Saídas para quando a expressão só sabe repetir (caso Jefferson, 2026-09-21).
+ *
+ *  Correção de 2026-09-22: era UMA frase só, e uma frase só vira repetição na
+ *  segunda vez — aí o silêncio voltava. Aqui há várias, e a primeira ainda não
+ *  dita é a escolhida. Nenhuma promete nada; todas devolvem a palavra ao
+ *  cliente, que é o que muda o contexto do próximo turno. */
+const DEVOLUCOES: readonly string[] = [
+  'Tô aqui com você 🙂 Me conta com as suas palavras como você quer seguir, que eu te ajudo daqui.',
+  'Me diz o que você precisa agora que eu resolvo com você por aqui.',
+  'Pode falar comigo, viu? Se preferir, conta em uma frase o que está acontecendo.',
+  'Sigo com você por aqui. O que você quer fazer agora?',
+];
+
+/** A devolução que ainda não foi dita — e, quando a jornada tem um documento
+ *  pendente, o pedido dele primeiro: continuar a coleta vale mais que conversar
+ *  sobre conversar. Tudo já dito há pouco ⇒ silêncio (aí insistir seria eco). */
+function devolucaoQueNaoRepete(view: ConversationContextView, jaDitas: readonly string[]): string {
+  const proximo = view.onboardingDocumental?.proximo ?? null;
+  const opcoes =
+    proximo !== null
+      ? [
+          `Pra seguir com a sua análise, falta ${proximo}. Consegue me mandar por aqui?`,
+          ...DEVOLUCOES,
+        ]
+      : DEVOLUCOES;
+  return opcoes.find((texto) => !jaDitas.some((dita) => dita.trim() === texto)) ?? '';
+}
 
 export class ConversationRuntime {
   constructor(private readonly deps: ConversationRuntimeDeps) {}
@@ -275,9 +298,7 @@ export class ConversationRuntime {
         intent.chatId,
         'a AHRI não conseguiu variar a fala; conversa precisa de atenção',
       );
-      // Se essa própria devolução já foi dita há pouco, aí sim calar: insistir
-      // nela seria a repetição que o decreto proíbe.
-      return avoidBase.some((a) => a.trim() === SAIDA_SEM_REPETIR) ? '' : SAIDA_SEM_REPETIR;
+      return devolucaoQueNaoRepete(view, avoidBase);
     }
     await memory.recordNote(
       intent.chatId,

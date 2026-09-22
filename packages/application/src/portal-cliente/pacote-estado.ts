@@ -27,6 +27,30 @@ export const PACOTE_CASO_EM_ABERTURA =
   'Ainda NÃO existe processo em andamento a relatar.';
 
 /**
+ * CPF JÁ CADASTRADO EM OUTRO ATENDIMENTO (2026-09-22, pedido do dono) — a pessoa
+ * informa um CPF que já tem cadastro, mas está escrevendo de OUTRO número.
+ *
+ * A AHRI precisa reconhecer (não faz sentido pedir tudo de novo a quem já é
+ * cliente), mas NÃO pode contar o caso a quem apenas digitou um número: qualquer
+ * um digita o CPF de outra pessoa. Por isso o pacote manda confirmar a
+ * identidade primeiro — e é a equipe, no painel, que une os dois atendimentos.
+ */
+export function pacoteCpfJaCadastrado(primeiroNome: string | null): string {
+  const quem = primeiroNome !== null && primeiroNome !== '' ? ` em nome de ${primeiroNome}` : '';
+  return (
+    `FATO SOBRE O CADASTRO: o CPF informado JÁ tem cadastro conosco${quem}, ` +
+    'aberto a partir de OUTRO número de WhatsApp. ' +
+    'REGRA (protege o dado da pessoa): antes de falar QUALQUER COISA sobre caso, processo, ' +
+    'valores, documentos entregues ou link, confirme que quem está escrevendo é a própria ' +
+    'pessoa — peça o nome completo dela. ' +
+    'ENQUANTO NÃO CONFIRMAR: não informe andamento, não envie link, não afirme nada sobre o caso. ' +
+    'DEPOIS DE CONFIRMAR: diga que já existe atendimento em andamento para esse CPF, que ela ' +
+    'NÃO precisa enviar os documentos de novo, e que a equipe vai unir os dois atendimentos ' +
+    'neste número. Não peça HISCON nem CPF de novo.'
+  );
+}
+
+/**
  * Monta o pacote compacto e determinístico para o prompt de expressão.
  * `link` null = Portal ainda não nasceu ⇒ NENHUMA menção a link/portal é permitida.
  */

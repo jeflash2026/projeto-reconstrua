@@ -26,6 +26,7 @@ import {
   NascimentoPortalRuntime,
   PACOTE_CASO_EM_ABERTURA,
   PACOTE_SEM_CASO,
+  pacoteCpfJaCadastrado,
   PROMPT_TRADUCAO_CLIENTE,
   TraducaoClienteRuntime,
   emitirTokenCliente,
@@ -109,6 +110,7 @@ import { JsonAnexoStore } from '../document-request/json-anexo-store.js';
 import { JsonOnboardingDocumentalStore } from '../onboarding/json-onboarding-store.js';
 import { JornadaComercialRuntime } from '../jornada/jornada-runtime.js';
 import { JourneyGovernedExpression } from '../jornada/journey-governed-expression.js';
+import { outroCadastroComOCpf, primeiroNome } from '../jornada/cpf-ja-cadastrado.js';
 import {
   OnboardingDocumentalSubscriber,
   criarResolverDeChat,
@@ -657,6 +659,24 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       const clienteId = identity?.clienteId ?? null;
       // GO-LIVE 9B — TRI-ESTADO com ausência declarada (Lei 9): o silêncio (null)
       // deixava o LLM livre para presumir um caso. Agora a ausência é um FATO.
+      // CPF JÁ CADASTRADO (2026-09-22): a pessoa escreve de OUTRO número e
+      // informa um CPF que já é nosso cliente. Sem isto, a AHRI pedia HISCON e
+      // CPF de novo a quem já tem processo distribuído. O pacote reconhece o
+      // cadastro e manda CONFIRMAR a identidade antes de falar do caso — quem
+      // digita um CPF não prova ser o dono dele.
+      const cpfDesteChat = (await jornadaComercial.fatos(chatId).catch(() => null))?.registro.cpf;
+      if (cpfDesteChat != null && (clienteId === null || clienteId === identity?.chatId)) {
+        const outro = await outroCadastroComOCpf(json, cpfDesteChat, chatId);
+        if (outro !== null) {
+          observability.error(
+            'jornada',
+            'cpf-ja-cadastrado',
+            clock.now(),
+            `${chatId}: o CPF informado já tem cadastro em ${outro.chatId} — unir os atendimentos`,
+          );
+          return pacoteCpfJaCadastrado(primeiroNome(outro.nome));
+        }
+      }
       if (identity === null) return PACOTE_SEM_CASO; // nem identidade ⇒ nenhum caso
       if (clienteId === null || clienteId === identity.chatId) return PACOTE_CASO_EM_ABERTURA; // caso nasceu; fase inicial
       const visao = await acompanhamento.acompanhamento(clienteId);

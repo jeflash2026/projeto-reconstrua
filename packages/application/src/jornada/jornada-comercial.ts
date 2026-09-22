@@ -621,14 +621,43 @@ export function vaiReceberCobranca(texto: string): boolean {
   );
 }
 
+/** CHAMAMENTO E CORTESIA (2026-09-22, caso real do dono) — "Alguem ai" virou o
+ *  NOME e a AHRI respondeu "Prazer, Alguem ai". Quem escreve isso está
+ *  chamando atenção, não se apresentando. Vale também para a cortesia e a
+ *  concordância soltas ("obrigado", "ok", "sim"), que nunca são nome.
+ *
+ *  Só casa a frase INTEIRA: "Alguém aí" é chamamento, mas "Alguém Aparecida"
+ *  (se existisse) não seria confundido, e nenhum nome legítimo é recusado por
+ *  conter uma dessas palavras no meio. */
+const CHAMAMENTOS: readonly RegExp[] = [
+  /^al[ôo]+$/i,
+  /^(algu[ée]m|gente|pessoal)$/i,
+  /^(tem\s+)?algu[ée]m\s*(a[íi]|online|ae|a[íi]\s+por\s+favor)?$/i,
+  /^(voc[êe]s?\s+)?(est[ãaá]o?|t[ãaá]o?|t[áa])\s*a[íi]$/i,
+  /^cad[êe]\s+(voc[êe]s?|algu[ée]m|o\s+atendimento)$/i,
+  /^(me\s+)?(responde|responda|atende|atenda|atendimento|socorro|urgente)$/i,
+  /^(por\s+favor|obrigad[oa]|valeu|vlw|blz|beleza|ok(ay)?|sim|n[ãa]o|certo|tudo\s+bem|bom|boa)$/i,
+  /^preciso\s+de\s+ajuda$/i,
+];
+
+/** A frase é chamamento/cortesia (e portanto nunca um nome de pessoa)? */
+export function ehChamamento(texto: string): boolean {
+  const t = texto
+    .trim()
+    .replace(/[!?.,;:]+$/u, '')
+    .trim();
+  return t !== '' && CHAMAMENTOS.some((re) => re.test(t));
+}
+
 /** Um candidato a NOME precisa PARECER nome: sem '?', sem dígitos, até 6
- *  palavras e sem vocabulário do funil ("posso ter mais informações…" NUNCA é
- *  nome — defeito real do primeiro contato da Denise). */
+ *  palavras, sem vocabulário do funil ("posso ter mais informações…" NUNCA é
+ *  nome — defeito real do primeiro contato da Denise) e sem ser chamamento. */
 export function pareceNome(s: string): boolean {
   const t = s.trim();
   if (t === '' || t.length > 60) return false;
   if (/[?!0-9@#/\\]/.test(t)) return false;
   if (t.split(/\s+/).length > 6) return false;
+  if (ehChamamento(t)) return false;
   // Caso REAL Geisebel (2026-08-28): "mais ainda n mandei o hiscon" virou o
   // NOME ("Prazer, mais") — palavras de conversa sobre documentos/envio jamais
   // compõem um nome de pessoa.

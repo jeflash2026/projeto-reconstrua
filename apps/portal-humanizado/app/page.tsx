@@ -60,18 +60,20 @@ const FiltroEstados = ({
   total,
   fase,
   q,
+  dias,
 }: {
   contagens: readonly [string, ClienteHumanizado[]][];
   ativo: string | null;
   total: number;
   // A FILA e a BUSCA sobrevivem à troca de estado (2026-08-13): escolher a UF
-  // dentro de "A chamar" continua em "A chamar".
+  // dentro de "A chamar" continua em "A chamar". O período também (2026-09-23).
   fase: FaseDaMesa;
   q: string;
+  dias: PeriodoDaMesa;
 }): ReactElement => (
   <div className="filtro-uf">
     <Link
-      href={comFiltros({ uf: null, q, fase })}
+      href={comFiltros({ uf: null, q, fase, dias })}
       className={`chip-uf${ativo === null ? ' ativo' : ''}`}
     >
       Todos <span className="chip-num">{total}</span>
@@ -79,10 +81,48 @@ const FiltroEstados = ({
     {contagens.map(([uf, lista]) => (
       <Link
         key={uf}
-        href={comFiltros({ uf, q, fase })}
+        href={comFiltros({ uf, q, fase, dias })}
         className={`chip-uf${ativo === uf ? ' ativo' : ''}`}
       >
         {uf} <span className="chip-num">{lista.length}</span>
+      </Link>
+    ))}
+  </div>
+);
+
+/** SELETOR DE CHEGADA (2026-09-23, pedido do dono): "quem chegou nos últimos
+ *  7 dias" é a pergunta do dia a dia — antes só dava para responder rolando a
+ *  mesa inteira. Combina com estado, fila e busca. */
+const FiltroChegada = ({
+  contagens,
+  dias,
+  uf,
+  q,
+  fase,
+}: {
+  contagens: Readonly<Record<PeriodoDaMesa, number>>;
+  dias: PeriodoDaMesa;
+  uf: string | null;
+  q: string;
+  fase: FaseDaMesa;
+}): ReactElement => (
+  <div className="filtro-uf" style={{ marginTop: 4 }}>
+    <span style={{ alignSelf: 'center', fontSize: 12.5, opacity: 0.72, marginRight: 2 }}>
+      Chegada:
+    </span>
+    {(
+      [
+        ['7', 'últimos 7 dias'],
+        ['30', 'últimos 30 dias'],
+        ['tudo', 'desde o começo'],
+      ] as readonly [PeriodoDaMesa, string][]
+    ).map(([valor, rotulo]) => (
+      <Link
+        key={valor}
+        href={comFiltros({ uf, q, fase, dias: valor })}
+        className={`chip-uf${dias === valor ? ' ativo' : ''}`}
+      >
+        {rotulo} <span className="chip-num">{contagens[valor]}</span>
       </Link>
     ))}
   </div>
@@ -111,6 +151,33 @@ export function faseValida(v: string | undefined): FaseDaMesa {
   return FASES.has(v ?? '') ? (v as FaseDaMesa) : 'todos';
 }
 
+/** CHEGADA NA MESA (2026-09-23, pedido do dono) — a mesa passou de 179
+ *  clientes e o que chegou hoje sumia no meio da base histórica. O período é o
+ *  quarto filtro, e combina com estado, fila e busca. */
+export type PeriodoDaMesa = '7' | '30' | 'tudo';
+
+const PERIODOS: ReadonlySet<string> = new Set(['7', '30', 'tudo']);
+
+/** Período inválido na URL ⇒ 'tudo' (a mesa de sempre, nada escondido). */
+export function periodoValido(v: string | undefined): PeriodoDaMesa {
+  return PERIODOS.has(v ?? '') ? (v as PeriodoDaMesa) : 'tudo';
+}
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+/** O instante a partir do qual o cliente conta como recém-chegado. */
+export function inicioDoPeriodo(periodo: PeriodoDaMesa, agora: number): number | null {
+  return periodo === 'tudo' ? null : agora - Number(periodo) * DIA_MS;
+}
+
+/** Chegou dentro da janela? Data ausente ou ilegível NUNCA some da mesa —
+ *  esconder cliente por defeito de dado seria pior que mostrar demais. */
+export function chegouNoPeriodo(confirmadoEm: string, desde: number | null): boolean {
+  if (desde === null) return true;
+  const t = new Date(confirmadoEm).getTime();
+  return Number.isNaN(t) ? true : t >= desde;
+}
+
 const ROTULO_FASE: Readonly<Record<FaseDaMesa, string>> = {
   todos: 'Confirmados na mesa',
   'a-chamar': 'A chamar',
@@ -122,11 +189,22 @@ const ROTULO_FASE: Readonly<Record<FaseDaMesa, string>> = {
 /** O link da mesa preservando os três filtros — mudar um NUNCA apaga os outros:
  *  a secretária escolhe o estado, busca um nome e clica na fila, em qualquer
  *  ordem, sem perder o caminho andado. */
-function comFiltros({ uf, q, fase }: { uf: string | null; q: string; fase: FaseDaMesa }): string {
+function comFiltros({
+  uf,
+  q,
+  fase,
+  dias,
+}: {
+  uf: string | null;
+  q: string;
+  fase: FaseDaMesa;
+  dias: PeriodoDaMesa;
+}): string {
   const p = new URLSearchParams();
   if (uf !== null) p.set('uf', uf);
   if (q !== '') p.set('q', q);
   if (fase !== 'todos') p.set('fase', fase);
+  if (dias !== 'tudo') p.set('dias', dias);
   const s = p.toString();
   return s === '' ? '/' : `/?${s}`;
 }
@@ -140,11 +218,13 @@ const ResumoDaMesa = ({
   fase,
   uf,
   q,
+  dias,
 }: {
   todos: readonly ClienteHumanizado[];
   fase: FaseDaMesa;
   uf: string | null;
   q: string;
+  dias: PeriodoDaMesa;
 }): ReactElement => {
   const ativos = todos.filter((c) => c.descartado !== true);
   const descartados = todos.length - ativos.length;
@@ -203,7 +283,7 @@ const ResumoDaMesa = ({
         return (
           <Link
             key={i.chave}
-            href={comFiltros({ uf, q, fase: alvo })}
+            href={comFiltros({ uf, q, fase: alvo, dias })}
             className={`stat-card ${i.classe}${fase === i.chave ? ' ativo' : ''}`}
             title={`${i.dica} — clique para ver só estes`}
             scroll={false}
@@ -226,13 +306,17 @@ const BuscaCliente = ({
   q,
   uf,
   fase,
+  dias,
 }: {
   q: string;
   uf: string | null;
   fase: FaseDaMesa;
+  dias: PeriodoDaMesa;
 }): ReactElement => (
   <form method="GET" className="busca-mesa">
     {uf !== null ? <input type="hidden" name="uf" value={uf} /> : null}
+    {/* O período escolhido sobrevive à busca (2026-09-23). */}
+    {dias !== 'tudo' ? <input type="hidden" name="dias" value={dias} /> : null}
     {/* A FILA escolhida sobrevive à busca (2026-08-13) — sem isto, procurar um
         nome dentro de "A chamar" jogava a secretária de volta na mesa inteira. */}
     {fase !== 'todos' ? <input type="hidden" name="fase" value={fase} /> : null}
@@ -247,7 +331,7 @@ const BuscaCliente = ({
       Buscar
     </button>
     {q !== '' ? (
-      <Link className="btn" href={comFiltros({ uf, q: '', fase })}>
+      <Link className="btn" href={comFiltros({ uf, q: '', fase, dias })}>
         Limpar
       </Link>
     ) : null}
@@ -358,7 +442,7 @@ const CartaoCliente = ({
 const MesaPage = async ({
   searchParams,
 }: {
-  searchParams: { uf?: string; q?: string; fase?: string };
+  searchParams: { uf?: string; q?: string; fase?: string; dias?: string };
 }): Promise<ReactElement> => {
   const cookie = cookies().get(HUMANIZADO_SESSION_COOKIE)?.value ?? '';
   if (operadorDaSessao(SEGREDO_SESSAO, cookie) === null) redirect('/login');
@@ -371,7 +455,20 @@ const MesaPage = async ({
     getJson<{ conversas: ResumoChat[] }>('/admin/humanizado/chat', 10000),
   ]);
   const advogados = advs?.advogados ?? [];
-  const todos = data?.clientes ?? null;
+  const base = data?.clientes ?? null;
+  // CHEGADA (2026-09-23): o período recorta a mesa ANTES de tudo — painéis,
+  // estados, busca e listas passam a falar do mesmo conjunto.
+  const dias = periodoValido(searchParams.dias);
+  const agora = Date.now();
+  const desde = inicioDoPeriodo(dias, agora);
+  const todos = base === null ? null : base.filter((c) => chegouNoPeriodo(c.confirmadoEm, desde));
+  const contagensDeChegada: Readonly<Record<PeriodoDaMesa, number>> = {
+    '7': (base ?? []).filter((c) => chegouNoPeriodo(c.confirmadoEm, inicioDoPeriodo('7', agora)))
+      .length,
+    '30': (base ?? []).filter((c) => chegouNoPeriodo(c.confirmadoEm, inicioDoPeriodo('30', agora)))
+      .length,
+    tudo: (base ?? []).length,
+  };
   // Filtro por ESTADO (pedido do dono): a UF escolhida vira a fila da vez.
   const ufEscolhida = (searchParams.uf ?? '').trim().toUpperCase() || null;
   const gruposDeTodos = porEstado(todos ?? []);
@@ -447,15 +544,26 @@ const MesaPage = async ({
           meses) — com os 4, o cliente fica 100% pronto para o pedido administrativo.
         </p>
 
-        {clientes === null || todos === null ? (
+        {clientes === null || todos === null || base === null ? (
           <div className="error-box">API indisponível — recarregue a página.</div>
         ) : (
           <>
-            <ResumoDaMesa todos={todos} fase={fase} uf={ativo} q={q} />
+            <ResumoDaMesa todos={todos} fase={fase} uf={ativo} q={q} dias={dias} />
+            {dias !== 'tudo' ? (
+              <p className="page-sub" style={{ marginTop: 8 }}>
+                Mostrando quem chegou nos <strong>últimos {dias} dias</strong> ({todos.length} de{' '}
+                {base.length}).{' '}
+                <Link href={comFiltros({ uf: ativo, q, fase, dias: 'tudo' })}>
+                  ver a mesa inteira →
+                </Link>
+              </p>
+            ) : null}
             {fase !== 'todos' ? (
               <p className="page-sub" style={{ marginTop: 8 }}>
                 Mostrando só a fila <strong>{ROTULO_FASE[fase]}</strong>.{' '}
-                <Link href={comFiltros({ uf: ativo, q, fase: 'todos' })}>ver a mesa inteira →</Link>
+                <Link href={comFiltros({ uf: ativo, q, fase: 'todos', dias })}>
+                  ver a mesa inteira →
+                </Link>
               </p>
             ) : null}
             {/* CAIXA DE ENTRADA do canal da equipe (2026-08-05): quem respondeu
@@ -490,14 +598,22 @@ const MesaPage = async ({
                 </div>
               </div>
             ) : null}
+            <FiltroChegada
+              contagens={contagensDeChegada}
+              dias={dias}
+              uf={ativo}
+              q={q}
+              fase={fase}
+            />
             <FiltroEstados
               contagens={gruposDeTodos}
               ativo={ativo}
               total={todos.length}
               fase={fase}
               q={q}
+              dias={dias}
             />
-            <BuscaCliente q={q} uf={ativo} fase={fase} />
+            <BuscaCliente q={q} uf={ativo} fase={fase} dias={dias} />
 
             {/* LEGENDA DAS CORES (pedido do dono, 2026-08-04): o estado de cada
               cartão de relance — sem precisar ler os selos um a um. */}

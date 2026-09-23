@@ -84,6 +84,10 @@ export interface JornadaRuntimeDeps {
    *  interceptação) e a cliente recebeu o texto inteiro duas vezes seguidas.
    *  Com este fato, o segundo vira um lembrete curto. Ausente ⇒ como antes. */
   readonly dossieAnunciadoHaPouco?: (chatId: string) => Promise<boolean>;
+  /** Caso REAL Antônia (2026-09-23): o cliente ACABOU de dizer sim e o cadastro
+   *  ainda não nasceu (a varredura roda a cada minuto). Sem este fato, a AHRI
+   *  pedia o SIM de novo para quem tinha acabado de dar. */
+  readonly disseSimHaPouco?: (chatId: string) => Promise<boolean>;
   /** Existe DocumentRequest ATIVO do advogado (fase 2)? Nesse caso pedir
    *  documento é legítimo e a rede pós-HISCON não intervém. */
   readonly temPedidoAtivo?: (chatId: string) => Promise<boolean>;
@@ -410,6 +414,9 @@ export class JornadaComercialRuntime {
     parecer: { readonly link: string; readonly contratos: number; readonly indicios: number },
     nome: string | null,
   ): Promise<string> {
+    // Quem acabou de dizer sim não ouve "preciso do seu sim" de novo.
+    const disseSim = (await this.deps.disseSimHaPouco?.(chatId).catch(() => false)) ?? false;
+    if (disseSim) return MENSAGENS_JORNADA.confirmacaoEmRegistro(nome);
     const jaAnunciado =
       (await this.deps.dossieAnunciadoHaPouco?.(chatId).catch(() => false)) ?? false;
     return jaAnunciado

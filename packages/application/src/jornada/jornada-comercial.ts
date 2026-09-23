@@ -937,6 +937,15 @@ export const MENSAGENS_JORNADA = {
 
 ` +
     'Para eu encaminhar o seu caso à equipe jurídica, preciso só do seu SIM por aqui. Se ficou alguma dúvida antes disso, pode me perguntar.',
+  /** Caso REAL Antônia (35 9773-2281, 2026-09-23): ela respondeu "Sim" ao
+   *  dossiê e recebeu de volta "preciso só do seu SIM" — porque o cadastro
+   *  nasce na varredura seguinte, segundos depois, e até lá o sistema ainda a
+   *  via como não confirmada. Quem acabou de dizer sim merece ouvir que foi
+   *  ouvido. */
+  confirmacaoEmRegistro: (nome: string | null): string =>
+    `${nome !== null && nome !== '' ? `${primeiroNome(nome)}, r` : 'R'}ecebi o seu SIM — já estou registrando a sua confirmação.
+
+` + 'Em instantes eu te mando aqui o seu cadastro e o acesso ao Portal do Cliente.',
   /** O cliente fala de link/dossiê mas a análise ainda não foi concluída —
    *  a verdade, sem inventar documento nenhum. */
   dossieAindaNaoPronto:

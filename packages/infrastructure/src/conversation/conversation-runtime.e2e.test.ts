@@ -210,6 +210,28 @@ describe('ConversationRuntime — nunca repetir frases', () => {
   });
 });
 
+// CASO REAL Antônia (35 9773-2281, 2026-09-23): tudo resolvido, ela respondeu
+// "Ok" e a AHRI perguntou "me diz o que você precisa agora" — como se nada
+// tivesse acontecido. Cortesia de fechamento encerra a conversa.
+describe('ConversationRuntime — cortesia de fechamento', () => {
+  it('"Ok" vira fecho curto; repetido vira silêncio', async () => {
+    const teimoso: LlmExpressionPort = {
+      phrase: () => Promise.resolve('a mesma frase de sempre'),
+    };
+    const h = harness({ expression: teimoso });
+    await h.runtime.receive(envelope('text', { messageId: 'A', text: 'primeira' }));
+    await h.runtime.receive(envelope('text', { messageId: 'B', text: 'Ok' }));
+    await h.runtime.receive(envelope('text', { messageId: 'C', text: 'Ok' }));
+    await h.runtime.receive(envelope('text', { messageId: 'D', text: 'Ok' }));
+    const ditas = h.gateway.texts();
+    // A fala normal + os dois fechos; o terceiro "Ok" não gera fala nenhuma.
+    expect(ditas).toHaveLength(3);
+    expect(ditas[1]).toMatch(/disposição|Estou por aqui/u);
+    expect(ditas[2]).toMatch(/disposição|Estou por aqui/u);
+    for (const t of ditas) expect(t).not.toMatch(/me diz o que você precisa/iu);
+  });
+});
+
 describe('ConversationRuntime — ordem e não-sobreposição (fila)', () => {
   it('duas intenções faladas viram duas mensagens, em ordem, com "digitando" antes de cada', async () => {
     const clock = new TestClock(new Date('2026-07-14T00:00:00.000Z'));

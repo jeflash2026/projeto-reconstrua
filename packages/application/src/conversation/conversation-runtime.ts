@@ -82,19 +82,38 @@ const DEVOLUCOES: readonly string[] = [
   'Sigo com você por aqui. O que você quer fazer agora?',
 ];
 
-/** A devolução que ainda não foi dita — e, quando a jornada tem um documento
- *  pendente, o pedido dele primeiro: continuar a coleta vale mais que conversar
- *  sobre conversar. Tudo já dito há pouco ⇒ silêncio (aí insistir seria eco). */
+/** CORTESIA DE FECHAMENTO (caso REAL Antônia, 2026-09-23): depois de tudo
+ *  resolvido, ela respondeu "Ok" e a AHRI perguntou "me diz o que você precisa
+ *  agora" — como se nada tivesse acontecido. "Ok", "obrigada", "tá bom" fecham
+ *  a conversa; quem recebe isso agradece e se cala. */
+const CORTESIA_DE_FECHO =
+  /^(ok(ay)?|t[áa]\s*(bom|certo|bem)?|beleza|blz|valeu|vlw|obrigad[oa]|agradecid[oa]|entendi|certo|perfeito|combinado|isso|show|[\p{Emoji_Presentation}❤️\s]+)[!.\s]*$/iu;
+
+/** Fechos curtos — a conversa termina bem, sem puxar assunto novo. */
+const FECHOS: readonly string[] = [
+  'Perfeito! Fico à disposição — qualquer dúvida é só me chamar. 🙂',
+  'Combinado. Estou por aqui quando você precisar.',
+];
+
+/** A devolução que ainda não foi dita. A ordem diz o que importa: cortesia de
+ *  fechamento vira FECHO (e, repetida, silêncio — conversa encerrada não precisa
+ *  de mais nada); documento pendente vira o pedido dele (continuar a coleta vale
+ *  mais que conversar sobre conversar); no resto, devolve a palavra ao cliente.
+ *  Tudo já dito há pouco ⇒ silêncio (aí insistir seria eco). */
 function devolucaoQueNaoRepete(view: ConversationContextView, jaDitas: readonly string[]): string {
+  const ultimaDoCliente = (view.lastPercept?.envelope.text ?? '').trim();
+  const naoDita = (opcoes: readonly string[]): string =>
+    opcoes.find((texto) => !jaDitas.some((dita) => dita.trim() === texto)) ?? '';
+  if (ultimaDoCliente !== '' && CORTESIA_DE_FECHO.test(ultimaDoCliente)) return naoDita(FECHOS);
   const proximo = view.onboardingDocumental?.proximo ?? null;
-  const opcoes =
+  return naoDita(
     proximo !== null
       ? [
           `Pra seguir com a sua análise, falta ${proximo}. Consegue me mandar por aqui?`,
           ...DEVOLUCOES,
         ]
-      : DEVOLUCOES;
-  return opcoes.find((texto) => !jaDitas.some((dita) => dita.trim() === texto)) ?? '';
+      : DEVOLUCOES,
+  );
 }
 
 export class ConversationRuntime {

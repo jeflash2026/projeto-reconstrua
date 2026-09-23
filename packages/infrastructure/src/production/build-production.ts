@@ -1180,6 +1180,18 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // nascimento manda o parecer e a interceptação mandava o mesmo anúncio
     // segundos depois. Aqui a conversa RESPONDE se o link do parecer já saiu
     // nas últimas horas — e, nesse caso, a AHRI só lembra, não repete tudo.
+    // O cliente disse SIM nos últimos minutos? (o cadastro nasce na varredura
+    // seguinte; até lá a AHRI não pode pedir de novo o que acabou de receber)
+    disseSimHaPouco: async (chatId) => {
+      const desde = clock.now().getTime() - 10 * 60 * 1000;
+      const recentes = await conversationStore.recent(chatId, 10).catch(() => []);
+      return recentes.some(
+        (e) =>
+          e.kind === 'inbound' &&
+          new Date(e.at).getTime() >= desde &&
+          interpretarInteresse(e.text ?? '') === 'sim',
+      );
+    },
     dossieAnunciadoHaPouco: async (chatId) => {
       const desde = clock.now().getTime() - 12 * 60 * 60 * 1000;
       const recentes = await conversationStore.recent(chatId, 30).catch(() => []);

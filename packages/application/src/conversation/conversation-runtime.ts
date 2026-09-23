@@ -87,7 +87,10 @@ const DEVOLUCOES: readonly string[] = [
  *  agora" — como se nada tivesse acontecido. "Ok", "obrigada", "tá bom" fecham
  *  a conversa; quem recebe isso agradece e se cala. */
 const CORTESIA_DE_FECHO =
-  /^(ok(ay)?|t[áa]\s*(bom|certo|bem)?|beleza|blz|valeu|vlw|obrigad[oa]|agradecid[oa]|entendi|certo|perfeito|combinado|isso|show|[\p{Emoji_Presentation}❤️\s]+)[!.\s]*$/iu;
+  /^(ok(ay)?|t[áa]\s*(bom|certo|bem)?|beleza|blz|valeu|vlw|obrigad[oa]|agradecid[oa]|entendi|certo|perfeito|combinado|isso|show)[!.\s]*$/iu;
+
+/** Mensagem só de emoji ou pontuação (👍, 🙏, ❤️) — também é fechamento. */
+const SO_SIMBOLOS = /^[^\p{L}\p{N}]+$/u;
 
 /** Fechos curtos — a conversa termina bem, sem puxar assunto novo. */
 const FECHOS: readonly string[] = [
@@ -104,7 +107,11 @@ function devolucaoQueNaoRepete(view: ConversationContextView, jaDitas: readonly 
   const ultimaDoCliente = (view.lastPercept?.envelope.text ?? '').trim();
   const naoDita = (opcoes: readonly string[]): string =>
     opcoes.find((texto) => !jaDitas.some((dita) => dita.trim() === texto)) ?? '';
-  if (ultimaDoCliente !== '' && CORTESIA_DE_FECHO.test(ultimaDoCliente)) return naoDita(FECHOS);
+  if (
+    ultimaDoCliente !== '' &&
+    (CORTESIA_DE_FECHO.test(ultimaDoCliente) || SO_SIMBOLOS.test(ultimaDoCliente))
+  )
+    return naoDita(FECHOS);
   const proximo = view.onboardingDocumental?.proximo ?? null;
   return naoDita(
     proximo !== null

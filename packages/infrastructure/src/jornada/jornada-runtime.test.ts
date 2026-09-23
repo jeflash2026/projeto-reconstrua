@@ -270,6 +270,8 @@ describe('caso REAL Candida — nunca mais reensinar o HISCON já recebido', () 
     parecer?: boolean;
     confirmado?: boolean;
     pedidoAtivo?: boolean;
+    /** O dossiê JÁ foi anunciado nesta conversa (caso REAL Vivian). */
+    jaAnunciado?: boolean;
   }) {
     const json = new InMemoryJsonStore();
     const textos: Record<string, string | null> = { d1: 'histórico de empréstimo consignado' };
@@ -291,6 +293,7 @@ describe('caso REAL Candida — nunca mais reensinar o HISCON já recebido', () 
         ),
       jaConfirmou: () => Promise.resolve(opts.confirmado === true),
       temPedidoAtivo: () => Promise.resolve(opts.pedidoAtivo === true),
+      dossieAnunciadoHaPouco: () => Promise.resolve(opts.jaAnunciado === true),
     });
     await onboarding.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'hiscon.pdf', NOW);
     if (opts.cpf !== undefined && opts.cpf !== null) {
@@ -313,6 +316,19 @@ describe('caso REAL Candida — nunca mais reensinar o HISCON já recebido', () 
     expect(r).toContain('análise já está PRONTA');
     expect(r).toContain('responder SIM');
     expect(r).not.toMatch(/Meu INSS/i);
+  });
+
+  // CASO REAL Vivian (11 96924-8200, 2026-09-22): ela recebeu o anúncio
+  // INTEIRO do dossiê quatro vezes — duas seguidas no mesmo minuto e mais duas
+  // no dia seguinte, inclusive depois do "Sim". Anúncio grande é uma vez só.
+  it('dossiê JÁ anunciado ⇒ lembrete curto, sem repetir o anúncio inteiro', async () => {
+    const jornada = await comHiscon({ cpf: '033.842.399-03', parecer: true, jaAnunciado: true });
+    const r = await jornada.revisarFalaPosHiscon(CHAT, AULA_INDEVIDA);
+    expect(r).toContain('já está aqui na nossa conversa');
+    expect(r).toContain('SIM');
+    // O que NÃO pode voltar: o anúncio inteiro, com números e link de novo.
+    expect(r).not.toContain('análise já está PRONTA');
+    expect(r).not.toContain('/parecer?t=');
   });
 
   it('HISCON + CPF sem parecer ⇒ andamento honesto, sem reabrir prazo', async () => {

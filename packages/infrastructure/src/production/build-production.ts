@@ -1176,6 +1176,20 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       const mesa = await mesaHumanizada().catch(() => []);
       return mesa.some((c) => c.chatId === chatId);
     },
+    // O ANÚNCIO DO DOSSIÊ É UMA VEZ SÓ (caso REAL Vivian, 2026-09-22): o
+    // nascimento manda o parecer e a interceptação mandava o mesmo anúncio
+    // segundos depois. Aqui a conversa RESPONDE se o link do parecer já saiu
+    // nas últimas horas — e, nesse caso, a AHRI só lembra, não repete tudo.
+    dossieAnunciadoHaPouco: async (chatId) => {
+      const desde = clock.now().getTime() - 12 * 60 * 60 * 1000;
+      const recentes = await conversationStore.recent(chatId, 30).catch(() => []);
+      return recentes.some(
+        (e) =>
+          e.kind === 'outbound' &&
+          (e.text ?? '').includes('/parecer?t=') &&
+          new Date(e.at).getTime() >= desde,
+      );
+    },
     // Pedido ATIVO do advogado (fase 2): cobrar documento é legítimo — a rede
     // pós-HISCON não intervém nesses casos (mesma régua do caso Isaú).
     temPedidoAtivo: async (chatId) => (await pendenciaDocumental(chatId)) !== null,

@@ -79,6 +79,11 @@ export interface JornadaRuntimeDeps {
    *  mesa do humanizado)? Quem confirmou não recebe pedido de SIM de novo —
    *  a pergunta de andamento dele segue para a conversa normal. */
   readonly jaConfirmou?: (chatId: string) => Promise<boolean>;
+  /** Caso REAL Vivian (2026-09-22): o ANÚNCIO do dossiê já saiu nesta conversa
+   *  há pouco? Dois subsistemas anunciam o mesmo fato (o nascimento e esta
+   *  interceptação) e a cliente recebeu o texto inteiro duas vezes seguidas.
+   *  Com este fato, o segundo vira um lembrete curto. Ausente ⇒ como antes. */
+  readonly dossieAnunciadoHaPouco?: (chatId: string) => Promise<boolean>;
   /** Existe DocumentRequest ATIVO do advogado (fase 2)? Nesse caso pedir
    *  documento é legítimo e a rede pós-HISCON não intervém. */
   readonly temPedidoAtivo?: (chatId: string) => Promise<boolean>;
@@ -341,11 +346,7 @@ export class JornadaComercialRuntime {
       if (parecer !== null) {
         const confirmado = (await this.deps.jaConfirmou?.(chatId).catch(() => false)) ?? false;
         if (!confirmado) {
-          return MENSAGENS_JORNADA.analiseProntaPedirConfirmacao(
-            parecer.link,
-            parecer.contratos,
-            parecer.indicios,
-          );
+          return (await this.anunciarDossie(chatId, parecer, fatos.registro.nome)) ?? '';
         }
       }
     }
@@ -399,6 +400,27 @@ export class JornadaComercialRuntime {
     return resposta;
   }
 
+  /** O ANÚNCIO DO DOSSIÊ É UMA VEZ SÓ (caso REAL Vivian, 2026-09-22): o
+   *  nascimento manda o parecer completo e, segundos depois, esta interceptação
+   *  mandava o MESMO anúncio com outro texto — a cliente recebeu dois, e no dia
+   *  seguinte recebeu mais dois. Do segundo em diante, lembrete curto: o dossiê
+   *  já está na conversa, o que falta é o SIM. */
+  private async anunciarDossie(
+    chatId: string,
+    parecer: { readonly link: string; readonly contratos: number; readonly indicios: number },
+    nome: string | null,
+  ): Promise<string> {
+    const jaAnunciado =
+      (await this.deps.dossieAnunciadoHaPouco?.(chatId).catch(() => false)) ?? false;
+    return jaAnunciado
+      ? MENSAGENS_JORNADA.dossieJaNaConversaPedirSim(nome)
+      : MENSAGENS_JORNADA.analiseProntaPedirConfirmacao(
+          parecer.link,
+          parecer.contratos,
+          parecer.indicios,
+        );
+  }
+
   /** REDE DEFINITIVA CONTRA O "PATINAR" (caso REAL Candida, 2026-08-11): o
    *  HISCON chegou às 22:09 e a AHRI ensinou o passo a passo do HISCON às
    *  22:09, 22:11 e de novo 3 dias depois — o documento já estava com ela. O
@@ -437,11 +459,7 @@ export class JornadaComercialRuntime {
     const confirmado = (await this.deps.jaConfirmou?.(chatId).catch(() => false)) ?? false;
     // DOSSIÊ NA MÃO E SEM O SIM ⇒ a missão é UMA: converter para a fase 2.
     if (parecer !== null && !confirmado) {
-      return MENSAGENS_JORNADA.analiseProntaPedirConfirmacao(
-        parecer.link,
-        parecer.contratos,
-        parecer.indicios,
-      );
+      return (await this.anunciarDossie(chatId, parecer, fatos.registro.nome)) ?? '';
     }
     // JÁ CONFIRMOU: nada de "em análise" — quem fala com ele agora é a equipe.
     if (confirmado) return MENSAGENS_JORNADA.confirmadoAguardeEquipe;

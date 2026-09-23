@@ -924,6 +924,16 @@ export const MENSAGENS_JORNADA = {
     `${String(contratos)} contrato(s) de consignado e ${String(indicios)} indício(s) de irregularidade — o seu caso é APTO para seguirmos.\n\n` +
     `O seu DOSSIÊ JURÍDICO completo está aqui: ${link}\n\n` +
     'Para a nossa equipe jurídica assumir o seu caso e darmos entrada, eu só preciso da sua CONFIRMAÇÃO: é só responder SIM aqui nesta conversa. Se tiver qualquer dúvida antes, pode me perguntar — estou à disposição.',
+  /** Caso REAL Vivian (11 96924-8200, 2026-09-22): o dossiê foi anunciado
+   *  INTEIRO duas vezes seguidas (o nascimento mandou, e segundos depois a
+   *  interceptação mandou de novo com outro texto), e voltou a ser anunciado
+   *  no dia seguinte, inclusive DEPOIS do "Sim" dela. Anúncio grande é uma vez
+   *  só; do segundo em diante, lembrete curto — o dossiê já está na conversa. */
+  dossieJaNaConversaPedirSim: (nome: string | null): string =>
+    `${nome !== null && nome !== '' ? `${primeiroNome(nome)}, o` : 'O'} seu dossiê já está aqui na nossa conversa, logo acima — com os contratos e os indícios que encontrei.
+
+` +
+    'Para eu encaminhar o seu caso à equipe jurídica, preciso só do seu SIM por aqui. Se ficou alguma dúvida antes disso, pode me perguntar.',
   /** O cliente fala de link/dossiê mas a análise ainda não foi concluída —
    *  a verdade, sem inventar documento nenhum. */
   dossieAindaNaoPronto:

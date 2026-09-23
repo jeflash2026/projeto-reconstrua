@@ -906,9 +906,12 @@ export const MENSAGENS_JORNADA = {
   /** Caso REAL Oracio (2026-08-11): DEPOIS do SIM e do cadastro gerado, a AHRI
    *  disse "seguimos para a análise, prazo de até 10 dias, previsão até 21 de
    *  agosto". Quem confirmou já é da fase 2: quem fala com ele é a equipe. */
+  /** 2026-09-23: o número da equipe saiu do texto — o (41) 99802-8530 foi
+   *  desativado pela Meta. Mandar o cliente procurar um número morto é pior que
+   *  não dar número nenhum. Agora a mensagem diz QUEM vai falar com ele. */
   confirmadoAguardeEquipe:
     'Está tudo certo por aqui: o seu cadastro já foi gerado e o seu caso está com a nossa equipe.\n\n' +
-    'O próximo passo é nosso — a nossa equipe entra em contato com você pelo WhatsApp (41) 99802-8530 para recolher os documentos que faltam (procuração, RG, comprovante de endereço e o extrato de crédito do INSS). Qualquer dúvida enquanto isso, é só me chamar.',
+    'O próximo passo é nosso — a Layara, do nosso setor humanizado, entra em contato com você para providenciar os documentos que faltam (procuração, RG, comprovante de endereço e o extrato de crédito do INSS). Qualquer dúvida enquanto isso, é só me chamar.',
   /** Caso REAL Beatriz (2026-08-13): esta mensagem dizia "o seu caso está na
    *  FASE FINAL da análise" para quem tinha acabado de mandar o HISCON e ainda
    *  não tinha dossiê nenhum. "Fase final" era invenção — ninguém tinha olhado o

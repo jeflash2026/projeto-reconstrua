@@ -193,7 +193,10 @@ describe('Fase da CONFIRMAÇÃO · o SIM gera o cadastro; sem SIM, nada', () => 
     const msg = comunicador.mensagens[1];
     expect(msg?.texto).toContain('cadastro foi gerado');
     expect(msg?.texto).toContain('/portal?t=');
-    expect(msg?.texto).toContain('(41) 99802-8530');
+    // 2026-09-23: o número da equipe saiu da mensagem (conta desativada pela
+    // Meta). O cliente passa a saber QUEM vai falar com ele.
+    expect(msg?.texto).toContain('Layara');
+    expect(msg?.texto).not.toContain('99802-8530');
     const token = /portal\?t=([^\s]+)/.exec(msg?.texto ?? '')?.[1] ?? '';
     expect(validarTokenCliente(token, NOW, SECRET)).toBe('cli-1');
 
@@ -309,9 +312,8 @@ describe('as mensagens homologadas (decreto 2026-07-31)', () => {
       'Confirmação registrada',
       'cadastro foi gerado',
       'https://x/portal?t=abc',
-      'a nossa equipe vai entrar em contato',
+      'a Layara, do nosso setor humanizado, vai entrar em contato',
       'a procuração, o RG (frente e verso) e o comprovante de endereço',
-      'entraremos em contato por ligação no WhatsApp, pelo número (41) 99802-8530',
       'estou à disposição.',
     ]) {
       expect(m).toContain(trecho);

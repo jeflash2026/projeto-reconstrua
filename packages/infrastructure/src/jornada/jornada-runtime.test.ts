@@ -403,7 +403,9 @@ describe('caso REAL Oracio — prazo proibido; a missão é converter no SIM', (
     const jornada = await montar({ parecer: true, confirmado: true });
     const r = await jornada.revisarFalaPosHiscon(CHAT, FALA_POS_SIM);
     expect(r).toBe(MENSAGENS_JORNADA.confirmadoAguardeEquipe);
-    expect(r).toContain('41) 99802-8530');
+    // 2026-09-23: sem número morto na fala — quem procura o cliente é a Layara.
+    expect(r).toContain('Layara');
+    expect(r).not.toContain('99802-8530');
     expect(r).not.toMatch(/10 dias|previs[ãa]o|prazo/i);
   });
 

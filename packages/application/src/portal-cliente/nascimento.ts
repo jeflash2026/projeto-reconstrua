@@ -80,10 +80,15 @@ export interface NascimentoResumo {
   readonly pareceres: readonly string[];
 }
 
-/** Decreto 2026-07-31: o número pelo qual a EQUIPE HUMANA entra em contato na
- *  fase 2 (coleta de procuração, RG frente e verso e comprovante de endereço).
- *  Ditado pelo Fundador; muda SÓ aqui. (Atualizado 2026-08-04.) */
-export const NUMERO_CONTATO_EQUIPE = '(41) 99802-8530';
+/** Quem faz o contato da FASE 2 (coleta de procuração, RG frente e verso e
+ *  comprovante de endereço). Ditado pelo Fundador; muda SÓ aqui.
+ *
+ *  2026-09-23: o NÚMERO saiu da mensagem. O (41) 99802-8530 foi desativado pela
+ *  Meta junto com a conta da empresa — anunciar um número morto ao cliente é
+ *  pior que não anunciar nenhum: ele tenta, ninguém responde, e a confiança que
+ *  a fase 1 construiu vai junto. Agora a mensagem diz QUEM procura, não por
+ *  qual número: a pessoa sabe o nome de quem vai falar com ela. */
+export const QUEM_FAZ_O_CONTATO = 'a Layara, do nosso setor humanizado';
 
 /** Decreto 2026-07-31 (funil com confirmação) — a mensagem do PARECER: a fase 1
  *  fechou, a análise encontrou contratos aptos, e o cliente recebe o DOSSIÊ
@@ -110,9 +115,8 @@ export function mensagemNascimento(link: string): string {
     'Confirmação registrada — o seu cadastro foi gerado! A partir de agora a nossa equipe jurídica assume o seu caso. ' +
     'Você pode acompanhar tudo pelo Portal do Cliente: ' +
     `${link} ` +
-    'O próximo passo é nosso: a nossa equipe vai entrar em contato com você para colher os demais documentos — a procuração, o RG (frente e verso) e o comprovante de endereço. ' +
-    `É só aguardar — entraremos em contato por ligação no WhatsApp, pelo número ${NUMERO_CONTATO_EQUIPE}. ` +
-    'Enquanto isso, se você tiver qualquer dúvida, é só me chamar por aqui — estou à disposição.'
+    `O próximo passo é nosso: ${QUEM_FAZ_O_CONTATO}, vai entrar em contato com você para providenciar os demais documentos — a procuração, o RG (frente e verso) e o comprovante de endereço. ` +
+    'É só aguardar. Enquanto isso, se você tiver qualquer dúvida, é só me chamar por aqui — estou à disposição.'
   );
 }
 

@@ -15,7 +15,7 @@
 // capturados no pré-hook serializado do ingress), então as re-chamadas do guard
 // anti-repetição são inofensivas e idempotentes.
 // ─────────────────────────────────────────────────────────────────────────────
-import { ehRoteiroDeColeta } from '@reconstrua/application';
+import { ehRoteiroDeColeta, SILENCIO_DA_JORNADA } from '@reconstrua/application';
 import type { EntradaDoTurno, LlmExpressionPort, PhrasingRequest } from '@reconstrua/application';
 import type { JornadaComercialRuntime } from './jornada-runtime.js';
 
@@ -45,6 +45,10 @@ export class JourneyGovernedExpression implements LlmExpressionPort {
         timestamp: envelope?.timestamp ?? null,
       };
       const autorada = await this.jornada.responder(chatId, entrada);
+      // SILÊNCIO DECIDIDO (caso REAL Angela, 2026-09-24): a jornada governa e a
+      // decisão é calar — lote de anexos já respondido. Não é "sem roteiro":
+      // nem o roteiro fala, nem a LLM improvisa.
+      if (autorada === SILENCIO_DA_JORNADA) return '';
       if (autorada !== '') {
         // A jornada GOVERNA o conteúdo; a LLM (quando real) governa só a VOZ.
         // Caso REAL Maria Aparecida (2026-07-29): o humanizador REESCREVEU o

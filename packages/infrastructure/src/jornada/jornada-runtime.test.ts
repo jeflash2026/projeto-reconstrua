@@ -14,7 +14,7 @@ import {
 } from '@reconstrua/application';
 import { InMemoryJsonStore } from '../production/json-store.js';
 import { JsonOnboardingDocumentalStore } from '../onboarding/json-onboarding-store.js';
-import { JornadaComercialRuntime } from './jornada-runtime.js';
+import { JornadaComercialRuntime, type JornadaRuntimeDeps } from './jornada-runtime.js';
 import { JourneyGovernedExpression } from './journey-governed-expression.js';
 
 const NOW = new Date('2026-07-20T21:00:00.000Z');
@@ -25,7 +25,18 @@ class TestClock implements Clock {
   }
 }
 
-function harness() {
+/** Relógio que anda — os casos de JANELA (lote de anexos) precisam de tempo. */
+class RelogioMovel implements Clock {
+  constructor(private t: Date = NOW) {}
+  now(): Date {
+    return new Date(this.t.getTime());
+  }
+  avancar(ms: number): void {
+    this.t = new Date(this.t.getTime() + ms);
+  }
+}
+
+function harness(extras: Partial<JornadaRuntimeDeps> = {}) {
   const json = new InMemoryJsonStore();
   const textos: Record<string, string | null> = {};
   const onboarding = new OnboardingDocumentalRuntime({
@@ -38,6 +49,7 @@ function harness() {
     onboarding,
     observability: new ObservabilityRuntime(),
     clock: new TestClock(),
+    ...extras,
   });
   const expression = new JourneyGovernedExpression(jornada, {
     phrase: () => Promise.resolve('RESPOSTA-DO-LLM'),
@@ -465,5 +477,79 @@ describe('caso Geisebel — captura completa da 1ª mensagem e triagem sem reped
     expect(inicio).toContain('CPF eu já tenho registrado');
     expect(inicio).toContain('HISCON');
     expect(inicio).not.toContain('pode me informar o número do seu CPF');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Caso REAL Angela (11 95707-5533, 24/09/2026, 18:11→18:13) — ela mandou o
+// HISCON e, atrás dele, os contratos que tinha dos bancos. A coleta já estava
+// completa, a jornada não governava mais o turno e cada arquivo virava uma fala
+// do LLM igual à anterior; o guard anti-eco matava a repetição e no lugar dela
+// saía a devolução genérica. Resultado: QUATRO mensagens seguidas — "Tô aqui
+// com você", "Me diz o que você precisa agora", "Pode falar comigo", "Sigo com
+// você por aqui" — para uma cliente que estava, justamente, mandando o que foi
+// pedido. Anexo extra agora tem fala própria: um recibo por LOTE.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('caso REAL Angela — os contratos que chegam atrás do HISCON', () => {
+  const CPF_DE_TESTE = '529.982.247-25';
+
+  async function comHisconEDossie(relogio: RelogioMovel, extras: Partial<JornadaRuntimeDeps> = {}) {
+    const h = harness({
+      clock: relogio,
+      parecerDoCliente: () =>
+        Promise.resolve({ link: 'https://x/parecer?t=abc', contratos: 17, indicios: 4 }),
+      jaConfirmou: () => Promise.resolve(false),
+      dossieAnunciadoHaPouco: () => Promise.resolve(true),
+      ...extras,
+    });
+    h.textos['d1'] = 'histórico de empréstimo consignado';
+    await h.onboarding.aoReconhecerDocumento(CHAT, 'M-1', 'd1', 'hiscon.pdf', NOW);
+    return h;
+  }
+
+  it('UM recibo no primeiro anexo extra e SILÊNCIO no resto do lote', async () => {
+    const relogio = new RelogioMovel();
+    const h = await comHisconEDossie(relogio);
+    await h.jornada.aoReceberTexto(CHAT, CPF_DE_TESTE, relogio.now());
+
+    const primeiro = await h.expression.phrase(h.request(null, { arquivo: true }));
+    expect(primeiro).toContain('Recebi os arquivos');
+    // E repõe o ÚNICO passo que falta: o SIM (o dossiê já está na conversa).
+    expect(primeiro).toContain('dossiê já está aqui');
+
+    // O resto do lote não fala NADA — nem roteiro, nem LLM, nem devolução.
+    for (const _ of [1, 2, 3]) {
+      relogio.avancar(20_000);
+      expect(await h.expression.phrase(h.request(null, { arquivo: true }))).toBe('');
+    }
+  });
+
+  it('passada a janela do lote, um anexo novo volta a ter resposta', async () => {
+    const relogio = new RelogioMovel();
+    const h = await comHisconEDossie(relogio);
+    await h.jornada.aoReceberTexto(CHAT, CPF_DE_TESTE, relogio.now());
+
+    expect(await h.expression.phrase(h.request(null, { arquivo: true }))).toContain(
+      'Recebi os arquivos',
+    );
+    relogio.avancar(11 * 60_000);
+    expect(await h.expression.phrase(h.request(null, { arquivo: true }))).toContain(
+      'Recebi os arquivos',
+    );
+  });
+
+  it('sem CPF registrado, o recibo repõe exatamente o que falta', async () => {
+    const relogio = new RelogioMovel();
+    const h = await comHisconEDossie(relogio);
+    const r = await h.expression.phrase(h.request(null, { arquivo: true }));
+    expect(r).toContain('Recebi os arquivos');
+    expect(r).toContain('CPF');
+  });
+
+  it('pedido ATIVO do advogado (fase 2): a jornada não se intromete', async () => {
+    const relogio = new RelogioMovel();
+    const h = await comHisconEDossie(relogio, { temPedidoAtivo: () => Promise.resolve(true) });
+    await h.jornada.aoReceberTexto(CHAT, CPF_DE_TESTE, relogio.now());
+    expect(await h.expression.phrase(h.request(null, { arquivo: true }))).toBe('RESPOSTA-DO-LLM');
   });
 });

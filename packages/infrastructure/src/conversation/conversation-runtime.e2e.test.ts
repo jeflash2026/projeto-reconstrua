@@ -345,3 +345,31 @@ describe('ConversationRuntime — silêncio, timeout e as doze naturezas', () =>
     expect(result.percept?.enrichment).toBeNull();
   });
 });
+
+// CASO REAL Angela (11 95707-5533, 24/09/2026): ela mandou o HISCON e, atrás
+// dele, os contratos dos bancos. Cada arquivo abriu um turno sem nada novo a
+// dizer, e a conversa recebeu QUATRO devoluções seguidas ("me diz o que você
+// precisa agora") — para quem estava justamente mandando o que foi pedido.
+// Quem envia arquivo não está esperando conversa.
+describe('ConversationRuntime — lote de arquivos não vira conversa vazia', () => {
+  it('anexo sem nada novo a dizer ⇒ SILÊNCIO, nunca a devolução genérica', async () => {
+    const teimoso: LlmExpressionPort = {
+      phrase: () => Promise.resolve('a mesma frase de sempre'),
+    };
+    const h = harness({ expression: teimoso });
+    await h.runtime.receive(envelope('text', { messageId: 'A', text: 'primeira' }));
+    for (const id of ['B', 'C', 'D', 'E'])
+      await h.runtime.receive(
+        envelope('document', { messageId: id, fileName: `contrato-${id}.pdf` }),
+      );
+
+    const ditas = h.gateway.texts();
+    expect(ditas).toHaveLength(1); // só a fala do texto inicial
+    for (const t of ditas) expect(t).not.toMatch(/me diz o que você precisa|Tô aqui com você/iu);
+    // E a mesa é avisada: a conversa ficou sem resposta e precisa de gente.
+    const notas = h.conversationStore
+      .all()
+      .filter((e) => e.kind === 'note' && (e.text ?? '').includes('anti-repetição'));
+    expect(notas.length).toBeGreaterThanOrEqual(1);
+  });
+});

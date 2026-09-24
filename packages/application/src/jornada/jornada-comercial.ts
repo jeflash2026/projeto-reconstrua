@@ -49,6 +49,11 @@ export interface JornadaRecord {
    *  conversa para sempre. 1ª cobrança = padrão; 2ª = reforço com oferta de
    *  ajuda; 3ª+ = a conversa humana (LLM) assume. Zera quando documento chega. */
   readonly cobrancasSeguidas: number;
+  /** Caso REAL Angela (11 95707-5533, 2026-09-24): quando foi respondido o
+   *  último ANEXO EXTRA (arquivo que chega com a coleta JÁ completa). Quem
+   *  manda o HISCON manda os contratos dos bancos atrás — um recibo por lote;
+   *  dentro da janela, silêncio (o recibo repetido é o eco de sempre). */
+  readonly anexoExtraRespondidoEm: Date | null;
   readonly atualizadoEm: Date;
 }
 
@@ -66,9 +71,17 @@ export function novaJornada(chatId: string, now: Date): JornadaRecord {
     avisosDeAdiamento: 0,
     desistiu: false,
     cobrancasSeguidas: 0,
+    anexoExtraRespondidoEm: null,
     atualizadoEm: now,
   };
 }
+
+/** A jornada decidiu CALAR neste turno. Diferente de '' (que significa "a
+ *  jornada não governa este turno — a LLM fala"): aqui há governo e a decisão
+ *  é o silêncio. Caso REAL Angela (2026-09-24): quatro arquivos seguidos, e a
+ *  conversa recebeu quatro falas vazias porque "não governar" virava "improvise
+ *  alguma coisa". Arquivo não pede conversa; pede que se guarde e se cale. */
+export const SILENCIO_DA_JORNADA = '\u0000silencio-da-jornada';
 
 /** Os FATOS de que a derivação precisa (jornada + contabilidade documental). */
 export interface FatosDaJornada {
@@ -266,6 +279,10 @@ export function capturarIdentificacao(
 
   const limparCidade = (s: string): string =>
     s
+      // O trim vem ANTES do corte: "Isabel, de Santa Ernestina" deixava um
+      // espaço à frente, o "^de " não casava e a cidade era registrada como
+      // "de Santa Ernestina" — nome de cidade que não existe em lugar nenhum.
+      .trim()
       // Caso Geisebel (2026-08-28): "Santa ernestina, meu cpf é 331… e quero
       // fazer" — a cidade termina na vírgula/no CPF/no "e quero"; o resto é
       // outra oração, nunca parte do nome da cidade.
@@ -299,6 +316,16 @@ export function capturarIdentificacao(
 
   const virgula = t.indexOf(',');
   if (virgula > 0) {
+    // Caso REAL Angela Maria Pereira (11 95707-5533, 2026-09-24): com o nome JÁ
+    // registrado, a pergunta na mesa era a CIDADE — e ela respondeu "São Paulo,
+    // capital". A vírgula ali é de COMPLEMENTO, não de separação nome/cidade: a
+    // regra antiga leu "São Paulo" como nome, apagou "Angela Maria Pereira" e a
+    // cliente passou a ser chamada de "São". Nome registrado só muda com
+    // marcador explícito ("meu nome é…") — tratado fora daqui, na correção.
+    if (atual.nome !== null && atual.cidade === null && !/\b(me\s+chamo|meu\s+nome)\b/i.test(t)) {
+      const cidade = limparCidade(t);
+      return { nome: null, cidade: cidade !== '' ? cidade : null };
+    }
     const nome = limparNome(t.slice(0, virgula));
     const cidade = limparCidade(t.slice(virgula + 1));
     return {
@@ -807,6 +834,17 @@ export const MENSAGENS_JORNADA = {
     `Só reforçando: para dar sequência à sua análise, preciso de ${proximo} — o arquivo em PDF, que é o único formato que traz todos os contratos. Se estiver com dificuldade para baixar ou enviar, me avise que eu te oriento passo a passo.`,
   ackDocumento:
     'Recebi o documento. Um instante enquanto faço o registro — assim que concluir, te confirmo o próximo passo.',
+  /** ANEXO EXTRA (caso REAL Angela, 11 95707-5533, 2026-09-24): ela mandou o
+   *  HISCON e, atrás dele, os contratos que tinha dos bancos. Cada arquivo
+   *  virava um turno; a coleta já estava completa, a jornada não tinha o que
+   *  dizer e devolvia a MESMA fala do registro — o guard anti-eco a matava e
+   *  sobravam quatro convites vazios seguidos ("me diz o que você precisa"),
+   *  sem que a cliente tivesse escrito uma linha. Arquivo que chega depois da
+   *  coleta completa tem fala própria: chegou, foi guardado, e o passo que
+   *  falta é reposto — uma vez por lote. */
+  anexoExtraRecebido: (passoPendente: string | null): string =>
+    'Recebi os arquivos, obrigada — guardei tudo junto ao seu caso.' +
+    (passoPendente !== null && passoPendente !== '' ? `\n\n${passoPendente}` : ''),
   documentoRegistrado: (registrado: string, proximo: string): string =>
     `Registrado: ${registrado}. Agora preciso de: ${proximo}.`,
   documentoRegistradoCompleto: (registrado: string): string =>

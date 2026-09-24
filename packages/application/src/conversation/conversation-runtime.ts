@@ -104,7 +104,15 @@ const FECHOS: readonly string[] = [
  *  mais que conversar sobre conversar); no resto, devolve a palavra ao cliente.
  *  Tudo já dito há pouco ⇒ silêncio (aí insistir seria eco). */
 function devolucaoQueNaoRepete(view: ConversationContextView, jaDitas: readonly string[]): string {
-  const ultimaDoCliente = (view.lastPercept?.envelope.text ?? '').trim();
+  const envelope = view.lastPercept?.envelope ?? null;
+  // Caso REAL Angela (11 95707-5533, 2026-09-24): ela mandou o HISCON e, atrás,
+  // os contratos dos bancos. Cada arquivo abriu um turno sem nada novo a dizer
+  // e a conversa recebeu QUATRO devoluções seguidas — "me diz o que você
+  // precisa agora" a quem estava, justamente, mandando o que foi pedido. Quem
+  // envia arquivo não está esperando conversa: se não há o que dizer sobre ele,
+  // cala-se (o operador já foi avisado por quem chamou esta função).
+  if (envelope !== null && (envelope.fileName != null || envelope.mediaUrl != null)) return '';
+  const ultimaDoCliente = (envelope?.text ?? '').trim();
   const naoDita = (opcoes: readonly string[]): string =>
     opcoes.find((texto) => !jaDitas.some((dita) => dita.trim() === texto)) ?? '';
   if (

@@ -28,6 +28,7 @@ import {
   registroDoTurnoConcluido,
   responderTurno,
   separarCidadeEstado,
+  SILENCIO_DA_JORNADA,
   type EntradaDoTurno,
   type EtapaJornada,
   type FatosDaJornada,
@@ -53,8 +54,16 @@ interface Persisted {
   readonly avisosDeAdiamento?: number;
   readonly desistiu?: boolean;
   readonly cobrancasSeguidas?: number;
+  /** Caso Angela (2026-09-24) — opcional: registros antigos não têm o campo. */
+  readonly anexoExtraRespondidoEm?: string | null;
   readonly atualizadoEm: string;
 }
+
+/** A janela do LOTE de anexos: dentro dela, um arquivo novo não gera fala
+ *  nenhuma. Quem baixa o HISCON manda os contratos na sequência — são partes do
+ *  MESMO gesto, e cada um deles merecia quatro respostas tanto quanto uma
+ *  frase merece quatro pontos-finais. */
+const JANELA_DO_LOTE_MS = 10 * 60_000;
 
 export interface JornadaRuntimeDeps {
   readonly json: JsonStore;
@@ -107,6 +116,8 @@ export class JornadaComercialRuntime {
       avisosDeAdiamento: raw.avisosDeAdiamento ?? 0,
       desistiu: raw.desistiu === true,
       cobrancasSeguidas: raw.cobrancasSeguidas ?? 0,
+      anexoExtraRespondidoEm:
+        raw.anexoExtraRespondidoEm != null ? new Date(raw.anexoExtraRespondidoEm) : null,
       atualizadoEm: new Date(raw.atualizadoEm),
     };
   }
@@ -117,7 +128,11 @@ export class JornadaComercialRuntime {
   }
 
   private async salvar(r: JornadaRecord): Promise<void> {
-    await this.deps.json.put(NS, r.chatId, { ...r, atualizadoEm: r.atualizadoEm.toISOString() });
+    await this.deps.json.put(NS, r.chatId, {
+      ...r,
+      anexoExtraRespondidoEm: r.anexoExtraRespondidoEm?.toISOString() ?? null,
+      atualizadoEm: r.atualizadoEm.toISOString(),
+    });
   }
 
   /** Os FATOS completos (registro + contabilidade documental). */
@@ -371,6 +386,14 @@ export class JornadaComercialRuntime {
       entrada.tipo === 'documento' &&
       registroDoTurnoConcluido(fatos, entrada) &&
       fatos.docsCompletos;
+    // ANEXO EXTRA (caso REAL Angela, 2026-09-24): arquivo chegando com a coleta
+    // JÁ completa. Antes isto caía no LLM, que repetia a fala do registro; o
+    // guard matava o eco e a cliente recebia quatro convites vazios seguidos.
+    // Agora a jornada responde uma vez por lote — e cala no resto do lote.
+    if (entrada.tipo === 'documento' && fatos.docsCompletos && !concluidaAgora) {
+      const falaDoAnexo = await this.responderAnexoExtra(chatId, fatos);
+      if (falaDoAnexo !== null) return falaDoAnexo;
+    }
     // CONCLUIDA delega ao LLM — EXCETO o turno do ÚLTIMO documento, cuja
     // resposta ("documentação completa") é a despedida da própria jornada.
     if (derivarEtapa(fatos) === 'CONCLUIDA' && !concluidaAgora) return '';
@@ -402,6 +425,44 @@ export class JornadaComercialRuntime {
       }).catch(() => undefined);
     }
     return resposta;
+  }
+
+  /** ANEXO EXTRA — arquivo que chega com a coleta da fase 1 já completa.
+   *
+   *  Caso REAL Angela (11 95707-5533, 2026-09-24): ela mandou o HISCON e, atrás
+   *  dele, os contratos que tinha dos bancos. Cada arquivo abria um turno que a
+   *  jornada não governava; a fala caía no LLM, voltava igual à do registro, o
+   *  guard anti-eco a matava e no lugar dela saía a devolução genérica — quatro
+   *  vezes seguidas, sem a cliente ter escrito nada.
+   *
+   *  Três decisões, nesta ordem: pedido ATIVO do advogado ⇒ não é assunto daqui
+   *  (null, o fluxo da mesa responde); ainda dentro do LOTE ⇒ silêncio; senão,
+   *  um recibo só, com o único passo que falta. */
+  private async responderAnexoExtra(chatId: string, fatos: FatosDaJornada): Promise<string | null> {
+    if ((await this.deps.temPedidoAtivo?.(chatId).catch(() => false)) ?? false) return null;
+    const now = this.deps.clock.now();
+    const ultimo = fatos.registro.anexoExtraRespondidoEm;
+    if (ultimo !== null && now.getTime() - ultimo.getTime() < JANELA_DO_LOTE_MS)
+      return SILENCIO_DA_JORNADA;
+    await this.salvar({
+      ...fatos.registro,
+      anexoExtraRespondidoEm: now,
+      atualizadoEm: now,
+    }).catch(() => undefined);
+    this.deps.observability.event('jornada', `anexo extra recebido chat=${chatId}`, now);
+    return MENSAGENS_JORNADA.anexoExtraRecebido(await this.passoQueFalta(chatId, fatos));
+  }
+
+  /** O ÚNICO passo pendente do funil, na ordem real: o CPF (sem ele a análise
+   *  nem roda), o SIM (dossiê pronto na mão do cliente), o aguardo da equipe
+   *  (já confirmou) ou o andamento honesto (análise ainda na fila). */
+  private async passoQueFalta(chatId: string, fatos: FatosDaJornada): Promise<string> {
+    if (fatos.registro.cpf === null) return MENSAGENS_JORNADA.pedirCpf(fatos.registro.nome);
+    const parecer = (await this.deps.parecerDoCliente?.(chatId).catch(() => null)) ?? null;
+    const confirmado = (await this.deps.jaConfirmou?.(chatId).catch(() => false)) ?? false;
+    if (confirmado) return MENSAGENS_JORNADA.confirmadoAguardeEquipe;
+    if (parecer !== null) return await this.anunciarDossie(chatId, parecer, fatos.registro.nome);
+    return MENSAGENS_JORNADA.andamentoSemPrometerPrazo;
   }
 
   /** O ANÚNCIO DO DOSSIÊ É UMA VEZ SÓ (caso REAL Vivian, 2026-09-22): o

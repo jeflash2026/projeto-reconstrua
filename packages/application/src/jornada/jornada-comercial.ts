@@ -30,9 +30,16 @@ export interface JornadaRecord {
   readonly cpf: string | null;
   readonly consentiu: boolean;
   readonly recusou: boolean;
-  /** O que o ÚLTIMO turno capturou (nuance de fraseado: "Prazer, X!"). */
+  /** O que o ÚLTIMO turno capturou (nuance de fraseado: "Prazer, X!").
+   *
+   *  'estado' (2026-09-24, caso REAL Angela): o UF chegando numa bolha própria
+   *  ("São Paulo -SP") era gravado em SILÊNCIO — a cliente mandava o dado e
+   *  ouvia de volta uma pergunta que não tinha nada a ver com ele. Silêncio
+   *  para não repetir o script (caso Humberto) virou parecer que ninguém leu.
+   *  Marcado assim, o turno confirma o que anotou e segue a etapa — sem
+   *  re-disparar a explicação (que só responde a 'nome'/'cidade'). */
   readonly ultimaCaptura:
-    'nome' | 'cidade' | 'nome-cidade' | 'cpf' | 'consentimento' | 'adiamento' | null;
+    'nome' | 'cidade' | 'nome-cidade' | 'estado' | 'cpf' | 'consentimento' | 'adiamento' | null;
   /** O turno respondeu só o ACK (registro processando) e a PROGRESSÃO ainda
    *  não foi falada — a classificação tardia deve enviá-la sozinha. */
   readonly aguardandoProgressao: boolean;
@@ -998,6 +1005,12 @@ export const MENSAGENS_JORNADA = {
     'Recebi o seu link, obrigada. Só que por segurança eu não consigo abrir documentos por link — preciso do ARQUIVO aqui na conversa mesmo.\n\n' +
     'É simples: abra o documento no aplicativo, toque em "Baixar" (ou "Salvar no celular") e depois me envie o arquivo em PDF como anexo aqui no WhatsApp. Preciso do PDF completo — a foto ou o print da tela não trazem todos os contratos e a análise não roda.\n\n' +
     `Estou aguardando: ${proximo}. Qualquer dificuldade, me avise que eu te oriento passo a passo.`,
+  /** Caso REAL Angela (2026-09-24): ela mandou "São Paulo -SP" e o UF foi
+   *  gravado em silêncio — a resposta seguiu para outra pergunta, como se a
+   *  mensagem dela não tivesse chegado. O dado que chega é confirmado em uma
+   *  linha, e o funil continua na MESMA mensagem (sem gastar um turno). */
+  anotadoCidadeEstado: (cidade: string, estado: string): string =>
+    `Anotado: ${cidade} - ${estado}.`,
 } as const;
 
 /** A ENTRADA de um turno, já normalizada pelo runtime. */
@@ -1022,8 +1035,27 @@ export function registroDoTurnoConcluido(f: FatosDaJornada, entrada: EntradaDoTu
 /**
  * A RESPOSTA AUTORADA do turno — decisão 100% determinística.
  * A LLM não participa: dado o mesmo estado e a mesma entrada, a mesma resposta.
+ *
+ * O dado que o cliente acabou de mandar é CONFIRMADO em uma linha antes do
+ * passo seguinte (caso REAL Angela, 2026-09-24: o UF numa bolha própria era
+ * gravado em silêncio e ela recebia de volta uma pergunta sem relação nenhuma
+ * com o que tinha escrito). A confirmação viaja na MESMA mensagem: reconhecer o
+ * que chegou não pode custar mais um turno de conversa.
  */
 export function responderTurno(f: FatosDaJornada, entrada: EntradaDoTurno): string {
+  const resposta = respostaDaEtapa(f, entrada);
+  const r = f.registro;
+  if (
+    r.ultimaCaptura === 'estado' &&
+    r.cidade !== null &&
+    r.estado !== null &&
+    resposta.trim() !== ''
+  )
+    return `${MENSAGENS_JORNADA.anotadoCidadeEstado(r.cidade, r.estado)}\n\n${resposta}`;
+  return resposta;
+}
+
+function respostaDaEtapa(f: FatosDaJornada, entrada: EntradaDoTurno): string {
   const etapa = derivarEtapa(f);
   const r = f.registro;
 

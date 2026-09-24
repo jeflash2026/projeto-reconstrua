@@ -228,13 +228,43 @@ export class JornadaComercialRuntime {
       // bolha não era entendida e o fluxo cobrava "Cidade - UF" em loop,
       // trançando duas conversas. Agora: com cidade registrada e estado
       // faltando, uma mensagem que é SÓ um estado (UF ou por extenso) completa
-      // o registro em silêncio — a resposta segue a etapa atual, sem repetir
-      // nenhum script (ultimaCaptura null ⇒ nunca re-dispara a explicação).
+      // o registro — a resposta segue a etapa atual, sem repetir nenhum script
+      // ('estado' nunca re-dispara a explicação, que só responde a nome/cidade).
+      //
+      // 2026-09-24 (caso Angela): o silêncio TOTAL daqui fazia a cliente mandar
+      // "São Paulo -SP" e receber de volta uma pergunta sem relação com isso.
+      // Agora o turno confirma o que anotou, na mesma mensagem do passo seguinte.
       if (r.cidade !== null && r.estado === null) {
         const uf = capturarEstado(texto);
         if (uf !== null) {
-          await this.salvar({ ...r, estado: uf, ultimaCaptura: semCaptura(), atualizadoEm: now });
+          await this.salvar({
+            ...r,
+            estado: uf,
+            ultimaCaptura: cpfCapturadoAgora ? 'cpf' : 'estado',
+            atualizadoEm: now,
+          });
           this.deps.observability.event('jornada', `estado capturado (${uf}) chat=${chatId}`, now);
+          return;
+        }
+        // "São Paulo -SP": a resposta no formato que NÓS pedimos ("Cidade - UF")
+        // chegando DEPOIS de a cidade já estar registrada. Antes não havia
+        // caminho nenhum para ela — a captura de cidade só existe na
+        // identificação, e o UF da Angela simplesmente nunca foi registrado. Uma
+        // mensagem que é inteira "Cidade - UF" é sempre a resposta da pergunta.
+        const { cidade, estado } = separarCidadeEstado(texto);
+        if (estado !== null && cidade !== '') {
+          await this.salvar({
+            ...r,
+            cidade,
+            estado,
+            ultimaCaptura: cpfCapturadoAgora ? 'cpf' : 'estado',
+            atualizadoEm: now,
+          });
+          this.deps.observability.event(
+            'jornada',
+            `cidade+estado capturados (${cidade} - ${estado}) chat=${chatId}`,
+            now,
+          );
           return;
         }
       }

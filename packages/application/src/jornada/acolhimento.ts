@@ -26,14 +26,18 @@ import {
 
 /** O que o cliente disse pede resposta antes do próximo pedido?
  *
- *  Uma frase de verdade (4+ palavras) que não é saudação, não é chamamento
+ *  Uma frase de verdade (3+ palavras) que não é saudação, não é chamamento
  *  ("alguém aí?") e não é o dado que acabamos de pedir — nesses casos o próprio
- *  roteiro já responde, e acrescentar conversa só atrasa. */
+ *  roteiro já responde, e acrescentar conversa só atrasa.
+ *
+ *  O piso é 3 e não 4 por causa das bolhas curtas que ainda dizem algo ("São
+ *  Paulo -SP", "não sei não"): ignorá-las é o que faz o cliente repetir o que
+ *  acabou de escrever — e é assim que a conversa dobra de tamanho. */
 export function mereceAcolhimento(texto: string): boolean {
   const t = texto.trim();
   if (t === '' || ehSaudacaoPura(t) || ehChamamento(t)) return false;
   if (capturarCpf(t) !== null) return false;
-  return t.split(/\s+/).filter((p) => p !== '').length >= 4;
+  return t.split(/\s+/).filter((p) => p !== '').length >= 3;
 }
 
 /** Promessa é assunto do advogado, nunca de uma frase de acolhimento. */

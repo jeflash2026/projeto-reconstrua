@@ -612,3 +612,44 @@ describe('acolhimento — responder o cliente sem tocar no roteiro', () => {
     expect(await h.expression.phrase(h.request(FALA_DA_CLIENTE))).toBe(roteiro);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A conversa da Angela, do começo (24/09/2026) — o dono: "estendeu demais, com
+// perguntas desnecessárias". Aqui ficam travados os dois defeitos que a
+// alongavam: o nome apagado pela resposta da cidade e o dado que chega numa
+// bolha própria e é gravado em silêncio, como se ninguém tivesse lido.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('caso REAL Angela — a identificação em duas bolhas', () => {
+  it('o nome sobrevive à cidade, e o UF que chega depois é CONFIRMADO no mesmo turno', async () => {
+    const h = harness();
+    await h.turno('Olá! Posso ter mais informações sobre isso?', { turns: 1 });
+    expect(await h.turno('Angela Maria Pereira')).toBe(
+      MENSAGENS_JORNADA.pedirCidade('Angela Maria Pereira'),
+    );
+
+    // "São Paulo, capital" é a CIDADE — nunca um nome novo.
+    expect(await h.turno('São Paulo, capital')).toContain('interesse em fazer essa análise');
+
+    // O UF na bolha seguinte: confirmado E o funil continua na MESMA mensagem.
+    const anotado = await h.turno('São Paulo -SP');
+    expect(anotado).toContain('Anotado: São Paulo - SP');
+    expect(anotado).toContain('interesse');
+
+    const r = (await h.jornada.fatos(CHAT)).registro;
+    expect(r.nome).toBe('Angela Maria Pereira'); // jamais "São Paulo"
+    expect(r.cidade).toBe('São Paulo');
+    expect(r.estado).toBe('SP');
+  });
+
+  it('cidade numa bolha e o estado na seguinte: o UF anotado é CONFIRMADO no mesmo turno', async () => {
+    const h = harness();
+    await h.turno('Boa tarde', { turns: 1 });
+    await h.turno('Humberto Silva');
+    expect(await h.turno('Ribeirão Preto')).toContain('interesse em fazer essa análise');
+    // A segunda bolha traz só o estado: antes era gravada em SILÊNCIO e a
+    // pessoa recebia de volta uma pergunta sem relação com o que escreveu.
+    const anotado = await h.turno('São Paulo');
+    expect(anotado).toContain('Anotado: Ribeirão Preto - SP');
+    expect(anotado).toContain('interesse'); // o funil segue na MESMA mensagem
+  });
+});

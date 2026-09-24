@@ -15,7 +15,11 @@
 // capturados no pré-hook serializado do ingress), então as re-chamadas do guard
 // anti-repetição são inofensivas e idempotentes.
 // ─────────────────────────────────────────────────────────────────────────────
-import { ehRoteiroDeColeta, SILENCIO_DA_JORNADA } from '@reconstrua/application';
+import {
+  acolhimentoAceitavel,
+  ehRoteiroDeColeta,
+  SILENCIO_DA_JORNADA,
+} from '@reconstrua/application';
 import type { EntradaDoTurno, LlmExpressionPort, PhrasingRequest } from '@reconstrua/application';
 import type { JornadaComercialRuntime } from './jornada-runtime.js';
 
@@ -56,7 +60,11 @@ export class JourneyGovernedExpression implements LlmExpressionPort {
         // seu extrato…"). Roteiros de COLETA da fase 1 (nome, cidade/estado,
         // CPF, HISCON) saem VERBATIM — cada palavra deles importa; a
         // humanização segue valendo para o resto (explicações, acolhimento).
-        if (!this.humanizarComLlm || ehRoteiroDeColeta(autorada)) return autorada;
+        if (!this.humanizarComLlm) return autorada;
+        // O roteiro de coleta continua SAINDO INTEIRO, palavra por palavra —
+        // o que muda é que ele pode vir precedido de uma frase respondendo o
+        // que a pessoa acabou de dizer (caso REAL Angela, 2026-09-24).
+        if (ehRoteiroDeColeta(autorada)) return await this.acolher(request, autorada, entrada);
         return await this.humanizar(request, autorada);
       }
     } catch {
@@ -71,6 +79,40 @@ export class JourneyGovernedExpression implements LlmExpressionPort {
       return await this.jornada.revisarFalaPosHiscon(request.intent.chatId, falaDoLlm);
     } catch {
       return falaDoLlm; // a rede nunca pode silenciar a conversa
+    }
+  }
+
+  /** UMA frase respondendo o que a pessoa disse, ANTES do roteiro intacto.
+   *
+   *  Caso REAL Angela (2026-09-24): "Tenho empréstimo consignado que eu fiz" —
+   *  e de volta, seca, a mesma cobrança do CPF. Perguntar sem nunca responder é
+   *  o que faz o atendimento soar a interrogatório. A frase é do LLM, mas ele
+   *  não toca no roteiro: escreve só a linha de cima, e a peneira determinística
+   *  (`acolhimentoAceitavel`) descarta em qualquer dúvida — pergunta, link,
+   *  número, promessa, cobrança de documento ou eco do próprio roteiro. Nada
+   *  passou? O roteiro sai sozinho, exatamente como antes. */
+  private async acolher(
+    request: PhrasingRequest,
+    roteiro: string,
+    entrada: EntradaDoTurno,
+  ): Promise<string> {
+    try {
+      if (!(await this.jornada.cabeAcolhimento(request.intent.chatId, entrada))) return roteiro;
+      const pedido: PhrasingRequest = {
+        ...request,
+        styleGuidance:
+          'Você é a Ahri, consultora do Projeto Reconstrua, falando com um cliente por WhatsApp. ' +
+          `A pessoa acabou de escrever: «${entrada.texto.trim()}». ` +
+          'Escreva UMA frase curta, natural e objetiva respondendo ao que ela disse — nada além disso. ' +
+          'PROIBIDO: fazer qualquer pergunta, pedir documento/CPF/extrato, citar prazo, valor ou resultado, ' +
+          'prometer qualquer coisa, usar link ou emoji. ' +
+          'Se a MENSAGEM ABAIXO já responde o que ela disse, ou se não há nada a responder, devolva VAZIO. ' +
+          `MENSAGEM QUE SERÁ ENVIADA LOGO DEPOIS DA SUA FRASE: «${roteiro}»`,
+      };
+      const bruto = (await this.inner.phrase(pedido)).trim();
+      return acolhimentoAceitavel(bruto, roteiro) ? `${bruto}\n\n${roteiro}` : roteiro;
+    } catch {
+      return roteiro; // acolher é um extra; o roteiro nunca depende dele
     }
   }
 

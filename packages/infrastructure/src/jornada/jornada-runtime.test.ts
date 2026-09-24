@@ -553,3 +553,62 @@ describe('caso REAL Angela — os contratos que chegam atrás do HISCON', () => 
     expect(await h.expression.phrase(h.request(null, { arquivo: true }))).toBe('RESPOSTA-DO-LLM');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACOLHIMENTO ANTES DO PEDIDO (2026-09-24) — o dono, sobre o caso Angela: "a
+// AHRI virou psicóloga, interrogadora". No meio da coleta a cliente escreveu
+// "Tenho empréstimo consignado que eu fiz" e recebeu de volta, seca, a mesma
+// cobrança do CPF. O roteiro continua saindo INTEIRO; o que muda é que ele pode
+// vir precedido de UMA frase respondendo o que a pessoa disse.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('acolhimento — responder o cliente sem tocar no roteiro', () => {
+  const FALA_DA_CLIENTE = 'Tenho empréstimo consignado que eu fiz';
+  const comVoz = (jornada: JornadaComercialRuntime, frase: string) =>
+    new JourneyGovernedExpression(jornada, { phrase: () => Promise.resolve(frase) }, true);
+
+  /** Leva a conversa até o pedido do CPF e devolve o roteiro verbatim do turno. */
+  async function naTriagem() {
+    const h = harness();
+    await h.turno('Boa noite', { turns: 1 });
+    await h.turno('Isabel');
+    await h.turno('Santa Ernestina - SP');
+    await h.turno('sim');
+    await h.jornada.aoReceberTexto(CHAT, FALA_DA_CLIENTE, NOW);
+    const roteiro = await h.expression.phrase(h.request(FALA_DA_CLIENTE));
+    expect(roteiro).toContain('CPF');
+    return { h, roteiro };
+  }
+
+  it('a frase vem ANTES e o roteiro sai palavra por palavra', async () => {
+    const { h, roteiro } = await naTriagem();
+    const ACOLHIMENTO = 'Entendi — é exatamente isso que a nossa análise verifica.';
+    const fala = await comVoz(h.jornada, ACOLHIMENTO).phrase(h.request(FALA_DA_CLIENTE));
+    expect(fala).toBe(`${ACOLHIMENTO}\n\n${roteiro}`);
+  });
+
+  it('frase reprovada pela peneira ⇒ o roteiro sai sozinho, como antes', async () => {
+    const { h, roteiro } = await naTriagem();
+    for (const ruim of [
+      '', // o LLM não achou o que responder
+      'Pode me mandar o seu CPF?', // invade o pedido do roteiro
+      'Em até 10 dias úteis fica pronto.', // prazo
+      'Garanto que você vai receber de volta o valor.', // promessa
+    ])
+      expect(await comVoz(h.jornada, ruim).phrase(h.request(FALA_DA_CLIENTE)), ruim).toBe(roteiro);
+  });
+
+  it('turno que CAPTUROU algo não ganha acolhimento (o roteiro já responde)', async () => {
+    const h = harness();
+    await h.turno('Boa noite', { turns: 1 });
+    await h.jornada.aoReceberTexto(CHAT, 'Angela Maria Pereira', NOW); // captura o nome
+    const fala = await comVoz(h.jornada, 'Que nome bonito.').phrase(
+      h.request('Angela Maria Pereira'),
+    );
+    expect(fala).toBe(MENSAGENS_JORNADA.pedirCidade('Angela Maria Pereira'));
+  });
+
+  it('sem LLM real (offline), nada muda: roteiro verbatim', async () => {
+    const { h, roteiro } = await naTriagem();
+    expect(await h.expression.phrase(h.request(FALA_DA_CLIENTE))).toBe(roteiro);
+  });
+});

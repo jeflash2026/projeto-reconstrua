@@ -6,3 +6,4 @@
 export * from './jornada-comercial.js';
 // Decreto 2026-07-22: reaquecimento de leads frios — autorizado pelo admin.
 export * from './reaquecimento.js';
+export * from './acolhimento.js';

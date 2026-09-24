@@ -22,6 +22,7 @@ import {
   ehPerguntaDeAndamento,
   ehSobreDossieOuLink,
   interpretarInteresse,
+  mereceAcolhimento,
   vaiReceberCobranca,
   novaJornada,
   pareceCobrancaDeDocumento,
@@ -161,6 +162,21 @@ export class JornadaComercialRuntime {
 
   async etapa(chatId: string): Promise<EtapaJornada> {
     return derivarEtapa(await this.fatos(chatId));
+  }
+
+  /** Cabe UMA frase de acolhimento antes do roteiro deste turno?
+   *
+   *  Caso REAL Angela (2026-09-24): no meio da coleta ela escreveu "Tenho
+   *  empréstimo consignado que eu fiz" e recebeu de volta, seca, a mesma
+   *  cobrança do CPF. Cabe quando o cliente DISSE algo e o turno não capturou
+   *  nada — porque aí o roteiro é só a repetição de um pedido, e ignorar o que
+   *  a pessoa falou é o que faz o atendimento soar a interrogatório. Turno que
+   *  capturou (nome, cidade, CPF, consentimento) já é respondido pelo roteiro. */
+  async cabeAcolhimento(chatId: string, entrada: EntradaDoTurno): Promise<boolean> {
+    if (entrada.tipo !== 'texto' || entrada.primeiroContato) return false;
+    if (!mereceAcolhimento(entrada.texto)) return false;
+    const r = await this.carregar(chatId).catch(() => null);
+    return r !== null && r.ultimaCaptura === null;
   }
 
   /** PRÉ-HOOK (fila serializada do ingress): captura DETERMINÍSTICA dos fatos

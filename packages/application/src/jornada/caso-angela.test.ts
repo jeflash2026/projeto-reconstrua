@@ -10,7 +10,7 @@
 // explícito ("meu nome é…").
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
-import { capturarIdentificacao } from './jornada-comercial.js';
+import { capturarIdentificacao, interpretarInteresse } from './jornada-comercial.js';
 
 describe('capturarIdentificacao — a vírgula da cidade não apaga o nome', () => {
   const angela = { nome: 'Angela Maria Pereira', cidade: null };
@@ -41,5 +41,35 @@ describe('capturarIdentificacao — a vírgula da cidade não apaga o nome', () 
       nome: 'Isabel',
       cidade: 'Santa Ernestina',
     });
+  });
+});
+
+// "Segue comigo" (18:13) foi a CONFIRMAÇÃO da Angela — e ela recebeu de volta a
+// análise inteira, com o pedido de SIM outra vez. A leitura do interesse já
+// aceitava esse jeito de falar; o que falhava era a janela de busca da
+// confirmação na memória da conversa (corrigida no build de produção). Aqui
+// fica travado o que a régua precisa aceitar.
+describe('interpretarInteresse — o SIM que não vem escrito "sim"', () => {
+  it('as formas naturais de confirmar valem como sim', () => {
+    for (const texto of [
+      'Segue comigo',
+      'pode seguir',
+      'vamos seguir',
+      'quero seguir',
+      'pode continuar',
+      'pode prosseguir',
+      'com certeza',
+      'claro',
+      'aceito',
+      'confirmo',
+      'isso mesmo',
+      'Simq',
+    ])
+      expect(interpretarInteresse(texto), texto).toBe('sim');
+  });
+
+  it('e a recusa continua sendo recusa', () => {
+    for (const texto of ['não quero', 'sem interesse', 'agora não', 'desisto'])
+      expect(interpretarInteresse(texto), texto).toBe('nao');
   });
 });

@@ -1182,9 +1182,19 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // nas últimas horas — e, nesse caso, a AHRI só lembra, não repete tudo.
     // O cliente disse SIM nos últimos minutos? (o cadastro nasce na varredura
     // seguinte; até lá a AHRI não pode pedir de novo o que acabou de receber)
+    //
+    // A JANELA É DE TEMPO — o corte por CONTAGEM de entradas quase matou as
+    // duas (caso REAL Angela, 24/09/2026). A memória da conversa não guarda só
+    // mensagens: cada turno grava percepção, intenção e notas, e o pipeline do
+    // Brain grava mais. Em conversa movimentada, "as 10 últimas entradas" não
+    // alcançavam a mensagem que o cliente tinha acabado de mandar, e "as 30
+    // últimas" não alcançavam o dossiê enviado três minutos antes. Resultado:
+    // ela respondeu "Segue comigo" e recebeu a análise INTEIRA de novo, com o
+    // pedido de SIM. Ler mais entradas não custa nada — o store carrega a
+    // conversa inteira de qualquer jeito e o filtro real é o relógio.
     disseSimHaPouco: async (chatId) => {
       const desde = clock.now().getTime() - 10 * 60 * 1000;
-      const recentes = await conversationStore.recent(chatId, 10).catch(() => []);
+      const recentes = await conversationStore.recent(chatId, 200).catch(() => []);
       return recentes.some(
         (e) =>
           e.kind === 'inbound' &&
@@ -1194,7 +1204,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     },
     dossieAnunciadoHaPouco: async (chatId) => {
       const desde = clock.now().getTime() - 12 * 60 * 60 * 1000;
-      const recentes = await conversationStore.recent(chatId, 30).catch(() => []);
+      const recentes = await conversationStore.recent(chatId, 2000).catch(() => []);
       return recentes.some(
         (e) =>
           e.kind === 'outbound' &&
@@ -1523,8 +1533,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // O SIM depois de um instante: um inbound de texto afirmativo (a MESMA régua
   // determinística do consentimento — interpretarInteresse). Compartilhado pelo
   // nascimento (confirmação do parecer) e pela RETOMADA pós-descarte da mesa.
+  // A janela é o RELÓGIO (`desde`), nunca a contagem: é deste "sim" que nasce o
+  // cadastro. Se ele escapa da fatia, o cliente confirmou e nada acontece.
   const disseSimApos = async (chatId: string, desde: Date): Promise<boolean> => {
-    const entradas = await conversationStore.recent(chatId, 60);
+    const entradas = await conversationStore.recent(chatId, 2000);
     return entradas.some(
       (e) =>
         e.kind === 'inbound' &&

@@ -74,13 +74,22 @@ const MAX_REPHRASE_ATTEMPTS = 3;
  *  Correção de 2026-09-22: era UMA frase só, e uma frase só vira repetição na
  *  segunda vez — aí o silêncio voltava. Aqui há várias, e a primeira ainda não
  *  dita é a escolhida. Nenhuma promete nada; todas devolvem a palavra ao
- *  cliente, que é o que muda o contexto do próximo turno. */
+ *  cliente, que é o que muda o contexto do próximo turno.
+ *
+ *  Correção de 2026-09-24 (o dono, sobre o caso Angela: "a AHRI virou
+ *  psicóloga"): "me conta com as suas palavras", "conta em uma frase o que está
+ *  acontecendo" é voz de consultório, não de consultora. Quem atende consignado
+ *  fala curto e objetivo: pergunta o que fazer e resolve. */
 const DEVOLUCOES: readonly string[] = [
-  'Tô aqui com você 🙂 Me conta com as suas palavras como você quer seguir, que eu te ajudo daqui.',
-  'Me diz o que você precisa agora que eu resolvo com você por aqui.',
-  'Pode falar comigo, viu? Se preferir, conta em uma frase o que está acontecendo.',
-  'Sigo com você por aqui. O que você quer fazer agora?',
+  'Estou aqui, sim. Como você quer seguir?',
+  'Me diz o que você precisa que eu resolvo por aqui.',
+  'Pode falar comigo. O que você gostaria de fazer agora?',
+  'Sigo à disposição. Quer que eu continue com o seu caso?',
 ];
+
+/** O passo pendente de quem JÁ recebeu o dossiê é UM e tem nome: o SIM. */
+const PEDIDO_DE_SIM =
+  'Para eu encaminhar o seu caso à equipe jurídica, preciso só do seu SIM por aqui. Se ficou alguma dúvida antes disso, pode me perguntar.';
 
 /** CORTESIA DE FECHAMENTO (caso REAL Antônia, 2026-09-23): depois de tudo
  *  resolvido, ela respondeu "Ok" e a AHRI perguntou "me diz o que você precisa
@@ -120,6 +129,10 @@ function devolucaoQueNaoRepete(view: ConversationContextView, jaDitas: readonly 
     (CORTESIA_DE_FECHO.test(ultimaDoCliente) || SO_SIMBOLOS.test(ultimaDoCliente))
   )
     return naoDita(FECHOS);
+  // DOSSIÊ JÁ ENTREGUE (caso REAL Angela, 2026-09-24): quem recebeu a análise
+  // tem UM passo pendente, e ele tem nome — o SIM. Perguntar "o que você quer
+  // fazer agora?" a essa pessoa é fingir que não se sabe o que falta.
+  if (view.dossieEnviado === true) return naoDita([PEDIDO_DE_SIM, ...DEVOLUCOES]);
   const proximo = view.onboardingDocumental?.proximo ?? null;
   return naoDita(
     proximo !== null

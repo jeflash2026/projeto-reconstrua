@@ -279,16 +279,24 @@ export class JornadaComercialRuntime {
           return;
         }
         const capturado = capturarIdentificacao(texto, { nome: r.nome, cidade: r.cidade });
-        if (capturado.nome !== null || capturado.cidade !== null) {
+        // O NOME APRENDIDO NÃO SE TROCA POR DEDUÇÃO (decreto do dono,
+        // 2026-09-24, caso Angela: "a AHRI sempre tem que aprender o nome do
+        // cliente quando ele falar, não trocar para São Paulo como ela fez,
+        // sendo que a cliente já havia mandado o nome anteriormente"). Um nome
+        // com sobrenome, uma vez registrado, só muda quando a pessoa se
+        // apresenta de novo ("meu nome é…"). A exceção é o nome de UMA palavra:
+        // ele pode ser a cidade mandada primeiro, e a troca de papéis do caso
+        // Maria Aparecida (2026-07-29) precisa continuar possível.
+        const seApresentou = /\b(me\s+chamo|meu\s+nome)\b/i.test(texto);
+        const nomeAindaEmAberto = r.nome === null || seApresentou || !r.nome.includes(' ');
+        const nomeCapturado = nomeAindaEmAberto ? capturado.nome : null;
+        if (nomeCapturado !== null || capturado.cidade !== null) {
           const ultimaCaptura =
-            capturado.nome !== null && capturado.cidade !== null
+            nomeCapturado !== null && capturado.cidade !== null
               ? 'nome-cidade'
-              : capturado.nome !== null
+              : nomeCapturado !== null
                 ? 'nome'
                 : 'cidade';
-          // Caso Maria Aparecida (2026-07-29): a captura PODE corrigir um campo
-          // já preenchido (nome de uma palavra que era a cidade, e vice-versa) —
-          // o capturado tem precedência sobre o registro antigo.
           const cidadeBruta = capturado.cidade ?? r.cidade;
           const { cidade, estado } =
             cidadeBruta !== null
@@ -296,7 +304,7 @@ export class JornadaComercialRuntime {
               : { cidade: null, estado: null };
           await this.salvar({
             ...r,
-            nome: capturado.nome ?? r.nome,
+            nome: nomeCapturado ?? r.nome,
             cidade,
             estado: estado ?? r.estado,
             ultimaCaptura,

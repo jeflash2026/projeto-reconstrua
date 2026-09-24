@@ -653,3 +653,45 @@ describe('caso REAL Angela — a identificação em duas bolhas', () => {
     expect(anotado).toContain('interesse'); // o funil segue na MESMA mensagem
   });
 });
+
+// DECRETO DO DONO (2026-09-24, caso Angela): "a AHRI sempre tem que aprender o
+// nome do cliente quando ele falar, não trocar para São Paulo como ela fez,
+// sendo que a cliente já havia mandado o nome anteriormente". Nome com
+// sobrenome, uma vez aprendido, não se troca por dedução nenhuma.
+describe('o nome aprendido não se troca por dedução', () => {
+  async function comNome(nome: string) {
+    const h = harness();
+    await h.turno('Boa tarde', { turns: 1 });
+    await h.turno(nome);
+    expect((await h.jornada.fatos(CHAT)).registro.nome).toBe(nome);
+    return h;
+  }
+
+  it('nada que a pessoa escreva depois vira nome novo', async () => {
+    for (const depois of [
+      'São Paulo, capital',
+      'Ribeirão Preto - SP',
+      'Belo Horizonte, zona sul',
+      'tenho empréstimo consignado que eu fiz',
+    ]) {
+      const h = await comNome('Angela Maria Pereira');
+      await h.jornada.aoReceberTexto(CHAT, depois, NOW);
+      expect((await h.jornada.fatos(CHAT)).registro.nome, depois).toBe('Angela Maria Pereira');
+    }
+  });
+
+  it('mas a própria pessoa ainda pode se corrigir', async () => {
+    const h = await comNome('Angela Maria Pereira');
+    await h.jornada.aoReceberTexto(CHAT, 'meu nome é Ângela Maria Pereira da Silva', NOW);
+    expect((await h.jornada.fatos(CHAT)).registro.nome).toBe('Ângela Maria Pereira da Silva');
+  });
+
+  it('e o nome de UMA palavra continua podendo ser a cidade mandada primeiro', async () => {
+    // Caso Maria Aparecida: "Armazém" virou nome; o nome completo vem depois.
+    const h = await comNome('Armazém');
+    await h.jornada.aoReceberTexto(CHAT, 'Maria Aparecida da Silva Souza', NOW);
+    const r = (await h.jornada.fatos(CHAT)).registro;
+    expect(r.nome).toBe('Maria Aparecida da Silva Souza');
+    expect(r.cidade).toBe('Armazém');
+  });
+});

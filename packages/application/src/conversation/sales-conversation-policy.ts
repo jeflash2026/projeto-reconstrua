@@ -117,11 +117,15 @@ function ehPerguntaDeLocalizacaoLlm(context: ConversationContextView): boolean {
  *  de onde somos / se atendemos a região dela. Determinístico. */
 export function condutaDeAbrangencia(context: ConversationContextView): string {
   if (!ehPerguntaDeLocalizacaoLlm(context)) return '';
+  // 2026-09-24: o dono autorizou dizer ONDE nós ficamos. Quem pergunta isso quer
+  // um lugar — a cliente Angela perguntou DUAS vezes porque a resposta só falava
+  // de abrangência. A base é Ribeirão Preto - SP; o resto do fato não mudou.
   return (
     '; FATO DA EMPRESA (responda com estas informações, sem inventar nada além): ' +
-    'o Projeto Reconstrua tem PARCERIAS com advogados em TODOS os estados do Brasil e trabalha com análise em TODO o território nacional — ' +
-    'a análise é feita por nós e, DEPOIS de pronta, o caso é encaminhado a um dos advogados parceiros MAIS PRÓXIMO da pessoa. ' +
-    'NUNCA invente endereço, sede, filial, nome de advogado ou cidade específica, e NUNCA diga que não atendemos a região dela'
+    'a BASE PRINCIPAL do Projeto Reconstrua fica em RIBEIRÃO PRETO - SP, e atuamos em TODO o território brasileiro, ' +
+    'com advogados parceiros em outras regiões — o caso é sempre destinado ao advogado MAIS PRÓXIMO da localização da pessoa, ' +
+    'todos com vasta experiência e acompanhados pela nossa equipe, que já atua há mais de 10 anos nesse segmento. ' +
+    'NUNCA invente outro endereço, filial, nome de advogado ou cidade específica, e NUNCA diga que não atendemos a região dela'
   );
 }
 

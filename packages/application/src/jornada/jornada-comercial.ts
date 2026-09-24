@@ -340,6 +340,14 @@ export function capturarIdentificacao(
       cidade: cidade !== '' ? cidade : null,
     };
   }
+  // APRESENTAÇÃO EXPLÍCITA é NOME, sempre (2026-09-24). Com um nome já
+  // registrado e a cidade em aberto, "meu nome é Ângela Maria Pereira" caía na
+  // regra da cidade logo abaixo e a CORREÇÃO DO PRÓPRIO CLIENTE era gravada
+  // como cidade. Quem se apresenta está dizendo o nome, e ponto.
+  if (/\b(me\s+chamo|meu\s+nome)\b/i.test(t)) {
+    const nome = limparNome(t);
+    if (nome !== '' && pareceNome(nome)) return { nome, cidade: null };
+  }
   if (atual.nome === null) {
     const nome = limparNome(t);
     return { nome: nome !== '' && pareceNome(nome) ? nome : null, cidade: null };
@@ -914,9 +922,13 @@ export const MENSAGENS_JORNADA = {
   // Nunca improvisar geografia, nunca inventar endereço/filial, nunca dizer que
   // não atende a região de alguém: a análise é nacional e o encaminhamento ao
   // advogado parceiro mais próximo acontece DEPOIS da análise.
+  // 2026-09-24 (caso REAL Angela): ela perguntou DUAS vezes — a segunda com um
+  // "pode me responder, por favor" — porque a resposta falava de abrangência e
+  // nunca dizia ONDE nós ficamos. Quem pergunta isso quer um lugar. O lugar e o
+  // conteúdo abaixo foram ditados pelo dono; nada aqui é dedução nossa.
   localizacao:
-    'O Projeto Reconstrua tem parcerias com advogados em todos os estados do Brasil, então trabalhamos com análise em todo o território nacional — inclusive na sua região.\n\n' +
-    'Na prática funciona assim: nós fazemos a análise do seu consignado aqui e, quando ela fica pronta, encaminhamos o seu caso para um dos nossos advogados parceiros mais próximo de você.\n\n' +
+    'A nossa base principal fica em Ribeirão Preto - SP, e atuamos em todo o território brasileiro — temos advogados parceiros em outras regiões também.\n\n' +
+    'Na prática, o seu caso é sempre destinado ao advogado mais próximo da sua localização. E fique tranquilo(a): todos eles têm vasta experiência, e o seu caso é acompanhado pela nossa equipe, que já atua há mais de 10 anos nesse segmento.\n\n' +
     'Ou seja, você é atendido por um advogado da sua região, sem precisar sair de casa para começar.',
   // Caso Lucas: desconfiança ("cara de golpe") ⇒ resposta de SEGURANÇA.
   seguranca:

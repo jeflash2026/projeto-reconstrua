@@ -1,8 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Decreto 2026-07-25 — "vocês são de onde?" tem resposta CANÔNICA: parcerias com
-// advogados em TODOS os estados, análise em todo o território nacional e
-// encaminhamento ao parceiro mais próximo DEPOIS da análise. A AHRI jamais
-// improvisa geografia nem diz que não atende a região de alguém.
+// Decreto 2026-07-25 — "vocês são de onde?" tem resposta CANÔNICA, e a AHRI
+// jamais improvisa geografia nem diz que não atende a região de alguém.
+//
+// 2026-09-24 (caso REAL Angela): ela perguntou DUAS vezes, a segunda com um
+// "pode me responder, por favor" — a resposta falava de abrangência e nunca
+// dizia ONDE ficamos. O dono ditou o lugar: a base principal é Ribeirão Preto -
+// SP. Continua proibido inventar OUTRO endereço, filial ou nome de advogado.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import {
@@ -38,13 +41,13 @@ describe('abrangência nacional — resposta canônica', () => {
     }
   });
 
-  it('a mensagem diz a verdade: todos os estados, nacional, parceiro mais próximo', () => {
+  it('a mensagem diz ONDE ficamos, a abrangência e o parceiro mais próximo', () => {
     const m = MENSAGENS_JORNADA.localizacao;
-    expect(m).toMatch(/todos os estados/i);
-    expect(m).toMatch(/nacional/i);
+    expect(m).toMatch(/Ribeir[ãa]o Preto - SP/i); // o lugar, que faltava
+    expect(m).toMatch(/territ[óo]rio brasileiro/i);
     expect(m).toMatch(/mais pr[óo]ximo/i);
-    // Nunca promete resultado nem inventa endereço/sede.
-    expect(m).not.toMatch(/\bsede\b|\bfilial\b|\bgarant/i);
+    // Nunca promete resultado nem inventa filial.
+    expect(m).not.toMatch(/\bfilial\b|\bgarant/i);
   });
 
   it('pergunta de localização NÃO conta como cobrança de documento', () => {
@@ -54,7 +57,7 @@ describe('abrangência nacional — resposta canônica', () => {
 
   it('o prompt do LLM recebe o FATO só quando perguntam de onde somos', () => {
     const comPergunta = condutaDeAbrangencia(ctx('vocês são de onde?'));
-    expect(comPergunta).toMatch(/todos os estados/i);
+    expect(comPergunta).toMatch(/RIBEIR[ÃA]O PRETO - SP/i);
     expect(comPergunta).toMatch(/mais pr[óo]ximo/i);
     expect(comPergunta).toMatch(/nunca invente/i);
     // Sem a pergunta, nada é injetado (prompt não incha).

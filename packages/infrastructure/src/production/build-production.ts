@@ -1507,14 +1507,32 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   /** Abate os processos do cliente na carteira do advogado (best-effort — a
    *  atribuição NUNCA é desfeita por falha do abate; falha vira log). */
   const abaterPorAtribuicao = async (missionId: string, advogadoId: string): Promise<void> => {
+    // O ABATE QUE NÃO ACONTECE PRECISA APARECER (caso REAL Luiz Carlos da Cunha
+    // → Rodrigo, 2026-09-28): o cliente foi ligado ao advogado e a carteira não
+    // mexeu. Cada saída silenciosa daqui passa a deixar rastro com o motivo e o
+    // nome do cliente — a auditoria de abates só enxerga quem JÁ tem lançamento,
+    // então, sem isto, um abate que não aconteceu não tem onde ser visto.
+    const semAbate = (motivo: string): void =>
+      observability.error(
+        'creditos-advogado',
+        'abate',
+        clock.now(),
+        `sem abate: ${motivo} (missão=${missionId}, advogado=${advogadoId})`,
+      );
     try {
       await projector.refresh().catch(() => undefined);
       const chatId = projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null;
-      if (chatId === null) return;
+      if (chatId === null) return semAbate('a missão não tem conversa vinculada');
       const cliente = (await clientes.list()).find((c) => c.chatId === chatId);
-      if (cliente === undefined) return;
+      if (cliente === undefined) return semAbate(`nenhum cliente com o chat ${chatId}`);
       const acoes = await pericia.acoesDe(chatId);
       const processos = acoes?.agrupamento.resumo.totalAcoes ?? 0;
+      if (processos <= 0) {
+        // Quase sempre é o HISCON: ausente, ilegível ou vinculado ao anexo
+        // errado. E o abate é idempotente por cliente — não se corrige sozinho
+        // depois, então o silêncio aqui é definitivo.
+        return semAbate(`${cliente.quem}: o HISCON não rendeu processo nenhum (releia o extrato)`);
+      }
       await creditosAdvogado.abaterPorCliente(
         advogadoId,
         { clienteId: cliente.clienteId, nome: cliente.quem },

@@ -86,6 +86,17 @@ export interface LeituraComparada {
   readonly v1Texto: string | null;
 }
 
+/** O texto LINEAR do PDF, para quem precisa da tabela mensal de cartão (que os
+ *  leitores posicionais deixam de fora de propósito). null se o PDF não abrir. */
+export async function extrairTextoLinearDePdf(bytes: Uint8Array): Promise<string | null> {
+  try {
+    const { doc, unpdf } = await carregarPaginas(bytes);
+    return await textoLinear(doc, unpdf);
+  } catch {
+    return null;
+  }
+}
+
 export async function lerHisconParaComparacao(bytes: Uint8Array): Promise<LeituraComparada | null> {
   try {
     const { paginasCruas, paginasV2 } = await carregarPaginas(bytes);

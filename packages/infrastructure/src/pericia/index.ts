@@ -2,3 +2,4 @@
 export * from './pericia-service.js';
 export * from './releitura-comparativa.js';
 export * from './revinculo-hiscon.js';
+export * from './cartoes-em-falta.js';

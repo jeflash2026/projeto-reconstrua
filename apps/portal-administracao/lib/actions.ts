@@ -1156,6 +1156,35 @@ export async function pdAplicarReleitura(): Promise<AplicarReleituraResultado | 
   return sendJson<AplicarReleituraResultado>('POST', '/admin/pericia/releitura-aplicar', {});
 }
 
+// ── CARTÕES EM FALTA (caso REAL Luiz Carlos, 2026-09-28) ─────────────────────
+// HISCON cujo cartão só existe na tabela mensal ficou sem RMC/RCC na leitura —
+// 1 processo perdido por cartão, no guia e no abate do advogado.
+export interface CartoesEmFaltaLinha {
+  chatId: string;
+  resultado: string;
+  cartoes: number;
+  modalidades: string[];
+  aplicado: boolean;
+}
+export interface CartoesEmFaltaRelatorio {
+  geradoEm: string;
+  clientes: number;
+  comCartoesEmFalta: number;
+  cartoesEncontrados: number;
+  aplicados: number;
+  linhas: CartoesEmFaltaLinha[];
+}
+/** SÓ LEITURA: quem perdeu cartão, sem gravar nada. Reprocessa os PDFs. */
+export async function fetchCartoesEmFalta(): Promise<CartoesEmFaltaRelatorio | null> {
+  return getJson<CartoesEmFaltaRelatorio>('/admin/pericia/cartoes-em-falta');
+}
+/** ACRESCENTA os cartões ao texto lido (aditivo, com backup). Ato do admin. */
+export async function pdAplicarCartoesEmFalta(): Promise<CartoesEmFaltaRelatorio | null> {
+  return sendJson<CartoesEmFaltaRelatorio>('POST', '/admin/pericia/cartoes-em-falta/aplicar', {
+    confirmar: true,
+  });
+}
+
 // ── REVÍNCULO DO HISCON (caso Roberto): o CNIS registrado aponta ao anexo errado ─
 export interface RevinculoCandidato {
   sha256: string;

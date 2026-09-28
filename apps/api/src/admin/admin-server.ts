@@ -454,6 +454,12 @@ export function buildAdminServer(
       compararTodos(limite?: number): Promise<unknown>;
       aplicarLeituraDefinitiva(): Promise<unknown>;
     };
+    /** Caso REAL Luiz Carlos (2026-09-28): cartões que só existem na tabela
+     *  mensal do HISCON e ficaram fora da leitura. `varrer()` só relata;
+     *  `varrer({aplicar:true})` acrescenta os cartões ao texto (com backup). */
+    readonly cartoesEmFalta?: {
+      varrer(opcoes?: { aplicar?: boolean }): Promise<unknown>;
+    };
     /** Decreto 2026-07-29: o JARVIS do Founder Console — pergunta livre
      *  fundamentada nos Read Models + comando de distribuição de contratos
      *  (plano com confirmação; NADA executa sem o clique do fundador). */
@@ -1575,6 +1581,24 @@ export function buildAdminServer(
     if (!opts.releitura)
       return reply.code(503).send({ error: 'releitura indisponível nesta montagem' });
     return opts.releitura.aplicarLeituraDefinitiva();
+  });
+
+  // CARTÕES EM FALTA (caso REAL Luiz Carlos, 2026-09-28): HISCON cujo cartão só
+  // existe na tabela mensal ficou sem RMC/RCC na leitura — 1 processo perdido
+  // por cartão, no guia e no abate. GET relata; POST acrescenta os cartões ao
+  // texto (aditivo, com backup), e exige confirmação explícita do admin.
+  app.get('/admin/pericia/cartoes-em-falta', async (_request, reply) => {
+    if (!opts.cartoesEmFalta)
+      return reply.code(503).send({ error: 'varredura indisponível nesta montagem' });
+    return opts.cartoesEmFalta.varrer();
+  });
+  app.post('/admin/pericia/cartoes-em-falta/aplicar', async (request, reply) => {
+    if (!opts.cartoesEmFalta)
+      return reply.code(503).send({ error: 'varredura indisponível nesta montagem' });
+    const body = (request.body ?? {}) as { confirmar?: boolean };
+    if (body.confirmar !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
+    return opts.cartoesEmFalta.varrer({ aplicar: true });
   });
 
   // REVÍNCULO DO HISCON (decreto 2026-07-27, caso Roberto): o registrado aponta

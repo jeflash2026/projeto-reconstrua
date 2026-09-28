@@ -225,7 +225,12 @@ import {
   LocalFirstDocumentReader,
   PdfTextExtractor,
 } from '../reading/index.js';
-import { PericiaService, ReleituraComparativa, RevinculoHiscon } from '../pericia/index.js';
+import {
+  CartoesEmFaltaService,
+  PericiaService,
+  ReleituraComparativa,
+  RevinculoHiscon,
+} from '../pericia/index.js';
 import { JarvisRuntime } from '../administration/jarvis-runtime.js';
 import { WebchatGatewayRouter, ehChatWeb } from '../webchat/webchat-gateway-router.js';
 import { WebchatRuntime } from '../webchat/webchat-runtime.js';
@@ -390,6 +395,8 @@ export interface AssembledProduction {
   readonly pericia: PericiaService;
   /** Decreto 2026-07-27: relatório V2 × leitura atual (só leitura, nada grava). */
   readonly releitura: ReleituraComparativa;
+  /** Caso Luiz Carlos (2026-09-28): cartões que só existem no histórico mensal. */
+  readonly cartoesEmFalta: CartoesEmFaltaService;
   /** Decreto 2026-07-27 (caso Roberto): religar o CNIS ao anexo CERTO da conversa. */
   readonly revinculo: RevinculoHiscon;
   /** Decreto 2026-07-29: o JARVIS do Founder Console — conhecimento total dos
@@ -791,6 +798,18 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // Releitura comparativa (decreto 2026-07-27): valida o leitor posicional V2
   // contra a base real — SÓ LEITURA, nunca toca no document-text cache.
   const releitura = new ReleituraComparativa({
+    json,
+    links: documentLinks,
+    media: mediaStore,
+    cache: textCache,
+    clock,
+  });
+
+  // Cartões em falta (caso REAL Luiz Carlos, 2026-09-28): acha na base quem
+  // perdeu RMC/RCC porque o HISCON só traz a tabela mensal de descontos, e
+  // devolve os cartões SEM tocar na leitura de empréstimos (aditivo, com
+  // backup). Cada cartão perdido é 1 processo a menos no guia e no abate.
+  const cartoesEmFalta = new CartoesEmFaltaService({
     json,
     links: documentLinks,
     media: mediaStore,
@@ -3380,6 +3399,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     parecerLote,
     pericia,
     releitura,
+    cartoesEmFalta,
     revinculo,
     jarvis,
     periciaFluxo,

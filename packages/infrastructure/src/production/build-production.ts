@@ -2561,6 +2561,16 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     }
     const acoes = await pericia.acoesDe(chatId).catch(() => null);
     const processos = acoes?.agrupamento.resumo.totalAcoes ?? 0;
+    // Entrega sem débito precisa dizer POR QUÊ (mesma régua da atribuição): a
+    // tela mostra "0 debitado(s)" e o motivo fica no log, que é onde se procura.
+    if (processos <= 0) {
+      observability.error(
+        'creditos-advogado',
+        'abate',
+        clock.now(),
+        `sem abate: ${cliente.quem}: o HISCON não rendeu processo nenhum (releia o extrato) — entrega para ${novoAdvogadoId}`,
+      );
+    }
     const abate = await creditosAdvogado
       .abaterPorCliente(
         novoAdvogadoId,

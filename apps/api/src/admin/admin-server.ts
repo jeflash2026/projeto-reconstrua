@@ -2972,6 +2972,25 @@ export function buildAdminServer(
     const digitos = termo.replace(/\D/g, '');
     const advs = await op.staff.list('advogado');
     const nomeAdv = new Map(advs.map((a) => [a.id, a.name]));
+    // A MARCAÇÃO DA MESA NÃO É A ATRIBUIÇÃO (caso REAL Luiz Carlos da Cunha,
+    // 2026-09-28). A secretária marca o advogado responsável ao mandar a
+    // procuração; a ENTREGA — a que abate a carteira — é ato do dono. A tela
+    // mostrava só a marcação sob o rótulo "advogado atual": o cliente parecia
+    // entregue, o abatimento não existia, e o advogado dele ficava fora do
+    // "transferir para" (a lista excluía o atual), sem caminho para regularizar.
+    // Agora os dois fatos viajam separados, e o que vale para a trava é a
+    // atribuição real.
+    const lista = op.clientes ? await op.clientes.list().catch(() => []) : [];
+    const chatPorMissao = new Map<string, string>();
+    for (const c of lista) if (c.missionId !== null) chatPorMissao.set(c.missionId, c.chatId);
+    const atribuidoPorChat = new Map<string, string>();
+    for (const a of advs) {
+      const minhas = op.work ? await op.work.myMissions(a.id).catch(() => []) : [];
+      for (const t of minhas) {
+        const chat = t.chatId ?? chatPorMissao.get(t.missionId) ?? null;
+        if (chat !== null) atribuidoPorChat.set(chat, a.id);
+      }
+    }
     const achados = (await opts.humanizado.clientes())
       .filter((c) => {
         const porNome = c.nome.toLowerCase().includes(termo);
@@ -2980,16 +2999,22 @@ export function buildAdminServer(
         return porNome || porTelefone;
       })
       .slice(0, 20)
-      .map((c) => ({
-        chatId: c.chatId,
-        nome: c.nome,
-        telefone: c.telefone,
-        uf: c.uf,
-        advogadoId: c.advogadoId ?? null,
-        // Advogado marcado mas fora do diretório (removido da equipe) mostra o
-        // id — some do painel seria pior: o dono precisa saber que há alguém.
-        advogado: c.advogadoId == null ? null : (nomeAdv.get(c.advogadoId) ?? c.advogadoId),
-      }));
+      .map((c) => {
+        const atribuidoId = atribuidoPorChat.get(c.chatId) ?? null;
+        return {
+          chatId: c.chatId,
+          nome: c.nome,
+          telefone: c.telefone,
+          uf: c.uf,
+          advogadoId: c.advogadoId ?? null,
+          // Advogado marcado mas fora do diretório (removido da equipe) mostra o
+          // id — some do painel seria pior: o dono precisa saber que há alguém.
+          advogado: c.advogadoId == null ? null : (nomeAdv.get(c.advogadoId) ?? c.advogadoId),
+          /** A ENTREGA de fato (a que abateu a carteira). null ⇒ ninguém ainda. */
+          atribuidoId,
+          atribuido: atribuidoId === null ? null : (nomeAdv.get(atribuidoId) ?? atribuidoId),
+        };
+      });
     return { clientes: achados, advogados: advs.map((a) => ({ id: a.id, nome: a.name })) };
   });
 

@@ -16,8 +16,12 @@ export interface ClienteAchado {
   nome: string;
   telefone: string;
   uf: string;
+  /** Marcação da MESA (a secretária, ao mandar a procuração). Não abate nada. */
   advogadoId: string | null;
   advogado: string | null;
+  /** ENTREGA de fato — a atribuição do dono, a que abateu a carteira. */
+  atribuidoId?: string | null;
+  atribuido?: string | null;
 }
 export interface AdvogadoOpcao {
   id: string;
@@ -58,9 +62,14 @@ export default function TransferirAdvogado(): ReactElement {
     const advogadoId = destino[c.chatId] ?? '';
     if (advogadoId === '') return;
     const nomeDestino = advogados.find((a) => a.id === advogadoId)?.nome ?? advogadoId;
+    // Entregar pela primeira vez e transferir de um advogado para outro são
+    // ações diferentes; o aviso precisa dizer qual das duas está acontecendo.
+    const entrega = (c.atribuido ?? null) === null;
     if (
       !window.confirm(
-        `Transferir ${c.nome} de ${c.advogado ?? 'ninguém'} para ${nomeDestino}? Os créditos voltam para o advogado antigo e são debitados do novo. Nenhuma mensagem é enviada — avise os dois.`,
+        entrega
+          ? `Entregar ${c.nome} para ${nomeDestino}? O caso passa a ser dele e os contratos do guia são debitados da carteira dele. Nenhuma mensagem é enviada — avise o advogado.`
+          : `Transferir ${c.nome} de ${c.atribuido ?? 'ninguém'} para ${nomeDestino}? Os créditos voltam para o advogado antigo e são debitados do novo. Nenhuma mensagem é enviada — avise os dois.`,
       )
     )
       return;
@@ -159,11 +168,20 @@ export default function TransferirAdvogado(): ReactElement {
                       <td className="mono">{telefoneBonito(c.telefone)}</td>
                       <td>{c.uf}</td>
                       <td>
-                        {c.advogado === null ? (
-                          <span className="badge dim">sem advogado</span>
+                        {/* A ENTREGA é o que vale (é ela que abate). A marcação
+                            da mesa aparece embaixo, com o aviso de que ainda
+                            não houve entrega — era essa confusão que fazia um
+                            cliente "com advogado" nunca aparecer na carteira. */}
+                        {(c.atribuido ?? null) !== null ? (
+                          c.atribuido
                         ) : (
-                          c.advogado
+                          <span className="badge dim">não entregue</span>
                         )}
+                        {(c.atribuido ?? null) === null && c.advogado !== null ? (
+                          <div style={{ fontSize: 12, marginTop: 4, opacity: 0.8 }}>
+                            marcado na mesa: {c.advogado} — entregue a ninguém ainda
+                          </div>
+                        ) : null}
                       </td>
                       <td>
                         <select
@@ -173,8 +191,11 @@ export default function TransferirAdvogado(): ReactElement {
                           }}
                         >
                           <option value="">Escolha…</option>
+                          {/* Só o advogado que JÁ RECEBEU o cliente sai da lista.
+                              Quem está apenas marcado na mesa continua
+                              disponível — é para ele que a entrega vai. */}
                           {advogados
-                            .filter((a) => a.id !== c.advogadoId)
+                            .filter((a) => a.id !== (c.atribuidoId ?? null))
                             .map((a) => (
                               <option key={a.id} value={a.id}>
                                 {a.nome}
@@ -189,9 +210,9 @@ export default function TransferirAdvogado(): ReactElement {
                             disabled={busy || (destino[c.chatId] ?? '') === ''}
                             onClick={() => void transferir(c)}
                           >
-                            Transferir
+                            {(c.atribuido ?? null) === null ? 'Entregar' : 'Transferir'}
                           </button>
-                          {c.advogadoId !== null ? (
+                          {(c.atribuidoId ?? null) !== null || c.advogadoId !== null ? (
                             <button
                               disabled={busy}
                               title="Sai do painel do advogado (créditos estornados) e volta à mesa para completar a documentação"

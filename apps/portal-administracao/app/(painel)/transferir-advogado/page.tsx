@@ -13,6 +13,11 @@ const TransferirAdvogadoPage = (): ReactElement => (
       o caso muda de mãos, os créditos voltam para o advogado antigo e são debitados do novo.
       Nenhuma mensagem é enviada — avisar os dois advogados é com você.
     </p>
+    <p className="page-sub">
+      A coluna do advogado mostra a <strong>entrega</strong> — a atribuição que debitou a carteira.
+      Cliente apenas marcado na mesa do Humanizado aparece como <em>não entregue</em>, e o botão
+      vira <strong>Entregar</strong>: é a entrega que debita os contratos do guia.
+    </p>
     <TransferirAdvogado />
   </>
 );

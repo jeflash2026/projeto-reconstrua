@@ -28,6 +28,7 @@ import {
   type PaginaPdf,
   type ResultadoPosicionalV2,
 } from './hiscon-posicional-v2.js';
+import { blocosDeCartao, cartoesDoHistoricoMensal, jaTemCartoes } from './cartoes-do-historico.js';
 
 interface PdfJsProxy {
   numPages: number;
@@ -101,6 +102,14 @@ export async function lerHisconParaComparacao(bytes: Uint8Array): Promise<Leitur
   }
 }
 
+/** O texto LINEAR do PDF (páginas concatenadas) — vazio vira null. */
+async function textoLinear(doc: PdfJsProxy, unpdf: UnpdfModulo): Promise<string | null> {
+  const { text } = await unpdf.extractText(doc, { mergePages: true });
+  const conteudo = Array.isArray(text) ? text.join('\n') : text;
+  const limpo = conteudo.trim();
+  return limpo === '' ? null : limpo;
+}
+
 /** Texto embutido do PDF (null quando não há camada de texto ou em erro). */
 export async function extrairTextoDePdf(bytes: Uint8Array): Promise<string | null> {
   try {
@@ -113,12 +122,21 @@ export async function extrairTextoDePdf(bytes: Uint8Array): Promise<string | nul
         ? reconstruirHisconPosicional(paginasCruas)
         : null; // V2 conferido pelo próprio documento ⇒ V1 nem precisa rodar
     const hiscon = escolherLeituraHiscon(v2, v1);
-    if (hiscon !== null) return hiscon;
+    if (hiscon !== null) {
+      // CARTÕES SÓ NO HISTÓRICO (caso REAL Luiz Carlos, 2026-09-28): há HISCONs
+      // sem tabela de CONTRATOS de cartão — os cartões existem apenas na tabela
+      // mensal "DESCONTOS DE CARTÃO", que o leitor posicional pula para não
+      // contar linha de mês como contrato (caso Nycollas). Sem isto o cliente
+      // perde RMC e RCC inteiros: cada um vale 1 processo no guia, e o abate do
+      // advogado sai zerado. Só entra quando a leitura NÃO trouxe cartão nenhum.
+      if (jaTemCartoes(hiscon)) return hiscon;
+      const linear = await textoLinear(doc, unpdf);
+      const cartoes = linear === null ? [] : cartoesDoHistoricoMensal(linear);
+      return cartoes.length === 0 ? hiscon : `${hiscon}\n\n${blocosDeCartao(cartoes)}`;
+    }
 
     // Não é HISCON matriz ⇒ texto linear comum.
-    const { text } = await unpdf.extractText(doc, { mergePages: true });
-    const conteudo = Array.isArray(text) ? text.join('\n') : text;
-    const limpo = conteudo.trim();
+    const limpo = (await textoLinear(doc, unpdf)) ?? '';
     return limpo === '' ? null : limpo;
   } catch {
     return null; // PDF escaneado/corrompido ⇒ o chamador usa a Vision

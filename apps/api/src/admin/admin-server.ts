@@ -591,9 +591,10 @@ export function buildAdminServer(
 ): FastifyInstance {
   // Caso REAL Helio Fontes (2026-08-03): o anexo da procuração assinada
   // (docs-equipe, base64 no corpo) estourava o bodyLimit PADRÃO do Fastify
-  // (1 MB) e o upload nunca concluía. 30 MB cobre a régua de 20 MB do
-  // DocsEquipeService com folga para o overhead do base64 (+33%).
-  const app = Fastify({ logger: false, bodyLimit: 30 * 1024 * 1024 });
+  // (1 MB) e o upload nunca concluía. 48 MB cobre a régua de 30 MB do
+  // DocsEquipeService (2026-09-29) com folga para o overhead do base64 (+33%):
+  // 30 MB de arquivo chegam aqui com ~40 MB de texto.
+  const app = Fastify({ logger: false, bodyLimit: 48 * 1024 * 1024 });
 
   // Gate FOUNDER (Super Admin) para operações DESTRUTIVAS de WhatsApp (criar/descartar
   // instância). Além da auth BL-2.1 (Bearer do Admin), exige o header `x-founder-secret`

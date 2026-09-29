@@ -10,7 +10,8 @@ const nextConfig = {
   // Caso REAL Helio Fontes (2026-08-03): a procuração assinada ("Kit completo
   // assinado.pdf") travava em "Enviando…" para sempre — server actions do Next
   // aceitam 1 MB por padrão e o PDF (+33% em base64) estourava sem erro visível.
-  experimental: { serverActions: { bodySizeLimit: '30mb' } },
+  // 45mb: o arquivo de 30 MB viaja em base64 e chega aqui com ~40 MB.
+  experimental: { serverActions: { bodySizeLimit: '45mb' } },
   eslint: { ignoreDuringBuilds: true },
   // O gate de TIPOS é o CI (pnpm typecheck + build a cada push, resolução
   // real do workspace). Dentro da imagem Docker o pnpm re-resolve @types de

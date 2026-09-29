@@ -71,7 +71,7 @@ const DocsEquipe = ({ chatId }: { chatId: string }): ReactElement => {
       <h3 style={{ marginTop: 0 }}>Documentos da equipe (fase 2 — procuração, RG, comprovante)</h3>
       <p className="page-sub" style={{ marginTop: -4 }}>
         Anexe aqui o que o time colher fora do WhatsApp — o advogado destinado baixa tudo no portal
-        dele. PDF, JPG ou PNG, até 20 MB.
+        dele. PDF, JPG ou PNG, até 30 MB.
       </p>
       <div className="form-row" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <select

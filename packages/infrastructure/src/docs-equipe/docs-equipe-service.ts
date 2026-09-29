@@ -14,7 +14,11 @@ import type { JsonStore } from '../production/json-store.js';
 import type { MediaStorePort } from '../media/media-store-port.js';
 
 const NS = 'docs-equipe';
-const MAX_BYTES = 20 * 1024 * 1024;
+// 30 MB (2026-09-29, pedido do dono: procuração assinada não subia). Scan de
+// procuração assinada sai grande e 20 MB barrava documento legítimo. O arquivo
+// viaja em BASE64, que infla ~1/3 — quem transporta (o body do Next e o do
+// Fastify) subiu junto, senão o limite novo quebraria no meio do caminho.
+const MAX_BYTES = 30 * 1024 * 1024;
 
 export type TipoDocEquipe = 'procuracao' | 'rg' | 'comprovante' | 'extrato_credito' | 'outro';
 
@@ -79,7 +83,7 @@ export class DocsEquipeService {
       return { ok: false, error: 'arquivo inválido' };
     }
     if (bytes.length === 0) return { ok: false, error: 'arquivo vazio' };
-    if (bytes.length > MAX_BYTES) return { ok: false, error: 'arquivo acima de 20 MB' };
+    if (bytes.length > MAX_BYTES) return { ok: false, error: 'arquivo acima de 30 MB' };
     const assinatura = MAGIC.find((m) => m.bytes.every((b, i) => bytes[i] === b));
     if (assinatura === undefined)
       return { ok: false, error: 'formato não aceito — envie PDF, JPG ou PNG' };

@@ -23,7 +23,7 @@ const TIPOS = [
   { valor: 'outro', rotulo: 'Outro documento' },
 ];
 
-const MAX_BYTES = 20 * 1024 * 1024; // a MESMA régua do DocsEquipeService
+const MAX_BYTES = 30 * 1024 * 1024; // a MESMA régua do DocsEquipeService
 
 const DocsFase2 = ({ chatId }: { chatId: string }): ReactElement => {
   const router = useRouter();
@@ -41,7 +41,7 @@ const DocsFase2 = ({ chatId }: { chatId: string }): ReactElement => {
     if (arquivo === null || busy) return;
     if (arquivo.size > MAX_BYTES) {
       setErro(
-        `Arquivo de ${(arquivo.size / 1024 / 1024).toFixed(1)} MB — o limite é 20 MB. Reduza o PDF (ou envie por partes) e tente de novo.`,
+        `Arquivo de ${(arquivo.size / 1024 / 1024).toFixed(1)} MB — o limite é 30 MB. Reduza o PDF (ou envie por partes) e tente de novo.`,
       );
       return;
     }

@@ -2775,8 +2775,15 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       ? `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-${cpf.slice(9)}`
       : cpf;
 
-  const dadosDaAhriParaJuridico = async (nome: string): Promise<Record<string, unknown> | null> => {
-    const lista = await clientes.list().catch(() => []);
+  /** A base de clientes é CARA de compor (ALIR por cliente). Quem varre a base
+   *  inteira carrega a lista UMA vez e a passa aqui — sem isso, a varredura
+   *  fazia uma composição completa por cliente do Jurídico e a API parava de
+   *  responder (é o mesmo erro que derrubou o contexto da conversa em agosto). */
+  const dadosDaAhriParaJuridico = async (
+    nome: string,
+    listaPronta?: readonly { readonly quem: string; readonly chatId: string }[],
+  ): Promise<Record<string, unknown> | null> => {
+    const lista = listaPronta ?? (await clientes.list().catch(() => []));
     const achado = lista.find((c) => normalizarNome(c.quem) === normalizarNome(nome)) ?? null;
     if (achado === null) return null;
     const registro = (await jornadaComercial.fatos(achado.chatId).catch(() => null))?.registro;
@@ -2838,10 +2845,12 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     semCorrespondencia: number;
   }> => {
     const doJuridico = await juridico.listarClientes();
+    // UMA composição da base para a varredura inteira (ver a nota acima).
+    const base = await clientes.list().catch(() => []);
     let atualizados = 0;
     let semCorrespondencia = 0;
     for (const c of doJuridico) {
-      const daAhri = await dadosDaAhriParaJuridico(c.nome).catch(() => null);
+      const daAhri = await dadosDaAhriParaJuridico(c.nome, base).catch(() => null);
       if (daAhri === null) {
         semCorrespondencia += 1;
         continue;

@@ -75,6 +75,12 @@ export function buildAdvogadoServer(
     /** Decreto 2026-08-04: gancho pós-atribuição — ABATE os processos do
      *  cliente na carteira do advogado parceiro (best-effort). */
     readonly aoAtribuir?: (missionId: string, advogadoId: string) => Promise<void>;
+    /** O NOME QUE O DOCUMENTO DIZ (caso REAL "Serra Azul", 2026-09-29): o painel
+     *  do advogado mostrava o nome guardado na memória da conversa e, quando a
+     *  captura errava — cidade virando pessoa —, o advogado via "Serra Azul" no
+     *  lugar do cliente. O HISCON é documento do INSS e não erra: passa na
+     *  frente. Ausente ⇒ segue a memória da conversa, como antes. */
+    readonly nomeAutoritativo?: (chatId: string) => Promise<string | null>;
     /** Decreto 2026-08-04 (noite): documentação 100% COMPLETA no humanizado
      *  (procuração assinada) LIBERA para o advogado JÁ — a lista dos completos
      *  entra nos Prontos sem esperar os 10 dias do perito. */
@@ -243,6 +249,15 @@ export function buildAdvogadoServer(
   // Nome humano do cliente a partir da Memória Viva (atributo 'nome'); fallback
   // = prefixo numérico do chat. Decreto Tráfego Pago (painéis por NOME).
   const nomeDoClientePorChat = async (chatId: string): Promise<string> => {
+    // O HISCON primeiro: é o nome do beneficiário no documento do INSS. A
+    // memória da conversa é o que a captura entendeu — e ela pode ter entendido
+    // a cidade (caso "Serra Azul", 2026-09-29).
+    try {
+      const doDocumento = await opts.nomeAutoritativo?.(chatId);
+      if (doDocumento != null && doDocumento.trim() !== '') return doDocumento.trim();
+    } catch {
+      /* documento indisponível ⇒ cai na memória da conversa */
+    }
     try {
       const mem = await op.memoryStore.load(chatId);
       const attr = mem?.attributes.find(

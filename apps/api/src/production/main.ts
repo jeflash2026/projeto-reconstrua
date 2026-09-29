@@ -248,6 +248,9 @@ async function main(): Promise<void> {
     // Decreto 2026-08-04: o encaminhamento abate os processos do cliente na
     // carteira do advogado parceiro (best-effort, idempotente por cliente).
     aoAtribuir: prod.abaterPorAtribuicao,
+    // Caso "Serra Azul" (2026-09-29): o nome que o painel do advogado mostra sai
+    // do HISCON — documento do INSS —, não do que a captura entendeu na conversa.
+    nomeAutoritativo: (chatId) => prod.pericia.nomeDoHiscon(chatId),
     // Decreto 2026-08-05: o advogado vê a PRÓPRIA carteira no painel dele.
     creditosAdvogado: prod.creditosAdvogado,
     // Decreto 2026-08-04 (noite): documentação completa LIBERA para o advogado

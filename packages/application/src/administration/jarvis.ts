@@ -253,6 +253,15 @@ const RE_PREAMBULO =
   /\b(segue|seguem|lista|processos?|adicion\w*|add|cadastr\w*|seguintes?|abaixo|distribu\w*|jur[ií]dico|perfil|clientes?)\b/iu;
 // Instituição nunca é cliente ("BANCO X:" / "CEF ⇥ nº" são o RÉU do processo).
 const RE_INSTITUICAO = /\b(banco|bank|financeira|caixa|cef|cr[eé]dito)\b/iu;
+// ONDE A INSTITUIÇÃO COMEÇA (caso REAL Marlene da Silva de Souza, 2026-09-29):
+// o dono ditou "MARLENE DA SILVA DE SOUZA Paraná Banco <nº>" e a cliente foi
+// cadastrada como "Marlene da Silva de Souza PARANÁ" — o corte era na palavra
+// "banco", e o nome do banco que a antecede virou sobrenome. Há instituições
+// cujo qualificador vem ANTES ("Paraná Banco", "C6 Bank"): nelas o corte tem de
+// recuar um token. Lista curta e explícita — inventar regra genérica aqui
+// custaria nome de cliente errado, que é o que se está consertando.
+const RE_INSTITUICAO_INICIO =
+  /\b(?:(?:paran[aá]|c6|will|neon|inter|original|pine|master|agi|pag|pic\s*pay)\s+)?(?:banco|bank|financeira|caixa|cef)\b/iu;
 
 /** Limpa um pedaço de banco/nome: separadores, marcadores e negrito nas bordas. */
 function limparPedaco(bruto: string): string {
@@ -346,7 +355,7 @@ export function interpretarComandoProcessosJuridico(
     // cliente aberto, o que vem ANTES da 1ª instituição abre o cliente.
     if (achado === null && (atual as { nome: string } | null) === null) {
       const resto = trecho.slice(Math.max(trecho.lastIndexOf(':'), trecho.lastIndexOf('\n')) + 1);
-      const instituicao = /\b(banco|bank|financeira|caixa|cef)\b/iu.exec(resto);
+      const instituicao = RE_INSTITUICAO_INICIO.exec(resto);
       const nome = instituicao !== null ? limparPedaco(resto.slice(0, instituicao.index)) : '';
       if (instituicao !== null && ehNomeDeCliente(nome)) {
         abrir(nome);

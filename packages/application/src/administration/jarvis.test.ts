@@ -460,3 +460,41 @@ describe('interpretarComandoCarteiraInvestidor (2026-09-16)', () => {
     expect(lerValorEmReais('sem valor')).toBeNull();
   });
 });
+
+// Caso REAL Marlene da Silva de Souza (2026-09-29): o dono ditou o nome colado
+// ao banco, e o banco era "Paraná Banco" — o corte acontecia na palavra
+// "banco", então "Paraná" virou sobrenome. A cliente nasceu duplicada como
+// "Marlene da Silva de Souza PARANÁ", os processos foram para ela, e a cliente
+// de verdade — entregue à advogada — ficou com zero processo no painel.
+describe('interpretarComandoProcessosJuridico — banco cujo nome VEM ANTES de "Banco"', () => {
+  it('"Paraná Banco" não vira sobrenome da cliente', () => {
+    const cmd = interpretarComandoProcessosJuridico(
+      'adicione no juridico: MARLENE DA SILVA DE SOUZA Paraná Banco - 4005195-40.2026.8.26.0533',
+    );
+    expect(cmd?.clientes).toHaveLength(1);
+    expect(cmd?.clientes[0]?.nome).toBe('Marlene da Silva de Souza');
+    expect(cmd?.clientes[0]?.processos[0]?.banco).toContain('Paraná Banco');
+  });
+
+  it('vale para as outras instituições com o qualificador na frente', () => {
+    for (const [banco, esperado] of [
+      ['C6 Bank', 'C6 Bank'],
+      ['Will Bank', 'Will Bank'],
+      ['Agi Bank', 'Agi Bank'],
+    ] as const) {
+      const cmd = interpretarComandoProcessosJuridico(
+        `adicione no juridico: JOAO PEREIRA LIMA ${banco} - 4005195-40.2026.8.26.0533`,
+      );
+      expect(cmd?.clientes[0]?.nome, banco).toBe('Joao Pereira Lima');
+      expect(cmd?.clientes[0]?.processos[0]?.banco, banco).toContain(esperado);
+    }
+  });
+
+  it('o banco comum (qualificador DEPOIS) continua lido como antes', () => {
+    const cmd = interpretarComandoProcessosJuridico(
+      'adicione no juridico: FRANCISCO NUNES DA SILVA Banco Mercantil do Brasil - 4005195-40.2026.8.26.0533',
+    );
+    expect(cmd?.clientes[0]?.nome).toBe('Francisco Nunes da Silva');
+    expect(cmd?.clientes[0]?.processos[0]?.banco).toContain('Banco Mercantil');
+  });
+});

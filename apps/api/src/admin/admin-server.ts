@@ -460,6 +460,9 @@ export function buildAdminServer(
     readonly cartoesEmFalta?: {
       varrer(opcoes?: { aplicar?: boolean }): Promise<unknown>;
     };
+    /** 2026-09-29: completa o cadastro do Juridico com o que a AHRI ja tem
+     *  (CPF, celular, cidade/UF) -- so os campos EM BRANCO. Ato do admin. */
+    readonly completarJuridicoComAhri?: () => Promise<unknown>;
     /** Decreto 2026-07-29: o JARVIS do Founder Console — pergunta livre
      *  fundamentada nos Read Models + comando de distribuição de contratos
      *  (plano com confirmação; NADA executa sem o clique do fundador). */
@@ -1592,6 +1595,18 @@ export function buildAdminServer(
       return reply.code(503).send({ error: 'varredura indisponível nesta montagem' });
     return opts.cartoesEmFalta.varrer();
   });
+  // COMPLETAR O JURIDICO com o que a AHRI ja sabe (2026-09-29): CPF, celular e
+  // cidade/UF vem do funil; nascimento/RG/e-mail ela nao coleta e ficam vazios.
+  // So preenche campo EM BRANCO -- o que alguem digitou a mao nunca e tocado.
+  app.post('/admin/juridico/completar-com-ahri', async (request, reply) => {
+    if (!opts.completarJuridicoComAhri)
+      return reply.code(503).send({ error: 'indisponivel nesta montagem' });
+    const body = (request.body ?? {}) as { confirmar?: boolean };
+    if (body.confirmar !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
+    return opts.completarJuridicoComAhri();
+  });
+
   app.post('/admin/pericia/cartoes-em-falta/aplicar', async (request, reply) => {
     if (!opts.cartoesEmFalta)
       return reply.code(503).send({ error: 'varredura indisponível nesta montagem' });

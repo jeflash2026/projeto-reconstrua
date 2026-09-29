@@ -166,6 +166,8 @@ async function main(): Promise<void> {
     releitura: prod.releitura,
     // Caso Luiz Carlos (2026-09-28): cartões só no histórico mensal do HISCON.
     cartoesEmFalta: prod.cartoesEmFalta,
+    // 2026-09-29: completa o cadastro do Jurídico com os dados do funil.
+    completarJuridicoComAhri: prod.completarJuridicoComAhri,
     // Decreto 2026-07-27 (caso Roberto): revínculo do HISCON ao anexo certo.
     revinculo: prod.revinculo,
     // Decreto 2026-07-29: o Jarvis do Founder Console.

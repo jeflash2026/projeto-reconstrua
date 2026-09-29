@@ -397,6 +397,12 @@ export interface AssembledProduction {
   readonly releitura: ReleituraComparativa;
   /** Caso Luiz Carlos (2026-09-28): cartões que só existem no histórico mensal. */
   readonly cartoesEmFalta: CartoesEmFaltaService;
+  /** 2026-09-29: completa o cadastro do Jurídico com o que a AHRI já sabe. */
+  readonly completarJuridicoComAhri: () => Promise<{
+    clientes: number;
+    atualizados: number;
+    semCorrespondencia: number;
+  }>;
   /** Decreto 2026-07-27 (caso Roberto): religar o CNIS ao anexo CERTO da conversa. */
   readonly revinculo: RevinculoHiscon;
   /** Decreto 2026-07-29: o JARVIS do Founder Console — conhecimento total dos
@@ -2750,6 +2756,101 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   // na hora. Find-or-create do cliente por NOME (sem acentos/caixa); um processo
   // por linha (cada banco = 1 processo, a regra do negócio); IDEMPOTENTE — nº
   // CNJ que o cliente já tem é pulado, nunca duplicado. Autor: 'AHRI (Jarvis)'.
+  // O QUE A AHRI JÁ SABE (2026-09-29, pedido do dono ao ver a ficha da Marlene
+  // com tudo "não informado"): o funil coleta CPF, telefone e cidade/UF de todo
+  // cliente. Redigitar isso no Jurídico é retrabalho com chance de erro. O que
+  // ela NÃO coleta — nascimento, RG, órgão emissor, e-mail, endereço completo —
+  // continua em branco: preencher com palpite num cadastro jurídico é pior que
+  // deixar vazio.
+  const normalizarNome = (s: string): string =>
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+  const telefoneDoChat = (chatId: string): string => {
+    const d = (chatId.split('@')[0] ?? '').replace(/\D/g, '');
+    const local = d.startsWith('55') ? d.slice(2) : d;
+    if (local.length < 10) return '';
+    return `(${local.slice(0, 2)}) ${local.slice(2, -4)}-${local.slice(-4)}`;
+  };
+  const cpfFormatado = (cpf: string): string =>
+    cpf.length === 11
+      ? `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-${cpf.slice(9)}`
+      : cpf;
+
+  const dadosDaAhriParaJuridico = async (nome: string): Promise<Record<string, unknown> | null> => {
+    const lista = await clientes.list().catch(() => []);
+    const achado = lista.find((c) => normalizarNome(c.quem) === normalizarNome(nome)) ?? null;
+    if (achado === null) return null;
+    const registro = (await jornadaComercial.fatos(achado.chatId).catch(() => null))?.registro;
+    const dados: Record<string, unknown> = {};
+    if (registro?.cpf != null && registro.cpf !== '') dados['cpfCnpj'] = cpfFormatado(registro.cpf);
+    const celular = telefoneDoChat(achado.chatId);
+    if (celular !== '') dados['celular1'] = celular;
+    const endereco: Record<string, string> = {};
+    if (registro?.cidade != null && registro.cidade !== '') endereco['cidade'] = registro.cidade;
+    if (registro?.estado != null && registro.estado !== '') endereco['uf'] = registro.estado;
+    if (Object.keys(endereco).length > 0) dados['endereco'] = endereco;
+    return Object.keys(dados).length > 0 ? dados : null;
+  };
+
+  /** Completa SÓ o que está em branco. A edição do Jurídico substitui o registro
+   *  inteiro, então o payload vai completo — o que já existe segue como está. */
+  const completarCamposVazios = async (
+    clienteId: string,
+    daAhri: Record<string, unknown>,
+  ): Promise<boolean> => {
+    const atual = await juridico.obterCliente(clienteId);
+    if (atual === null) return false;
+    const endAhri = (daAhri['endereco'] ?? {}) as Record<string, string>;
+    const vazio = (v: string | undefined): boolean => (v ?? '').trim() === '';
+    const dados: Record<string, unknown> = {
+      nome: atual.nome,
+      nascimento: atual.nascimento,
+      sexo: atual.sexo,
+      cpfCnpj: vazio(atual.cpfCnpj) ? (daAhri['cpfCnpj'] ?? '') : atual.cpfCnpj,
+      rg: atual.rg,
+      orgaoEmissor: atual.orgaoEmissor,
+      ufEmissao: atual.ufEmissao,
+      email: atual.email,
+      telefone: atual.telefone,
+      celular1: vazio(atual.celular1) ? (daAhri['celular1'] ?? '') : atual.celular1,
+      celular2: atual.celular2,
+      endereco: {
+        ...atual.endereco,
+        cidade: vazio(atual.endereco.cidade) ? (endAhri['cidade'] ?? '') : atual.endereco.cidade,
+        uf: vazio(atual.endereco.uf) ? (endAhri['uf'] ?? '') : atual.endereco.uf,
+      },
+      observacoes: atual.observacoes,
+    };
+    const mudou =
+      dados['cpfCnpj'] !== atual.cpfCnpj ||
+      dados['celular1'] !== atual.celular1 ||
+      (dados['endereco'] as Record<string, string>)['cidade'] !== atual.endereco.cidade ||
+      (dados['endereco'] as Record<string, string>)['uf'] !== atual.endereco.uf;
+    if (!mudou) return false;
+    const r = await juridico.atualizarCliente(clienteId, dados, 'AHRI (dados do funil)');
+    return r.ok;
+  };
+
+  /** Passa em TODOS os clientes do Jurídico e completa os campos em branco com o
+   *  que a AHRI já tem. Ato explícito do admin — nunca automático. */
+  const completarJuridicoComAhri = async (): Promise<{
+    clientes: number;
+    atualizados: number;
+    semCorrespondencia: number;
+  }> => {
+    const doJuridico = await juridico.listarClientes();
+    let atualizados = 0;
+    let semCorrespondencia = 0;
+    for (const c of doJuridico) {
+      const daAhri = await dadosDaAhriParaJuridico(c.nome).catch(() => null);
+      if (daAhri === null) {
+        semCorrespondencia += 1;
+        continue;
+      }
+      if (await completarCamposVazios(c.id, daAhri).catch(() => false)) atualizados += 1;
+    }
+    return { clientes: doJuridico.length, atualizados, semCorrespondencia };
+  };
+
   cadastrarProcessosJuridicoRef = async (nome, processos) => {
     const norm = (s: string): string =>
       s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
@@ -2757,12 +2858,20 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     const existentes = await juridico.listarClientes();
     let clienteId = existentes.find((c) => norm(c.nome) === norm(nome))?.id ?? null;
     let clienteNovo = false;
+    // O que a AHRI JÁ SABE deste cliente entra no cadastro (2026-09-29, pedido
+    // do dono): CPF, celular e cidade/UF vêm do funil, e redigitá-los é retrabalho
+    // com chance de erro. Nascimento, RG e e-mail ela não coleta — ficam em branco.
+    const daAhri = await dadosDaAhriParaJuridico(nome).catch(() => null);
     if (clienteId === null) {
-      const criado = await juridico.criarCliente({ nome }, 'AHRI (Jarvis)');
+      const criado = await juridico.criarCliente({ nome, ...(daAhri ?? {}) }, 'AHRI (Jarvis)');
       if (!criado.ok)
         return { clienteNovo: false, criados: 0, jaExistiam: 0, erros: [criado.error] };
       clienteId = criado.valor;
       clienteNovo = true;
+    } else if (daAhri !== null) {
+      // Cliente que já existe: completa só o que está EM BRANCO — o que alguém
+      // digitou à mão vale mais que o nosso registro e nunca é sobrescrito.
+      await completarCamposVazios(clienteId, daAhri).catch(() => undefined);
     }
     const contratos = await juridico.listarContratos();
     const jaTem = new Set(
@@ -3400,6 +3509,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     pericia,
     releitura,
     cartoesEmFalta,
+    completarJuridicoComAhri,
     revinculo,
     jarvis,
     periciaFluxo,

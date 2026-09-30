@@ -38,6 +38,26 @@ function SeloPrazo({ p }: { p: PericiaEmFluxo }): ReactElement {
   );
 }
 
+/** DE QUEM É ESTE CLIENTE (2026-09-30, pedido do dono): o perito mexe nas
+ *  credenciais, na resposta do banco e no pacote sem saber a quem o caso
+ *  pertence. A ENTREGA é o que vale; marcação da mesa aparece sinalizada,
+ *  porque ainda não é entrega — confundir as duas já custou caro. */
+function AdvogadoDoCaso({ p }: { p: PericiaEmFluxo }): ReactElement {
+  const nome = p.advogado ?? null;
+  if (nome === null)
+    return (
+      <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+        Advogado: <em>ainda sem advogado</em>
+      </div>
+    );
+  return (
+    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+      Advogado: <strong style={{ color: 'var(--text)' }}>{nome}</strong>
+      {p.advogadoEntregue === true ? '' : ' (marcado na mesa — ainda não entregue)'}
+    </div>
+  );
+}
+
 function CredenciaisView({ p }: { p: PericiaEmFluxo }): ReactElement {
   return (
     <div style={{ margin: '8px 0' }}>
@@ -255,6 +275,7 @@ const CentralPerito = async ({
                     Iniciada em {dataBr(p.iniciadaEm)} · prazo até {dataBr(p.prazoEm)} · CPF:{' '}
                     <span className="mono">{cpfBr(cpfDe.get(p.chatId) ?? null)}</span>
                   </div>
+                  <AdvogadoDoCaso p={p} />
                   <CredenciaisView p={p} />
                   <RespostaView p={p} />
                   <a className="btn" href={`/perito/api/pacote/${encodeURIComponent(p.clienteId)}`}>
@@ -289,6 +310,7 @@ const CentralPerito = async ({
                     <strong>{p.quem}</strong>
                     <SeloPrazo p={p} />
                   </div>
+                  <AdvogadoDoCaso p={p} />
                   <CredenciaisView p={p} />
                   <RespostaView p={p} />
                 </div>

@@ -1865,6 +1865,32 @@ export function buildAdminServer(
     return responder(reply, await opts.periciaDigital.liberarParaAdvogado(id, 'admin'));
   });
 
+  /** chatId → advogado do cliente. A ENTREGA (atribuição do dono) é o que vale;
+   *  a marcação da mesa do Humanizado entra como reserva, sinalizada — são dois
+   *  fatos diferentes, e confundi-los já custou caro (caso Luiz Carlos, 09/26).
+   *  Usa a projeção em memória para o chatId da missão: nada de compor a base. */
+  const advogadoPorChat = async (): Promise<
+    Map<string, { readonly nome: string; readonly entregue: boolean }>
+  > => {
+    const mapa = new Map<string, { nome: string; entregue: boolean }>();
+    const advogados = await op.staff.list('advogado').catch(() => []);
+    const nomePorId = new Map(advogados.map((a) => [a.id, a.name]));
+    await op.projector.refresh().catch(() => undefined);
+    const chatPorMissao = new Map(op.projector.missions().map((m) => [m.missionId, m.chatId]));
+    for (const c of (await opts.humanizado?.clientes().catch(() => [])) ?? []) {
+      if (c.advogadoId == null || c.advogadoId === '') continue;
+      mapa.set(c.chatId, { nome: nomePorId.get(c.advogadoId) ?? c.advogadoId, entregue: false });
+    }
+    // A entrega sobrescreve a marcação: quem recebeu de fato manda.
+    for (const a of advogados) {
+      for (const t of op.work ? await op.work.myMissions(a.id).catch(() => []) : []) {
+        const chat = t.chatId ?? chatPorMissao.get(t.missionId) ?? null;
+        if (chat !== null) mapa.set(chat, { nome: a.name, entregue: true });
+      }
+    }
+    return mapa;
+  };
+
   app.get('/admin/jornada/pericia/em-fluxo', async (_request, reply) => {
     if (!opts.periciaFluxo) return reply.code(503).send({ error: 'fluxo de perícia indisponível' });
     // Decreto 2026-08-03 (adendo do dono): a Central do Perito mostra APENAS
@@ -1874,9 +1900,18 @@ export function buildAdminServer(
     const chatsAptos = await chatsAptosParaPedido();
     const filtra = <T extends { chatId: string }>(itens: readonly T[]): readonly T[] =>
       chatsAptos === null ? itens : itens.filter((i) => chatsAptos.has(i.chatId));
+    // DE QUEM É ESTE CLIENTE (2026-09-30, pedido do dono): o perito mexe no
+    // caso — credenciais, resposta do banco, pacote — sem saber a quem ele
+    // pertence. O nome do advogado vai no card.
+    const advogados = await advogadoPorChat();
+    const comAdvogado = (itens: readonly { chatId: string }[]): unknown[] =>
+      itens.map((i) => {
+        const a = advogados.get(i.chatId) ?? null;
+        return { ...i, advogado: a?.nome ?? null, advogadoEntregue: a?.entregue ?? false };
+      });
     return {
-      emAndamento: filtra(await opts.periciaFluxo.emAndamento()),
-      concluidas: filtra(await opts.periciaFluxo.concluidas()),
+      emAndamento: comAdvogado(filtra(await opts.periciaFluxo.emAndamento())),
+      concluidas: comAdvogado(filtra(await opts.periciaFluxo.concluidas())),
     };
   });
 

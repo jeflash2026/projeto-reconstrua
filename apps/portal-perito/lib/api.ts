@@ -80,4 +80,8 @@ export interface PericiaEmFluxo {
   diasRestantes: number;
   horasRestantes: number;
   expirado: boolean;
+  /** De quem é o cliente (2026-09-30). null = ninguém ainda. */
+  advogado?: string | null;
+  /** true = ENTREGUE ao advogado; false = só marcado na mesa do Humanizado. */
+  advogadoEntregue?: boolean;
 }

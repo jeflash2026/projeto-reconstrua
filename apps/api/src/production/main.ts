@@ -9,7 +9,7 @@ import {
   type DadosDoJuridico,
 } from '@reconstrua/infrastructure';
 import { SystemClock, UuidV4Generator } from '@reconstrua/infrastructure';
-import { memoCurto, planilhaDeContratosDetalhada } from '@reconstrua/application';
+import { planilhaDeContratosDetalhada } from '@reconstrua/application';
 import { buildProductionServer } from './production-server.js';
 import { buildAdminServer } from '../admin/admin-server.js';
 import { buildAdvogadoServer } from '../advogado/advogado-server.js';
@@ -192,20 +192,10 @@ async function main(): Promise<void> {
   // dossiê de contratos da janela + a MESMA planilha (CSV Excel-BR) do perito.
   // PERFORMANCE (2026-08-05, caso Gracielle "não abre"): a página do cliente
   // dispara estudo+ações em PARALELO e cada um resolvia o cliente varrendo a
-  // LISTA COMPLETA sem cache. Memória curta com requentar: a lista vencida sai
-  // na hora e a varredura nova corre por trás.
-  const listaClientesMemo = memoCurto(
-    async () => (await prod.adminView.clientes?.list()) ?? [],
-    60_000,
-    { requentar: true },
-  );
-  const clienteDoChat = async (
-    chatId: string,
-  ): Promise<{ clienteId: string; quem: string } | null> => {
-    const lista = await listaClientesMemo();
-    const c = lista.find((x) => x.chatId === chatId);
-    return c ? { clienteId: c.clienteId, quem: c.quem } : null;
-  };
+  // LISTA COMPLETA sem cache. A memória curta daqui matava UMA das varreduras;
+  // a outra vivia dentro de perito.contratos() e o caso voltou em 2026-10-05
+  // (mesma advogada, 11-14 s por chamada). Agora o CHATID vai direto ao perito,
+  // que resolve UM cliente por porChat — nenhuma varredura da base por tela.
   // ACOMPANHAMENTO PROCESSUAL (2026-09-11): o recorte do Painel Jurídico que o
   // painel do advogado lê (clientes, processos e andamentos).
   const dadosDoJuridico = async (
@@ -222,22 +212,20 @@ async function main(): Promise<void> {
     accessSecret: env['ADVOGADO_ACCESS_SECRET'] ?? '',
     estudo: {
       dossiePorChat: async (chatId) => {
-        const cliente = await clienteDoChat(chatId);
-        if (cliente === null || prod.adminView.perito === undefined) return null;
-        const c = await prod.adminView.perito.contratos(cliente.clienteId);
+        if (prod.adminView.perito === undefined) return null;
+        const c = await prod.adminView.perito.contratos(chatId);
         if (c === null || c.detalhado.contratos.length === 0) return null;
         const plan = planilhaDeContratosDetalhada(
-          `Contratos — ${cliente.quem}`,
+          `Contratos — ${c.quem}`,
           c.detalhado,
           clock.now(),
         );
         const cpf = (await prod.jornadaComercial.fatos(chatId).catch(() => null))?.registro.cpf;
-        return { quem: cliente.quem, cpf: cpf ?? null, colunas: plan.colunas, linhas: plan.linhas };
+        return { quem: c.quem, cpf: cpf ?? null, colunas: plan.colunas, linhas: plan.linhas };
       },
       planilhaPorChat: async (chatId) => {
-        const cliente = await clienteDoChat(chatId);
-        if (cliente === null || prod.adminView.perito === undefined) return null;
-        const gerada = await prod.adminView.perito.planilha(cliente.clienteId);
+        if (prod.adminView.perito === undefined) return null;
+        const gerada = await prod.adminView.perito.planilha(chatId);
         return gerada !== null
           ? { nomeArquivo: gerada.nomeArquivo, mime: gerada.mime, conteudo: gerada.conteudo }
           : null;

@@ -149,3 +149,52 @@ describe('PeritoView · planilhas', () => {
     expect(porChat.get('c2')).toMatchObject({ temCpf: false, cpf: null });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REGRESSÃO "Gracielle não abre" (2026-08-05 e de novo em 2026-10-05): abrir UM
+// cliente no portal do advogado compunha a base INTEIRA (ALIR por cliente) só
+// para localizá-lo — 11-14 s por chamada, cinco em paralelo, teto de 45 s. O
+// chatId tem de resolver por porChat, SEM nunca tocar em list().
+// ─────────────────────────────────────────────────────────────────────────────
+describe('PeritoView · contratos por chatId não varre a base', () => {
+  function espiao(cliente: ClienteResumo) {
+    let listas = 0;
+    const clientes = {
+      list: () => {
+        listas += 1;
+        return Promise.resolve([cliente]);
+      },
+      porChat: (chatId: string) => Promise.resolve(chatId === cliente.chatId ? cliente : null),
+    } as unknown as ClientesList;
+    const view = new PeritoView({
+      clientes,
+      documentosDaMissao: (missionId) => Promise.resolve(missionId === 'm1' ? ['d-hiscon'] : []),
+      textoDoDocumento: () => Promise.resolve(HISCON),
+      exporter: new CsvPlanilhaExporter(),
+    });
+    return { view, contarListas: () => listas };
+  }
+
+  it('chatId ⇒ resolve por porChat e NUNCA lista a base', async () => {
+    const { view, contarListas } = espiao(resumo({ chatId: '5516997890971@webchat' }));
+    const c = await view.contratos('5516997890971@webchat', NOW);
+    expect(c?.quem).toBe('Maria');
+    // Leu o documento DA MISSAO pelo caminho rapido - nao e um resumo vazio.
+    expect(c?.documentosLidos).toBe(1);
+    expect(c?.parse.contratos.length).toBeGreaterThan(0);
+    expect(contarListas()).toBe(0);
+  });
+
+  it('id canônico do cliente ⇒ segue pela lista, como antes', async () => {
+    const { view, contarListas } = espiao(resumo({ chatId: '5516997890971@webchat' }));
+    const c = await view.contratos('cli-1', NOW);
+    expect(c?.chatId).toBe('5516997890971@webchat');
+    expect(contarListas()).toBe(1);
+  });
+
+  it('chat desconhecido ⇒ cai na lista e devolve null (sem inventar cliente)', async () => {
+    const { view, contarListas } = espiao(resumo({ chatId: '5516997890971@webchat' }));
+    expect(await view.contratos('5511000000000@webchat', NOW)).toBeNull();
+    expect(contarListas()).toBe(1);
+  });
+});

@@ -96,6 +96,15 @@ export class PeritoView {
 
   /** Contratos organizados do cliente (todas as fontes lidas; merge determinístico). */
   async contratos(clienteId: string, now?: Date): Promise<ContratosDoCliente | null> {
+    // CHATID resolve UM cliente (porChat) — era AQUI que a tela do advogado
+    // compunha a base INTEIRA (ALIR por cliente) só para achar um: medido em
+    // produção, 11-14 s por chamada, com cinco em paralelo na página contra um
+    // teto de 45 s. O caso "Gracielle não abre" (2026-08-05) memoizou a busca do
+    // main.ts e deixou ESTA segunda varredura — por isso o defeito voltou.
+    if (clienteId.includes('@')) {
+      const direto = await this.deps.clientes.porChat(clienteId, now);
+      if (direto !== null) return this.contratosDoResumo(direto, now);
+    }
     // Aceita o id CANÔNICO do cliente OU o chatId — a lista "todos com HISCON" o
     // referencia por chatId, e ambos são únicos (nunca colidem).
     const cliente = (await this.deps.clientes.list(now)).find(

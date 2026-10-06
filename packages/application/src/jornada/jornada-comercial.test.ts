@@ -12,6 +12,7 @@ import {
   ehAdiamento,
   ehDesistencia,
   ehPedidoDeExplicacao,
+  ehDificuldadeDeclarada,
   ehPreocupacaoComCusto,
   ehRoteiroDeColeta,
   ehSobreDossieOuLink,
@@ -745,5 +746,35 @@ describe('pareceNome · nome longo brasileiro', () => {
   it('frase longa continua NÃO sendo nome — o teto só ignora partícula', () => {
     expect(pareceNome('vou ter que conversar com a minha filha antes de decidir')).toBe(false);
     expect(pareceNome('Olá! Posso ter mais informações sobre isso?')).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CASO REAL Ana Lúcia (16 99237-5046, 2026-10-06) — ela declarou o obstáculo
+// quatro vezes ("Não tem como eu te enviar", dois links, "Não sei") e em
+// nenhuma recebeu o passo a passo que a própria AHRI promete no fim de todo
+// roteiro. O gatilho só conhecia "não consigo".
+// ─────────────────────────────────────────────────────────────────────────────
+describe('ehDificuldadeDeclarada · obstáculo dito com outras palavras', () => {
+  it('reconhece as formas que a gente usa de verdade', () => {
+    for (const frase of [
+      'Não tem como eu te enviar',
+      'não tem jeito',
+      'não dá',
+      'não tô conseguindo',
+      'não estou conseguindo baixar',
+      'não achei',
+      'não encontrei essa opção',
+      'tá difícil',
+      'Não sei',
+    ])
+      expect(ehDificuldadeDeclarada(frase)).toBe(true);
+  });
+
+  it('recusa de interesse NÃO é dificuldade — quem diz não quer, não é cobrado', () => {
+    expect(ehDificuldadeDeclarada('não quero')).toBe(false);
+    expect(ehDificuldadeDeclarada('não precisa, obrigado')).toBe(false);
+    expect(ehDificuldadeDeclarada('não tenho interesse')).toBe(false);
+    expect(ehDificuldadeDeclarada('vou enviar hoje à noite')).toBe(false);
   });
 });

@@ -630,6 +630,24 @@ export function ehPedidoDeExplicacao(texto: string): boolean {
   return t.length <= 40 && /\bexplic/i.test(t);
 }
 
+// Caso REAL Ana Lúcia (16 99237-5046, 2026-10-06): "Não tem como eu te enviar",
+// depois dois links do Adobe, depois "Não sei" e "O que der para fazer" — e em
+// nenhuma das quatro a AHRI ofereceu o passo a passo que ela mesma promete no
+// fim de todo roteiro. O gatilho só conhecia "não consigo"; quem diz "não tem
+// como" está declarando o MESMO obstáculo, com outras palavras. Ninguém que
+// pede ajuda deve precisar adivinhar a formulação certa.
+const DIFICULDADE_DECLARADA =
+  /\bn[ãa]o\s+(tem|t[áa])\s+(como|jeito)\b|\bn[ãa]o\s+d[áa](?![\p{L}])|\bn[ãa]o\s+(estou|t[ôo]|to)\s+conseguindo\b|\bn[ãa]o\s+(achei|acho|encontr\w*)\b|\b(t[áa]|est[áa])\s+dif[íi]cil\b|\bn[ãa]o\s+sei\s*$/iu;
+
+/** O cliente DECLAROU um obstáculo para enviar o documento (sem pedir ajuda com
+ *  todas as letras). Vale como pedido de ajuda: a resposta é o caminho, nunca a
+ *  cobrança de novo. */
+export function ehDificuldadeDeclarada(texto: string): boolean {
+  const t = texto.trim();
+  if (/\bn[ãa]o\s+(precisa|quero|tenho\s+interesse)\b/i.test(t)) return false;
+  return DIFICULDADE_DECLARADA.test(t);
+}
+
 // Caso REAL Theresinha (16 9..., 2026-07-31): a cliente AGENDOU para o dia
 // seguinte ("amanhã te mando, hoje estou num aniversário"), a AHRI acolheu
 // ("sem problema, combinado") — e o "Ok 👍" seguinte virou uma NOVA cobrança de
@@ -1242,6 +1260,12 @@ function respostaDaEtapa(f: FatosDaJornada, entrada: EntradaDoTurno): string {
       // Resposta canônica: o passo a passo do HISCON, nunca a cobrança de novo.
       if (ehPedidoDeExplicacao(entrada.texto)) {
         return `Claro! ${PASSO_A_PASSO_HISCON}`;
+      }
+      // Obstáculo DECLARADO ("não tem como eu te enviar") quando o pendente é o
+      // HISCON: a resposta é o caminho, não a cobrança. Preso ao HISCON porque
+      // o passo a passo é dele — para outro documento, segue a escada normal.
+      if (/HISCON/i.test(proximo) && ehDificuldadeDeclarada(entrada.texto)) {
+        return `Sem problema, vamos juntos. ${PASSO_A_PASSO_HISCON}`;
       }
       // Caso Sidinei: LINK de documento ⇒ orientação de envio (antes da checagem
       // de pergunta — URLs contêm '?' e virariam delegação errada ao LLM).

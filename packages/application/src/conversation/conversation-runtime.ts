@@ -69,6 +69,14 @@ export interface TurnResult {
 
 const MAX_REPHRASE_ATTEMPTS = 3;
 
+/** PEDIDO DE COLETA NOMEADO — a fala que pede um documento ou um dado COM NOME.
+ *  É a única que pode repetir sem ser eco: se o cliente repete o engano, a
+ *  resposta certa é a mesma de antes. Deliberadamente mais estreita que
+ *  `ehRoteiroDeColeta` (a régua do verbatim), que trata QUALQUER texto curto
+ *  como roteiro e deixaria passar também a expressão que só sabe repetir. */
+const PEDIDO_DE_COLETA_NOMEADO =
+  /\bCPF\b|\bHISCON\b|nome completo|qual cidade|comprovante de endere|procura[çc][ãa]o/i;
+
 /** Saídas para quando a expressão só sabe repetir (caso Jefferson, 2026-09-21).
  *
  *  Correção de 2026-09-22: era UMA frase só, e uma frase só vira repetição na
@@ -323,6 +331,15 @@ export class ConversationRuntime {
       if (!isRepetition(candidate, avoidBase, policy.repetitionThreshold)) {
         return candidate;
       }
+      // ROTEIRO DE COLETA NÃO É ECO (caso REAL Ana Lúcia, 16 99237-5046,
+      // 2026-10-06): ela mandou o documento como LINK duas vezes. Na primeira
+      // recebeu a orientação certa; na segunda, a MESMA orientação — a resposta
+      // correta, porque ela repetiu o mesmo engano — foi barrada aqui como
+      // repetição e virou "Estou aqui, sim. Como você quer seguir?". A cliente
+      // ficou sem saber o que fazer e a conversa morreu. Este guarda existe para
+      // a LLM que entra em loop sozinha; o roteiro autorado da jornada repete
+      // quando a situação repete, e isso é atendimento, não eco.
+      if (PEDIDO_DE_COLETA_NOMEADO.test(candidate)) return candidate;
       avoid = [...avoid, candidate];
       attempt += 1;
     }

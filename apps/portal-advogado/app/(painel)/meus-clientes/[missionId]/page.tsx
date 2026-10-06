@@ -320,10 +320,16 @@ const ClienteDestinadoPage = async ({
         <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 4 }}>
           Dossiê de integridade — notificações aos bancos
         </h2>
+        {/* O documento que se junta ao processo é o RELATÓRIO, e ele vivia
+            escondido dentro do ZIP: em 2026-10-06 uma advogada com três dossiês
+            na mão abriu os .eml soltos e concluiu que ele não existia. Agora a
+            frase diz o que fazer e o botão principal abre o documento. */}
         <p className="page-sub" style={{ marginTop: 0 }}>
-          Pacote de prova da correspondência extrajudicial (e-mails originais enviados a cada banco,
-          respostas recebidas e hashes de integridade). O RELATORIO.html dentro do ZIP é imprimível
-          para anexar ao processo; o hash-raiz certifica que nada foi alterado.
+          <b>Para juntar ao processo, use o Relatório:</b> ele abre em uma aba e você imprime como
+          PDF (Imprimir &gt; Salvar como PDF). Traz as partes, cada notificação enviada, o aceite do
+          servidor de cada banco, as respostas recebidas e o hash-raiz, que certifica que nada foi
+          alterado. O ZIP ao lado guarda a prova bruta — e-mails originais, logs de entrega e os
+          documentos do cliente.
         </p>
         {(dossieCorvo?.dossies ?? []).length === 0 ? (
           <div className="empty">
@@ -354,12 +360,23 @@ const ClienteDestinadoPage = async ({
                       {d.hashRaiz}
                     </td>
                     <td>
-                      <a
-                        className="btn"
-                        href={`/advogado/api/dossie-corvo/${encodeURIComponent(params.missionId)}/${encodeURIComponent(d.hashRaiz)}`}
-                      >
-                        Baixar ZIP ({Math.round(d.tamanho / 1024)} KB)
-                      </a>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <a
+                          className="btn"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          href={`/advogado/api/dossie-corvo/${encodeURIComponent(params.missionId)}/${encodeURIComponent(d.hashRaiz)}/relatorio`}
+                        >
+                          Abrir relatório
+                        </a>
+                        <a
+                          className="btn"
+                          style={{ background: 'transparent', color: 'inherit' }}
+                          href={`/advogado/api/dossie-corvo/${encodeURIComponent(params.missionId)}/${encodeURIComponent(d.hashRaiz)}`}
+                        >
+                          Baixar ZIP ({Math.round(d.tamanho / 1024)} KB)
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 ))}

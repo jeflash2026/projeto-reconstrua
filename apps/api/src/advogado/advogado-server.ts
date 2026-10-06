@@ -148,6 +148,12 @@ export function buildAdvogadoServer(
         cpf: string,
         hashRaiz: string,
       ): Promise<{ nomeArquivo: string; bytes: Buffer } | null>;
+      /** O relatório de leitura humana, sem o pacote (2026-10-06). Opcional:
+       *  montagens antigas não o têm e a rota responde 503. */
+      relatorioDoDossie?(
+        cpf: string,
+        hashRaiz: string,
+      ): Promise<{ nomeArquivo: string; html: string } | null>;
     };
     /** ACOMPANHAMENTO PROCESSUAL (2026-09-11): os processos judiciais dos
      *  clientes entregues, o parecer de cada intimação e os alertas de prazo. */
@@ -915,6 +921,42 @@ export function buildAdvogadoServer(
       )
       .send(zip.bytes);
   });
+
+  // ── O RELATÓRIO, SEM O PACOTE (2026-10-06) ─────────────────────────────────
+  //    A advogada tinha os três dossiês e concluiu que o documento não existia:
+  //    ele estava dentro de um ZIP de 40 MB e a tela só oferecia o download do
+  //    pacote. O relatório é o que se junta ao processo — agora abre direto.
+  //    O ZIP continua ali para quem precisar da prova bruta (.eml e logs).
+  app.get(
+    '/advogado/processos/:missionId/dossie-corvo/:hashRaiz/relatorio',
+    async (request, reply) => {
+      if (!opts.corvoDossies?.relatorioDoDossie)
+        return reply.code(503).send({ error: 'integração Corvo indisponível nesta montagem' });
+      const { missionId, hashRaiz } = request.params as { missionId: string; hashRaiz: string };
+      const r = await chatDaMissaoAtribuida(request, missionId);
+      if ('erro' in r) {
+        if (r.erro === 'auth') return reply.code(401).send({ error: 'advogado não identificado' });
+        if (r.erro === 'atribuicao')
+          return reply.code(403).send({ error: 'processo não atribuído a você' });
+        return reply.code(404).send({ error: 'conversa do processo não encontrada' });
+      }
+      const doCliente = await opts.corvoDossies.dossiesDoChat(r.chatId);
+      if (doCliente === null) return reply.code(404).send({ error: 'cliente sem CPF registrado' });
+      const rel = await opts.corvoDossies.relatorioDoDossie(doCliente.cpf, hashRaiz);
+      if (rel === null) return reply.code(404).send({ error: 'relatório indisponível' });
+      // O HTML vem de fora (Corvo). Ele é auto-contido — texto, tabelas e CSS —,
+      // então servimos com tudo bloqueado menos estilo embutido: se um dia o
+      // pacote trouxer script, ele não roda no navegador do advogado.
+      return reply
+        .header('content-type', 'text/html; charset=utf-8')
+        .header(
+          'content-security-policy',
+          "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'",
+        )
+        .header('x-content-type-options', 'nosniff')
+        .send(rel.html);
+    },
+  );
 
   app.get('/advogado/processos/:missionId/docs-equipe', async (request, reply) => {
     if (!opts.docsEquipe)

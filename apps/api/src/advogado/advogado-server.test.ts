@@ -412,6 +412,12 @@ describe('Portal do Advogado', () => {
           Promise.resolve(
             hash === 'h1' ? { nomeArquivo: 'dossie-jose.zip', bytes: Buffer.from('PK...') } : null,
           ),
+        relatorioDoDossie: (_cpf: string, hash: string) =>
+          Promise.resolve(
+            hash === 'h1'
+              ? { nomeArquivo: 'dossie-jose-relatorio.html', html: '<html>dossie</html>' }
+              : null,
+          ),
       },
     });
     const cab = (quem: string) => ({
@@ -448,6 +454,25 @@ describe('Portal do Advogado', () => {
       headers: cab(advogadoB),
     });
     expect(zipB.statusCode).toBe(403);
+
+    // RELATÓRIO SEM O PACOTE (2026-10-06): o documento que se junta ao processo
+    // abre direto, como HTML, e com tudo bloqueado menos o estilo embutido.
+    const rel = await appCorvo.inject({
+      method: 'GET',
+      url: `/advogado/processos/${missionId}/dossie-corvo/h1/relatorio`,
+      headers: cab(advogadoA),
+    });
+    expect(rel.statusCode).toBe(200);
+    expect(rel.headers['content-type']).toBe('text/html; charset=utf-8');
+    expect(rel.headers['content-security-policy']).toContain("default-src 'none'");
+    expect(rel.body).toContain('dossie');
+    // O mesmo isolamento do ZIP vale para ele.
+    const relB = await appCorvo.inject({
+      method: 'GET',
+      url: `/advogado/processos/${missionId}/dossie-corvo/h1/relatorio`,
+      headers: cab(advogadoB),
+    });
+    expect(relB.statusCode).toBe(403);
   });
 
   it('DEVOLUÇÃO (caso Candida, 2026-08-27): unassign tira a missão do painel do advogado', async () => {

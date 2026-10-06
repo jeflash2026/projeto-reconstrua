@@ -560,6 +560,14 @@ describe('dossiê de integridade — debounce, verificação e versões', () => 
     // O ZIP volta ÍNTEGRO para o download autenticado.
     const baixado = await b.svc.zipDoDossie(CPF, hashRaiz);
     expect(baixado?.bytes.equals(zip)).toBe(true);
+    // E o RELATÓRIO sai SEM o pacote (2026-10-06): a advogada tinha os dossiês
+    // na mão e concluiu que o documento não existia, porque ele só vivia dentro
+    // de um ZIP de 40 MB. O nome sugerido já vem pronto para salvar.
+    const rel = await b.svc.relatorioDoDossie(CPF, hashRaiz);
+    expect(rel?.html).toBe('<html>ok</html>');
+    expect(rel?.nomeArquivo).toMatch(/-relatorio.html$/);
+    // Versão que não existe não entrega relatório de ninguém.
+    expect(await b.svc.relatorioDoDossie(CPF, 'a'.repeat(64))).toBeNull();
     // A fila esvaziou.
     expect(await b.svc.processarFilaDeDossies()).toEqual({ baixados: 0 });
   });

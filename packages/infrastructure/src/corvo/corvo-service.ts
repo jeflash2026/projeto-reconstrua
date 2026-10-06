@@ -1153,6 +1153,27 @@ export class CorvoService {
     return { nomeArquivo: registro.nomeArquivo, bytes: Buffer.from(blob.bytes) };
   }
 
+  /** O RELATÓRIO em leitura humana de uma versão — o documento que o advogado
+   *  junta ao processo (o próprio LEIA-ME do pacote manda abri-lo e imprimir
+   *  como PDF). Caso REAL 2026-10-06: a advogada tinha os três dossiês na mão,
+   *  abriu os .eml soltos e concluiu que o documento não existia. Ele estava
+   *  dentro de um ZIP de 40 MB, sem nenhuma indicação na tela. Entregar o
+   *  relatório direto é o conserto; o pacote inteiro segue disponível para quem
+   *  precisar da prova bruta. null = versão inexistente ou pacote sem relatório. */
+  async relatorioDoDossie(
+    cpf: string,
+    hashRaiz: string,
+  ): Promise<{ nomeArquivo: string; html: string } | null> {
+    const zip = await this.zipDoDossie(cpf, hashRaiz);
+    if (zip === null) return null;
+    const html = lerArquivoDoZip(zip.bytes, 'RELATORIO.html');
+    if (html === null) return null;
+    return {
+      nomeArquivo: `${zip.nomeArquivo.replace(/\.zip$/i, '')}-relatorio.html`,
+      html: html.toString('utf8'),
+    };
+  }
+
   // ── Cifra da credencial (AES-256-GCM; chave derivada de env por sha256) ─────
 
   private cifrar(texto: string): SenhaCifrada {

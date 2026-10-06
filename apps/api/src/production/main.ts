@@ -295,6 +295,8 @@ async function main(): Promise<void> {
     corvoDossies: {
       dossiesDoChat: (chatId) => prod.corvo.dossiesDoChat(chatId),
       zipDoDossie: (cpf, hashRaiz) => prod.corvo.zipDoDossie(cpf, hashRaiz),
+      // O documento que se junta ao processo, sem baixar 40 MB (2026-10-06).
+      relatorioDoDossie: (cpf, hashRaiz) => prod.corvo.relatorioDoDossie(cpf, hashRaiz),
     },
     // ACOMPANHAMENTO PROCESSUAL (2026-09-11): os processos dos clientes DELE,
     // o parecer de cada intimação do DJEN e os alertas de prazo.

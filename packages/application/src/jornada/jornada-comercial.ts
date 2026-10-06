@@ -383,7 +383,11 @@ const TERMOS_DE_CIDADE =
 export function pareceNomeCompletoDePessoa(s: string): boolean {
   const t = s.trim();
   const palavras = t.split(/\s+/);
-  if (palavras.length < 4 || palavras.length > 8) return false;
+  // O MÍNIMO conta palavras cruas (4+ é o que torna o nome inequívoco); o teto
+  // ignora partículas, pelo mesmo motivo do pareceNome — nome longo brasileiro
+  // é feito de "de", "da" e "e", e isso não o faz deixar de ser nome.
+  if (palavras.length < 4) return false;
+  if (palavras.filter((p) => !PARTICULA_DE_NOME.test(p)).length > 8) return false;
   if (!/^[\p{L}][\p{L}'´.\s]*$/u.test(t)) return false;
   return !TERMOS_DE_CIDADE.test(t);
 }
@@ -691,14 +695,25 @@ export function ehChamamento(texto: string): boolean {
   return t !== '' && CHAMAMENTOS.some((re) => re.test(t));
 }
 
+/** Partículas de nome próprio (pt-BR e as estrangeiras comuns aqui). Não são
+ *  "palavras" para efeito de tamanho: nome brasileiro as empilha sem ficar
+ *  menos nome — "Ellen Adrianne Ribeiro de Barros e Toledo" são 7 palavras e
+ *  apenas 5 delas nomeiam alguém. */
+const PARTICULA_DE_NOME = /^(d[aeiou]|d[ao]s|e|del|dell[ao]|van|von|y)$/i;
+
 /** Um candidato a NOME precisa PARECER nome: sem '?', sem dígitos, até 6
- *  palavras, sem vocabulário do funil ("posso ter mais informações…" NUNCA é
- *  nome — defeito real do primeiro contato da Denise) e sem ser chamamento. */
+ *  palavras QUE NOMEIAM (partículas não contam), sem vocabulário do funil
+ *  ("posso ter mais informações…" NUNCA é nome — defeito real do primeiro
+ *  contato da Denise) e sem ser chamamento. */
 export function pareceNome(s: string): boolean {
   const t = s.trim();
   if (t === '' || t.length > 60) return false;
   if (/[?!0-9@#/\\]/.test(t)) return false;
-  if (t.split(/\s+/).length > 6) return false;
+  // Caso REAL Ellen Adrianne Ribeiro de Barros e Toledo (65 98116692,
+  // 2026-10-05): o teto de 6 palavras CRUAS recusou o nome completo que a
+  // cliente acabara de digitar, a jornada ficou com nome=null e a AHRI
+  // repetiu a mesma pergunta — "ela ignorou e perguntou de novo".
+  if (t.split(/\s+/).filter((p) => !PARTICULA_DE_NOME.test(p)).length > 6) return false;
   if (ehChamamento(t)) return false;
   // Caso REAL Geisebel (2026-08-28): "mais ainda n mandei o hiscon" virou o
   // NOME ("Prazer, mais") — palavras de conversa sobre documentos/envio jamais

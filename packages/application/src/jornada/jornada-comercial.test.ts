@@ -719,3 +719,31 @@ describe('caso Sidinei — link de documento recebe ORIENTAÇÃO, nunca cobranç
     expect(r).toContain('não consigo abrir documentos por link');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CASO REAL Ellen Adrianne Ribeiro de Barros e Toledo (65 98116692, 2026-10-05)
+// — a cliente respondeu o nome completo à pergunta da AHRI e ouviu a MESMA
+// pergunta de volta ("ela ignorou e perguntou novamente"). O teto de 6 palavras
+// CRUAS recusava o nome; partículas não nomeiam ninguém e não devem contar.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('pareceNome · nome longo brasileiro', () => {
+  it('nome com partículas passa, por mais palavras que tenha', () => {
+    expect(pareceNome('Ellen Adrianne Ribeiro de Barros e Toledo')).toBe(true);
+    expect(pareceNome('Maria das Graças de Souza e Silva')).toBe(true);
+    expect(pareceNome('José Carlos dos Santos de Oliveira e Lima')).toBe(true);
+  });
+
+  it('a captura grava o nome completo em vez de perguntar de novo', () => {
+    expect(
+      capturarIdentificacao('Ellen Adrianne Ribeiro de Barros e Toledo', {
+        nome: null,
+        cidade: null,
+      }),
+    ).toEqual({ nome: 'Ellen Adrianne Ribeiro de Barros e Toledo', cidade: null });
+  });
+
+  it('frase longa continua NÃO sendo nome — o teto só ignora partícula', () => {
+    expect(pareceNome('vou ter que conversar com a minha filha antes de decidir')).toBe(false);
+    expect(pareceNome('Olá! Posso ter mais informações sobre isso?')).toBe(false);
+  });
+});

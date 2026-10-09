@@ -3430,6 +3430,48 @@ export function buildAdminServer(
     return { enviados, jaDisparados: 0, falhas };
   });
 
+  // ── AVISO DO NÚMERO DA EQUIPE (pedido do dono, 2026-10-09) ────────────────
+  //    A Layara chama do número dela e uma parte dos clientes nunca responde.
+  //    Para quem tem 60+ e ouve falar de golpe todo dia, um número
+  //    desconhecido no WhatsApp é motivo para ignorar — não é desinteresse.
+  //    Este disparo não cobra documento nenhum: a AHRI, que a pessoa JÁ
+  //    conhece, avaliza o número da equipe. Mesmo ritual dos demais: só com
+  //    confirmação explícita do dono, com teto, com ritmo e sem repetir quem
+  //    já recebeu template nas últimas 24h.
+  app.post('/admin/humanizado/aviso-equipe', async (request, reply) => {
+    if (!opts.humanizado || !opts.chatHumanizado) return reply.code(503).send(chatIndisponivel);
+    const body = (request.body ?? {}) as {
+      confirmar?: boolean;
+      uf?: string;
+      limite?: number;
+      autor?: string;
+    };
+    if (body.confirmar !== true)
+      return reply.code(400).send({ error: 'confirmação explícita obrigatória' });
+    const uf = typeof body.uf === 'string' ? body.uf.trim().toUpperCase() : '';
+    const limite = Math.max(1, Math.min(300, Math.trunc(body.limite ?? 60)));
+    // SEM RETORNO é a régua: a equipe já mandou a documentação e o cliente não
+    // voltou. Quem respondeu está sendo atendido — avisar do número seria ruído.
+    const alvos = (await alvosDisparoHumanizado())
+      .filter((a) => a.semRetorno && !a.jaDisparadoHoje && (uf === '' || a.uf === uf))
+      .slice(0, limite);
+    let enviados = 0;
+    const falhas: { nome: string; erro: string }[] = [];
+    for (const a of alvos) {
+      const r = await opts.chatHumanizado.enviarTemplate(
+        a.chatId,
+        'contato_layara',
+        body.autor ?? 'Aviso do dono',
+        [primeiroNome(a.nome)],
+      );
+      if (r.ok) enviados += 1;
+      else falhas.push({ nome: a.nome, erro: r.error });
+      // Mesmo ritmo suave do outro lote — a conta já foi bloqueada uma vez.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return { enviados, alvos: alvos.length, falhas };
+  });
+
   // ── REAQUECIMENTO FASE 1 (2026-08-07) — decreto do dono: nada automático;
   //    o LOTE só sai com a confirmação do Admin. Alvo: lead com HISCON
   //    LEGÍVEL que ainda NÃO confirmou o interesse (fora da mesa da fase 2).

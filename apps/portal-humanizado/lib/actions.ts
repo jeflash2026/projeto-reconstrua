@@ -78,6 +78,39 @@ export async function anexarDoc(
   return r ?? { ok: false, error: 'falha no envio — tente novamente' };
 }
 
+/** AVISO DO NÚMERO DA EQUIPE (2026-10-09) — dispara, para quem recebeu a
+ *  documentação e não voltou, o recado da AHRI avalizando o WhatsApp da Layara.
+ *  Não cobra documento: só diz que o número desconhecido é nosso. O alvo é
+ *  calculado no servidor (quem não respondeu, menos quem já recebeu template
+ *  nas últimas 24h) — daqui vai só a confirmação, o estado e o teto. */
+export async function avisarNumeroDaEquipe(
+  uf: string | null,
+  limite: number,
+): Promise<{ ok: boolean; enviados: number; alvos: number; erro?: string }> {
+  const r = await postJson<{
+    enviados?: number;
+    alvos?: number;
+    falhas?: { nome: string; erro: string }[];
+    error?: string;
+  }>('/admin/humanizado/aviso-equipe', {
+    confirmar: true,
+    ...(uf !== null && uf !== '' ? { uf } : {}),
+    limite,
+  });
+  if (r === null) return { ok: false, enviados: 0, alvos: 0, erro: 'API indisponível' };
+  if (r.error !== undefined) return { ok: false, enviados: 0, alvos: 0, erro: r.error };
+  const falhas = r.falhas ?? [];
+  const primeira = falhas[0];
+  return {
+    ok: true,
+    enviados: r.enviados ?? 0,
+    alvos: r.alvos ?? 0,
+    ...(primeira !== undefined
+      ? { erro: `${String(falhas.length)} falha(s) — ex.: ${primeira.erro}` }
+      : {}),
+  };
+}
+
 /** Marca/desmarca "documentação enviada — aguardando o cliente devolver assinada". */
 export async function marcarAguardando(chatId: string, valor: boolean): Promise<{ ok: boolean }> {
   const r = await postJson<{ ok: boolean }>(

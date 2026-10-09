@@ -141,6 +141,22 @@ const CORPO_TEMPLATE: Readonly<Record<string, (vars: readonly string[]) => strin
       'Atenciosamente,',
       'Layara - Consultora do Projeto Reconstrua',
     ].join('\n'),
+  // AVISO DO NÚMERO DA EQUIPE (pedido do dono, 2026-10-09). O cliente confirmou
+  // interesse, a Layara chamou do número dela e ele não respondeu. A causa mais
+  // provável não é desinteresse: é um número desconhecido chegando no WhatsApp
+  // de quem tem 60+ e ouve falar de golpe todo dia. Por isso o recado não cobra
+  // nada — ele AVALIZA o número, dito pela AHRI, que a pessoa já conhece.
+  contato_layara: ([nome]) =>
+    [
+      nome !== undefined && nome !== '' ? `Olá, ${nome}!` : 'Olá!',
+      'Aqui é a Ahri, do Projeto Reconstrua.',
+      '',
+      'A Layara, da nossa equipe de atendimento, entrou em contato com você pelo WhatsApp (16) 98819-4806 para dar andamento ao seu caso.',
+      '',
+      'O número é nosso. Se você recebeu mensagem de lá e ficou na dúvida se era mesmo da nossa equipe, pode responder com tranquilidade.',
+      '',
+      'Se preferir, pode falar comigo por aqui que eu te oriento.',
+    ].join('\n'),
   retomada_documentos: ([nome]) =>
     [
       nome !== undefined && nome !== '' ? `Olá, ${nome}!` : 'Olá!',

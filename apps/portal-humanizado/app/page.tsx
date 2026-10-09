@@ -18,6 +18,7 @@ import DocsFase2 from '../components/docs-fase2';
 import AguardandoToggle from '../components/aguardando-toggle';
 import DescartarButton from '../components/descartar-button';
 import AdvogadoSelect from '../components/advogado-select';
+import AvisarNumeroEquipe from '../components/avisar-numero-equipe';
 
 export const dynamic = 'force-dynamic';
 
@@ -447,12 +448,19 @@ const MesaPage = async ({
   const cookie = cookies().get(HUMANIZADO_SESSION_COOKIE)?.value ?? '';
   if (operadorDaSessao(SEGREDO_SESSAO, cookie) === null) redirect('/login');
 
-  const [data, advs, chats] = await Promise.all([
+  const [data, advs, chats, disparo] = await Promise.all([
     getJson<{ clientes: ClienteHumanizado[] }>('/admin/humanizado/clientes', 20000),
     getJson<{ advogados: AdvogadoOpcao[] }>('/admin/humanizado/advogados', 10000),
     // Canal da equipe (2026-08-05): a caixa de entrada — conversas com resposta
     // do cliente esperando a secretária.
     getJson<{ conversas: ResumoChat[] }>('/admin/humanizado/chat', 10000),
+    // AVISO DO NÚMERO DA EQUIPE (2026-10-09): a MESMA lista de alvos do lote do
+    // Admin — dela sai quem está SEM RETORNO, que é quem o aviso alcança.
+    // null (rota antiga, antes do deploy) ⇒ o botão simplesmente não aparece.
+    getJson<{ alvos: { uf: string; semRetorno: boolean; jaDisparadoHoje: boolean }[] }>(
+      '/admin/humanizado/disparo',
+      15000,
+    ),
   ]);
   const advogados = advs?.advogados ?? [];
   const base = data?.clientes ?? null;
@@ -536,6 +544,18 @@ const MesaPage = async ({
               ✅ Clientes Prontos
             </Link>
           </div>
+        </div>
+        {/* AVISO DO NÚMERO DA EQUIPE (2026-10-09): respeita a UF em foco, para
+            o lote sair do mesmo recorte que a secretária está olhando. */}
+        <div style={{ margin: '4px 0 10px' }}>
+          <AvisarNumeroEquipe
+            quantos={
+              (disparo?.alvos ?? []).filter(
+                (a) => a.semRetorno && !a.jaDisparadoHoje && (ativo === null || a.uf === ativo),
+              ).length
+            }
+            uf={ativo}
+          />
         </div>
         <p className="page-sub">
           Clientes que CONFIRMARAM o interesse, organizados por estado. Chame pelo WhatsApp da

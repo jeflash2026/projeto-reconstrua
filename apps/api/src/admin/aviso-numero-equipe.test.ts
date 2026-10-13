@@ -27,8 +27,13 @@ const AGORA = new Date('2026-10-09T12:00:00.000Z');
 const HORA = 60 * 60 * 1000;
 
 class TestClock implements Clock {
+  private t = new Date(AGORA.getTime());
   now(): Date {
-    return new Date(AGORA.getTime());
+    return new Date(this.t.getTime());
+  }
+  /** O FakeSleeper exige um relógio avançável; aqui o tempo não anda. */
+  advance(ms: number): void {
+    this.t = new Date(this.t.getTime() + ms);
   }
 }
 class SeqUuid implements UuidGenerator {

@@ -2666,28 +2666,67 @@ export function buildAdminServer(
   app.get('/admin/juridico/pastas', async (_request, reply) => {
     if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
     const advogados = await op.staff.list('advogado').catch(() => []);
-    const lista = op.clientes ? await op.clientes.list().catch(() => []) : [];
-    const nomePorChat = new Map<string, string>();
-    const chatPorMissao = new Map<string, string>();
-    for (const c of lista) {
-      nomePorChat.set(c.chatId, c.quem);
-      if (c.missionId !== null) chatPorMissao.set(c.missionId, c.chatId);
-    }
-    const entregas: EntregaAoAdvogado[] = [];
+    // PERFORMANCE (2026-10-13, "Pastas por advogado indisponíveis agora"): esta
+    // rota compunha o ALIR da BASE INTEIRA (medido em produção: 23,8 s) só para
+    // montar dois mapas — e o portal jurídico desiste em 20 s, então a tela
+    // nunca via as pastas. Mas o nome só é necessário para os chats ENTREGUES a
+    // algum advogado, que são dezenas, não a base toda. Primeiro as entregas;
+    // depois o nome de cada uma. Mesma classe do caso "Gracielle não abre".
+    const atribuidas: {
+      advogadoId: string;
+      advogado: string;
+      chatId: string | null;
+      missionId: string;
+      assignedAt: Date;
+    }[] = [];
     for (const a of advogados) {
       const atribuicoes = op.work ? await op.work.myMissions(a.id).catch(() => []) : [];
-      for (const t of atribuicoes) {
-        const chatId = t.chatId ?? chatPorMissao.get(t.missionId) ?? null;
-        if (chatId === null) continue;
-        const em = new Date(t.assignedAt);
-        entregas.push({
+      for (const t of atribuicoes)
+        atribuidas.push({
           advogadoId: a.id,
           advogado: a.name,
-          chatId,
-          nome: nomePorChat.get(chatId) ?? chatId.split('@')[0] ?? chatId,
-          entregueEm: Number.isNaN(em.getTime()) ? null : em.toISOString(),
+          chatId: t.chatId ?? null,
+          missionId: t.missionId,
+          assignedAt: t.assignedAt,
         });
-      }
+    }
+    // Atribuição ANTIGA sem chatId gravado: só nesse caso vale pagar a
+    // varredura da base, e só para descobrir o chat daquela missão.
+    const chatPorMissao = new Map<string, string>();
+    if (op.clientes && atribuidas.some((t) => t.chatId === null)) {
+      for (const c of await op.clientes.list().catch(() => []))
+        if (c.missionId !== null) chatPorMissao.set(c.missionId, c.chatId);
+    }
+    const chats = [
+      ...new Set(
+        atribuidas
+          .map((t) => t.chatId ?? chatPorMissao.get(t.missionId) ?? null)
+          .filter((c): c is string => c !== null),
+      ),
+    ];
+    // Um ALIR por cliente ENTREGUE, em lotes — o custo passa a crescer com as
+    // entregas, não com o tamanho da base.
+    const nomePorChat = new Map<string, string>();
+    for (let i = 0; i < chats.length; i += 8) {
+      await Promise.all(
+        chats.slice(i, i + 8).map(async (chatId) => {
+          const c = op.clientes ? await op.clientes.porChat(chatId).catch(() => null) : null;
+          if (c !== null) nomePorChat.set(chatId, c.quem);
+        }),
+      );
+    }
+    const entregas: EntregaAoAdvogado[] = [];
+    for (const t of atribuidas) {
+      const chatId = t.chatId ?? chatPorMissao.get(t.missionId) ?? null;
+      if (chatId === null) continue;
+      const em = new Date(t.assignedAt);
+      entregas.push({
+        advogadoId: t.advogadoId,
+        advogado: t.advogado,
+        chatId,
+        nome: nomePorChat.get(chatId) ?? chatId.split('@')[0] ?? chatId,
+        entregueEm: Number.isNaN(em.getTime()) ? null : em.toISOString(),
+      });
     }
     const [clientesJuridico, contratos] = await Promise.all([
       opts.juridico.listarClientes(),

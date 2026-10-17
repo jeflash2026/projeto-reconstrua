@@ -144,6 +144,24 @@ export function ehPreocupacaoComCusto(texto: string): boolean {
   return PREOCUPACAO_COM_CUSTO.test(texto);
 }
 
+// Caso REAL Luciano (32 8488-6907, 2026-10-17): "Mas vocês vão ver o que o
+// cartão consignado" / "Esse desconto é o que o cartão Master". O cliente quer
+// saber O QUE ENTRA na análise — a pergunta mais comum deste público, e a que
+// toca exatamente a nossa especialidade. Tem resposta canônica, como o medo do
+// custo tem. Exige o VERBO de análise junto do objeto: "cartão" sozinho não
+// basta ("recebi pelo cartão" não é dúvida sobre o escopo).
+// Mesmo cuidado com o \b junto de acento (ver nota em PERGUNTA_SEM_INTERROGACAO).
+const DUVIDA_SOBRE_ESCOPO =
+  /\b(v[ãa]o?|vai|v[êe]em?|olham?|analisam?|analisar|verificam?|incluem?|entram?|pegam?|cobrem?)\b[\s\S]{0,40}\b(cart[ãa]o|rmc|rcc|reserva\s+de\s+margem|desconto|empr[ée]stimo|seguro|mensalidade|margem)\b|(^|[\s,])(esse|este|essa|esta|o|a)\s+desconto\s+[ée]\s|(^|[\s,])[ée]\s+(d?o\s+)?cart[ãa]o/i;
+
+/** O cliente está perguntando O QUE a análise cobre (cartão, desconto, banco)? */
+export function ehDuvidaSobreEscopo(texto: string): boolean {
+  const t = texto.trim();
+  // Quem está RECUSANDO não está perguntando escopo.
+  if (/\bn[ãa]o\s+(quero|tenho\s+interesse|precisa)\b/i.test(t)) return false;
+  return DUVIDA_SOBRE_ESCOPO.test(t);
+}
+
 // Caso REAL Rosana (2026-07-31, 21:20): a AHRI enviou o DOSSIÊ, a cliente disse
 // "o link não abre" — e a AHRI NEGOU o próprio envio ("não tem nenhum link pra
 // abrir mesmo"), chegando a tratar a mensagem dela mesma como golpe. Quem
@@ -566,8 +584,25 @@ export function ehAgradecimentoPuro(texto: string): boolean {
  *  manda RESPONDER (LLM, tom de consultora) e depois voltar ao foco do funil. */
 const PERGUNTA_LIVRE =
   /\?|^(como|quando|quanto|qual|quais|onde|quem|por\s*qu[eê]|pq|o\s*qu[eê])\b/i;
+
+// Caso REAL Luciano (32 8488-6907, 2026-10-17): "Mas vocês vão ver o que o
+// cartão consignado". Era pergunta, mas sem "?" e com o "o que" no MEIO — o
+// padrão acima exige a palavra interrogativa no INÍCIO, então a frase passou
+// como afirmação e o cliente levou a cobrança de volta. Duas vezes.
+//
+// Gente de 60+ digitando no WhatsApp raramente usa "?". Estas construções são
+// inequivocamente interrogativas mesmo no meio da frase; o que NÃO entra aqui
+// é a palavra interrogativa solta ("quem sabe", "o que você pediu eu mandei"),
+// que viraria falso positivo e desviaria o funil para a LLM sem necessidade.
+// ATENÇÃO ao \b perto de acento: em JS ele é definido por [A-Za-z0-9_], então
+// `\b[ée]` e `[ée]\b` NUNCA casam. Foi o que deixou "Esse desconto É o que"
+// passar batido. Onde a borda cai sobre letra acentuada, usa-se início/espaço.
+const PERGUNTA_SEM_INTERROGACAO =
+  /\bvoc[êe]s?\s+(v[ãa]o|vai|v[êe]em?|fazem?|analisam?|cobram?|olham?|precisam?|conseguem?|atendem?)\b|(^|[\s,])[ée]\s+o\s*qu[eê]|\btem\s+(como|certeza|jeito)\b|\bd[áa]\s+p(ra|ara)\s+\w+/i;
+
 export function ehPerguntaLivre(texto: string): boolean {
-  return PERGUNTA_LIVRE.test(texto.trim());
+  const t = texto.trim();
+  return PERGUNTA_LIVRE.test(t) || PERGUNTA_SEM_INTERROGACAO.test(t);
 }
 
 // Caso Sidinei (2026-07-22, cliente real): comprovante enviado como LINK do
@@ -821,6 +856,17 @@ export const MENSAGENS_JORNADA = {
    *  o passo pendente). */
   tranquilizarCustoCurto:
     'Fica tranquilo(a): a análise gratuita é realmente gratuita e você não paga NADA agora, nem para dar entrada no processo. Os honorários são do advogado e só existem em caso de êxito — saem do valor recuperado, no final. Sem êxito, você não paga nada.',
+  /** Caso REAL Luciano (32 8488-6907, 2026-10-17): "Mas vocês vão ver o que o
+   *  cartão consignado" e "Esse desconto é o que o cartão Master". Ele
+   *  perguntou DUAS vezes o que entra na análise e recebeu a cobrança de
+   *  interesse de volta, depois uma devolução genérica. É a pergunta mais
+   *  comum deste público — e a resposta é justamente a nossa especialidade,
+   *  então ela é AUTORADA, não improvisada. Responde e repõe o funil na mesma
+   *  mensagem (mesma forma do tranquilizarCusto). */
+  explicaOQueEntraNaAnalise:
+    'Entra sim — o cartão consignado é justamente o que mais aparece nessas análises.\n\n' +
+    'A gente olha TODOS os descontos do seu benefício: os empréstimos consignados, o cartão consignado (aquela "reserva de margem" que desconta todo mês e parece nunca acabar) e os seguros e mensalidades que às vezes entram sem a pessoa pedir. Seja qual for o banco.\n\n' +
+    'Para saber exatamente o que é cada desconto no seu caso, eu preciso ver o seu extrato. Posso seguir com a análise gratuita?',
   // Caso REAL Ubirajara (21 9..., 2026-07-31): o cliente disse NÃO e a resposta
   // respeitava a decisão na primeira frase e COBRAVA o HISCON na segunda (o
   // humanizador emendava a pendência). Recusa é recusa: cordial, agradece e
@@ -1192,6 +1238,13 @@ function respostaDaEtapa(f: FatosDaJornada, entrada: EntradaDoTurno): string {
       // antes de qualquer outra coisa, desfaz o medo e repõe a pergunta.
       if (ehPreocupacaoComCusto(entrada.texto)) {
         return MENSAGENS_JORNADA.tranquilizarCusto;
+      }
+      // Caso REAL Luciano (2026-10-17): "vocês vão ver o cartão consignado?" é
+      // a dúvida nº 1 deste público e toca a nossa especialidade — resposta
+      // autorada, que explica o escopo e repõe a pergunta do interesse. Vem
+      // antes da delegação à LLM: isto nós sabemos responder melhor que ela.
+      if (ehDuvidaSobreEscopo(entrada.texto)) {
+        return MENSAGENS_JORNADA.explicaOQueEntraNaAnalise;
       }
       if (perguntaLivre) return '';
       // Caso REAL Ubirajara (2026-07-31): recusa é recusa — cordial, agradece

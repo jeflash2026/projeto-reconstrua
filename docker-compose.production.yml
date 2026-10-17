@@ -261,6 +261,16 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    # QUEDA DE 2026-10-17: este serviço e o portal-juridico eram os ÚNICOS fora
+    # da rede do proxy. O nginx do NPM resolve o upstream pelo NOME do
+    # container; sem a rede em comum ele não achava "portal-humanizado" e
+    # RECUSAVA a configuração inteira — nginx não sobe com upstream
+    # irresolvível. Ficou invisível por meses porque nginx em execução ignora
+    # reload que falha; só o reboot, com partida fria, derrubou tudo de uma vez
+    # (WhatsApp, webhook da Meta, portais e landing).
+    networks:
+      - default
+      - npm-net
 
   # Decreto 2026-08-08: PAINEL JURÍDICO — o 2º painel (dono + sócio): clientes,
   # processos judiciais, guias e perícias do pós-protocolo.
@@ -286,6 +296,10 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    # Mesma falta do portal-humanizado — ver a nota lá em cima (queda 2026-10-17).
+    networks:
+      - default
+      - npm-net
 
   portal-perito:
     build:

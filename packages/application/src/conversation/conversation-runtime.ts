@@ -115,6 +115,21 @@ const FECHOS: readonly string[] = [
   'Combinado. Estou por aqui quando você precisar.',
 ];
 
+/** ÚLTIMO RECURSO (caso REAL Ana Paula, 16 99444-1006, 2026-10-17).
+ *
+ *  Com o LLM fora do ar (crédito zerado na Anthropic), TODO turno devolvia a
+ *  mesma fala de instabilidade; o guarda via repetição e gastava as devoluções
+ *  uma a uma. Esgotadas as quatro, esta função devolvia '' — e a cliente, que
+ *  acabara de escrever "estou necessitando muito de dinheiro por motivos de
+ *  saúde", não recebeu NADA. Silêncio é a pior saída possível ali.
+ *
+ *  Quando não há mais o que dizer, a verdade é que a conversa precisa de
+ *  gente — e o operador JÁ foi avisado por quem chamou esta função. Então a
+ *  última fala passa a anunciar isso, em vez de calar. Não promete prazo
+ *  (ninguém pode prometer pela equipe) e não inventa resposta. */
+const CHAMA_UMA_PESSOA =
+  'Deixa eu te ajudar melhor com isso: vou pedir para alguém da nossa equipe falar com você por aqui mesmo. Pode me contar o que precisa enquanto isso, que fica registrado.';
+
 /** A devolução que ainda não foi dita. A ordem diz o que importa: cortesia de
  *  fechamento vira FECHO (e, repetida, silêncio — conversa encerrada não precisa
  *  de mais nada); documento pendente vira o pedido dele (continuar a coleta vale
@@ -130,8 +145,13 @@ function devolucaoQueNaoRepete(view: ConversationContextView, jaDitas: readonly 
   // cala-se (o operador já foi avisado por quem chamou esta função).
   if (envelope !== null && (envelope.fileName != null || envelope.mediaUrl != null)) return '';
   const ultimaDoCliente = (envelope?.text ?? '').trim();
+  // Esgotadas as opções, a última palavra é chamar uma pessoa — nunca o vazio
+  // (caso Ana Paula, 2026-10-17: ela pediu ajuda e não recebeu resposta
+  // nenhuma). Só se a própria chamada de gente já foi dita é que se cala: aí
+  // repetir seria eco, e o operador já está avisado.
   const naoDita = (opcoes: readonly string[]): string =>
-    opcoes.find((texto) => !jaDitas.some((dita) => dita.trim() === texto)) ?? '';
+    [...opcoes, CHAMA_UMA_PESSOA].find((texto) => !jaDitas.some((dita) => dita.trim() === texto)) ??
+    '';
   if (
     ultimaDoCliente !== '' &&
     (CORTESIA_DE_FECHO.test(ultimaDoCliente) || SO_SIMBOLOS.test(ultimaDoCliente))

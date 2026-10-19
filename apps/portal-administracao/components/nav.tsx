@@ -9,6 +9,9 @@ import { useState, type ReactElement } from 'react';
 
 const ITEMS: ReadonlyArray<{ href: string; label: string } | { sep: string }> = [
   { href: '/', label: 'Centro de Comando' },
+  // 2026-10-19: conversa FALADA com a AHRI (Jarvis + voz). Fica no topo porque
+  // é a porta mais rápida para perguntar qualquer coisa da operação.
+  { href: '/voz', label: '🎙 Falar com a AHRI' },
   { sep: 'Advogado' },
   { href: '/casos', label: 'Meus Casos' },
   { sep: 'Inteligência' },

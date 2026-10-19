@@ -153,6 +153,29 @@ export interface JarvisResposta {
   mensagem?: JarvisMensagem;
   carteira?: JarvisCarteira;
 }
+// ── VOZ (2026-10-19) — o console falado do dono ──────────────────────────────
+// Duas chamadas separadas, não uma só: a tela mostra a transcrição assim que
+// ela sai ("foi isso que eu entendi") e só depois a resposta. Quem fala com
+// máquina precisa saber que foi ouvido antes de saber o que foi respondido.
+
+/** Áudio do microfone → texto. `null` quando não deu para entender. */
+export async function ouvirAudio(
+  audioBase64: string,
+  mime: string,
+): Promise<{ texto: string } | null> {
+  return sendJson<{ texto: string }>('POST', '/admin/voz/ouvir', { audioBase64, mime });
+}
+
+/** Texto da resposta → áudio MP3 em base64. `audioBase64` nulo = sem voz
+ *  (a resposta já está na tela; a fala é conforto, não função crítica). */
+export async function falarTexto(
+  texto: string,
+): Promise<{ audioBase64: string | null; mime: string | null } | null> {
+  return sendJson<{ audioBase64: string | null; mime: string | null }>('POST', '/admin/voz/falar', {
+    texto,
+  });
+}
+
 /** Pergunta livre OU comando ("mova 20 contratos para o advogado X"). */
 export async function perguntarJarvis(
   pergunta: string,

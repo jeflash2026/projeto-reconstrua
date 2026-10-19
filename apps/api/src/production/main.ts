@@ -8,7 +8,7 @@ import {
   ProductionGoLive,
   type DadosDoJuridico,
 } from '@reconstrua/infrastructure';
-import { SystemClock, UuidV4Generator } from '@reconstrua/infrastructure';
+import { SystemClock, UuidV4Generator, VozOpenAi } from '@reconstrua/infrastructure';
 import { planilhaDeContratosDetalhada } from '@reconstrua/application';
 import { buildProductionServer } from './production-server.js';
 import { buildAdminServer } from '../admin/admin-server.js';
@@ -94,6 +94,25 @@ async function main(): Promise<void> {
 
   const port = Number(env['PORT'] ?? '3001');
 
+  // VOZ DO CONSOLE (2026-10-19): a MESMA chave da OpenAI que já serve o LLM.
+  // Sem ela, `null` — as rotas de voz respondem 503 e o painel segue por texto.
+  // Modelo e timbre saem do ambiente para trocar sem deploy (tts-1-hd soa
+  // melhor e custa mais; 'nova' é o timbre feminino mais limpo em pt-BR).
+  const chaveOpenAi = env['OPENAI_API_KEY'] ?? '';
+  const vozDoConsole =
+    chaveOpenAi === ''
+      ? null
+      : new VozOpenAi({
+          apiKey: chaveOpenAi,
+          ...(env['OPENAI_STT_MODEL'] !== undefined
+            ? { modeloOuvido: env['OPENAI_STT_MODEL'] }
+            : {}),
+          ...(env['OPENAI_TTS_MODEL'] !== undefined ? { modeloFala: env['OPENAI_TTS_MODEL'] } : {}),
+          ...(env['OPENAI_TTS_VOICE'] !== undefined ? { voz: env['OPENAI_TTS_VOICE'] } : {}),
+          aoFalhar: (etapa, mensagem) =>
+            prod.observability.error('voz', etapa, clock.now(), mensagem),
+        });
+
   const main = buildProductionServer({ prod, env, startedAt });
   const admin = buildAdminServer(prod.adminView, {
     accessSecret: env['ADMIN_ACCESS_SECRET'] ?? '',
@@ -172,6 +191,9 @@ async function main(): Promise<void> {
     revinculo: prod.revinculo,
     // Decreto 2026-07-29: o Jarvis do Founder Console.
     jarvis: prod.jarvis,
+    // VOZ (2026-10-19): ouvido e boca do console falado. Sem OPENAI_API_KEY o
+    // objeto nem é criado e as rotas respondem 503 — o painel segue por texto.
+    ...(vozDoConsole !== null ? { voz: vozDoConsole } : {}),
     // Decreto 2026-07-30: docs da fase 2 humana (procuração/RG/comprovante).
     docsEquipe: prod.docsEquipe,
     // Decreto 2026-07-31: canal do último contato (meta/evolution/webchat).

@@ -463,6 +463,12 @@ export function buildAdminServer(
     /** 2026-09-29: completa o cadastro do Juridico com o que a AHRI ja tem
      *  (CPF, celular, cidade/UF) -- so os campos EM BRANCO. Ato do admin. */
     readonly completarJuridicoComAhri?: () => Promise<unknown>;
+    /** VOZ (2026-10-19) — ouvido e boca do console falado do dono. Opcional:
+     *  sem chave da OpenAI as rotas respondem 503 e o painel segue por texto. */
+    readonly voz?: {
+      transcrever(bytes: Uint8Array, mime: string): Promise<string | null>;
+      falar(texto: string): Promise<{ mime: string; bytes: Uint8Array } | null>;
+    };
     /** Decreto 2026-07-29: o JARVIS do Founder Console — pergunta livre
      *  fundamentada nos Read Models + comando de distribuição de contratos
      *  (plano com confirmação; NADA executa sem o clique do fundador). */
@@ -4583,6 +4589,37 @@ export function buildAdminServer(
       available: (metrics?.financialUnderAdministration ?? null) !== null,
       potencialRecuperacao: potencial,
     };
+  });
+
+  // ── VOZ (2026-10-19) — o console falado do dono ─────────────────────────────
+  //    Duas pontas separadas de propósito, em vez de um "turno" único: assim a
+  //    tela mostra a transcrição ASSIM QUE ela sai ("foi isso que eu entendi")
+  //    e só depois a resposta. Quem fala com máquina precisa saber que foi
+  //    ouvido antes de saber o que foi respondido. O cérebro no meio é o
+  //    Jarvis, que já existe — a voz não pensa nada por conta própria.
+  app.post('/admin/voz/ouvir', async (request, reply) => {
+    if (!opts.voz) return reply.code(503).send({ error: 'voz indisponível nesta montagem' });
+    const body = (request.body ?? {}) as { audioBase64?: string; mime?: string };
+    const base64 = (body.audioBase64 ?? '').trim();
+    if (base64 === '') return reply.code(400).send({ error: 'áudio obrigatório' });
+    const cru = base64.includes(',') ? base64.slice(base64.indexOf(',') + 1) : base64;
+    const bytes = new Uint8Array(Buffer.from(cru, 'base64'));
+    const texto = await opts.voz.transcrever(bytes, body.mime ?? 'audio/webm');
+    if (texto === null)
+      return reply.code(502).send({ error: 'não consegui entender o áudio — tente de novo' });
+    return { texto };
+  });
+
+  app.post('/admin/voz/falar', async (request, reply) => {
+    if (!opts.voz) return reply.code(503).send({ error: 'voz indisponível nesta montagem' });
+    const body = (request.body ?? {}) as { texto?: string };
+    const texto = (body.texto ?? '').trim();
+    if (texto === '') return reply.code(400).send({ error: 'texto obrigatório' });
+    const audio = await opts.voz.falar(texto);
+    // Falha de síntese NÃO é falha do turno: a resposta já está na tela, só
+    // não sai falada. Devolve 200 com audioBase64 nulo e a tela segue.
+    if (audio === null) return { audioBase64: null, mime: null };
+    return { audioBase64: Buffer.from(audio.bytes).toString('base64'), mime: audio.mime };
   });
 
   // ── FOUNDER CONSOLE ─────────────────────────────────────────────────────────

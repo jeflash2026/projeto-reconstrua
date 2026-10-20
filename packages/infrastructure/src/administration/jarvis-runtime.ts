@@ -383,14 +383,19 @@ export class JarvisRuntime {
     pergunta: string,
     historico: readonly TurnoConversa[],
   ): Promise<JarvisResposta> {
-    const dossier = await this.deps.dossier();
-    // "e o telefone dela?": sem cliente na frase, vale o citado na última fala do dono.
+    // EM PARALELO (2026-10-20): dossiê e ficha são independentes e cada um
+    // varre a base. Em série davam 53 s por pergunta — o console de voz ficava
+    // preso em "pensando…". A busca na frase anterior ("e o telefone dela?")
+    // também vai junto: custa o mesmo que esperar para decidir se precisa.
     const ultimaDoDono = [...historico].reverse().find((t) => t.de === 'dono')?.texto ?? null;
-    const ficha =
-      (await this.deps.fichaPorTermo(pergunta).catch(() => null)) ??
-      (ultimaDoDono !== null
-        ? await this.deps.fichaPorTermo(ultimaDoDono).catch(() => null)
-        : null);
+    const [dossier, fichaDaPergunta, fichaDaConversa] = await Promise.all([
+      this.deps.dossier(),
+      this.deps.fichaPorTermo(pergunta).catch(() => null),
+      ultimaDoDono !== null
+        ? this.deps.fichaPorTermo(ultimaDoDono).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+    const ficha = fichaDaPergunta ?? fichaDaConversa;
     const fatos: Record<string, unknown> = { ...dossier };
     if (ficha !== null) fatos['clienteCitado'] = ficha;
 

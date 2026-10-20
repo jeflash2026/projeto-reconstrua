@@ -624,6 +624,18 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     nomeAutoritativo: (chatId) => pericia.nomeDoHiscon(chatId),
   });
 
+  // LISTA DO JARVIS (2026-10-20, console de voz travado em "pensando…"): cada
+  // pergunta ao Jarvis compunha o ALIR da base INTEIRA duas a três vezes — uma
+  // no dossiê, uma na ficha do cliente citado e outra na frase anterior. Com
+  // 1.832 clientes, 53 segundos por pergunta; inutilizável por voz.
+  //
+  // A lista é a MESMA para todas elas, então vale uma vez por minuto. Com
+  // `requentar`, a versão vencida sai na hora e a varredura nova corre por
+  // trás: só a primeira pergunta depois de um reinício paga o preço cheio.
+  // Escopo deliberadamente limitado ao Jarvis — quem precisa de leitura fresca
+  // continua chamando clientes.list() direto.
+  const listaParaOJarvis = memoCurto(() => clientes.list(), 60_000, { requentar: true });
+
   // ── PORTAL DO CLIENTE · PC-R1/R3/R4: a projeção segura ÚNICA (Portal + AHRI) ──
   // D1: PROCESSING_ESTIMATE_DAYS lida AQUI, em um único ponto — Portal e mensagens
   // da AHRI consomem o MESMO valor. D3: a visão só compõe; nada nasce nela.
@@ -1923,7 +1935,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     dossier: async () => {
       const d: Record<string, unknown> = { geradoEm: clock.now().toISOString() };
       try {
-        const lista = await clientes.list();
+        const lista = await listaParaOJarvis();
         d['clientesTotal'] = lista.length;
         const porStatus: Record<string, number> = {};
         for (const c of lista) porStatus[c.status] = (porStatus[c.status] ?? 0) + 1;
@@ -2028,7 +2040,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     fichaPorTermo: async (pergunta) => {
       const semAcento = (s: string): string => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
       const p = semAcento(pergunta);
-      const lista = await clientes.list().catch(() => []);
+      const lista = await listaParaOJarvis().catch(() => []);
       const cliente =
         lista.find((c) => {
           const n = semAcento(c.quem);

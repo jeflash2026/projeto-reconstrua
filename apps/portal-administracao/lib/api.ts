@@ -31,6 +31,12 @@ export async function sendJson<T>(
   method: 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body: unknown,
+  // TETO DE ESPERA (2026-10-20): isto não tinha prazo NENHUM. O console de voz
+  // ficou preso em "pensando…" para sempre porque o Jarvis levava 53 s e o
+  // navegador esperava sem limite. Mesmo com a lentidão corrigida, pendurar
+  // indefinidamente nunca pode ser o comportamento — sem prazo, qualquer
+  // demora lá atrás vira uma tela morta aqui na frente, sem explicação.
+  timeoutMs = 120_000,
 ): Promise<T | null> {
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -38,6 +44,7 @@ export async function sendJson<T>(
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
       cache: 'no-store',
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return null;
     return (await res.json()) as T;

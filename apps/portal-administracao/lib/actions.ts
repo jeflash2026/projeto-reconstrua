@@ -158,6 +158,12 @@ export interface JarvisResposta {
 // ela sai ("foi isso que eu entendi") e só depois a resposta. Quem fala com
 // máquina precisa saber que foi ouvido antes de saber o que foi respondido.
 
+/** O servidor tem voz configurada (chave da OpenAI)? A tela pergunta UMA vez:
+ *  sem isso ela confunde "não entendi o áudio" com "não há voz no servidor". */
+export async function estadoDaVoz(): Promise<{ disponivel: boolean } | null> {
+  return getJson<{ disponivel: boolean }>('/admin/voz/estado');
+}
+
 /** Áudio do microfone → texto. `null` quando não deu para entender. */
 export async function ouvirAudio(
   audioBase64: string,

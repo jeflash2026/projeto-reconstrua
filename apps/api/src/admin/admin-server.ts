@@ -4597,6 +4597,11 @@ export function buildAdminServer(
   //    e só depois a resposta. Quem fala com máquina precisa saber que foi
   //    ouvido antes de saber o que foi respondido. O cérebro no meio é o
   //    Jarvis, que já existe — a voz não pensa nada por conta própria.
+  // A tela pergunta UMA vez se o servidor tem voz. Sem isso ela não saberia
+  // distinguir "não entendi o áudio" de "não há voz configurada" — e foi
+  // exatamente esse engano que mostrou a mensagem errada ao dono (2026-10-20).
+  app.get('/admin/voz/estado', () => ({ disponivel: opts.voz !== undefined }));
+
   app.post('/admin/voz/ouvir', async (request, reply) => {
     if (!opts.voz) return reply.code(503).send({ error: 'voz indisponível nesta montagem' });
     const body = (request.body ?? {}) as { audioBase64?: string; mime?: string };

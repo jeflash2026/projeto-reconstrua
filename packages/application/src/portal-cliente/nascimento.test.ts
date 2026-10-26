@@ -104,7 +104,11 @@ function runtime(
     all: () => Promise.resolve([]),
   };
   const nascimento = new NascimentoPortalRuntime({
-    clientes: { list: () => Promise.resolve(clientes) } as unknown as ClientesList,
+    clientes: {
+      list: () => Promise.resolve(clientes),
+      porClienteId: (id: string) =>
+        Promise.resolve(clientes.find((c) => c.clienteId === id) ?? null),
+    } as unknown as ClientesList,
     memory,
     liberacao,
     parecer,

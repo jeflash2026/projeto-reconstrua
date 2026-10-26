@@ -622,6 +622,16 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     // (que às vezes é a cidade). `pericia` é definido adiante; o closure só o acessa
     // em runtime (na montagem da lista), quando tudo já está inicializado.
     nomeAutoritativo: (chatId) => pericia.nomeDoHiscon(chatId),
+    // PONTE id canônico → chat (2026-10-26): o mapa de identidades é UMA
+    // consulta de linhas pequenas; a alternativa, usada em nove lugares até
+    // aqui, era compor a base inteira só para achar um cliente pelo id.
+    chatPorClienteId: async (clienteId) => {
+      const todas = (await json.list('identities').catch(() => [])) as readonly {
+        chatId?: string;
+        clienteId?: string;
+      }[];
+      return todas.find((i) => i.clienteId === clienteId)?.chatId ?? null;
+    },
   });
 
   // LISTA DE CLIENTES, MEMORIZADA (2026-10-20, console de voz travado em
@@ -1562,8 +1572,10 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
       await projector.refresh().catch(() => undefined);
       const chatId = projector.missions().find((m) => m.missionId === missionId)?.chatId ?? null;
       if (chatId === null) return semAbate('a missão não tem conversa vinculada');
-      const cliente = (await clientes.list()).find((c) => c.chatId === chatId);
-      if (cliente === undefined) return semAbate(`nenhum cliente com o chat ${chatId}`);
+      // porChat em vez da varredura (2026-10-26): compor a base inteira para
+      // achar UM cliente foi a causa de cinco quedas de tela em um mês.
+      const cliente = await clientes.porChat(chatId);
+      if (cliente === null) return semAbate(`nenhum cliente com o chat ${chatId}`);
       const acoes = await pericia.acoesDe(chatId);
       const processos = acoes?.agrupamento.resumo.totalAcoes ?? 0;
       if (processos <= 0) {
@@ -2571,7 +2583,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     | { ok: true; de: string | null; para: string; estornados: number; abatidos: number }
     | { ok: false; error: string }
   > => {
-    const cliente = (await clientes.list()).find((c) => c.chatId === chatId) ?? null;
+    const cliente = await clientes.porChat(chatId); // 2026-10-26: era varredura da base
     if (cliente === null) return { ok: false, error: 'cliente não encontrado' };
     const missionId = cliente.missionId;
     if (missionId === null) return { ok: false, error: 'cliente ainda não tem caso aberto' };
@@ -2636,7 +2648,7 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   const devolverAdvogado = async (
     chatId: string,
   ): Promise<{ ok: true; de: string; estornados: number } | { ok: false; error: string }> => {
-    const cliente = (await clientes.list()).find((c) => c.chatId === chatId) ?? null;
+    const cliente = await clientes.porChat(chatId); // 2026-10-26: era varredura da base
     if (cliente === null) return { ok: false, error: 'cliente não encontrado' };
     if (cliente.missionId === null)
       return { ok: false, error: 'cliente ainda não tem caso aberto' };

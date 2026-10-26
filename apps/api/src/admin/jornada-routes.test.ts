@@ -55,6 +55,8 @@ function harness(clientes: readonly ClienteResumo[]): Harness {
   const op = {
     clientes: {
       list: () => Promise.resolve(clientes),
+      porClienteId: (id: string) =>
+        Promise.resolve(clientes.find((c) => c.clienteId === id) ?? null),
       prontosParaVenda: () =>
         Promise.resolve(clientes.filter((c) => c.status === 'PRONTO_AGUARDANDO_VENDA')),
     },

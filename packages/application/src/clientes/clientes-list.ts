@@ -10,6 +10,7 @@
 // MemoryStore (enumerar clientes), ALIRComposer (visão única) e Readiness.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { MemoryStore } from '../living-memory/ports.js';
+import { emParalelo } from '../production/em-paralelo.js';
 import { alirQuem, type ALIR, type ALIRHealthBand } from '../alir/alir-contract.js';
 import type { ALIRComposer } from '../alir/alir-projection-builder.js';
 import { evaluateReadiness, type ReadinessResult } from '../qualification/readiness.js';
@@ -136,7 +137,16 @@ export interface ClientesDeps {
    *  nome REAL da pessoa e prevalece sobre o que a AHRI capturou na conversa (que
    *  às vezes é a cidade). Opcional (ausente ⇒ usa só o nome da identidade). */
   readonly nomeAutoritativo?: (chatId: string) => Promise<string | null>;
+  /** PONTE id canônico → chat (2026-10-26). Sem ela, achar UM cliente pelo
+   *  clienteId obriga a compor a base INTEIRA; com ela, é uma consulta barata
+   *  ao mapa de identidades. Opcional: ausente ⇒ porClienteId cai na
+   *  varredura, que continua correta — só lenta. */
+  readonly chatPorClienteId?: (clienteId: string) => Promise<string | null>;
 }
+
+/** Teto de composições simultâneas em `list()`. O pool do Postgres tem 10
+ *  conexões; 8 ocupa o pool e deixa folga para o tráfego que chega no meio. */
+const TRILHAS_DA_LISTA = 8;
 
 export class ClientesList {
   constructor(private readonly deps: ClientesDeps) {}
@@ -144,10 +154,11 @@ export class ClientesList {
   /** A lista única: um resumo por cliente conhecido, status derivado em leitura. */
   async list(now?: Date): Promise<readonly ClienteResumo[]> {
     const memories = await this.deps.memory.all();
-    const out: ClienteResumo[] = [];
-    for (const mem of memories) {
-      out.push(await this.resumo(mem.chatId, now));
-    }
+    // (2026-10-26) Era fila indiana: um await por cliente, o tempo da tela
+    // igual a SOMA de 1.832 composições. As telas que precisam da base
+    // inteira continuam precisando — o que muda é esperar em paralelo, com
+    // teto abaixo do pool do Postgres (10) para não afogar o resto.
+    const out = await emParalelo(memories, TRILHAS_DA_LISTA, (mem) => this.resumo(mem.chatId, now));
     return out.sort(
       (a, b) => (b.ultimoContatoAt?.getTime() ?? 0) - (a.ultimoContatoAt?.getTime() ?? 0),
     );
@@ -166,6 +177,22 @@ export class ClientesList {
     const memoria = await this.deps.memory.load(chatId);
     if (memoria === null) return null;
     return this.resumo(chatId, now);
+  }
+
+  /** UM cliente pelo id CANÔNICO, sem compor a base inteira.
+   *
+   *  (2026-10-26) Nove lugares faziam `(await list()).find(c => c.clienteId
+   *  === id)` — 1.832 composições de ALIR para achar uma. Foi a causa de cinco
+   *  quedas de tela em um mês. Aqui a ponte resolve o chat e o resto é o mesmo
+   *  porChat; sem a ponte, a varredura segue como reserva, porque estar certo
+   *  importa mais que ser rápido. */
+  async porClienteId(clienteId: string, now?: Date): Promise<ClienteResumo | null> {
+    const chatId = (await this.deps.chatPorClienteId?.(clienteId).catch(() => null)) ?? null;
+    if (chatId !== null) {
+      const achado = await this.porChat(chatId, now);
+      if (achado !== null) return achado;
+    }
+    return (await this.list(now)).find((c) => c.clienteId === clienteId) ?? null;
   }
 
   private async resumo(chatId: string, now?: Date): Promise<ClienteResumo> {

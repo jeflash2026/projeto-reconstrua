@@ -240,8 +240,8 @@ export class AcompanhamentoView {
 
   /** A projeção autorizada de UM cliente (null = não renderizável; resposta neutra). */
   async acompanhamento(clienteId: string, now?: Date): Promise<AcompanhamentoCliente | null> {
-    const cliente = (await this.deps.clientes.list(now)).find((c) => c.clienteId === clienteId);
-    if (cliente === undefined || cliente.clienteId === cliente.chatId) return null; // só cliente reconhecido
+    const cliente = await this.deps.clientes.porClienteId(clienteId, now); // 2026-10-26: era varredura da base
+    if (cliente === null || cliente.clienteId === cliente.chatId) return null; // só cliente reconhecido
 
     // Advogado (apenas o NOME — Princípio 6) e processo/atualizações (só o dizível).
     let advogado: { nome: string } | null = null;

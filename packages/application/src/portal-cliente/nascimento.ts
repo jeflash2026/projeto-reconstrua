@@ -241,8 +241,8 @@ export class NascimentoPortalRuntime {
   async enviarParecer(clienteId: string, now: Date): Promise<{ ok: boolean; motivo?: string }> {
     const { clientes, parecer, comunicador, config } = this.deps;
     if (config.tokenSecret === '') return { ok: false, motivo: 'sem segredo do link' };
-    const cliente = (await clientes.list(now)).find((c) => c.clienteId === clienteId);
-    if (cliente === undefined || cliente.clienteId === cliente.chatId) {
+    const cliente = await clientes.porClienteId(clienteId, now); // 2026-10-26: era varredura da base
+    if (cliente === null || cliente.clienteId === cliente.chatId) {
       return { ok: false, motivo: 'cliente não reconhecido' };
     }
     if ((await parecer.load(clienteId)) !== null) {

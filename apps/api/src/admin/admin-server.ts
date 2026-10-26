@@ -2047,7 +2047,7 @@ export function buildAdminServer(
     const { clienteId } = request.params as { clienteId: string };
     const body = (request.body ?? {}) as { confirmadoPor?: string };
 
-    const cliente = (await op.clientes.list()).find((c) => c.clienteId === clienteId);
+    const cliente = await op.clientes.porClienteId(clienteId); // 2026-10-26: era varredura da base
     if (!cliente) return reply.code(404).send({ error: 'cliente não encontrado' });
     if (cliente.status === 'AGUARDANDO_10_DIAS' || cliente.status === 'AGUARDANDO_SOCIO') {
       return reply.code(409).send({ error: 'pedidos já confirmados para este cliente' });
@@ -2112,7 +2112,7 @@ export function buildAdminServer(
     if (body.modalidade !== 'VENDA' && body.modalidade !== 'SOCIEDADE') {
       return reply.code(400).send({ error: 'modalidade deve ser VENDA ou SOCIEDADE' });
     }
-    const cliente = (await op.clientes.list()).find((c) => c.clienteId === clienteId);
+    const cliente = await op.clientes.porClienteId(clienteId); // 2026-10-26: era varredura da base
     if (!cliente) return reply.code(404).send({ error: 'cliente não encontrado' });
     if (cliente.clienteId === cliente.chatId) {
       return reply.code(409).send({ error: 'contato ainda não reconhecido como cliente' });
@@ -2138,7 +2138,7 @@ export function buildAdminServer(
     const comprador = body.comprador?.trim() ?? '';
     if (comprador === '') return reply.code(400).send({ error: 'comprador é obrigatório' });
 
-    const cliente = (await op.clientes.list()).find((c) => c.clienteId === clienteId);
+    const cliente = await op.clientes.porClienteId(clienteId); // 2026-10-26: era varredura da base
     if (!cliente) return reply.code(404).send({ error: 'cliente não encontrado' });
     if (cliente.status === 'VENDIDO') return reply.code(409).send({ error: 'cliente já vendido' });
     if (cliente.status !== 'PRONTO_AGUARDANDO_VENDA') {

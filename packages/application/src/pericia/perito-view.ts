@@ -105,13 +105,16 @@ export class PeritoView {
       const direto = await this.deps.clientes.porChat(clienteId, now);
       if (direto !== null) return this.contratosDoResumo(direto, now);
     }
-    // Aceita o id CANÔNICO do cliente OU o chatId — a lista "todos com HISCON" o
-    // referencia por chatId, e ambos são únicos (nunca colidem).
-    const cliente = (await this.deps.clientes.list(now)).find(
-      (c) => c.clienteId === clienteId || c.chatId === clienteId,
-    );
-    if (cliente === undefined) return null;
-    return this.contratosDoResumo(cliente, now);
+    // Id CANÔNICO (2026-10-26): resolvido pelo mapa de identidades, que é uma
+    // consulta barata. A varredura ficou só como reserva dentro do
+    // porClienteId — aceita os dois formatos, como antes, sem o custo.
+    const cliente = await this.deps.clientes.porClienteId(clienteId, now);
+    if (cliente !== null) return this.contratosDoResumo(cliente, now);
+    // Reserva final: a lista "todos com HISCON" referencia por chatId, e um
+    // chat sem identidade ainda precisa ser encontrado.
+    const porChatId = (await this.deps.clientes.list(now)).find((c) => c.chatId === clienteId);
+    if (porChatId === undefined) return null;
+    return this.contratosDoResumo(porChatId, now);
   }
 
   /** Núcleo da leitura de contratos a partir de um cliente JÁ resolvido — evita

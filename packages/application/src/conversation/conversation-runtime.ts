@@ -149,14 +149,20 @@ function devolucaoQueNaoRepete(view: ConversationContextView, jaDitas: readonly 
   // (caso Ana Paula, 2026-10-17: ela pediu ajuda e não recebeu resposta
   // nenhuma). Só se a própria chamada de gente já foi dita é que se cala: aí
   // repetir seria eco, e o operador já está avisado.
+  const primeiraNaoDita = (opcoes: readonly string[]): string =>
+    opcoes.find((texto) => !jaDitas.some((dita) => dita.trim() === texto)) ?? '';
   const naoDita = (opcoes: readonly string[]): string =>
-    [...opcoes, CHAMA_UMA_PESSOA].find((texto) => !jaDitas.some((dita) => dita.trim() === texto)) ??
-    '';
+    primeiraNaoDita([...opcoes, CHAMA_UMA_PESSOA]);
+  // ATENÇÃO (2026-10-26): o fecho é a ÚNICA porta onde o silêncio é a resposta
+  // certa, e por isso não passa pelo CHAMA_UMA_PESSOA. Quem escreveu "ok" pela
+  // terceira vez está se despedindo; chamar gente ali seria puxar a equipe
+  // para uma conversa que acabou — o oposto do caso Ana Paula, em que a
+  // cliente pedia ajuda e recebeu vazio.
   if (
     ultimaDoCliente !== '' &&
     (CORTESIA_DE_FECHO.test(ultimaDoCliente) || SO_SIMBOLOS.test(ultimaDoCliente))
   )
-    return naoDita(FECHOS);
+    return primeiraNaoDita(FECHOS);
   // DOSSIÊ JÁ ENTREGUE (caso REAL Angela, 2026-09-24): quem recebeu a análise
   // tem UM passo pendente, e ele tem nome — o SIM. Perguntar "o que você quer
   // fazer agora?" a essa pessoa é fingir que não se sabe o que falta.

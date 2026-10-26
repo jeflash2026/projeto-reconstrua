@@ -39,7 +39,11 @@ function perito(
   /** CPF por chatId (decreto 2026-07-27). Ausente ⇒ sem a dep (comportamento legado). */
   cpfs?: Record<string, string | null>,
 ) {
-  const fakeList = { list: () => Promise.resolve(clientes) } as unknown as ClientesList;
+  const fakeList = {
+    list: () => Promise.resolve(clientes),
+    porChat: (chatId: string) => Promise.resolve(clientes.find((c) => c.chatId === chatId) ?? null),
+    porClienteId: (id: string) => Promise.resolve(clientes.find((c) => c.clienteId === id) ?? null),
+  } as unknown as ClientesList;
   return new PeritoView({
     clientes: fakeList,
     documentosDaMissao: (missionId) => Promise.resolve(docsPorMissao[missionId] ?? []),
@@ -165,6 +169,7 @@ describe('PeritoView · contratos por chatId não varre a base', () => {
         return Promise.resolve([cliente]);
       },
       porChat: (chatId: string) => Promise.resolve(chatId === cliente.chatId ? cliente : null),
+      porClienteId: (id: string) => Promise.resolve(id === cliente.clienteId ? cliente : null),
     } as unknown as ClientesList;
     const view = new PeritoView({
       clientes,
@@ -185,11 +190,14 @@ describe('PeritoView · contratos por chatId não varre a base', () => {
     expect(contarListas()).toBe(0);
   });
 
-  it('id canônico do cliente ⇒ segue pela lista, como antes', async () => {
+  // 2026-10-26: este teste exigia que o id CANÔNICO ainda varresse a base —
+  // era a realidade de então, não uma regra desejável. Agora ele também
+  // resolve direto, pelo mapa de identidades, e a expectativa acompanha.
+  it('id canônico do cliente ⇒ resolve por porClienteId, sem varrer', async () => {
     const { view, contarListas } = espiao(resumo({ chatId: '5516997890971@webchat' }));
     const c = await view.contratos('cli-1', NOW);
     expect(c?.chatId).toBe('5516997890971@webchat');
-    expect(contarListas()).toBe(1);
+    expect(contarListas()).toBe(0);
   });
 
   it('chat desconhecido ⇒ cai na lista e devolve null (sem inventar cliente)', async () => {

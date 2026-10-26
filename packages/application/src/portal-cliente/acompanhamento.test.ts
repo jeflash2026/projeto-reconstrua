@@ -93,7 +93,10 @@ function view(
   liberacao: LiberacaoPortal | null = null,
   estimativaDias = 12,
 ) {
-  const fakeClientes = { list: () => Promise.resolve(clientes) } as unknown as ClientesList;
+  const fakeClientes = {
+    list: () => Promise.resolve(clientes),
+    porClienteId: (id: string) => Promise.resolve(clientes.find((c) => c.clienteId === id) ?? null),
+  } as unknown as ClientesList;
   const memory: MemoryStore = {
     load: (chatId: string): Promise<ClientMemory | null> =>
       Promise.resolve({

@@ -44,7 +44,11 @@ function harness(clientes: readonly ClienteResumo[], entregue = true) {
     },
   };
   const runtime = new DespedidaRuntime({
-    clientes: { list: () => Promise.resolve(clientes) } as unknown as ClientesList,
+    clientes: {
+      list: () => Promise.resolve(clientes),
+      porClienteId: (id: string) =>
+        Promise.resolve(clientes.find((c) => c.clienteId === id) ?? null),
+    } as unknown as ClientesList,
     despedida: store,
     comunicador: {
       comunicar: (chatId, _clienteId, texto) => {

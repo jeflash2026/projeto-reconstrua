@@ -556,7 +556,14 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
   let snapshotStore: SnapshotStore | undefined;
   let mediaStore: MediaStorePort;
   if (databaseUrl !== null) {
-    const sql = PostgresSqlClient.connect(databaseUrl);
+    // POOL (2026-10-26): o padrão de 10 conexões foi dimensionado para um
+    // acesso por vez. Agora as varreduras que precisam da base inteira compõem
+    // com 8 trilhas simultâneas, e o nascimento e a despedida rodam no MESMO
+    // tick de 60s — dois × 8 passariam de 10 e a próxima consulta (o turno da
+    // AHRI, por exemplo) ficaria na fila do pool. Com 24 sobra folga para o
+    // tráfego que chega no meio da varredura. O Postgres aceita 100 e só três
+    // serviços conectam (api, migrate com 1, e o relay).
+    const sql = PostgresSqlClient.connect(databaseUrl, { max: 24 });
     json = new PgJsonStore(sql);
     mediaStore = new PgMediaStore(sql);
     const pgEvents = new PgEventStore(sql, hasher, uuid);

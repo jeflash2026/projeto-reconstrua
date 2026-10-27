@@ -137,6 +137,15 @@ services:
       - '${ADMIN_PORT:-3102}' # admin API (interno, rede Docker)
       - '${ADVOGADO_PORT:-3103}' # advogado API (interno, rede Docker)
       - '${LX_PORT:-3004}' # lawyer experience API (interno, rede Docker)
+    # QUEDA DE 2026-10-26: a MESMA falta de 2026-10-17 (ver a nota do
+    # portal-humanizado), agora no api — o último serviço proxiado que seguia
+    # fora da rede do NPM. Ficou invisível porque nenhum host de proxy citava
+    # "api" pelo NOME; quando o webchat passou a citar, o nginx recusou a
+    # configuração inteira e levou o domínio TODO com ele por um dia inteiro
+    # (landing, portais, webhook da Meta e WhatsApp).
+    networks:
+      - default
+      - npm-net
 
   # ── PORTAIS (Next.js) — plataforma em UM domínio, subpaths /admin e /advogado ─
   # O NPM alcança os portais pela REDE DOCKER compartilhada (npm-net), por NOME de

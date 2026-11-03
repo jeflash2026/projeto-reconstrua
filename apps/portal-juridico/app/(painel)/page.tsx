@@ -112,6 +112,80 @@ export default async function DashboardPage(): Promise<ReactElement> {
             </div>
           )}
 
+          {/* ── A ESCADA (2026-11-03): onde está cada processo, da distribuição
+              ao pagamento. Responde num relance o que a lista de movimentos
+              não respondia: quantos já estão perto do dinheiro. ──────────── */}
+          {(dados.fases ?? []).some((f) => f.total > 0) ? (
+            <div className="secao-form">
+              <h3>Em que ponto estão os processos</h3>
+              <div className="escada">
+                {(dados.fases ?? []).map((f) => (
+                  <div key={f.fase} className={f.total === 0 ? 'degrau vazio' : 'degrau'}>
+                    <div className="d-num">{f.total}</div>
+                    <div className="d-rot">{f.rotulo}</div>
+                    {f.parados > 0 ? (
+                      <div className="d-parado">{f.parados} parado(s)</div>
+                    ) : (
+                      <div className="d-parado ok">&nbsp;</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* ── PARADOS: o alerta avisa do que ACONTECEU; este avisa do que
+              deixou de acontecer, que é mais difícil de notar. ───────────── */}
+          {(dados.parados ?? []).length > 0 ? (
+            <div
+              className="secao-form"
+              style={{ borderColor: '#e8c9c3', background: 'var(--vermelho-bg, #fdf1ef)' }}
+            >
+              <h3 style={{ color: 'var(--vermelho, #9a2b1f)' }}>
+                ⏳ Processos parados — sem movimentação há tempo demais
+              </h3>
+              <p className="subtitulo" style={{ marginTop: -4 }}>
+                A tolerância é diferente em cada fase: uma sentença que não anda há 45 dias preocupa
+                mais do que uma instrução na mesma situação.
+              </p>
+              <div className="tabela-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Parado há</th>
+                      <th>Cliente</th>
+                      <th>Processo</th>
+                      <th>Fase</th>
+                      <th>Último movimento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(dados.parados ?? []).map((p) => (
+                      <tr key={p.processo}>
+                        <td style={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
+                          {p.diasSemMovimento} dias
+                          <span style={{ fontWeight: 400, color: 'var(--ink-dim)' }}>
+                            {' '}
+                            (limite {p.limiteParado})
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{p.clienteNome}</td>
+                        <td className="mono" style={{ fontSize: 12.5 }}>
+                          <a href={urlDoProcesso(p.processo)}>{p.processo}</a>
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{p.fase}</td>
+                        <td>
+                          {p.ultimoMovimento}
+                          <span style={{ color: 'var(--ink-dim)' }}> · {dataBr(p.dataHora)}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
           {/* ── NÚMEROS QUE IMPORTAM ───────────────────────────────────────── */}
           <div className="cards">
             <a

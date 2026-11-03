@@ -15,6 +15,7 @@ import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
 import type { MediaStorePort } from '../media/media-store-port.js';
 import type { PublicacaoDjen } from './djen-client.js';
+import { contarPorFase, faseProcessualDe, type ContagemPorFase } from './fase-processual.js';
 // O valor base do processo e a parte da empresa vêm da FONTE ÚNICA — os mesmos
 // números do Painel do Investidor (decisão do dono, 2026-09-17).
 import {
@@ -1403,6 +1404,21 @@ export class JuridicoService {
     porBanco: readonly { banco: string; total: number }[];
     historico: readonly EventoHistorico[];
     distribuidosHoje: DistribuidosNoDia;
+    /** FASE (2026-11-03): quantos processos em cada degrau, da distribuição ao
+     *  pagamento — e quantos deles já pararam de andar. */
+    fases: readonly ContagemPorFase[];
+    /** Processos sem movimento além da tolerância da PRÓPRIA fase, do mais
+     *  esquecido para o menos. Processo parado não emite sinal nenhum: ele só
+     *  não aparece, e é assim que se perde prazo e cliente. */
+    parados: readonly {
+      processo: string;
+      clienteNome: string;
+      fase: string;
+      diasSemMovimento: number;
+      limiteParado: number;
+      ultimoMovimento: string;
+      dataHora: string;
+    }[];
   }> {
     const [clientes, contratos, eventos, guias, pericias, andamentos, resultados] =
       await Promise.all([
@@ -1474,6 +1490,25 @@ export class JuridicoService {
       (max, a) => (max === null || a.consultadoEm > max ? a.consultadoEm : max),
       null,
     );
+
+    // PARADOS (2026-11-03): o oposto do alerta. O alerta avisa do que ACONTECEU;
+    // este avisa do que deixou de acontecer, que é mais difícil de notar e
+    // normalmente mais caro.
+    const agoraIso = this.agora();
+    const parados = andamentos
+      .map((a) => ({ a, f: faseProcessualDe(a, agoraIso) }))
+      .filter(({ f }) => f.parado && f.diasSemMovimento !== null)
+      .map(({ a, f }) => ({
+        processo: a.numero,
+        clienteNome: clientesPorProcesso.get(a.numero.replace(/\D/g, '')) ?? '—',
+        fase: f.rotulo,
+        diasSemMovimento: f.diasSemMovimento ?? 0,
+        limiteParado: f.limiteParado,
+        ultimoMovimento: a.ultimoMovimento?.nome ?? '—',
+        dataHora: a.ultimoMovimento?.dataHora ?? '',
+      }))
+      .sort((x, y) => y.diasSemMovimento - x.diasSemMovimento);
+
     return {
       clientes: clientes.length,
       contratos: naoExcluidos.length,
@@ -1510,6 +1545,8 @@ export class JuridicoService {
         .slice(0, 8),
       historico: eventos,
       distribuidosHoje: distribuidosNoDia(contratos, nomePorCliente, this.deps.clock.now()),
+      fases: contarPorFase(andamentos, agoraIso),
+      parados: parados.slice(0, 20),
     };
   }
 }

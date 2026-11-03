@@ -173,6 +173,25 @@ export interface DashboardJuridico {
     clientes: number;
     itens: { processo: string; banco: string; clienteNome: string; em: string }[];
   };
+  /** FASE (2026-11-03): a escada da distribuição ao pagamento. Opcionais pelo
+   *  mesmo motivo dos campos acima — API anterior ao deploy não manda. */
+  fases?: {
+    fase: string;
+    rotulo: string;
+    ordem: number;
+    total: number;
+    parados: number;
+  }[];
+  /** Processos que pararam de andar além da tolerância da própria fase. */
+  parados?: {
+    processo: string;
+    clienteNome: string;
+    fase: string;
+    diasSemMovimento: number;
+    limiteParado: number;
+    ultimoMovimento: string;
+    dataHora: string;
+  }[];
 }
 
 export function moeda(valor: number | null): string {

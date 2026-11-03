@@ -558,3 +558,50 @@ textarea:focus {
     display: none;
   }
 }
+
+/* ── A ESCADA DO PROCESSO (2026-11-03) ────────────────────────────────────────
+   Oito degraus, da distribuição ao pagamento, lado a lado. Os vazios ficam
+   visíveis de propósito: a lacuna entre "Sentença" e "Execução" é informação,
+   não sujeira — mostra onde a carteira empaca. */
+.escada {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.degrau {
+  background: var(--card);
+  border: 1px solid var(--linha);
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.degrau.vazio {
+  opacity: 0.45;
+}
+
+.d-num {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.d-rot {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  margin-top: 2px;
+}
+
+.d-parado {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--vermelho);
+  margin-top: 4px;
+}
+
+.d-parado.ok {
+  color: transparent;
+}

@@ -605,3 +605,75 @@ textarea:focus {
 .d-parado.ok {
   color: transparent;
 }
+
+/* ── O PARECER DA AHRI (2026-11-03) ───────────────────────────────────────────
+   Cartões em vez de tabela: o resumo é prosa, e prosa em célula de tabela fica
+   ilegível. O prazo vem antes do nome porque é o que ordena a leitura. */
+.pareceres {
+  display: grid;
+  gap: 10px;
+}
+
+.parecer {
+  background: var(--card);
+  border: 1px solid var(--linha);
+  border-left: 3px solid var(--linha);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.parecer.vencido {
+  border-left-color: var(--vermelho);
+}
+
+.p-topo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.p-prazo {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.p-tipo {
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.p-resumo {
+  font-size: 13.5px;
+  line-height: 1.55;
+  margin: 0 0 6px;
+}
+
+.p-passo {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+  color: var(--ink-dim);
+}
+
+.p-passo b {
+  color: var(--ink);
+}
+
+.p-det {
+  margin: 8px 0 0 18px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+
+.p-resp {
+  color: var(--ink-dim);
+  font-style: italic;
+}

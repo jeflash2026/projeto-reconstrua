@@ -292,6 +292,13 @@ export interface AlertaProcessual {
   readonly ciente: boolean;
 }
 
+/** O MESMO alerta, visto do Painel Jurídico (2026-11-03). Não tem `ciente`
+ *  porque o "ciente" é do advogado dono do caso, nem `chatId` porque o dono
+ *  não abre a conversa daqui — tem o nome do cliente, que é o que ele procura. */
+export interface AlertaDoJuridico extends Omit<AlertaProcessual, 'cliente' | 'chatId' | 'ciente'> {
+  readonly clienteNome: string;
+}
+
 export interface PainelAcompanhamento {
   readonly hoje: string;
   readonly alertas: readonly AlertaProcessual[];
@@ -586,6 +593,60 @@ export class AcompanhamentoProcessual {
       aguardandoParecer,
       parecerDisponivel: this.deps.completar !== null,
     };
+  }
+
+  /** ALERTAS DO PAINEL JURÍDICO (2026-11-03) — os mesmos pareceres que o
+   *  advogado já recebe, agora agregados para o dono da operação.
+   *
+   *  A AHRI escreve um parecer por intimação desde setembro (205 deles), com
+   *  resumo em linguagem comum, o que o juízo determinou e o prazo. Só que
+   *  isso vivia apenas no painel do advogado: no Jurídico o dono lia "DJEN ·
+   *  Intimação" e tinha de adivinhar o que significava.
+   *
+   *  Não há consulta nova nem IA nova aqui — o dado já estava gravado.
+   *  Varre TODOS os processos do Jurídico, não os de um advogado só. */
+  async alertasDoJuridico(
+    dados: Omit<DadosDoJuridico, 'entregas'>,
+  ): Promise<readonly AlertaDoJuridico[]> {
+    const registros = await this.listar(NS_ANALISES);
+    const analises = new Map<string, AnaliseMovimento>();
+    for (const r of registros) if (ehAnalise(r)) analises.set(r.chave, r);
+    if (analises.size === 0) return [];
+
+    const hoje = this.hoje();
+    const desde = somarDias(hoje, -JANELA_DIAS);
+    const nomePorCliente = new Map(dados.clientes.map((c) => [c.id, c.nome] as const));
+    const nomePorProcesso = new Map<string, string>();
+    for (const c of dados.contratos) {
+      if (c.status === 'excluido') continue;
+      const chave = c.processoNumero.replace(/\D/g, '');
+      if (!nomePorProcesso.has(chave))
+        nomePorProcesso.set(chave, nomePorCliente.get(c.clienteId) ?? '—');
+    }
+
+    const alertas: AlertaDoJuridico[] = [];
+    for (const a of dados.andamentos) {
+      for (const m of a.movimentos) {
+        if (!ehAnalisavel(m, desde)) continue;
+        const analise = analises.get(chaveDaComunicacao(a.numero, m));
+        if (analise === undefined) continue;
+        const alerta = this.alertaDe(analise, hoje);
+        if (alerta === null) continue;
+        alertas.push({
+          ...alerta,
+          clienteNome: nomePorProcesso.get(a.numero.replace(/\D/g, '')) ?? '—',
+        });
+      }
+    }
+    // Vencido primeiro (é o que dói), depois o mais perto de vencer. Sem prazo
+    // escrito no texto vai para o fim — importa, mas não tem relógio correndo.
+    return alertas.sort((x, y) => {
+      if (x.diasRestantes === null && y.diasRestantes === null)
+        return y.dataPublicacao.localeCompare(x.dataPublicacao);
+      if (x.diasRestantes === null) return 1;
+      if (y.diasRestantes === null) return -1;
+      return x.diasRestantes - y.diasRestantes;
+    });
   }
 
   /** A ficha de UM processo no Painel Jurídico: a linha do tempo com o parecer

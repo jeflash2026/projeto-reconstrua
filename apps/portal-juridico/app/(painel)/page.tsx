@@ -30,6 +30,26 @@ function soHoraBr(iso: string): string {
   return horaBr(iso).slice(-5);
 }
 
+/** O selo de prazo do parecer. O que já venceu grita; o que vence esta semana
+ *  avisa; o resto fica discreto para não competir com os dois primeiros. */
+function seloDePrazo(a: { diasRestantes: number | null; vencido: boolean }): {
+  texto: string;
+  cor: string;
+  fundo: string;
+} {
+  if (a.diasRestantes === null)
+    return { texto: 'sem prazo no texto', cor: 'var(--ink-dim)', fundo: 'transparent' };
+  if (a.vencido)
+    return {
+      texto: `vencido há ${Math.abs(a.diasRestantes)} dia(s)`,
+      cor: '#fff',
+      fundo: 'var(--vermelho)',
+    };
+  if (a.diasRestantes <= 5)
+    return { texto: `vence em ${a.diasRestantes} dia(s)`, cor: '#fff', fundo: 'var(--ambar)' };
+  return { texto: `vence em ${a.diasRestantes} dias`, cor: 'var(--ink-dim)', fundo: 'transparent' };
+}
+
 export default async function DashboardPage(): Promise<ReactElement> {
   const dados = await getJson<DashboardJuridico>('/admin/juridico/dashboard');
 
@@ -66,6 +86,62 @@ export default async function DashboardPage(): Promise<ReactElement> {
         <div className="erro-box">API indisponível — recarregue em instantes.</div>
       ) : (
         <>
+          {/* ── O PARECER DA AHRI (2026-11-03): vem PRIMEIRO porque é o único
+              bloco que diz o que fazer, e não só o que aconteceu. ─────────── */}
+          {(dados.alertasAhri ?? []).length > 0 ? (
+            <div className="secao-form">
+              <h3>🧠 O que a AHRI leu nas intimações</h3>
+              <p className="subtitulo" style={{ marginTop: -4 }}>
+                Parecer automático de cada comunicação do DJEN, atualizado a cada 6 horas. O prazo é
+                calculado pelo código em dias úteis — nunca pela IA.
+              </p>
+              <div className="pareceres">
+                {(dados.alertasAhri ?? []).map((a) => {
+                  const selo = seloDePrazo(a);
+                  return (
+                    <div key={a.chave} className={a.vencido ? 'parecer vencido' : 'parecer'}>
+                      <div className="p-topo">
+                        <span
+                          className="p-prazo"
+                          style={{ color: selo.cor, background: selo.fundo }}
+                        >
+                          {selo.texto}
+                        </span>
+                        <b>{a.clienteNome}</b>
+                        <a className="mono" href={urlDoProcesso(a.processo)}>
+                          {a.processo}
+                        </a>
+                        <span className="p-tipo">
+                          {a.tipo} · {dataBr(a.dataPublicacao)}
+                        </span>
+                      </div>
+                      <p className="p-resumo">{a.resumo}</p>
+                      <p className="p-passo">
+                        <b>Próximo passo:</b> {a.proximoPasso}
+                      </p>
+                      {a.determinacoes.length > 0 ? (
+                        <ul className="p-det">
+                          {a.determinacoes.map((d, i) => (
+                            <li key={i}>
+                              {d.oQue}
+                              <span className="p-resp">
+                                {' '}
+                                — {d.responsavel}
+                                {d.prazoDias !== null
+                                  ? ` · ${d.prazoDias} dias ${d.diasCorridos ? 'corridos' : 'úteis'}`
+                                  : ''}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           {/* ── ALERTAS: o que precisa da atenção de vocês AGORA ───────────── */}
           {dados.alertas.length > 0 ? (
             <div

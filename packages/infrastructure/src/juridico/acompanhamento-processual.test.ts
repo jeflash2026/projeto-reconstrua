@@ -404,3 +404,75 @@ describe('AcompanhamentoProcessual', () => {
     });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ALERTAS DO PAINEL JURÍDICO (2026-11-03) — o mesmo parecer, agora agregado
+// para o dono da operação, sem o recorte por advogado.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('alertasDoJuridico', () => {
+  const soJuridico = {
+    clientes: dados.clientes,
+    contratos: dados.contratos,
+    andamentos: dados.andamentos,
+  };
+
+  it('traz o parecer com o nome do cliente do Jurídico, sem recorte por advogado', async () => {
+    const acompanhamento = new AcompanhamentoProcessual({
+      json: memoria(),
+      clock: relogio,
+      completar: () => Promise.resolve(PARECER_TAIS),
+    });
+    await acompanhamento.analisarPendentes(andamentos);
+
+    const alertas = await acompanhamento.alertasDoJuridico(soJuridico);
+    expect(alertas.length).toBeGreaterThan(0);
+    const primeiro = alertas[0];
+    expect(primeiro?.resumo).toContain('notifica');
+    expect(primeiro?.proximoPasso.length).toBeGreaterThan(0);
+    expect(primeiro?.determinacoes).toHaveLength(2);
+    // O nome vem do cadastro do Jurídico, não da conversa.
+    expect(alertas.every((a) => a.clienteNome !== '')).toBe(true);
+    expect(alertas.some((a) => a.clienteNome.includes('Taís'))).toBe(true);
+  });
+
+  it('ordena por urgência: menos dias restantes primeiro, sem prazo por último', async () => {
+    const acompanhamento = new AcompanhamentoProcessual({
+      json: memoria(),
+      clock: relogio,
+      completar: () => Promise.resolve(PARECER_TAIS),
+    });
+    await acompanhamento.analisarPendentes(andamentos);
+
+    const dias = (await acompanhamento.alertasDoJuridico(soJuridico)).map((a) => a.diasRestantes);
+    const comPrazo = dias.filter((d): d is number => d !== null);
+    expect([...comPrazo].sort((x, y) => x - y)).toEqual(comPrazo);
+    const semPrazo = dias.length - comPrazo.length;
+    expect(dias.slice(dias.length - semPrazo).every((d) => d === null)).toBe(true);
+  });
+
+  it('processo fora do cadastro do Jurídico não fica sem rótulo', async () => {
+    const acompanhamento = new AcompanhamentoProcessual({
+      json: memoria(),
+      clock: relogio,
+      completar: () => Promise.resolve(PARECER_TAIS),
+    });
+    await acompanhamento.analisarPendentes(andamentos);
+
+    const alertas = await acompanhamento.alertasDoJuridico({
+      clientes: [],
+      contratos: [],
+      andamentos: dados.andamentos,
+    });
+    expect(alertas.length).toBeGreaterThan(0);
+    expect(alertas.every((a) => a.clienteNome === '—')).toBe(true);
+  });
+
+  it('sem nenhum parecer gravado devolve vazio — o painel volta ao que era', async () => {
+    const acompanhamento = new AcompanhamentoProcessual({
+      json: memoria(),
+      clock: relogio,
+      completar: null,
+    });
+    expect(await acompanhamento.alertasDoJuridico(soJuridico)).toEqual([]);
+  });
+});

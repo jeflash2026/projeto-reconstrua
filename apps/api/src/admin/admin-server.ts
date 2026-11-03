@@ -2658,7 +2658,24 @@ export function buildAdminServer(
 
   app.get('/admin/juridico/dashboard', async (_request, reply) => {
     if (!opts.juridico) return reply.code(503).send(juridicoIndisponivel);
-    return opts.juridico.dashboard();
+    const juridico = opts.juridico;
+    const acompanhamento = opts.acompanhamentoProcessual;
+    // ALERTAS DA AHRI (2026-11-03): o parecer de cada intimação já existia e
+    // só o advogado via. O dashboard do dono passa a mostrar o mesmo — sem
+    // consulta nova nem IA nova, o dado já está gravado. Falha aqui NUNCA
+    // derruba o dashboard: o painel volta ao que era antes.
+    const alertasAhri =
+      acompanhamento === undefined
+        ? []
+        : await (async () => {
+            const [clientes, contratos, andamentos] = await Promise.all([
+              juridico.listarClientes(),
+              juridico.listarContratos(),
+              juridico.listarAndamentos(),
+            ]);
+            return acompanhamento.alertasDoJuridico({ clientes, contratos, andamentos });
+          })().catch(() => []);
+    return { ...(await juridico.dashboard()), alertasAhri: alertasAhri.slice(0, 12) };
   });
 
   app.get('/admin/juridico/clientes', async (_request, reply) => {

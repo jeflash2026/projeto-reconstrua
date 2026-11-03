@@ -182,6 +182,28 @@ export interface DashboardJuridico {
     total: number;
     parados: number;
   }[];
+  /** O PARECER DA AHRI por intimação (2026-11-03): o mesmo que o advogado
+   *  recebe, agora aqui. Ordenado por urgência — vencido primeiro. */
+  alertasAhri?: {
+    chave: string;
+    processo: string;
+    clienteNome: string;
+    dataPublicacao: string;
+    tipo: string;
+    resumo: string;
+    proximoPasso: string;
+    determinacoes: {
+      oQue: string;
+      responsavel: string;
+      prazoDias: number | null;
+      diasCorridos: boolean;
+      vencimentoEstimado: string | null;
+      diasRestantes: number | null;
+    }[];
+    vencimentoEstimado: string | null;
+    diasRestantes: number | null;
+    vencido: boolean;
+  }[];
   /** Processos que pararam de andar além da tolerância da própria fase. */
   parados?: {
     processo: string;

@@ -18,7 +18,7 @@ import {
   montarPastasPorAdvogado,
   type EntregaAoAdvogado,
 } from '@reconstrua/infrastructure';
-import { zipStore, nomeArquivoSeguro } from '../util/zip.js';
+import { zipStore, nomeArquivoSeguro, nomeComExtensao } from '../util/zip.js';
 import { xlsxDePlanilha } from '../util/xlsx.js';
 import {
   CATALOGO_CONSIGNADO_INSS,
@@ -1064,9 +1064,16 @@ export function buildAdminServer(
         for (const d of docs) {
           const baixado = await opts.docsEquipe.baixar(chatId, d.id).catch(() => null);
           if (baixado === null) continue;
-          const nome = nomeArquivoSeguro(
-            `${d.rotulo ?? d.nome ?? 'documento'} - ${baixado.nome}`,
-            `doc-${d.id.slice(0, 8)}`,
+          // EXTENSÃO GARANTIDA (2026-11-11, caso MARIA GORETE): o nome do
+          // upload da equipe costuma chegar sem extensão e o documento descia
+          // como "Comprovante de endereço - comprovante-5567…" — o advogado
+          // baixava e o arquivo não abria em programa nenhum.
+          const nome = nomeComExtensao(
+            nomeArquivoSeguro(
+              `${d.rotulo ?? d.nome ?? 'documento'} - ${baixado.nome}`,
+              `doc-${d.id.slice(0, 8)}`,
+            ),
+            baixado.mime,
           );
           arquivos.push({ name: `documentos/${nome}`, content: Buffer.from(baixado.bytes) });
         }
@@ -4761,7 +4768,10 @@ export function buildAdminServer(
     if (doc === null) return reply.code(404).send({ error: 'documento não encontrado' });
     return reply
       .header('content-type', doc.mime)
-      .header('content-disposition', `attachment; filename="${doc.nome.replace(/"/g, '')}"`)
+      .header(
+        'content-disposition',
+        `attachment; filename="${nomeComExtensao(doc.nome.replace(/"/g, ''), doc.mime)}"`,
+      )
       .send(Buffer.from(doc.bytes));
   });
   app.delete('/admin/clientes/:chatId/docs-equipe/:id', async (request, reply) => {

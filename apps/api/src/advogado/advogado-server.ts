@@ -13,6 +13,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import type { AssembledAdvogadoOperation } from '@reconstrua/infrastructure';
 import { NotAssignedError, type JuridicalEntryKind } from '@reconstrua/application';
 import { requireBearer } from '../auth/bearer-guard.js';
+import { nomeComExtensao } from '../util/zip.js';
 
 const ENTRY_KINDS: readonly JuridicalEntryKind[] = [
   'numero_processo',
@@ -989,14 +990,9 @@ export function buildAdvogadoServer(
     // foto do WhatsApp foram salvos sem ".jpg" — o download não abria no clique
     // duplo e o advogado lia como "não recebi". Para o acervo antigo, a
     // extensão certa vem do mime na hora de servir.
-    const extPorMime: Record<string, string> = {
-      'application/pdf': 'pdf',
-      'image/png': 'png',
-      'image/jpeg': 'jpg',
-    };
-    const ext = extPorMime[doc.mime] ?? 'bin';
-    const nomeLimpo = doc.nome.replace(/"/g, '');
-    const nomeFinal = /\.[a-z0-9]{2,4}$/i.test(nomeLimpo) ? nomeLimpo : `${nomeLimpo}.${ext}`;
+    // A regra virou util compartilhada em 2026-11-11, quando o MESMO defeito
+    // reapareceu no pacote do cliente e no download do Admin (caso MARIA GORETE).
+    const nomeFinal = nomeComExtensao(doc.nome.replace(/"/g, ''), doc.mime);
     return reply
       .header('content-type', doc.mime)
       .header('content-disposition', `attachment; filename="${nomeFinal}"`)

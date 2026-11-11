@@ -149,3 +149,22 @@ export function nomeArquivoSeguro(bruto: string, fallback: string): string {
     .slice(0, 80);
   return limpo === '' ? fallback : limpo;
 }
+
+/** Extensão de arquivo correspondente ao mime — os quatro que o sistema aceita
+ *  (PDF/JPEG/PNG) mais o escape para o que não reconhecemos. */
+export function extensaoDoMime(mime: string): string {
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime === 'image/png') return 'png';
+  if (mime.startsWith('image/')) return 'jpg';
+  return 'bin';
+}
+
+/** EXTENSÃO GARANTIDA. Caso Cornélio (2026-08-18): foto do WhatsApp guardada
+ *  sem ".jpg" descia e não abria no clique duplo — o advogado lia como "não
+ *  recebi". A correção de então ficou SÓ no Portal do Advogado; em 2026-11-11 o
+ *  mesmo arquivo reapareceu sem extensão no pacote do cliente e no download do
+ *  Admin. Agora a regra mora aqui e vale para todo mundo: quem já tem extensão
+ *  passa intacto; quem não tem ganha a do mime. */
+export function nomeComExtensao(nome: string, mime: string): string {
+  return /\.[a-z0-9]{2,4}$/i.test(nome) ? nome : `${nome}.${extensaoDoMime(mime)}`;
+}

@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import type { Clock } from '@reconstrua/domain';
 import type { JsonStore } from '../production/json-store.js';
 import type { MediaStorePort } from '../media/media-store-port.js';
+import { nomeComExtensao } from '../util/zip.js';
 
 const NS = 'docs-equipe';
 // 30 MB (2026-09-29, pedido do dono: procuração assinada não subia). Scan de
@@ -97,7 +98,12 @@ export class DocsEquipeService {
         bytes: new Uint8Array(bytes),
       });
     }
-    const nome = nomeBruto.replace(/[^\w.\- ()]/g, '').slice(0, 120) || `${tipo}.pdf`;
+    // EXTENSÃO GARANTIDA NA ORIGEM (2026-11-11): o time anexa arquivos salvos
+    // do WhatsApp, que chegam sem ".jpg" — e o nome sem extensão seguia até o
+    // advogado, que baixava e não conseguia abrir. O mime vem do magic byte
+    // conferido acima, então é a extensão REAL, não a que o nome alega.
+    const limpo = nomeBruto.replace(/[^\w.\- ()]/g, '').slice(0, 120);
+    const nome = nomeComExtensao(limpo === '' ? tipo : limpo, assinatura.mime);
     const doc: DocEquipe = {
       id: `de-${Date.now().toString(36)}-${sha256.slice(0, 8)}`,
       tipo,

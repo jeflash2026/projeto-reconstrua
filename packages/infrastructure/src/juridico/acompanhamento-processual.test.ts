@@ -9,6 +9,7 @@ import {
   ehDiaUtilForense,
   estimarVencimento,
   parseParecer,
+  resumoParaInvestidor,
   type ArmazemAcompanhamento,
   type DadosDoJuridico,
 } from './acompanhamento-processual.js';
@@ -474,5 +475,61 @@ describe('alertasDoJuridico', () => {
       completar: null,
     });
     expect(await acompanhamento.alertasDoJuridico(soJuridico)).toEqual([]);
+  });
+});
+
+// A LINHA DO INVESTIDOR (2026-11-20): a primeira frase do resumo da AHRI, sem
+// o nome do cliente nem CPF. O investidor só vê iniciais.
+describe('resumoParaInvestidor', () => {
+  const TAIS = ['Taís Regina Caetano da Silva'];
+
+  it('fica só a primeira frase — o que o juiz decidiu', () => {
+    expect(
+      resumoParaInvestidor(
+        'Sentença publicada julgando procedente o pedido, com devolução em dobro. O banco pode recorrer em 15 dias.',
+        TAIS,
+      ),
+    ).toBe('Sentença publicada julgando procedente o pedido, com devolução em dobro.');
+  });
+
+  it('tira o nome do cliente — em maiúsculas, sem acento, inteiro ou em parte', () => {
+    const r = resumoParaInvestidor(
+      'O juiz deferiu a justiça gratuita a TAIS REGINA CAETANO DA SILVA e mandou citar o banco.',
+      TAIS,
+    );
+    expect(r).toBe('O juiz deferiu a justiça gratuita ao cliente e mandou citar o banco.');
+    expect(
+      resumoParaInvestidor('A autora, Taís Caetano, deve juntar o extrato do benefício.', TAIS),
+    ).not.toMatch(/Ta[ií]s|Caetano/i);
+    expect(resumoParaInvestidor('Perícia designada para a autora Taís.', TAIS)).toBe(
+      'Perícia designada para o cliente.',
+    );
+  });
+
+  it('palavra comum que não é parte do nome continua; o banco continua', () => {
+    expect(
+      resumoParaInvestidor('O Banco Pan foi intimado a apresentar o contrato assinado.', TAIS),
+    ).toBe('O Banco Pan foi intimado a apresentar o contrato assinado.');
+  });
+
+  it('tira o CPF', () => {
+    const r = resumoParaInvestidor(
+      'O juiz determinou a pesquisa de bens do CPF 123.456.789-09 junto ao banco.',
+      TAIS,
+    );
+    expect(r).not.toMatch(/\d{3}\.\d{3}/);
+    expect(r).not.toContain('CPF');
+  });
+
+  it('frase longa é cortada numa palavra inteira, com reticências', () => {
+    const r = resumoParaInvestidor(`O juiz ${'determinou providências '.repeat(15)}finais.`, TAIS);
+    expect(r?.length).toBeLessThanOrEqual(180);
+    expect(r?.endsWith('…')).toBe(true);
+    expect(r).not.toMatch(/ …$/);
+  });
+
+  it('sem nome conhecido para tirar ⇒ não mostra nada (melhor calar que vazar)', () => {
+    expect(resumoParaInvestidor('O juiz mandou citar o banco.', [])).toBeNull();
+    expect(resumoParaInvestidor('O juiz mandou citar o banco.', ['de da'])).toBeNull();
   });
 });

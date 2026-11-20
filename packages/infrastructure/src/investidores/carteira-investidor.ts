@@ -18,7 +18,9 @@
 // Regras fixas: cada processo pertence a UM investidor (nunca vendido duas
 // vezes); o investidor vê o cliente só pelas INICIAIS (LGPD), o nº do
 // processo, os bancos, o advogado responsável e a fase; nada de texto de
-// publicação (traz nomes das partes).
+// publicação (traz nomes das partes). Desde 2026-11-20 a última movimentação
+// traz UMA linha do resumo da AHRI — já limpa do nome do cliente e do CPF
+// antes de chegar aqui (resumoParaInvestidor), nunca o texto publicado.
 // ─────────────────────────────────────────────────────────────────────────────
 import {
   PARTE_DA_EMPRESA,
@@ -229,7 +231,12 @@ export interface ProcessoNoPainel {
   readonly orgao: string;
   readonly fase: FaseProcesso;
   readonly faseRotulo: string;
-  readonly ultimaMovimentacao: { readonly nome: string; readonly data: string } | null;
+  readonly ultimaMovimentacao: {
+    readonly nome: string;
+    readonly data: string;
+    /** O que o juiz decidiu, em uma linha neutra (ausente sem parecer). */
+    readonly resumo?: string;
+  } | null;
   /** AAAA-MM-DD — ajuizamento (DataJud) ou cadastro no Jurídico. */
   readonly desde: string;
   readonly mesesDecorridos: number;
@@ -355,6 +362,8 @@ export function montarPainelInvestidor(entrada: {
   readonly advogadoAtual: ReadonlyMap<string, string>;
   readonly agora: Date;
   readonly nomesCompletos: boolean;
+  /** Linha neutra da última movimentação, por nº do processo (só dígitos). */
+  readonly resumos?: ReadonlyMap<string, string>;
 }): PainelInvestidor {
   const { investidor, agora } = entrada;
   const andamentoPor = new Map(entrada.andamentos.map((a) => [a.numero.replace(/\D/g, ''), a]));
@@ -409,6 +418,7 @@ export function montarPainelInvestidor(entrada: {
         resultado === null
           ? valorDoLancamento({ situacao: 'em-andamento', valorRecebido: null })
           : valorDoLancamento(resultado);
+      const resumo = entrada.resumos?.get(chave);
       return {
         numero,
         iniciais: iniciaisDoNome(a.clienteNome),
@@ -423,7 +433,11 @@ export function montarPainelInvestidor(entrada: {
         ultimaMovimentacao:
           ultimo === null
             ? null
-            : { nome: ultimo.nome.replace(/^DJEN · /, ''), data: ultimo.dataHora.slice(0, 10) },
+            : {
+                nome: ultimo.nome.replace(/^DJEN · /, ''),
+                data: ultimo.dataHora.slice(0, 10),
+                ...(resumo !== undefined ? { resumo } : {}),
+              },
         desde: desde.slice(0, 10),
         mesesDecorridos: mesesEntre(desde, agora),
         valor: {

@@ -603,3 +603,13 @@ td.num {
     grid-column: 1 / -1;
   }
 }
+
+/* O que o juiz decidiu na última movimentação (2026-11-20): uma linha, sem
+ * o nome do cliente. Largura contida para a tabela não estourar. */
+.mov-resumo {
+  margin-top: 4px;
+  max-width: 280px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--tinta-2);
+}

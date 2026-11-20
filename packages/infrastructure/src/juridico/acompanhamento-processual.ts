@@ -238,6 +238,82 @@ function ehAnalise(v: unknown): v is AnaliseMovimento {
   );
 }
 
+/** Todos os pareceres guardados — o portal do investidor lê o resumo. */
+export async function listarAnalises(json: {
+  list(ns: string): Promise<readonly unknown[]>;
+}): Promise<readonly AnaliseMovimento[]> {
+  const v = await json.list(NS_ANALISES);
+  return Array.isArray(v) ? (v as unknown[]).filter(ehAnalise) : [];
+}
+
+// ── A linha do INVESTIDOR (2026-11-20) ────────────────────────────────────────
+// O Arthur via a carteira toda como "Intimação", sem saber o que o juiz decidiu
+// — 34 dos 50 processos dele andaram no mês e pareciam parados. A linha sai do
+// resumo que a AHRI escreve para o advogado, mas só a PRIMEIRA frase (o que o
+// juiz decidiu) e sem o nome do cliente nem CPF: o investidor vê só iniciais.
+// Determinações, prazo estimado e próximo passo moram em outros campos e
+// nunca chegam ao investidor.
+
+const CONECTIVOS_DO_NOME: ReadonlySet<string> = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+const VARIANTES: Readonly<Record<string, string>> = {
+  a: '[aáàâãä]',
+  e: '[eéèêë]',
+  i: '[iíìîï]',
+  o: '[oóòôõö]',
+  u: '[uúùûü]',
+  c: '[cç]',
+  n: '[nñ]',
+};
+const TAMANHO_DA_LINHA = 180;
+
+/** Cada parte do nome casa com e sem acento ("JOSE" acha "José"). */
+function padraoDaParte(parte: string): string {
+  return [...parte.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()]
+    .map((ch) => VARIANTES[ch] ?? ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('');
+}
+
+/** Primeira frase do resumo, sem nome do cliente e sem CPF. null = nada que
+ *  valha mostrar — ou nenhum nome conhecido para tirar: aí não mostra nada. */
+export function resumoParaInvestidor(
+  resumo: string,
+  nomesDoCliente: readonly string[],
+): string | null {
+  const partes = [
+    ...new Set(
+      nomesDoCliente
+        .flatMap((n) => n.split(/\s+/))
+        .filter((p) => p.length >= 3 && !CONECTIVOS_DO_NOME.has(p.toLowerCase()))
+        .map(padraoDaParte),
+    ),
+  ];
+  if (partes.length === 0) return null;
+  const parte = `(?:${partes.join('|')})`;
+  // "a autora Maria Firmina da Silva", "Maria", "SILVA, Maria"… — qualquer
+  // sequência de partes do nome, com ou sem "a autora" na frente.
+  const nome = new RegExp(
+    `(?:(?:[ao]\\s+)?(?:parte\\s+)?(?:autora?|requerente)\\s*,?\\s+)?(?<!\\p{L})${parte}(?:,?\\s+(?:(?:d[aeo]s?|e)\\s+)?${parte})*(?!\\p{L})`,
+    'giu',
+  );
+  let texto = resumo
+    .replace(/\s+/g, ' ')
+    .replace(/(?:CPF\s*(?:n[ºo°.]*\s*)?)?\d{3}\.?\d{3}\.?\d{3}-?\d{2}/gi, '')
+    .replace(nome, 'o cliente')
+    .replace(/\bde o cliente\b/gi, 'do cliente')
+    .replace(/\ba o cliente\b/gi, 'ao cliente')
+    .replace(/\bem o cliente\b/gi, 'no cliente')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  texto = texto.split(/(?<=[.!?])\s+(?=\p{Lu})/u)[0] ?? '';
+  if (texto.length > TAMANHO_DA_LINHA) {
+    const corte = texto.slice(0, TAMANHO_DA_LINHA - 1);
+    texto = `${corte.slice(0, corte.lastIndexOf(' ')).replace(/[,;:]$/, '')}…`;
+  }
+  if (texto.length < 3) return null;
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 // ── Visão do advogado ─────────────────────────────────────────────────────────
 
 export interface MovimentoComParecer extends MovimentoProcesso {

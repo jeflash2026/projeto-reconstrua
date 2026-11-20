@@ -5,6 +5,7 @@ import { InMemoryJsonStore } from '../production/json-store.js';
 import type { MediaStorePort } from '../media/media-store-port.js';
 import { JuridicoService, type AndamentoProcesso } from '../juridico/juridico-service.js';
 import type { EntregaAoAdvogado } from '../juridico/pastas-advogado.js';
+import { chaveDaComunicacao, listarAnalises } from '../juridico/acompanhamento-processual.js';
 import {
   faseDoProcesso,
   iniciaisDoNome,
@@ -83,6 +84,7 @@ describe('InvestidoresService', () => {
     juridico: JuridicoService;
     investidores: InvestidoresService;
     relogio: { t: Date };
+    json: InMemoryJsonStore;
   }> {
     const json = new InMemoryJsonStore();
     const relogio = { t: new Date('2026-09-16T13:00:00.000Z') };
@@ -121,10 +123,72 @@ describe('InvestidoresService', () => {
       secret: 'segredo',
       juridico,
       entregas: () => Promise.resolve(entregas),
+      analises: () => listarAnalises(json),
     });
     await investidores.cadastrar({ cpf: '529.982.247-25', nome: 'João Investidor' });
-    return { juridico, investidores, relogio };
+    return { juridico, investidores, relogio, json };
   }
+
+  // 2026-11-20: o Arthur via só "Intimação" em toda a carteira. A última
+  // movimentação ganha a linha do que o juiz decidiu — sem o nome do cliente.
+  it('última movimentação com parecer da AHRI ⇒ a linha do que o juiz decidiu, sem o nome', async () => {
+    const { investidores, json } = await montar();
+    const intimacao = {
+      nome: 'DJEN · Intimação',
+      dataHora: '2026-09-15T12:00:00.000Z',
+      texto: 'Vistos. Julgo PROCEDENTE o pedido formulado por TAIS REGINA CAETANO DA SILVA.',
+      link: null,
+      fonte: 'DJEN' as const,
+    };
+    const andamento: AndamentoProcesso = {
+      numero: TAIS,
+      tribunal: 'TJSP',
+      classe: 'PROCEDIMENTO COMUM CÍVEL',
+      orgaoJulgador: '1ª Vara Cível',
+      assunto: '',
+      grau: 'G1',
+      dataAjuizamento: '2026-08-27',
+      ultimoMovimento: { nome: intimacao.nome, dataHora: intimacao.dataHora },
+      movimentos: [intimacao],
+      emExecucao: false,
+      novidade: false,
+      consultadoEm: '2026-09-16T12:00:00.000Z',
+      erro: null,
+      vistoAte: null,
+      vistoPor: null,
+    };
+    await json.put('juridico-andamentos', TAIS.replace(/\D/g, ''), andamento);
+    const chave = chaveDaComunicacao(TAIS, intimacao);
+    await json.put('juridico-analises', chave, {
+      chave,
+      processo: TAIS,
+      dataPublicacao: '2026-09-15',
+      tipo: 'Intimação',
+      resumo:
+        'O juiz julgou procedente o pedido de Taís Regina Caetano da Silva, com devolução em dobro. O banco ainda pode recorrer.',
+      determinacoes: [],
+      exigeAcao: false,
+      proximoPasso: 'Aguardar o prazo de recurso do banco.',
+      tom: 'favoravel',
+      geradoEm: '2026-09-16T12:00:00.000Z',
+    });
+    await investidores.alocar(CPF, [TAIS, GILDETE], 10_000, 'founder-console');
+
+    const painel = await investidores.painel(CPF);
+    const tais = painel?.processos.find((p) => p.numero === TAIS);
+    expect(tais?.ultimaMovimentacao).toEqual({
+      nome: 'Intimação',
+      data: '2026-09-15',
+      resumo: 'O juiz julgou procedente o pedido do cliente, com devolução em dobro.',
+    });
+    // Nada do texto publicado, do próximo passo do advogado ou do nome.
+    const tudo = JSON.stringify(painel);
+    expect(tudo).not.toContain('Caetano');
+    expect(tudo).not.toContain('TAIS');
+    expect(tudo).not.toContain('Aguardar o prazo');
+    // Processo ainda sem nenhuma publicação continua sem movimentação.
+    expect(painel?.processos.find((p) => p.numero === GILDETE)?.ultimaMovimentacao).toBeNull();
+  });
 
   it('convite → senha → login por CPF; convite não reutilizável; erro genérico', async () => {
     const { investidores, relogio } = await montar();

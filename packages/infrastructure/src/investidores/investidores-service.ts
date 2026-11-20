@@ -25,6 +25,11 @@ import type {
 } from '../juridico/juridico-service.js';
 import { montarPastasPorAdvogado, type EntregaAoAdvogado } from '../juridico/pastas-advogado.js';
 import {
+  chaveDaComunicacao,
+  resumoParaInvestidor,
+  type AnaliseMovimento,
+} from '../juridico/acompanhamento-processual.js';
+import {
   montarPainelInvestidor,
   numeroCnj,
   REFERENCIA_DO_INVESTIDOR,
@@ -61,6 +66,9 @@ export interface InvestidoresDeps {
   };
   /** Clientes entregues pelo Admin a cada advogado (o advogado responsável). */
   readonly entregas: () => Promise<readonly EntregaAoAdvogado[]>;
+  /** Pareceres da AHRI por comunicação (2026-11-20): dão a linha do que o
+   *  juiz decidiu na última movimentação. Ausente ⇒ o painel fica como era. */
+  readonly analises?: () => Promise<readonly AnaliseMovimento[]>;
 }
 
 export interface InvestidorResumoAdmin extends Investidor {
@@ -87,6 +95,8 @@ interface DadosDaCarteira {
   readonly advogadoPorCliente: ReadonlyMap<string, string>;
   readonly alocacoes: readonly AlocacaoProcesso[];
   readonly lotes: readonly LoteCarteira[];
+  /** Linha neutra da última movimentação, por nº do processo (só dígitos). */
+  readonly resumos: ReadonlyMap<string, string>;
 }
 
 export class InvestidoresService {
@@ -249,7 +259,60 @@ export class InvestidoresService {
       for (const c of pasta.clientes)
         if (c.juridicoClienteId !== null && !advogadoPorCliente.has(c.juridicoClienteId))
           advogadoPorCliente.set(c.juridicoClienteId, pasta.advogado);
-    return { contratos, clientes, andamentos, resultados, advogadoPorCliente, alocacoes, lotes };
+    const resumos = await this.resumosDaUltimaMovimentacao(
+      andamentos,
+      alocacoes,
+      contratos,
+      clientes,
+    );
+    return {
+      contratos,
+      clientes,
+      andamentos,
+      resultados,
+      advogadoPorCliente,
+      alocacoes,
+      lotes,
+      resumos,
+    };
+  }
+
+  /** A linha do que o juiz decidiu, para cada processo de alguma carteira cuja
+   *  ÚLTIMA movimentação tem parecer da AHRI. O nome sai dos DOIS cadastros
+   *  (o da alocação e o do Jurídico, que às vezes diferem) para a limpeza
+   *  pegar qualquer grafia; processo sem nome conhecido fica sem linha. */
+  private async resumosDaUltimaMovimentacao(
+    andamentos: readonly AndamentoProcesso[],
+    alocacoes: readonly AlocacaoProcesso[],
+    contratos: readonly ContratoJuridico[],
+    clientes: readonly ClienteJuridico[],
+  ): Promise<ReadonlyMap<string, string>> {
+    const resumos = new Map<string, string>();
+    if (this.deps.analises === undefined || alocacoes.length === 0) return resumos;
+    const analises = await this.deps.analises().catch(() => [] as readonly AnaliseMovimento[]);
+    if (analises.length === 0) return resumos;
+    const resumoPorChave = new Map(analises.map((a) => [a.chave, a.resumo]));
+    const digitos = (n: string): string => n.replace(/\D/g, '');
+    const nomes = new Map<string, string[]>();
+    const anotar = (processo: string, nome: string | undefined): void => {
+      if (nome === undefined || nome.trim() === '') return;
+      const lista = nomes.get(processo) ?? [];
+      lista.push(nome);
+      nomes.set(processo, lista);
+    };
+    for (const a of alocacoes) anotar(digitos(a.numero), a.clienteNome);
+    const nomeDoCliente = new Map(clientes.map((c) => [c.id, c.nome]));
+    for (const c of contratos) anotar(digitos(c.processoNumero), nomeDoCliente.get(c.clienteId));
+    for (const andamento of andamentos) {
+      const processo = digitos(andamento.numero);
+      const ultimo = andamento.movimentos[0];
+      if (ultimo === undefined || !nomes.has(processo)) continue;
+      const bruto = resumoPorChave.get(chaveDaComunicacao(andamento.numero, ultimo));
+      if (bruto === undefined) continue;
+      const linha = resumoParaInvestidor(bruto, nomes.get(processo) ?? []);
+      if (linha !== null) resumos.set(processo, linha);
+    }
+    return resumos;
   }
 
   /** Processos que podem entrar numa carteira: cadastrados no Jurídico com
@@ -417,6 +480,7 @@ export class InvestidoresService {
       advogadoAtual: d.advogadoPorCliente,
       agora: this.deps.clock.now(),
       nomesCompletos,
+      resumos: d.resumos,
     });
   }
 

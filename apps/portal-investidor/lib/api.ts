@@ -52,7 +52,9 @@ export interface ProcessoNoPainel {
   orgao: string;
   fase: FaseProcesso;
   faseRotulo: string;
-  ultimaMovimentacao: { nome: string; data: string } | null;
+  /** `resumo` (2026-11-20): o que o juiz decidiu, em uma linha, sem o nome
+   *  do cliente. Ausente quando a movimentação não tem parecer da AHRI. */
+  ultimaMovimentacao: { nome: string; data: string; resumo?: string } | null;
   desde: string;
   mesesDecorridos: number;
   valor: {

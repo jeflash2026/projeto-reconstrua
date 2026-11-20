@@ -200,7 +200,7 @@ import {
 import { ResilientHttpClient } from './resilient-http.js';
 import { zipStore, type ArquivoZip } from '../util/zip.js';
 import { DjenClient } from '../juridico/djen-client.js';
-import { AcompanhamentoProcessual } from '../juridico/acompanhamento-processual.js';
+import { AcompanhamentoProcessual, listarAnalises } from '../juridico/acompanhamento-processual.js';
 import { createLlmBundle, type LlmBundle } from './llm-adapters.js';
 import { ProductionIngress } from './production-ingress.js';
 import { PRODUCTION_RULE_CATALOG } from './production-rule-catalog.js';
@@ -2782,6 +2782,8 @@ export function assembleProduction(wiring: ProductionWiring): AssembledProductio
     juridico,
     // Varre todos os clientes e as atribuições: memória de 2 min (requentada).
     entregas: () => entregasMemo(),
+    // O que o juiz decidiu na última movimentação (2026-11-20).
+    analises: () => listarAnalises(json),
   });
   investidoresRef = investidores;
   // CADASTRO DE PROCESSOS via Jarvis (decreto 2026-08-31): o dono cola o bloco

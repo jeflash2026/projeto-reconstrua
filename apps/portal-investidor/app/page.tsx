@@ -233,6 +233,9 @@ export default async function PainelPage(): Promise<ReactElement> {
                             <>
                               <div>{p.ultimaMovimentacao.nome}</div>
                               <div className="dim">{dataBr(p.ultimaMovimentacao.data)}</div>
+                              {p.ultimaMovimentacao.resumo !== undefined && (
+                                <div className="mov-resumo">{p.ultimaMovimentacao.resumo}</div>
+                              )}
                             </>
                           ) : (
                             <span className="dim">aguardando a primeira publicação</span>

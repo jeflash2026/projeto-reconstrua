@@ -3,7 +3,7 @@
 // extensão desce e não abre em programa nenhum — para quem recebe, é o mesmo
 // que não ter recebido.
 import { describe, it, expect } from 'vitest';
-import { extensaoDoMime, nomeComExtensao } from './zip.js';
+import { comNomesUnicos, extensaoDoMime, nomeComExtensao } from './zip.js';
 
 describe('extensaoDoMime', () => {
   it('cobre os três formatos que o sistema aceita', () => {
@@ -40,5 +40,47 @@ describe('nomeComExtensao', () => {
     expect(nomeComExtensao('comprovante-556798743285', 'image/jpeg')).toBe(
       'comprovante-556798743285.jpg',
     );
+  });
+});
+
+// O pacote do cliente juntava três RGs com o MESMO nome: ao extrair no
+// Windows, um sobrescrevia o outro e o advogado ficava com um só.
+describe('comNomesUnicos', () => {
+  const arq = (name: string): { name: string; content: string } => ({ name, content: name });
+
+  it('o primeiro fica intacto; os repetidos ganham (2), (3) antes da extensão', () => {
+    const nomes = comNomesUnicos([
+      arq('documentos/RG - rg-554792384564.jpg'),
+      arq('documentos/RG - rg-554792384564.jpg'),
+      arq('documentos/RG - rg-554792384564.jpg'),
+      arq('documentos/Comprovante de endereço - comprovante-554792384564.jpg'),
+    ]).map((a) => a.name);
+    expect(nomes).toEqual([
+      'documentos/RG - rg-554792384564.jpg',
+      'documentos/RG - rg-554792384564 (2).jpg',
+      'documentos/RG - rg-554792384564 (3).jpg',
+      'documentos/Comprovante de endereço - comprovante-554792384564.jpg',
+    ]);
+  });
+
+  it('maiúscula e minúscula contam como o mesmo nome (o Windows não distingue)', () => {
+    expect(comNomesUnicos([arq('rg.JPG'), arq('RG.jpg')]).map((a) => a.name)).toEqual([
+      'rg.JPG',
+      'RG (2).jpg',
+    ]);
+  });
+
+  it('não colide com um "(2)" que já existia; nome sem extensão também é numerado', () => {
+    expect(
+      comNomesUnicos([arq('a.pdf'), arq('a (2).pdf'), arq('a.pdf'), arq('sem'), arq('sem')]).map(
+        (a) => a.name,
+      ),
+    ).toEqual(['a.pdf', 'a (2).pdf', 'a (3).pdf', 'sem', 'sem (2)']);
+  });
+
+  it('ponto em nome de pasta não vira extensão; o conteúdo vai junto', () => {
+    const r = comNomesUnicos([arq('v1.0/doc'), arq('v1.0/doc')]);
+    expect(r.map((a) => a.name)).toEqual(['v1.0/doc', 'v1.0/doc (2)']);
+    expect(r[1]?.content).toBe('v1.0/doc');
   });
 });

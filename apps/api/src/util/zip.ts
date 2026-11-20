@@ -5,5 +5,6 @@ export {
   nomeArquivoSeguro,
   nomeComExtensao,
   extensaoDoMime,
+  comNomesUnicos,
   type ArquivoZip,
 } from '@reconstrua/infrastructure';

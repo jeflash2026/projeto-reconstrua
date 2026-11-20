@@ -168,3 +168,28 @@ export function extensaoDoMime(mime: string): string {
 export function nomeComExtensao(nome: string, mime: string): string {
   return /\.[a-z0-9]{2,4}$/i.test(nome) ? nome : `${nome}.${extensaoDoMime(mime)}`;
 }
+
+/** NOMES ÚNICOS NO ZIP (2026-11-20): o pacote do cliente juntava três RGs com
+ *  o MESMO nome ("RG - rg-554792384564.jpg") — ao extrair no Windows, um
+ *  sobrescreve o outro e o advogado fica com um só. O primeiro fica intacto;
+ *  os repetidos ganham " (2)", " (3)" antes da extensão. A comparação ignora
+ *  maiúsculas porque o sistema de arquivos do Windows também ignora. */
+export function comNomesUnicos(arquivos: readonly ArquivoZip[]): ArquivoZip[] {
+  const usados = new Set<string>();
+  return arquivos.map((a) => {
+    if (!usados.has(a.name.toLowerCase())) {
+      usados.add(a.name.toLowerCase());
+      return a;
+    }
+    const partes = /^(.*?)(\.[^./]+)?$/.exec(a.name);
+    const base = partes?.[1] ?? a.name;
+    const ext = partes?.[2] ?? '';
+    for (let n = 2; ; n += 1) {
+      const candidato = `${base} (${String(n)})${ext}`;
+      if (!usados.has(candidato.toLowerCase())) {
+        usados.add(candidato.toLowerCase());
+        return { ...a, name: candidato };
+      }
+    }
+  });
+}

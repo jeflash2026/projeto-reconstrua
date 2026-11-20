@@ -18,7 +18,7 @@ import {
   montarPastasPorAdvogado,
   type EntregaAoAdvogado,
 } from '@reconstrua/infrastructure';
-import { zipStore, nomeArquivoSeguro, nomeComExtensao } from '../util/zip.js';
+import { zipStore, nomeArquivoSeguro, nomeComExtensao, comNomesUnicos } from '../util/zip.js';
 import { xlsxDePlanilha } from '../util/xlsx.js';
 import {
   CATALOGO_CONSIGNADO_INSS,
@@ -1108,7 +1108,7 @@ export function buildAdminServer(
         /* originais indisponíveis não seguram a planilha — o zip desce assim mesmo */
       }
     }
-    return { nomeCliente, arquivos };
+    return { nomeCliente, arquivos: comNomesUnicos(arquivos) };
   }
 
   /** Content-disposition com nome acentuado: ASCII de fallback + UTF-8 real. */

@@ -174,6 +174,9 @@ export interface JuridicoDeps {
   readonly djen?: {
     consultar(numeroCnj: string): Promise<readonly PublicacaoDjen[]>;
   };
+  /** Espera do ritmo e da segunda passada — injetável para os testes não
+   *  dormirem minutos de verdade. */
+  readonly dormir?: (ms: number) => Promise<void>;
 }
 
 /** Um ato do processo: movimentação (DataJud) ou comunicação publicada (DJEN). */
@@ -247,6 +250,10 @@ interface AndamentoDatajud {
 }
 
 const NS_ANDAMENTOS = 'juridico-andamentos';
+/** Quanto a rodada espera antes de repetir quem falhou: tempo de o limite do
+ *  DataJud e a cota do relay do DJEN esfriarem. */
+const ESPERA_SEGUNDA_PASSADA_MS = 3 * 60_000;
+type DesfechoDaConsulta = 'novidade' | 'encontrado' | 'falha' | 'sem-registro';
 const NS_RESULTADOS = 'juridico-resultados';
 
 /** RESULTADO DO PROCESSO (2026-09-16) — o valor REAL que o dono lança:
@@ -363,7 +370,15 @@ export function distribuidosNoDia(
 
 /** Resultado de uma rodada de atualização dos andamentos. */
 export type ResultadoAtualizacao =
-  | { ok: true; consultados: number; encontrados: number; novidades: number; erros: number }
+  | {
+      ok: true;
+      consultados: number;
+      encontrados: number;
+      novidades: number;
+      erros: number;
+      /** Falharam na primeira passada e deram certo na segunda. */
+      recuperados: number;
+    }
   | { ok: false; error: string };
 
 export class JuridicoService {
@@ -1038,10 +1053,10 @@ export class JuridicoService {
       ...new Set(contratos.filter((c) => c.status !== 'excluido').map((c) => c.processoNumero)),
     ];
     const mensagem = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-    let encontrados = 0;
-    let novidades = 0;
-    let erros = 0;
-    for (const numero of numeros) {
+    const dormir =
+      this.deps.dormir ?? ((ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)));
+    const processar = async (numero: string): Promise<DesfechoDaConsulta> => {
+      let desfecho: DesfechoDaConsulta;
       const chave = numero.replace(/\D/g, '');
       const anterior = (await this.deps.json.get(NS_ANDAMENTOS, chave)) as AndamentoProcesso | null;
 
@@ -1088,7 +1103,7 @@ export class JuridicoService {
           erroDatajud !== null ? `DataJud: ${erroDatajud}` : null,
           erroDjen !== null ? `DJEN: ${erroDjen}` : null,
         ].filter((f): f is string => f !== null);
-        if (falhas.length > 0) erros += 1;
+        desfecho = falhas.length > 0 ? 'falha' : 'sem-registro';
         await this.deps.json.put(NS_ANDAMENTOS, chave, {
           numero,
           tribunal: anterior?.tribunal ?? '',
@@ -1110,13 +1125,12 @@ export class JuridicoService {
           vistoPor: anterior?.vistoPor ?? null,
         } satisfies AndamentoProcesso);
       } else {
-        encontrados += 1;
         // Novidade = qualquer ato que ainda não estava registrado (duas
         // publicações no MESMO dia também contam).
         const jaTinha = new Set(anteriores.map(chaveMovimento));
         const novidade =
           anterior !== null && movimentos.some((m) => !jaTinha.has(chaveMovimento(m)));
-        if (novidade) novidades += 1;
+        desfecho = novidade ? 'novidade' : 'encontrado';
         const capaDjen = publicacoes?.[0] ?? null;
         const classe = primeiroTexto(retrato?.classe, capaDjen?.classe, anterior?.classe);
         const topo = movimentos[0] ?? null;
@@ -1143,14 +1157,47 @@ export class JuridicoService {
         } satisfies AndamentoProcesso);
       }
       // Ritmo suave com as APIs públicas do CNJ.
-      await new Promise((r) => setTimeout(r, 400));
+      await dormir(400);
+      return desfecho;
+    };
+
+    const desfechos = new Map<string, DesfechoDaConsulta>();
+    for (const numero of numeros) desfechos.set(numero, await processar(numero));
+    // SEGUNDA PASSADA (2026-11-19): numa rodada real, 43 de 109 processos
+    // falharam — DataJud estourando o tempo ou devolvendo 429, e o relay do
+    // DJEN cortando por cota (dividida com o próprio Corvo). É tudo passageiro:
+    // quem falhou tenta de novo quando o limite esfria, em vez de esperar as 6
+    // horas da próxima rodada. O portal do investidor lê destes retratos — sem
+    // isto, quase metade da carteira ficava parada no último retrato bom.
+    const falharam = numeros.filter((n) => desfechos.get(n) === 'falha');
+    let recuperados = 0;
+    if (falharam.length > 0) {
+      await dormir(ESPERA_SEGUNDA_PASSADA_MS);
+      for (const numero of falharam) {
+        const desfecho = await processar(numero);
+        if (desfecho !== 'falha') recuperados += 1;
+        desfechos.set(numero, desfecho);
+      }
     }
+    const contar = (...alvos: readonly DesfechoDaConsulta[]): number =>
+      [...desfechos.values()].filter((d) => alvos.includes(d)).length;
+    const novidades = contar('novidade');
     await this.registrarHistorico(
       'Andamentos atualizados (DataJud + DJEN).',
-      `${String(numeros.length)} processo(s) consultado(s), ${String(novidades)} com novidade`,
+      `${String(numeros.length)} processo(s) consultado(s), ${String(novidades)} com novidade` +
+        (falharam.length > 0
+          ? `; ${String(recuperados)} de ${String(falharam.length)} recuperado(s) na segunda passada`
+          : ''),
       'Acompanhamento',
     );
-    return { ok: true, consultados: numeros.length, encontrados, novidades, erros };
+    return {
+      ok: true,
+      consultados: numeros.length,
+      encontrados: contar('novidade', 'encontrado'),
+      novidades,
+      erros: contar('falha'),
+      recuperados,
+    };
   }
 
   // ── FILA DE MOVIMENTAÇÕES (2026-08-08) — processo que se mexeu entra na

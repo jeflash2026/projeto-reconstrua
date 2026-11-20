@@ -118,6 +118,7 @@ describe('atualizarAndamentos — DataJud sem o processo, DJEN com as publicaç�
       clock: { now: () => new Date('2026-09-10T20:00:00.000Z') },
       datajud: { consultar: () => Promise.resolve(null) },
       djen,
+      dormir: () => Promise.resolve(),
     });
   }
   async function comProcesso(svc: JuridicoService): Promise<void> {
@@ -226,6 +227,108 @@ describe('atualizarAndamentos — DataJud sem o processo, DJEN com as publicaç�
       iniciadaEm: null,
       ultima: { ok: true, consultados: 1 },
     });
+  });
+});
+
+// ── SEGUNDA PASSADA (2026-11-19): numa rodada real, 43 de 109 processos
+// falharam por limite do DataJud e do relay do DJEN — passageiro. Quem falha
+// tenta de novo no fim da MESMA rodada, depois de o limite esfriar. ─────────
+describe('atualizarAndamentos — segunda passada para quem falhou', () => {
+  const esperas: number[] = [];
+  function montar(djen: {
+    consultar(n: string): Promise<readonly PublicacaoDjen[]>;
+  }): JuridicoService {
+    esperas.length = 0;
+    return new JuridicoService({
+      json: new InMemoryJsonStore(),
+      media: {} as MediaStorePort,
+      clock: { now: () => new Date('2026-11-19T20:00:00.000Z') },
+      datajud: {
+        consultar: () => Promise.reject(new Error('The operation was aborted due to timeout')),
+      },
+      djen,
+      dormir: (ms) => {
+        esperas.push(ms);
+        return Promise.resolve();
+      },
+    });
+  }
+  async function comProcesso(svc: JuridicoService): Promise<void> {
+    const c = await svc.criarCliente({ nome: 'Cliente da Carteira' }, 'teste');
+    if (!c.ok) throw new Error('cliente não criado');
+    await svc.criarProcesso(
+      {
+        clienteId: c.valor,
+        numero: '4002443-31.2026.8.26.0619',
+        bancos: [{ banco: 'BANCO PAN', contratos: [{ numero: 's/nº' }] }],
+      },
+      'teste',
+    );
+  }
+  const INTIMACAO: PublicacaoDjen = {
+    id: '9',
+    data: '2026-11-19',
+    tribunal: 'TJSP',
+    tipo: 'Intimação',
+    orgao: '1ª Vara Cível',
+    classe: 'PROCEDIMENTO COMUM CÍVEL',
+    texto: 'Vistos. Manifeste-se a parte autora.',
+    link: null,
+  };
+  const ESPERA = 3 * 60_000;
+
+  it('falhou na primeira e deu certo na segunda ⇒ recuperado, sem erro na tela', async () => {
+    let chamadas = 0;
+    const svc = montar({
+      consultar: () => {
+        chamadas += 1;
+        return chamadas === 1
+          ? Promise.reject(new Error('DJEN respondeu HTTP 429'))
+          : Promise.resolve([INTIMACAO]);
+      },
+    });
+    await comProcesso(svc);
+    expect(await svc.atualizarAndamentos()).toMatchObject({
+      ok: true,
+      consultados: 1,
+      encontrados: 1,
+      erros: 0,
+      recuperados: 1,
+    });
+    expect(esperas).toContain(ESPERA);
+    const [a] = await svc.listarAndamentos();
+    expect(a?.erro).toBeNull();
+    expect(a?.movimentos[0]?.nome).toBe('DJEN · Intimação');
+  });
+
+  it('falhou nas duas ⇒ erro literal na tela e o último retrato bom preservado', async () => {
+    let chamadas = 0;
+    const svc = montar({
+      consultar: () => {
+        chamadas += 1;
+        return chamadas === 1
+          ? Promise.resolve([INTIMACAO])
+          : Promise.reject(new Error('DJEN respondeu HTTP 429'));
+      },
+    });
+    await comProcesso(svc);
+    await svc.atualizarAndamentos(); // rodada boa: guarda a intimação
+    expect(await svc.atualizarAndamentos()).toMatchObject({
+      ok: true,
+      erros: 1,
+      recuperados: 0,
+    });
+    expect(chamadas).toBe(3); // a boa + as duas passadas da rodada ruim
+    const [a] = await svc.listarAndamentos();
+    expect(a?.erro).toContain('HTTP 429');
+    expect(a?.movimentos.map((m) => m.nome)).toEqual(['DJEN · Intimação']);
+  });
+
+  it('ninguém falhou ⇒ a rodada não espera os 3 minutos', async () => {
+    const svc = montar({ consultar: () => Promise.resolve([INTIMACAO]) });
+    await comProcesso(svc);
+    expect(await svc.atualizarAndamentos()).toMatchObject({ erros: 0, recuperados: 0 });
+    expect(esperas).not.toContain(ESPERA);
   });
 });
 

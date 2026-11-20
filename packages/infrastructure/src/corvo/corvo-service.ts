@@ -36,12 +36,18 @@ const NS_ANEXOS = 'corvo-anexos'; // chave: `${respostaId}:${indice}`
 const NS_ESTADO = 'corvo-estado'; // chave: 'reconciliacao'
 const NS_DOSSIES = 'corvo-dossies'; // chave: `${cpf}:${hashRaiz}` (uma linha por VERSÃO)
 const NS_DOSSIE_FILA = 'corvo-dossie-fila'; // chave: cpf (debounce do download)
+const NS_DOSSIE_VARREDURA = 'corvo-dossie-varredura'; // chave: cpf (última busca da rede de segurança)
 const NS_ENVIO_FILA = 'corvo-envio-fila'; // chave: clienteId (gatilho: perícia iniciada)
 
 /** Debounce do dossiê: vários eventos do mesmo CPF em sequência ⇒ UM download
  *  ao final da rajada (2 min de silêncio) — com teto de 10 min de espera. */
 const DOSSIE_SILENCIO_MS = 2 * 60_000;
 const DOSSIE_TETO_ESPERA_MS = 10 * 60_000;
+/** Rede de segurança: no máximo UMA busca por dia por CPF (dossiê que não
+ *  existe no Corvo não vira martelada) e só 1 h depois do último e-mail ao
+ *  banco (antes disso, quem baixa é a fila por evento). */
+const DOSSIE_VARREDURA_INTERVALO_MS = 24 * 60 * 60_000;
+const DOSSIE_VARREDURA_FOLGA_MS = 60 * 60_000;
 
 /** Backoff dos envios transitórios (a partir daí, repete o último). */
 const BACKOFF_MS = [60_000, 300_000, 1_800_000] as const;
@@ -1015,6 +1021,57 @@ export class CorvoService {
       }
     }
     return { baixados };
+  }
+
+  /** REDE DE SEGURANÇA (2026-11-20). O download do dossiê só nasce de evento
+   *  do Corvo com dados.dossie (banco.envio/banco.resposta). Cliente cujos
+   *  e-mails aos bancos saíram antes de o recurso existir (27/08), e a quem
+   *  nenhum banco respondeu depois, nunca ganhava dossiê — eram 7, a Maria
+   *  Firmina entre eles. Aqui, todo CPF com e-mail a banco registrado e nenhum
+   *  dossiê é buscado sob demanda. Busca é só leitura: nada sai aos bancos. */
+  async buscarDossiesFaltantes(): Promise<{ tentados: number; baixados: number }> {
+    if (this.deps.client === null || this.deps.media === undefined)
+      return { tentados: 0, baixados: 0 };
+    const agora = this.deps.clock.now().getTime();
+    const ultimoEmailPorCpf = new Map<string, number>();
+    for (const e of (await this.deps.json.list(NS_ENVIOS)) as readonly EnvioCorvo[]) {
+      const cpf = e.cpf ?? '';
+      if (cpf.length !== 11) continue;
+      const em = new Date(e.enviadoEm ?? '').getTime();
+      ultimoEmailPorCpf.set(
+        cpf,
+        Math.max(ultimoEmailPorCpf.get(cpf) ?? 0, Number.isNaN(em) ? 0 : em),
+      );
+    }
+    if (ultimoEmailPorCpf.size === 0) return { tentados: 0, baixados: 0 };
+    const comDossie = new Set(
+      ((await this.deps.json.list(NS_DOSSIES)) as readonly DossieCorvo[]).map((d) => d.cpf),
+    );
+    const naFila = new Set(
+      ((await this.deps.json.list(NS_DOSSIE_FILA)) as readonly { cpf: string }[]).map((p) => p.cpf),
+    );
+    let tentados = 0;
+    let baixados = 0;
+    for (const [cpf, ultimoEmail] of ultimoEmailPorCpf) {
+      if (comDossie.has(cpf) || naFila.has(cpf)) continue;
+      if (agora - ultimoEmail < DOSSIE_VARREDURA_FOLGA_MS) continue;
+      const ultima = (await this.deps.json.get(NS_DOSSIE_VARREDURA, cpf)) as {
+        tentadoEm: string;
+      } | null;
+      if (
+        ultima !== null &&
+        agora - new Date(ultima.tentadoEm).getTime() < DOSSIE_VARREDURA_INTERVALO_MS
+      )
+        continue;
+      // Carimba ANTES de buscar: uma falha no meio não vira nova tentativa já.
+      await this.deps.json.put(NS_DOSSIE_VARREDURA, cpf, {
+        cpf,
+        tentadoEm: new Date(agora).toISOString(),
+      });
+      tentados += 1;
+      if ((await this.baixarEGuardarDossie(cpf, null)).ok) baixados += 1;
+    }
+    return { tentados, baixados };
   }
 
   /** Download + verificação + gravação. Público: o botão "Atualizar dossiê"

@@ -606,6 +606,54 @@ describe('dossiê de integridade — debounce, verificação e versões', () => 
     expect((await b.svc.baixarEGuardarDossie(CPF, null)).ok).toBe(false);
     expect(await b.svc.dossiesDe(CPF)).toHaveLength(0);
   });
+
+  // REDE DE SEGURANÇA (2026-11-20): e-mail a banco ANTERIOR ao recurso de
+  // dossiê (sem dados.dossie no evento) e nenhuma resposta depois ⇒ ninguém
+  // pedia o dossiê. Eram 7 clientes em produção, a Maria Firmina entre eles.
+  const emailAoBanco = (b: ReturnType<typeof bancadaDossie>, comDossie: boolean) =>
+    b.svc.processarEvento({
+      id: `e-env-${String(comDossie)}`,
+      tipo: 'banco.envio',
+      ocorridoEm: '',
+      dados: {
+        envioId: 'env-1',
+        cliente: { nome: 'JOSÉ', cpf: CPF },
+        banco: { codigo: '033', nome: 'SANTANDER' },
+        enviadoEm: AGORA.toISOString(),
+        ...(comDossie ? { dossie: { cpf: CPF } } : {}),
+      },
+    });
+
+  it('rede de segurança: e-mail a banco sem dossiê ⇒ busca depois de 1 h, grava e não repete', async () => {
+    const b = bancadaDossie([zipDossie('x  a.eml\n')]);
+    await emailAoBanco(b, false);
+    // Logo depois do e-mail, quem baixaria é a fila do evento: a varredura espera.
+    expect(await b.svc.buscarDossiesFaltantes()).toEqual({ tentados: 0, baixados: 0 });
+    b.avancar(60 * 60_000 + 1);
+    expect(await b.svc.buscarDossiesFaltantes()).toEqual({ tentados: 1, baixados: 1 });
+    expect(await b.svc.dossiesDe(CPF)).toHaveLength(1);
+    // Já tem dossiê: nunca mais busca por esta via.
+    b.avancar(48 * 60 * 60_000);
+    expect(await b.svc.buscarDossiesFaltantes()).toEqual({ tentados: 0, baixados: 0 });
+  });
+
+  it('rede de segurança: dossiê que o Corvo não tem ⇒ no máximo uma busca por dia', async () => {
+    const b = bancadaDossie([]); // o Corvo responde 404 a tudo
+    await emailAoBanco(b, false);
+    b.avancar(60 * 60_000 + 1);
+    expect(await b.svc.buscarDossiesFaltantes()).toEqual({ tentados: 1, baixados: 0 });
+    b.avancar(23 * 60 * 60_000);
+    expect(await b.svc.buscarDossiesFaltantes()).toEqual({ tentados: 0, baixados: 0 });
+    b.avancar(60 * 60_000);
+    expect(await b.svc.buscarDossiesFaltantes()).toEqual({ tentados: 1, baixados: 0 });
+  });
+
+  it('rede de segurança: CPF que já está na fila do evento ⇒ a varredura não se mete', async () => {
+    const b = bancadaDossie([zipDossie('x  a.eml\n')]);
+    await emailAoBanco(b, true); // evento novo, com dados.dossie: entra na fila
+    b.avancar(60 * 60_000 + 1);
+    expect(await b.svc.buscarDossiesFaltantes()).toEqual({ tentados: 0, baixados: 0 });
+  });
 });
 
 // ── PONTE COM A PERÍCIA (2026-08-28): a credencial da caixa vai ao card ──────

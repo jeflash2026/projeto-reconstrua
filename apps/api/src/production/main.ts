@@ -705,6 +705,29 @@ async function main(): Promise<void> {
         );
       });
     }, 15 * 60_000);
+    // Rede de segurança do dossiê (2026-11-20): de hora em hora, quem tem
+    // e-mail a banco e nenhum dossiê é buscado sob demanda (1x/dia por CPF).
+    setInterval(() => {
+      void prod.corvo
+        .buscarDossiesFaltantes()
+        .then((r) => {
+          if (r.tentados > 0)
+            prod.observability.event(
+              'corvo',
+              'dossie-varredura',
+              clock.now(),
+              `${String(r.baixados)} de ${String(r.tentados)} dossiê(s) recuperado(s)`,
+            );
+        })
+        .catch((error: unknown) => {
+          prod.observability.error(
+            'corvo',
+            'dossie-varredura',
+            clock.now(),
+            error instanceof Error ? error.message : 'falha na varredura de dossiês',
+          );
+        });
+    }, 60 * 60_000);
   }
 }
 
